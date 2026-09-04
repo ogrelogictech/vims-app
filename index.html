@@ -1,0 +1,1455 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="color-scheme" content="light">
+<title>VIMS App — Phase 1 UI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+  :root{
+    color-scheme:light;
+    --bg:#0c1119;
+    --paper:#ffffff;--paper-2:#f4f7fa;--paper-3:#e9eef4;--line:#dde5ee;--line-2:#eef2f7;
+    --ink:#17222e;--ink-2:#48586a;--ink-3:#7d8b9c;
+    --brand:#2e7d9a;--brand-bright:#3c9cbe;--brand-deep:#1a4f64;
+    --signal:#e4a11b;--signal-deep:#a5730a;
+    --c1:#d0584a;--c1-bg:#fbe9e6;--c2:#c98a1a;--c2-bg:#fbf1dd;--c3:#2f9e6b;--c3-bg:#e7f4ee;
+    --pass:#2f9e6b;--fail:#d0584a;
+    --fd:'Archivo',system-ui,sans-serif;--fu:'IBM Plex Sans',system-ui,sans-serif;--fm:'IBM Plex Mono',ui-monospace,monospace;
+    --hdr:#1a4f64;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%}
+  body{font-family:var(--fu);color:var(--ink);background:radial-gradient(1000px 560px at 80% -10%,rgba(46,125,154,.22),transparent 60%),var(--bg);display:flex;align-items:center;justify-content:center;min-height:100vh}
+  .device{width:100%;max-width:430px;height:100vh;max-height:100vh;position:relative;background:var(--paper-2);color:var(--ink);display:flex;flex-direction:column;overflow:hidden}
+  @media(min-width:480px){ body{padding:24px} .device{height:900px;max-height:94vh;border-radius:40px;box-shadow:0 40px 90px -30px #000,0 0 0 11px #05070b,0 0 0 13px #1b2430} }
+
+  .statusbar{background:var(--hdr);color:#fff;display:flex;align-items:center;justify-content:space-between;padding:11px 20px 8px;font-family:var(--fm);font-size:12px;flex:none}
+  .nb{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:20px;font-size:11px}
+  .nb.off{background:rgba(228,161,27,.22);color:#f2c869}.nb.on{background:rgba(47,158,107,.26);color:#7ce0af}
+  .nb .d{width:6px;height:6px;border-radius:50%;background:currentColor}
+
+  .apphdr{background:var(--hdr);color:#fff;display:flex;align-items:center;gap:10px;padding:6px 12px 14px;flex:none}
+  .apphdr .ic{width:40px;height:40px;border:0;background:rgba(255,255,255,.12);border-radius:11px;color:#fff;display:grid;place-items:center;cursor:pointer;flex:none}
+  .apphdr .ic:active{background:rgba(255,255,255,.22)}
+  .apphdr .ic svg{width:20px;height:20px}
+  .apphdr .tt{flex:1;min-width:0}
+  .apphdr .tt b{font-family:var(--fd);font-weight:700;font-size:17px;display:block;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .apphdr .tt span{font-size:12px;color:#bcd7e2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+  .hdractions{display:flex;align-items:center;gap:7px;flex:none}
+
+  .body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;background:var(--paper-2)}
+  .screen{display:none;padding:16px 16px 34px;min-height:100%}
+  .screen.active{display:block;animation:fade .2s ease}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .screen.pad0{padding:0}
+
+  h1,h2,h3{margin:0}
+  .lbl{font-family:var(--fm);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);margin:20px 0 10px}
+  .lbl:first-child{margin-top:2px}
+
+  .btn{font-family:var(--fu);font-weight:600;font-size:15px;border:0;border-radius:13px;padding:15px 18px;width:100%;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:9px;min-height:52px}
+  .btn svg{width:19px;height:19px}
+  .btn.primary{background:var(--brand);color:#fff;box-shadow:0 10px 22px -10px rgba(46,125,154,.75)}
+  .btn.primary:active{background:var(--brand-deep)}
+  .btn.signal{background:var(--signal);color:#3a2a05}
+  .btn.ghost{background:var(--paper);color:var(--ink);border:1px solid var(--line)}
+  .btnrow{display:flex;gap:10px;margin-top:12px}.btnrow .btn{width:auto;flex:1}
+
+  .card{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:15px 16px;margin-bottom:12px}
+  .field{margin-bottom:13px}
+  .field > label{display:block;font-size:12.5px;font-weight:600;color:var(--ink-2);margin-bottom:7px}
+  input.txt,textarea.txt,select.txt{width:100%;font-family:var(--fu);font-size:15px;color:var(--ink);background:var(--paper);border:1px solid var(--line);border-radius:11px;padding:13px 14px;min-height:48px}
+  textarea.txt{min-height:84px;resize:vertical;line-height:1.5}
+  input.txt:focus,textarea.txt:focus{outline:2px solid var(--brand);outline-offset:1px;border-color:var(--brand)}
+  input.txt::placeholder{color:#a7b4c2}
+
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{font-family:var(--fu);font-size:13.5px;font-weight:500;color:var(--ink-2);background:var(--paper);border:1.5px solid var(--line);border-radius:22px;padding:9px 15px;cursor:pointer;min-height:40px;display:inline-flex;align-items:center;transition:.12s}
+  .chip:active{transform:scale(.97)}
+  .chip.on{background:var(--brand);border-color:var(--brand);color:#fff}
+
+  .li{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:14px 15px;margin-bottom:11px}
+  .li .q{font-size:14.5px;font-weight:600;color:var(--ink);margin-bottom:11px}
+  .subq{margin-top:10px;font-size:12px;color:var(--ink-3)}
+
+  .seg{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+  .seg button{font-family:var(--fu);font-size:12px;font-weight:600;padding:11px 4px;border-radius:10px;border:1.5px solid var(--line);background:var(--paper-2);color:var(--ink-2);cursor:pointer;min-height:46px}
+  .seg button.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+
+  .row{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:14px 15px;margin-bottom:10px;display:flex;align-items:center;gap:13px;cursor:pointer;width:100%;text-align:left;font-family:inherit}
+  .row:active{background:var(--paper-2)}
+  .row .lead{width:44px;height:44px;border-radius:11px;flex:none;display:grid;place-items:center;background:var(--paper-3);color:var(--brand)}
+  .row .lead svg{width:22px;height:22px}
+  .row .lead.time{font-family:var(--fm);font-weight:700;font-size:13px;color:var(--brand);flex-direction:column;line-height:1.05}
+  .row .lead.time small{font-size:9px;color:var(--ink-3);font-weight:400}
+  .row .mid{flex:1;min-width:0}
+  .row .mid b{display:block;font-size:15px;color:var(--ink);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .row .mid span{font-size:12.5px;color:var(--ink-3)}
+  .row .end{flex:none;display:flex;align-items:center;gap:8px}
+  .row .chev{color:#b7c3d0}.row .chev svg{width:18px;height:18px;display:block}
+
+  .pill{font-family:var(--fm);font-size:10px;padding:3px 9px;border-radius:20px;font-weight:600;white-space:nowrap;display:inline-flex;align-items:center;gap:5px}
+  .pill .d{width:6px;height:6px;border-radius:50%;background:currentColor}
+  .pill.done{background:var(--c3-bg);color:#1f7a52}.pill.prog{background:rgba(46,125,154,.13);color:var(--brand-deep)}
+  .pill.queued{background:var(--c2-bg);color:var(--signal-deep)}.pill.new{background:var(--paper-3);color:var(--ink-3)}
+
+  .prog{height:7px;border-radius:6px;background:var(--paper-3);overflow:hidden}
+  .prog i{display:block;height:100%;background:linear-gradient(90deg,var(--brand),var(--brand-bright));border-radius:6px}
+  .stat2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px}
+  .stat{background:var(--paper);border:1px solid var(--line);border-radius:13px;padding:13px 14px}
+  .stat .n{font-family:var(--fd);font-weight:800;font-size:24px;color:var(--ink);line-height:1}
+  .stat .l{font-size:11.5px;color:var(--ink-3);margin-top:4px}
+
+  /* grouped overview */
+  .grp{margin-bottom:10px;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--paper)}
+  .grp>.gh{display:flex;align-items:center;gap:11px;padding:13px 15px;cursor:pointer;background:var(--paper);border:0;width:100%;font-family:inherit;text-align:left}
+  .grp>.gh .gi{width:30px;height:30px;border-radius:8px;background:var(--paper-3);color:var(--brand);display:grid;place-items:center;flex:none}
+  .grp>.gh .gi svg{width:17px;height:17px}
+  .grp>.gh b{font-size:14.5px;color:var(--ink);font-weight:700;flex:1}
+  .grp>.gh .cnt{font-family:var(--fm);font-size:11px;color:var(--ink-3)}
+  .grp>.gh .caret{color:var(--ink-3);transition:transform .2s;margin-left:8px}
+  .grp>.gh .caret svg{width:18px;height:18px;display:block}
+  .grp.open>.gh .caret{transform:rotate(180deg)}
+  .grp .gbody{display:none;border-top:1px solid var(--line-2)}
+  .grp.open .gbody{display:block}
+  .srow{display:flex;align-items:center;gap:12px;padding:12px 15px 12px 18px;border-bottom:1px solid var(--line-2);cursor:pointer;width:100%;background:none;border-left:0;border-right:0;border-top:0;font-family:inherit;text-align:left}
+  .srow:last-child{border-bottom:0}
+  .srow:active{background:var(--paper-2)}
+  .srow .sdot{width:9px;height:9px;border-radius:50%;flex:none}
+  .sdot.g{background:var(--pass)}.sdot.a{background:var(--signal)}.sdot.n{background:var(--paper-3);border:1px solid var(--line)}
+  .srow .sn{flex:1;font-size:14px;color:var(--ink);font-weight:500}
+  .srow .ss{font-family:var(--fm);font-size:10.5px;color:var(--ink-3)}
+  .subhead{font-family:var(--fm);font-size:10px;letter-spacing:.11em;text-transform:uppercase;color:var(--brand-deep);padding:12px 15px 7px 18px;background:var(--paper-2);border-top:1px solid var(--line-2);font-weight:600}
+  .steps-bar{display:flex;gap:6px;margin:4px 0 16px}
+  .steps-bar .st{flex:1;height:5px;border-radius:4px;background:var(--paper-3)}
+  .steps-bar .st.on{background:var(--brand)}
+  .steps-bar .st.done{background:var(--brand-bright)}
+  .counter{display:flex;align-items:center;justify-content:space-between;background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin-bottom:9px}
+  .counter b{font-size:14.5px;color:var(--ink)}
+  .counter .cc{display:flex;align-items:center;gap:16px}
+  .counter .cc button{width:38px;height:38px;border-radius:10px;border:1.5px solid var(--line);background:var(--paper-2);font-size:22px;line-height:1;color:var(--brand);cursor:pointer;display:grid;place-items:center}
+  .counter .cc span{font-family:var(--fm);font-weight:600;font-size:16px;min-width:20px;text-align:center;color:var(--ink)}
+  /* admin editor */
+  .ed-item{background:var(--paper);border:1px solid var(--line);border-radius:13px;padding:13px 14px;margin-bottom:11px}
+  .ed-item .eh{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+  .ed-item .eh input{flex:1;font-family:var(--fu);font-size:14.5px;font-weight:600;color:var(--ink);border:0;border-bottom:1.5px solid var(--line);background:none;padding:5px 2px}
+  .ed-item .eh input:focus{outline:none;border-color:var(--brand)}
+  .ed-item .eb{display:flex;gap:6px;flex:none}
+  .ed-item .eb button{width:32px;height:32px;border-radius:8px;border:1px solid var(--line);background:var(--paper-2);color:var(--ink-3);cursor:pointer;display:grid;place-items:center}
+  .ed-item .eb button svg{width:15px;height:15px}
+  .opt{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;background:var(--paper-3);color:var(--ink-2);border-radius:16px;padding:6px 9px 6px 12px;margin:0 6px 6px 0}
+  .opt button{border:0;background:none;color:var(--ink-3);cursor:pointer;font-size:16px;line-height:1;padding:0}
+  .opt-add{display:flex;gap:7px;margin-top:6px}
+  .opt-add input{flex:1;font-size:13px;border:1px solid var(--line);border-radius:9px;padding:9px 11px;background:var(--paper);color:var(--ink)}
+  .opt-add button{border:0;background:var(--brand);color:#fff;border-radius:9px;padding:0 15px;font-weight:600;cursor:pointer;min-height:38px}
+  .addsec{background:var(--paper);border:1px dashed var(--brand);border-radius:13px;padding:14px;margin-bottom:14px}
+  .addsec input{width:100%;font-size:14px;border:1px solid var(--line);border-radius:10px;padding:11px 12px;background:var(--paper);color:var(--ink);margin-bottom:9px}
+
+  /* drawer */
+  .scrim{position:absolute;inset:0;background:rgba(10,15,22,.5);opacity:0;pointer-events:none;transition:.2s;z-index:40}
+  .scrim.on{opacity:1;pointer-events:auto}
+  .drawer{position:absolute;top:0;bottom:0;left:0;width:84%;max-width:340px;background:var(--paper-2);z-index:50;transform:translateX(-103%);transition:transform .24s ease;display:flex;flex-direction:column;box-shadow:8px 0 40px -12px #000}
+  .drawer.on{transform:none}
+  .drawer .dh{background:var(--hdr);color:#fff;padding:18px}
+  .drawer .dh b{font-family:var(--fd);font-size:16px;display:block}
+  .drawer .dh span{font-size:12px;color:#bcd7e2}
+  .drawer .dl{flex:1;overflow-y:auto;padding:10px}
+  .dgrp{margin-bottom:8px;background:var(--paper);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .dgrp .dgh{display:flex;align-items:center;gap:10px;width:100%;border:0;background:none;padding:12px 13px;cursor:pointer;font-family:inherit;text-align:left}
+  .dgrp .dgh .di{width:26px;height:26px;border-radius:7px;background:var(--paper-3);color:var(--brand);display:grid;place-items:center;flex:none}
+  .dgrp .dgh .di svg{width:16px;height:16px}
+  .dgrp .dgh b{flex:1;font-size:13.5px;color:var(--ink);font-weight:600}
+  .dgrp .dgh .ct{font-family:var(--fm);font-size:10px;color:var(--ink-3);margin-right:6px}
+  .dgrp .dgh .car{color:var(--ink-3);transition:transform .2s}.dgrp .dgh .car svg{width:16px;height:16px;display:block}
+  .dgrp.open .dgh .car{transform:rotate(180deg)}
+  .dgrp .db{display:none;border-top:1px solid var(--line-2)}
+  .dgrp.open .db{display:block}
+  .di-row{display:flex;align-items:center;gap:10px;width:100%;border:0;background:none;padding:10px 13px 10px 16px;cursor:pointer;font-family:inherit;text-align:left;border-top:1px solid var(--line-2)}
+  .di-row:first-child{border-top:0}
+  .di-row:active{background:var(--paper-2)}
+  .di-row.on{background:rgba(46,125,154,.1)}
+  .di-row .sdot{width:8px;height:8px;border-radius:50%;flex:none}
+  .di-row .nm{flex:1;font-size:13.5px;color:var(--ink-2)}
+  .di-row.on .nm{color:var(--brand-deep);font-weight:600}
+
+  /* photos */
+  .pcat{margin-bottom:16px}
+  .pcat .ph{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px}
+  .pcat .ph b{font-size:14px;color:var(--ink);font-weight:600}
+  .pcat .ph span{font-family:var(--fm);font-size:11px;color:var(--ink-3)}
+  .pgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .pgrid .pi{aspect-ratio:1;border-radius:11px;background-size:cover;background-position:center;border:1px solid var(--line);position:relative;cursor:pointer;overflow:hidden}
+  .pgrid .pi .flag{position:absolute;top:5px;right:5px;width:20px;height:20px;border-radius:6px;display:grid;place-items:center;font-family:var(--fm);font-size:11px;font-weight:700;color:#fff}
+  .pgrid .add{aspect-ratio:1;border-radius:11px;border:1.5px dashed var(--brand);background:var(--paper);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--brand);cursor:pointer;font-size:10.5px;font-weight:600}
+  .pgrid .add svg{width:22px;height:22px}
+
+  /* modal */
+  .modal{position:absolute;inset:0;z-index:60;display:none;align-items:flex-end}
+  .modal.on{display:flex}
+  .modal .sheet{background:var(--paper);width:100%;border-radius:22px 22px 0 0;padding:20px 18px 26px;box-shadow:0 -20px 50px -20px #000;animation:up .24s ease}
+  @keyframes up{from{transform:translateY(30px)}to{transform:none}}
+  .modal h3{font-family:var(--fd);font-size:18px;margin-bottom:4px}
+  .modal p.sub{font-size:13px;color:var(--ink-3);margin:0 0 16px}
+  .catpick{display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px;margin-bottom:14px}
+  .catpick button{border:1.5px solid var(--line);background:var(--paper);border-radius:13px;padding:13px 6px;cursor:pointer;font-family:var(--fu);display:flex;flex-direction:column;align-items:center;gap:5px;min-height:74px;justify-content:center}
+  .catpick button .cn{font-family:var(--fd);font-weight:800;font-size:20px}
+  .catpick button .cl{font-size:10.5px;color:var(--ink-3);text-align:center;line-height:1.2}
+  .catpick button.c1.on{background:var(--c1-bg);border-color:var(--c1)} .catpick button.c1.on .cn{color:var(--c1)}
+  .catpick button.c2.on{background:var(--c2-bg);border-color:var(--c2)} .catpick button.c2.on .cn{color:var(--c2)}
+  .catpick button.c3.on{background:var(--c3-bg);border-color:var(--c3)} .catpick button.c3.on .cn{color:var(--c3)}
+
+  /* viewer */
+  .viewer{position:absolute;inset:0;background:#0b0f15;z-index:70;display:none;flex-direction:column}
+  .viewer.on{display:flex}
+  .viewer .vtop{display:flex;align-items:center;gap:10px;padding:14px 14px 10px;color:#fff}
+  .viewer .vtop button{background:rgba(255,255,255,.12);border:0;color:#fff;width:38px;height:38px;border-radius:10px;display:grid;place-items:center;cursor:pointer}
+  .viewer .vtop button svg{width:19px;height:19px}
+  .viewer .vtop b{font-size:14px;font-weight:600}
+  .viewer .vstage{flex:1;position:relative;display:grid;place-items:center;overflow:hidden}
+  .viewer canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none}
+  .viewer .vimg{width:100%;height:100%;object-fit:contain}
+  .vtools{background:#12181f;padding:12px 14px 18px;display:flex;flex-direction:column;gap:12px}
+  .vtools .toolrow{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+  .swatch{width:34px;height:34px;border-radius:9px;border:2px solid rgba(255,255,255,.25);cursor:pointer}
+  .swatch.on{border-color:#fff;box-shadow:0 0 0 2px #12181f,0 0 0 4px #fff}
+  .tbtn{background:rgba(255,255,255,.1);border:0;color:#fff;height:34px;min-width:34px;padding:0 10px;border-radius:9px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-family:var(--fu);font-size:13px}
+  .tbtn svg{width:17px;height:17px}.tbtn.sym{font-size:16px;justify-content:center}
+
+  /* summary */
+  .sumcat{border:1px solid var(--line);border-radius:14px;overflow:hidden;margin-bottom:12px;background:var(--paper)}
+  .sumcat .sh{display:flex;align-items:center;gap:11px;padding:13px 15px}
+  .sumcat .sh .cn{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;font-family:var(--fd);font-weight:800;font-size:16px;color:#fff}
+  .sumcat.c1 .sh .cn{background:var(--c1)}.sumcat.c2 .sh .cn{background:var(--c2)}.sumcat.c3 .sh .cn{background:var(--c3)}
+  .sumcat .sh b{font-size:14.5px;color:var(--ink);font-weight:700}.sumcat .sh span{font-size:12px;color:var(--ink-3)}
+  .sumcat .sh .cnt{margin-left:auto;font-family:var(--fm);font-weight:700;font-size:15px;color:var(--ink)}
+  .sfind{padding:11px 15px;border-top:1px solid var(--line-2);font-size:13.5px;color:var(--ink-2);display:flex;gap:10px}
+  .sfind .dt{width:7px;height:7px;border-radius:50%;margin-top:6px;flex:none}
+  .sfind.c1 .dt{background:var(--c1)}.sfind.c2 .dt{background:var(--c2)}.sfind.c3 .dt{background:var(--c3)}
+  .sfind b{color:var(--ink)}
+  .empty{color:var(--ink-3);font-size:13px;padding:12px 15px;border-top:1px solid var(--line-2)}
+
+  .covers{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+  .cover{border:2px solid var(--line);border-radius:12px;overflow:hidden;cursor:pointer;background:var(--paper)}
+  .cover.on{border-color:var(--brand);box-shadow:0 0 0 3px rgba(46,125,154,.15)}
+  .cover .cimg{aspect-ratio:3/4;background-size:cover;display:flex;align-items:flex-end;padding:10px;color:#fff}
+  .cover .cimg b{font-family:var(--fd);font-size:12px;text-shadow:0 1px 4px rgba(0,0,0,.5)}
+  .cover .cn{padding:8px 10px;font-size:12px;color:var(--ink-2);display:flex;justify-content:space-between;align-items:center}
+  .cover.on .cn b{color:var(--brand)}
+
+  .banner{display:flex;gap:11px;align-items:flex-start;background:var(--c2-bg);border:1px solid #f0dcae;border-radius:12px;padding:12px 14px;margin-bottom:14px}
+  .banner svg{width:19px;height:19px;color:var(--signal-deep);flex:none;margin-top:1px}
+  .banner div{font-size:12.5px;color:#7a5a10;line-height:1.45}.banner b{color:#5e440a}
+
+  .toast{position:absolute;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;padding:12px 18px;border-radius:12px;font-size:13.5px;font-weight:500;opacity:0;transition:.25s;z-index:80;box-shadow:0 12px 30px -10px #000;display:flex;align-items:center;gap:9px;white-space:nowrap}
+  .toast svg{width:17px;height:17px;color:#7ce0af}.toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  .success{text-align:center;padding:40px 10px 20px}
+  .success .ring{width:96px;height:96px;border-radius:50%;background:var(--c3-bg);display:grid;place-items:center;margin:0 auto 20px}
+  .success .ring svg{width:46px;height:46px;color:var(--pass)}
+  .success h2{font-family:var(--fd);font-size:22px;margin-bottom:8px}
+  .success p{color:var(--ink-3);font-size:14px;margin:0 auto 22px;max-width:34ch;line-height:1.5}
+
+  .trialbar{width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;background:linear-gradient(90deg,var(--brand),var(--brand-bright));color:#fff;border:0;border-radius:13px;padding:13px 16px;margin-bottom:14px;cursor:pointer;font-family:inherit}
+  .trialbar .tb-l{font-size:13.5px}.trialbar .tb-l b{font-weight:700}
+  .trialbar .tb-r{display:inline-flex;align-items:center;gap:3px;font-size:13.5px;font-weight:600}.trialbar .tb-r svg{width:16px;height:16px}
+  .plan{width:100%;text-align:left;border:1.5px solid var(--line);background:var(--paper);border-radius:14px;padding:15px 16px;margin-bottom:10px;cursor:pointer;display:flex;align-items:center;gap:13px;font-family:inherit}
+  .plan.on{border-color:var(--brand);box-shadow:0 0 0 3px rgba(46,125,154,.13)}
+  .plan .radio{width:22px;height:22px;border-radius:50%;border:2px solid var(--line);flex:none;display:grid;place-items:center}
+  .plan.on .radio{border-color:var(--brand)}.plan.on .radio::after{content:"";width:11px;height:11px;border-radius:50%;background:var(--brand)}
+  .plan .pinfo{flex:1}.plan .pinfo b{font-size:15px;color:var(--ink);display:block}.plan .pinfo span{font-size:12.5px;color:var(--ink-3)}
+  .plan .pprice{font-family:var(--fm);font-weight:600;font-size:15px;color:var(--ink);white-space:nowrap}.plan .pprice small{color:var(--ink-3);font-weight:400;font-size:11px}
+  .plan .tag{font-family:var(--fm);font-size:9px;background:var(--paper-3);color:var(--ink-3);padding:2px 6px;border-radius:6px;display:block;margin-top:4px}
+  .binforow{display:flex;justify-content:space-between;padding:12px 15px;border-bottom:1px solid var(--line-2);font-size:14px}
+  .binforow:last-child{border-bottom:0}.binforow b{color:var(--ink)}
+  .rev{position:absolute;right:12px;bottom:14px;z-index:90}
+  .rev-btn{width:46px;height:46px;border-radius:50%;background:var(--signal);color:#3a2a05;border:0;box-shadow:0 8px 20px -6px rgba(0,0,0,.5);cursor:pointer;display:grid;place-items:center}
+  .rev-btn svg{width:22px;height:22px}
+  .rev-menu{position:absolute;right:0;bottom:56px;background:var(--paper);border:1px solid var(--line);border-radius:14px;box-shadow:0 20px 50px -16px #000;padding:8px;width:220px;max-height:64vh;overflow-y:auto;display:none}
+  .rev-menu.on{display:block}
+  .rev-menu .rt{font-family:var(--fm);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);padding:8px 10px 4px}
+  .rev-menu button{display:block;width:100%;text-align:left;border:0;background:none;padding:9px 10px;border-radius:9px;font-family:inherit;font-size:13px;color:var(--ink-2);cursor:pointer}
+  .rev-menu button:active{background:var(--paper-2)}
+</style>
+</head>
+<body>
+<div class="device" id="device">
+
+  <div class="statusbar">
+    <span>9:41</span>
+    <span class="net"><span class="nb off" id="netbadge"><span class="d"></span>Offline · 1 queued</span></span>
+  </div>
+
+  <div class="apphdr" id="apphdr">
+    <button class="ic" id="hdrleft" onclick="hdrLeft()" aria-label="Menu"><svg id="hdrlefticon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
+    <div class="tt"><b id="hdrtitle">VIMS</b><span id="hdrsub">Vision Property Inspections</span></div>
+    <div class="hdractions" id="hdractions"></div>
+  </div>
+
+  <div class="body" id="body">
+
+    <!-- LOGIN -->
+    <section class="screen pad0" id="s-login" data-hdr="none">
+      <div style="background:var(--hdr);color:#fff;padding:46px 24px 40px;text-align:center">
+        <div style="width:72px;height:72px;border-radius:20px;background:rgba(255,255,255,.14);display:grid;place-items:center;margin:0 auto 18px"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:38px;height:38px"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20h14V9.5"/><path d="m9 13 2 2 4-4"/></svg></div>
+        <div style="font-family:var(--fd);font-weight:800;font-size:30px;letter-spacing:.02em">VIMS</div>
+        <div style="font-size:13px;color:#bcd7e2;margin-top:4px">Vision Inspection Management</div>
+      </div>
+      <div style="padding:24px 18px">
+        <div class="field"><label>Email</label><input class="txt" type="email" value="jeremy@visionpropertyinspections.com"></div>
+        <div class="field"><label>Password</label><input class="txt" type="password" value="••••••••••"></div>
+        <button class="btn primary" onclick="go('s-home')">Sign in</button>
+        <button class="btn ghost" style="margin-top:10px" onclick="go('s-signup')">Create account</button>
+        <p style="text-align:center;font-size:12.5px;color:var(--ink-3);margin-top:16px;cursor:pointer" onclick="go('s-forgot')">Forgot password?</p>
+      </div>
+    </section>
+
+    <!-- SIGN UP -->
+    <section class="screen" id="s-signup" data-title="Create account">
+      <p class="lbl">Your details</p>
+      <div class="field"><label>Full name</label><input class="txt" placeholder="Jeremy Heath"></div>
+      <div class="field"><label>Company</label><input class="txt" placeholder="Vision Property Inspections"></div>
+      <div class="field"><label>Email</label><input class="txt" type="email" placeholder="you@company.com"></div>
+      <div class="field"><label>Password</label><input class="txt" type="password" placeholder="Create a password"></div>
+      <button class="btn primary" onclick="go('s-home')">Create account &amp; continue</button>
+    </section>
+
+    <!-- FORGOT -->
+    <section class="screen" id="s-forgot" data-title="Reset password">
+      <p style="font-size:14px;color:var(--ink-2);margin:4px 0 16px;line-height:1.5">Enter your email and we'll send a reset link.</p>
+      <div class="field"><label>Email</label><input class="txt" type="email" placeholder="you@company.com"></div>
+      <button class="btn primary" onclick="toast('Reset link sent');setTimeout(function(){go('s-login')},700)">Send reset link</button>
+    </section>
+
+    <!-- HOME -->
+    <section class="screen" id="s-home" data-title="Inspections">
+      <button class="trialbar" onclick="go('s-subscribe')"><span class="tb-l"><b>Free trial</b> · <span id="hometrial">22</span> days left</span><span class="tb-r">Subscribe <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></span></button>
+      <div class="stat2">
+        <div class="stat"><div class="n">3</div><div class="l">Inspections today</div></div>
+        <div class="stat"><div class="n" id="homequeue">1</div><div class="l">Waiting to sync</div></div>
+      </div>
+      <p class="lbl">Today · Thu, Aug 27</p>
+      <button class="row" onclick="openInspection('1428 Ridgeline Dr')"><div class="lead time">9:30<small>AM</small></div><div class="mid"><b>1428 Ridgeline Dr</b><span>Ogden, UT · Standalone</span></div><div class="end"><span class="pill prog"><span class="d"></span>In progress</span></div></button>
+      <button class="row" onclick="openInspection('82 Canyon Crest #4')"><div class="lead time">1:00<small>PM</small></div><div class="mid"><b>82 Canyon Crest #4</b><span>Layton, UT · Condo</span></div><div class="end"><span class="pill queued"><span class="d"></span>Queued</span></div></button>
+      <button class="row" onclick="openInspection('210 Willow Park, Lot 17')"><div class="lead time">3:30<small>PM</small></div><div class="mid"><b>210 Willow Park, Lot 17</b><span>Roy, UT · Mobile home</span></div><div class="end"><span class="pill new"><span class="d"></span>Scheduled</span></div></button>
+      <p class="lbl">Recent</p>
+      <button class="row" onclick="openInspection('640 Harrison Blvd')"><div class="lead"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 15h6M9 12h6"/></svg></div><div class="mid"><b>640 Harrison Blvd</b><span>Aug 26 · Report sent</span></div><div class="end"><span class="pill done"><span class="d"></span>Done</span></div></button>
+      <button class="btn primary" style="margin-top:14px" onclick="go('s-new')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>New inspection</button>
+      <button class="btn ghost" style="margin-top:10px" onclick="go('s-settings')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.2.61.79 1 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Settings</button>
+    </section>
+
+    <!-- NEW INSPECTION — stepped wizard: details -> structure -> rooms -> testing -> build -->
+    <section class="screen" id="s-new" data-title="New inspection">
+      <div class="steps-bar" id="stepsbar"></div>
+
+      <div class="wstep" id="w1">
+        <p class="lbl">Client &amp; inspection</p>
+        <div class="field"><label>Client name</label><input class="txt" placeholder="Client name"></div>
+        <div class="field"><label>Inspection address</label><input class="txt" placeholder="Street, City, State"></div>
+        <div class="stat2" style="gap:10px"><div class="field" style="margin:0"><label>Date</label><input class="txt" type="date"></div><div class="field" style="margin:0"><label>Time</label><input class="txt" type="time"></div></div>
+        <div class="field" style="margin-top:13px"><label>Real estate agent</label><input class="txt" placeholder="Agent name (optional)"></div>
+        <p class="lbl">Type of inspection</p><div class="chips" data-manual id="wtype"></div>
+        <p class="lbl">Type of loan</p><div class="chips" data-single><button class="chip">FHA</button><button class="chip">VA</button><button class="chip on">Conventional</button></div>
+      </div>
+
+      <div class="wstep" id="w2" style="display:none">
+        <p class="lbl">Structure type</p><div class="chips" data-manual id="wstruct"></div>
+        <div id="wunitmix"></div>
+        <p class="lbl">Property details</p>
+        <div class="stat2" style="gap:10px"><div class="field" style="margin:0"><label>Year built</label><input class="txt" placeholder="1998"></div><div class="field" style="margin:0"><label>Sq ft</label><input class="txt" placeholder="2400"></div></div>
+        <div class="field" style="margin-top:11px"><label>Stories</label><div class="chips" data-single><button class="chip">1</button><button class="chip on">1.5</button><button class="chip">2</button><button class="chip">3</button><button class="chip">Basement</button></div></div>
+        <p class="lbl">Checklist depth</p><div class="chips" data-single><button class="chip">High Detail</button><button class="chip on">Standard</button><button class="chip">Fast Intuitive</button></div>
+      </div>
+
+      <div class="wstep" id="w3" style="display:none">
+        <p style="font-size:13px;color:var(--ink-3);margin:2px 0 12px">Set room counts and pick which rooms to include &mdash; this builds the interior checklist.</p>
+        <div id="wroomcounts"></div>
+        <p class="lbl">Rooms to include</p><div class="chips" data-manual id="wrooms"></div>
+      </div>
+
+      <div class="wstep" id="w4" style="display:none">
+        <p style="font-size:13px;color:var(--ink-3);margin:2px 0 12px">Add any secondary testing for this inspection.</p>
+        <div class="chips" data-manual id="wtests"></div>
+      </div>
+
+      <div class="btnrow" style="margin-top:22px">
+        <button class="btn ghost" id="wback" onclick="wizPrev()">Back</button>
+        <button class="btn primary" id="wnext" onclick="wizNext()">Next</button>
+      </div>
+    </section>
+
+    <!-- SECTIONS OVERVIEW -->
+    <section class="screen" id="s-sections" data-title="Sections">
+      <div class="card" style="padding:14px 16px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:9px"><b id="insp-addr" style="font-size:15px">1428 Ridgeline Dr</b><span class="pill prog"><span class="d"></span><span id="pct">0%</span></span></div>
+        <div class="prog"><i id="progbar" style="width:0%"></i></div>
+        <div style="display:flex;gap:14px;margin-top:11px;font-size:12px;color:var(--ink-3)"><span><b id="cntdone" style="color:var(--ink)">0</b> done</span><span><b id="cntleft" style="color:var(--ink)">0</b> left</span><span><b id="cntfind" style="color:var(--c1)">0</b> findings</span></div>
+      </div>
+      <p class="lbl">Checklist · tap a group</p>
+      <div id="overviewgroups"></div>
+      <button class="btn signal" style="margin-top:8px" onclick="go('s-summary')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3 8-8M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg>Review summary</button>
+      <button class="btn primary" style="margin-top:10px" onclick="go('s-report')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>Generate report</button>
+    </section>
+
+    <!-- SECTION ENTRY (dynamic) -->
+    <section class="screen" id="s-section" data-title="Section"><div id="sectionbody"></div></section>
+
+    <!-- PHOTOS (dynamic) -->
+    <section class="screen" id="s-photos" data-title="Photos"><div id="photosbody"></div></section>
+
+    <!-- SUMMARY -->
+    <section class="screen" id="s-summary" data-title="Summary">
+      <p style="font-size:13px;color:var(--ink-3);margin:2px 0 14px">Every finding you flag lands here automatically, grouped by category. This drives the summary pages of the report.</p>
+      <div id="summarywrap"></div>
+    </section>
+
+    <!-- REPORT -->
+    <section class="screen" id="s-report" data-title="Generate report">
+      <div class="card" style="background:linear-gradient(160deg,#1d5a72,#0f3242);border:0;color:#fff;padding:20px">
+        <div style="font-family:var(--fm);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#f2c869">Property Inspection Report</div>
+        <div style="font-family:var(--fd);font-weight:800;font-size:20px;margin:9px 0 3px">1428 Ridgeline Drive</div>
+        <div style="font-size:12.5px;color:#cfe2eb">Ogden, UT 84403 · Standalone dwelling</div>
+        <div style="display:flex;gap:18px;margin-top:15px">
+          <div><div style="font-family:var(--fd);font-weight:700;font-size:17px">78</div><div style="font-size:10px;color:#a9c6d2;font-family:var(--fm)">PAGES</div></div>
+          <div><div style="font-family:var(--fd);font-weight:700;font-size:17px" id="rep-findings">0</div><div style="font-size:10px;color:#a9c6d2;font-family:var(--fm)">FINDINGS</div></div>
+          <div><div style="font-family:var(--fd);font-weight:700;font-size:17px">24</div><div style="font-size:10px;color:#a9c6d2;font-family:var(--fm)">PHOTOS</div></div>
+        </div>
+      </div>
+      <p class="lbl">Choose a cover</p>
+      <div class="covers">
+        <div class="cover on" onclick="pickCover(this)"><div class="cimg" style="background:linear-gradient(150deg,#2e6f8e,#123047)"><b>Blue · Mountains</b></div><div class="cn"><span>Framed</span><b>Selected</b></div></div>
+        <div class="cover" onclick="pickCover(this)"><div class="cimg" style="background:linear-gradient(150deg,#3a6b4a,#16351f)"><b>Green · Solid</b></div><div class="cn"><span>Solid</span><b>&nbsp;</b></div></div>
+        <div class="cover" onclick="pickCover(this)"><div class="cimg" style="background:linear-gradient(150deg,#6a4a7a,#2a1836)"><b>Astronomy</b></div><div class="cn"><span>Shaded</span><b>&nbsp;</b></div></div>
+        <div class="cover" onclick="pickCover(this)"><div class="cimg" style="background:linear-gradient(150deg,#7a5a2a,#3a2a10)"><b>Fishing</b></div><div class="cn"><span>Framed</span><b>&nbsp;</b></div></div>
+      </div>
+      <div class="banner" style="margin-top:16px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-9 9 9 9 0 0 1-6.7-3L3 16M3 12a9 9 0 0 1 9-9 9 9 0 0 1 6.7 3L21 8"/></svg><div>You're <b>offline</b>. The report generates on the device now; it uploads on the next sync.</div></div>
+      <button class="btn primary" onclick="go('s-generated')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>Generate PDF report</button>
+    </section>
+
+    <!-- SUBSCRIBE -->
+    <section class="screen" id="s-subscribe" data-title="Subscription">
+      <div class="banner" style="background:var(--p1-bg);border-color:#c9dee6"><svg viewBox="0 0 24 24" fill="none" stroke="var(--brand-deep)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v4l3 2"/><circle cx="12" cy="12" r="9"/></svg><div style="color:var(--brand-deep)"><b>Free trial &mdash; <span id="trialdays">22</span> days left.</b> Set up your subscription now so access continues automatically when the trial ends.</div></div>
+      <p class="lbl">Choose your plan</p>
+      <div id="planwrap"></div>
+      <p class="lbl">Inspector seats</p>
+      <div class="counter"><b>Inspectors on this license</b><div class="cc"><button type="button" onclick="subSeat(-1)">&minus;</button><span id="subcount">1</span><button type="button" onclick="subSeat(1)">+</button></div></div>
+      <p style="font-size:12px;color:var(--ink-3);margin:2px 2px 0">First inspector included &middot; each additional <b>$24.95/mo</b></p>
+      <div class="card" style="display:flex;justify-content:space-between;align-items:center;margin-top:14px"><b style="font-size:15px">Monthly total</b><b id="subtotal" style="font-family:var(--fm);font-size:22px;color:var(--brand)">$34.95</b></div>
+      <p class="lbl">Payment &mdash; via Square</p>
+      <div class="field"><label>Card number</label><input class="txt" placeholder="1234 5678 9012 3456"></div>
+      <div class="stat2" style="gap:10px"><div class="field" style="margin:0"><label>Expiry</label><input class="txt" placeholder="MM / YY"></div><div class="field" style="margin:0"><label>CVC</label><input class="txt" placeholder="123"></div></div>
+      <div style="display:flex;align-items:center;gap:8px;margin:8px 2px 0;font-size:12px;color:var(--ink-3)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Secured by Square &middot; auto-renews monthly &middot; cancel anytime</div>
+      <button class="btn primary" style="margin-top:16px" onclick="startSub()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Start subscription</button>
+    </section>
+
+    <!-- SUBSCRIPTION STARTED -->
+    <section class="screen" id="s-substarted" data-title="Subscription active">
+      <div class="success">
+        <div class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
+        <h2>Subscription active</h2>
+        <p>Your <span id="ss-plan">App</span> plan is set up with auto-pay through Square. Access continues after your trial with no interruption.</p>
+        <button class="btn primary" onclick="go('s-billing')">View subscription</button>
+        <button class="btn ghost" style="margin-top:10px" onclick="goHome()">Back to inspections</button>
+      </div>
+    </section>
+
+    <!-- MANAGE INSPECTORS -->
+    <section class="screen" id="s-inspectors" data-title="Inspectors">
+      <p style="font-size:13px;color:var(--ink-3);margin:2px 0 12px">Add inspector accounts under your company license. First inspector is included; each additional is <b>$24.95/mo</b>.</p>
+      <div id="inspectorlist"></div>
+      <div class="addsec" style="border-color:var(--brand)">
+        <input id="newinspname" placeholder="Inspector name">
+        <input id="newinspemail" placeholder="inspector@email.com">
+        <button class="btn primary" style="min-height:46px" onclick="addInspector()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Add inspector</button>
+      </div>
+    </section>
+
+    <!-- BILLING / MANAGE SUBSCRIPTION -->
+    <section class="screen" id="s-billing" data-title="Subscription"><div id="billingbody"></div></section>
+
+    <!-- GENERATED -->
+    <section class="screen" id="s-generated" data-title="Report ready">
+      <div class="success">
+        <div class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
+        <h2>Report generated</h2>
+        <p>78-page report for 1428 Ridgeline Dr is saved on this device and queued to sync to the portal.</p>
+        <button class="btn primary" onclick="toast('Opening PDF preview…')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>Preview PDF</button>
+        <button class="btn ghost" style="margin-top:10px" onclick="toast('Report queued to email on next sync')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 6-10 7L2 6"/></svg>Email to client</button>
+        <button class="btn ghost" style="margin-top:10px" onclick="goHome()">Back to inspections</button>
+      </div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section class="screen" id="s-settings" data-title="Settings">
+      <p class="lbl">Account</p>
+      <div class="card" style="display:flex;align-items:center;gap:13px"><div style="width:48px;height:48px;border-radius:50%;background:linear-gradient(140deg,#3c9cbe,#1a4f64);color:#fff;display:grid;place-items:center;font-family:var(--fd);font-weight:700">JH</div><div><b style="font-size:15px">Jeremy Heath</b><div style="font-size:12.5px;color:var(--ink-3)">Vision Property Inspections</div></div></div>
+      <p class="lbl">Sync</p>
+      <div class="card" style="display:flex;align-items:center;justify-content:space-between"><div><b style="font-size:14px">Auto-sync when online</b><div style="font-size:12px;color:var(--ink-3)">1 inspection waiting</div></div><div style="width:46px;height:28px;border-radius:20px;background:var(--brand);position:relative"><div style="position:absolute;top:3px;right:3px;width:22px;height:22px;border-radius:50%;background:#fff"></div></div></div>
+      <button class="btn ghost" onclick="syncNow()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-9 9 9 9 0 0 1-6.7-3L3 16M3 12a9 9 0 0 1 9-9 9 9 0 0 1 6.7 3L21 8M21 3v5h-5M3 21v-5h5"/></svg>Sync now</button>
+
+      <p class="lbl">Subscription &amp; licensing</p>
+      <button class="row" onclick="go('s-billing')"><div class="lead"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg></div><div class="mid"><b>Plan &amp; billing</b><span id="set-planline">App · trial</span></div><div class="end"><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></span></div></button>
+      <button class="row" onclick="go('s-inspectors')"><div class="lead"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9"/></svg></div><div class="mid"><b>Inspector accounts</b><span id="set-inspline">1 inspector</span></div><div class="end"><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></span></div></button>
+
+      <p class="lbl">Admin</p>
+      <button class="row" onclick="go('s-admin')"><div class="lead"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></div><div class="mid"><b>Manage checklist</b><span>Add &amp; edit sections and items</span></div><div class="end"><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></span></div></button>
+
+      <p class="lbl">Defaults</p>
+      <div class="row" style="cursor:default"><div class="mid"><b>Checklist depth</b><span>Standard</span></div></div>
+      <div class="row" style="cursor:default"><div class="mid"><b>Report cover</b><span>Blue · Mountains</span></div></div>
+      <div class="row" style="cursor:default"><div class="mid"><b>Photo size</b><span>JPG · ~750 KB</span></div></div>
+      <button class="btn ghost" style="margin-top:6px" onclick="go('s-login')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>Sign out</button>
+    </section>
+
+    <!-- ADMIN: manage checklist -->
+    <section class="screen" id="s-admin" data-title="Manage checklist">
+      <p style="font-size:13px;color:var(--ink-3);margin:2px 0 12px">Add and edit checklist sections and items yourself &mdash; changes apply to new inspections.</p>
+      <div class="addsec">
+        <input id="newsecname" placeholder="New section name (e.g. Solar Panels)">
+        <div class="chips" data-single id="newsecgroup" style="margin-bottom:11px"><button class="chip on">Exterior</button><button class="chip">Interior</button><button class="chip">Utility</button><button class="chip">Testing</button></div>
+        <button class="btn primary" style="min-height:46px" onclick="addSection()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Add section</button>
+      </div>
+      <div id="adminlist"></div>
+    </section>
+
+    <!-- ADMIN: edit a section -->
+    <section class="screen" id="s-editsec" data-title="Edit section"><div id="editsecbody"></div></section>
+
+  </div>
+
+  <div class="scrim" id="scrim" onclick="closeDrawer()"></div>
+  <aside class="drawer" id="drawer">
+    <div class="dh"><b>Checklist sections</b><span id="drawer-addr">1428 Ridgeline Dr</span></div>
+    <div class="dl" id="drawernav"></div>
+  </aside>
+
+  <div class="modal" id="findmodal">
+    <div class="sheet">
+      <h3>Flag a finding</h3><p class="sub">Pick a category and add a note. It's added to the summary and the report automatically.</p>
+      <div class="catpick"><button class="c1" onclick="pickCat(this,1)"><span class="cn">1</span><span class="cl">Safety / Major</span></button><button class="c2 on" onclick="pickCat(this,2)"><span class="cn">2</span><span class="cl">Moderate</span></button><button class="c3" onclick="pickCat(this,3)"><span class="cn">3</span><span class="cl">Minor / Cosmetic</span></button></div>
+      <div class="field"><label>Description</label><textarea class="txt" id="findtext" placeholder="Describe the concern…">Rain water down spout is missing.</textarea></div>
+      <div class="btnrow" style="margin-top:4px"><button class="btn ghost" onclick="closeModal()">Cancel</button><button class="btn primary" onclick="saveFinding()">Add finding</button></div>
+    </div>
+  </div>
+
+  <div class="viewer" id="viewer">
+    <div class="vtop"><button onclick="closeViewer()" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button><b id="viewer-title">Photo</b><button style="margin-left:auto" onclick="openFinding()" aria-label="Flag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><path d="M4 22v-7"/></svg></button></div>
+    <div class="vstage" id="vstage"><img class="vimg" id="vimg" alt="Inspection photo"><canvas id="vcanvas"></canvas></div>
+    <div class="vtools">
+      <div class="toolrow"><span style="color:#9aa8ba;font-size:12px;font-family:var(--fm)">Draw</span><span class="swatch on" style="background:#e5483b" data-color="#e5483b" onclick="pickPen(this)"></span><span class="swatch" style="background:#f0c020" data-color="#f0c020" onclick="pickPen(this)"></span><span class="swatch" style="background:#3d8bf0" data-color="#3d8bf0" onclick="pickPen(this)"></span><button class="tbtn" onclick="undoDraw()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 5 5v1a5 5 0 0 1-5 5H9"/></svg></button><button class="tbtn" onclick="clearDraw()">Clear</button></div>
+      <div class="toolrow"><span style="color:#9aa8ba;font-size:12px;font-family:var(--fm)">Stamp</span><button class="tbtn sym" onclick="setStamp('★')">★</button><button class="tbtn sym" onclick="setStamp('↑')">↑</button><button class="tbtn sym" onclick="setStamp('↓')">↓</button><button class="tbtn sym" onclick="setStamp('←')">←</button><button class="tbtn sym" onclick="setStamp('→')">→</button></div>
+      <button class="btn signal" onclick="closeViewer();toast('Markup saved to photo')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Save markup</button>
+    </div>
+  </div>
+
+  <div class="rev"><div class="rev-menu" id="revmenu"></div><button class="rev-btn" onclick="toggleRev()" title="Jump to screen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg></button></div>
+
+  <div class="toast" id="toast"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span id="toasttext"></span></div>
+
+</div>
+
+<script>
+(function(){
+  var ICONS={
+    info:'<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>',tree:'<path d="M12 22v-7M9 9l3-6 3 6M7 14l5-8 5 8M5 19h14"/>',
+    wall:'<rect x="3" y="4" width="18" height="16" rx="1"/><path d="M3 10h18M9 4v6M15 10v10"/>',home:'<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20h14V9.5"/>',
+    deck:'<path d="M2 20h20M4 20V8M20 20V8M4 8h16M12 8v12"/>',pool:'<path d="M2 20c2 0 2-2 4-2s2 2 4 2 2-2 4-2 2 2 4 2 2-2 4-2M6 16V6a2 2 0 0 1 4 0M14 16V6"/>',
+    shed:'<path d="M3 21V9l9-6 9 6v12M9 21v-6h6v6"/>',layers:'<path d="M12 2 2 7l10 5 10-5z"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5"/>',
+    box:'<path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="M3 8l9 5 9-5"/>',car:'<path d="M5 17H3v-5l2-5h14l2 5v5h-2M7 17h10"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/>',
+    sofa:'<path d="M4 11V7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v4"/><path d="M2 13a2 2 0 0 1 4 0v3h12v-3a2 2 0 0 1 4 0v5H2z"/>',chef:'<path d="M6 13.87A4 4 0 0 1 7.41 6a5.11 5.11 0 0 1 9.18 0A4 4 0 0 1 18 13.87V21H6z"/>',
+    bed:'<path d="M2 20v-8h20v8M2 12V6M22 12V8a2 2 0 0 0-2-2H8v6"/>',drop:'<path d="M12 2s6 7 6 11a6 6 0 0 1-12 0c0-4 6-11 6-11z"/>',
+    bolt:'<path d="M13 2 3 14h9l-1 8 10-12h-9z"/>',wind:'<path d="M9.6 4.6A2 2 0 1 1 11 8H2M12.6 19.4A2 2 0 1 0 14 16H2M17.6 7.6A2 2 0 1 1 19 11H2"/>',
+    flame:'<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.07-2.14-.5-4 1-6 1 2 2 3 3 4s2 3 2 5a5 5 0 0 1-10 .5z"/>',list:'<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
+    hall:'<path d="M4 3h16v18H4zM9 3v18M15 3v18"/>',plug:'<path d="M12 22v-5M9 8V2M15 8V2M7 8h10v3a5 5 0 0 1-10 0z"/>',
+    flask:'<path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-9V3"/>',water:'<path d="M12 2s6 7 6 11a6 6 0 0 1-12 0c0-4 6-11 6-11z"/>',
+    grid:'<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>',
+    file:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>'
+  };
+  function ico(n){return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+(ICONS[n]||ICONS.info)+'</svg>';}
+
+  // option-set shortcuts
+  var COND=['Like New','Good','Showing Age','Damaged'];
+  var YN=['Yes','No','N/A'];
+  var OVERALL=['Satisfactory','Good','Poor','Needs Attention','Not Inspected','N/A'];
+  function room(){return [
+    {q:'Walls & ceiling',t:'single',o:['Good','Cracks','Water stains','Damage']},
+    {q:'Flooring',t:'multi',o:['Carpet','Hardwood','Tile','Vinyl','Laminate']},
+    {q:'Windows',t:'single',o:['Operational','Painted shut','Broken seal','Damage']},
+    {q:'Outlets / switches',t:'single',o:['Functional','GFCI','Not working','Ungrounded']},
+    {q:'Lighting',t:'single',o:['Functional','Some out','N/A']},
+    {q:'Smoke / CO detector',t:'single',o:['Present','Missing','Expired']}
+  ];}
+  function env(){return [
+    {q:'Test performed',t:'single',o:['Yes','No','Referred out']},
+    {q:'Method',t:'single',o:['Passive','Continuous monitor','Lab sample']},
+    {q:'Result',t:'single',o:['Pass','Elevated','Fail','Pending lab']},
+    {q:'Sample locations',t:'multi',o:['Basement','Living area','Crawl space','Exterior']}
+  ];}
+
+  // SECTION definitions: name -> {icon, pics[], items[]}
+  var SEC={
+    'Inspection Info':{icon:'info',link:'s-new'},
+    'Summary':{icon:'list',link:'s-summary'},
+    'Landscaping':{icon:'tree',pics:['Front Yard','Left Side','Right Side','Back Yard','Fence','Driveway','Concerns'],items:[
+      {q:'Fence type',t:'multi',o:['N/A','Wood','Chain Link','Vinyl','Concrete']},
+      {q:'Grading',t:'single',o:['Level Grade','Slope 0-15%','15-30%','30%+','Terraced']},
+      {q:'Landscaping',t:'multi',o:['Grass','Native Plants','Xeriscape','Rock','Flower Beds','Veg Garden']},
+      {q:'Vegetation',t:'single',o:['Well Kept','Shaggy','Overgrown']},
+      {q:'Surface drainage',t:'single',o:['Good','Low near foundation','Low spots in yard']},
+      {q:'Retaining wall',t:'single',o:['None','Concrete','Large Rock','Small Rock','Wood','RR Ties']},
+      {q:'Trees',t:'single',o:['None','Good Health','Roots may concern']},
+      {q:'Exterior receptacles',t:'single',o:['None','GFCI','Standard','Not working']}
+    ]},
+    'Exterior Walls':{icon:'wall',pics:['Front','Left Side','Right Side','Back','Chimney','Concerns'],items:[
+      {q:'Siding material',t:'multi',o:['Vinyl','Stucco','Wood','Brick','Stone','Log','Metal']},
+      {q:'Condition',t:'single',o:['Satisfactory','Aging','Cracked','Missing sections']},
+      {q:'Soffits',t:'single',o:['Vinyl','Metal','Wood','Vented','Damage']},
+      {q:'Trim',t:'single',o:['In place','Damage','Needs paint']},
+      {q:'Rain gutters',t:'single',o:['In place','Metal','Vinyl','Missing','Damage']},
+      {q:'Downspouts',t:'single',o:['In place','Diverters present','Underground','Missing']},
+      {q:'Windows',t:'multi',o:['Wood','Metal','Vinyl','Broken seal','Damage']},
+      {q:'Exterior doors',t:'single',o:['Wood','Metal','Glass','Sliding','Damage']}
+    ]},
+    'Roof':{icon:'home',pics:['North Side','East Side','West Side','South Side','Chimney','Sky Light','Concerns'],items:[
+      {q:'Did the inspector walk the roof?',t:'single',o:['Yes','No — too steep','No — unsafe','No — weather']},
+      {q:'Roof type',t:'single',o:['Gable','Hip','A-Frame','Low Slope/Flat','Mansard']},
+      {q:'Roof material',t:'multi',o:['Asphalt Shingle','Architectural','Metal','Membrane','Tile','Tar & Gravel']},
+      {q:'Condition',t:'multi',o:['Like New','Good','Showing Age','Lifting','Granule Loss','Cracked','Missing','Leaks']},
+      {q:'Layers',t:'single',o:['1','2','More']},
+      {q:'Roof age',t:'single',o:['0-5 yrs','5-10 yrs','11-17 yrs','18-25 yrs','25+ yrs']},
+      {q:'Remaining life',t:'single',o:['Replace now','3-5 yrs','8-10 yrs','12-15 yrs']},
+      {q:'Flashing',t:'single',o:['In place & sealed','Dry/cracking','Missing','Damage']},
+      {q:'Vents',t:'single',o:['Ridge','Regular','Mechanical','None','Could not see']},
+      {q:'Moss / mold',t:'single',o:['None','Possibly present','Observed']}
+    ]},
+    'Deck / Patio':{icon:'deck',pics:['Overview','Underside','Stairs','Concerns'],items:[
+      {q:'Material',t:'multi',o:['Wood','Composite','Concrete','Pavers','Stone']},
+      {q:'Condition',t:'single',o:COND},
+      {q:'Railing',t:'single',o:['Present & secure','Loose','Improper spacing','None']},
+      {q:'Attachment to house',t:'single',o:['Ledger flashed','No flashing','Loose','N/A']},
+      {q:'Stairs',t:'single',o:['Solid','Settling','Damage','N/A']}
+    ]},
+    'Balcony':{icon:'deck',pics:['Overview','Underside','Concerns'],items:[
+      {q:'Material',t:'multi',o:['Wood','Concrete','Metal']},{q:'Condition',t:'single',o:COND},
+      {q:'Railing',t:'single',o:['Secure','Loose','Improper spacing']},{q:'Drainage',t:'single',o:['Good','Ponding','N/A']}
+    ]},
+    'Pool House':{icon:'pool',pics:['Overview','Equipment','Concerns'],items:[
+      {q:'Structure',t:'single',o:COND},{q:'Electrical',t:'single',o:['GFCI','Standard','Concern']},
+      {q:'Plumbing',t:'single',o:['Functional','Leaks','N/A']},{q:'Pool equipment',t:'single',o:['Operational','Not tested','Concern']}
+    ]},
+    'Out Buildings':{icon:'shed',pics:['Shed','Car Port','Concerns'],items:[
+      {q:'Type',t:'multi',o:['Shed','Small Shop','Large Shop','Well House','Car Port']},
+      {q:'Structure',t:'single',o:COND},{q:'Roof',t:'single',o:COND},{q:'Electrical',t:'single',o:['Present','None','Concern']}
+    ]},
+    'Foundation / Crawl Space':{icon:'layers',pics:['Overview','Cracks','Supports','Concerns'],items:[
+      {q:'Foundation type',t:'single',o:['Poured Concrete','Block','Pier & Beam','Slab','Stone']},
+      {q:'Access',t:'single',o:['Full','Partial','None','Crawl space']},
+      {q:'Cracks',t:'multi',o:['None','Cosmetic','Vertical','Horizontal','Stair-step','Diagonal']},
+      {q:'Moisture',t:'single',o:['Dry','Damp','Water stains','Standing water']},
+      {q:'Supports / posts',t:'single',o:['Solid','Settling','Undersized','Damage']},
+      {q:'Vapor barrier',t:'single',o:['Present','Partial','Missing','N/A']}
+    ]},
+    'Attic':{icon:'box',pics:['Access','Insulation','Framing','Concerns'],items:[
+      {q:'Access',t:'single',o:['Scuttle','Pull-down','Walk-up','None']},
+      {q:'Insulation type',t:'multi',o:['Blown','Batt','Foam','None']},
+      {q:'Insulation depth',t:'single',o:['Adequate','Thin','Uneven','None']},
+      {q:'Ventilation',t:'single',o:['Adequate','Limited','Blocked']},
+      {q:'Framing',t:'single',o:['Sound','Modified','Damage','Sagging']},
+      {q:'Signs of leaks',t:'single',o:['None','Stains','Active leak']}
+    ]},
+    'Garage':{icon:'car',pics:['Overview','Door','Firewall','Concerns'],items:[
+      {q:'Type',t:'single',o:['Attached','Detached','Built-in','Car port']},
+      {q:'Overhead door',t:'single',o:['Operational','Manual','Damage']},
+      {q:'Auto-reverse safety',t:'single',o:['Works','Fails','No opener']},
+      {q:'Firewall / separation',t:'single',o:['Intact','Penetrations','Missing']},
+      {q:'Floor',t:'single',o:['Good','Cracks','Oil stains']},
+      {q:'Outlets',t:'single',o:['GFCI','Standard','None']}
+    ]},
+    'Living Room':{icon:'sofa',pics:['Overview','Windows','Concerns'],items:room()},
+    'Family Room':{icon:'sofa',pics:['Overview','Windows','Concerns'],items:room()},
+    'Den / Office':{icon:'sofa',pics:['Overview','Concerns'],items:room()},
+    'Reception':{icon:'sofa',pics:['Overview','Concerns'],items:room()},
+    'Hallway':{icon:'hall',pics:['Overview','Concerns'],items:room()},
+    'Dining Room':{icon:'chef',pics:['Overview','Concerns'],items:room()},
+    'Bedrooms':{icon:'bed',pics:['Bedroom 1','Bedroom 2','Bedroom 3','Master','Concerns'],items:[
+      {q:'Walls & ceiling',t:'single',o:['Good','Cracks','Water stains']},
+      {q:'Flooring',t:'multi',o:['Carpet','Hardwood','Tile','Laminate']},
+      {q:'Egress window',t:'single',o:['Compliant','Too small','None','N/A']},
+      {q:'Outlets',t:'single',o:['Functional','Ungrounded','Not working']},
+      {q:'Closet',t:'single',o:['Good','Damage','N/A']},
+      {q:'Smoke detector',t:'single',o:['Present','Missing','Expired']}
+    ]},
+    'Bathrooms':{icon:'drop',pics:['Bath 1','Bath 2','Master Bath','Concerns'],items:[
+      {q:'Toilet',t:'single',o:['Secure','Loose','Runs','Leaks']},
+      {q:'Sink / vanity',t:'single',o:['Good','Leaks','Slow drain','Damage']},
+      {q:'Tub / shower',t:'multi',o:['Tub','Shower','Tile','Surround','Caulk needed','Leaks']},
+      {q:'Ventilation',t:'single',o:['Fan','Window','None']},
+      {q:'GFCI',t:'single',o:['Present','Missing','Not working']},
+      {q:'Water damage',t:'single',o:['None','Around tub','Under sink','Floor']}
+    ]},
+    'Laundry':{icon:'drop',pics:['Overview','Hookups','Concerns'],items:[
+      {q:'Hookups',t:'multi',o:['Washer','Dryer (electric)','Dryer (gas)','Utility sink']},
+      {q:'Dryer venting',t:'single',o:['To exterior','Into attic','Blocked','N/A']},
+      {q:'Floor',t:'single',o:['Good','Water stains','Damage']},
+      {q:'Outlets',t:'single',o:['GFCI','Standard','240V present']}
+    ]},
+    'Storage Room':{icon:'box',pics:['Overview','Concerns'],items:[
+      {q:'Walls & ceiling',t:'single',o:['Good','Damage']},{q:'Flooring',t:'multi',o:['Concrete','Carpet','Tile']},
+      {q:'Lighting',t:'single',o:['Functional','None']},{q:'Moisture',t:'single',o:['Dry','Damp']}
+    ]},
+    'Electrical':{icon:'bolt',pics:['Main Panel','Sub Panel','Meter','Concerns'],items:[
+      {q:'Service size',t:'single',o:['100A','150A','200A','Unknown']},
+      {q:'Panel brand',t:'multi',o:['Square D','Eaton','Siemens','GE','FPE ⚠','Zinsco ⚠']},
+      {q:'Breakers',t:'single',o:['Labeled','Unlabeled','Double-tapped','Damage']},
+      {q:'Wiring type',t:'multi',o:['Copper','Aluminum ⚠','Knob & tube ⚠','NM/Romex']},
+      {q:'Grounding',t:'single',o:['Present','Not visible','Missing']},
+      {q:'GFCI protection',t:'single',o:['Where required','Partial','Missing']},
+      {q:'Open splices / hazards',t:'single',o:['None','Present']}
+    ]},
+    'Plumbing':{icon:'drop',pics:['Water Heater','Main Shutoff','Under Sink','Concerns'],items:[
+      {q:'Supply material',t:'multi',o:['Copper','PEX','CPVC','Galvanized ⚠','Poly-B ⚠']},
+      {q:'Drain material',t:'multi',o:['PVC','ABS','Cast Iron','Galvanized']},
+      {q:'Water pressure',t:'single',o:['Normal','Low','High']},
+      {q:'Visible leaks',t:'single',o:['None','Minor','Active']},
+      {q:'Functional flow',t:'single',o:['Good','Slow drains','Concern']},
+      {q:'Main shutoff',t:'single',o:['Located','Not found','Corroded']}
+    ]},
+    'HVAC':{icon:'wind',pics:['Furnace','Condenser','Thermostat','Ductwork','Concerns'],items:[
+      {q:'Heating type',t:'single',o:['Furnace','Heat Pump','Boiler','Baseboard']},
+      {q:'Fuel',t:'single',o:['Gas','Electric','Oil','Propane']},
+      {q:'Cooling',t:'single',o:['Central AC','Heat Pump','Swamp Cooler','None']},
+      {q:'System age',t:'single',o:['0-5 yrs','6-12 yrs','13-20 yrs','20+ yrs']},
+      {q:'Filter',t:'single',o:['Clean','Dirty','Missing']},
+      {q:'Ductwork',t:'single',o:['Good','Leaks','Disconnected','Not visible']},
+      {q:'Operated normally',t:'single',o:YN}
+    ]},
+    'Water Heater':{icon:'water',pics:['Overview','TPR Valve','Venting','Concerns'],items:[
+      {q:'Type',t:'single',o:['Tank','Tankless','Hybrid']},{q:'Fuel',t:'single',o:['Gas','Electric','Propane']},
+      {q:'Capacity',t:'single',o:['40 gal','50 gal','75 gal','Other']},{q:'Age',t:'single',o:['0-5 yrs','6-10 yrs','11+ yrs']},
+      {q:'TPR valve & discharge',t:'single',o:['Proper','Missing','Improper']},{q:'Venting',t:'single',o:['Proper','Backdraft','Concern']},{q:'Leaks',t:'single',o:['None','Present']}
+    ]},
+    'Utilities – Outside':{icon:'plug',pics:['Swamp Cooler','Compressor','Coolant Lines','MFR Tag','Concerns'],items:[
+      {q:'Cooling system',t:'single',o:['Swamp Cooler','Central Air','None']},
+      {q:'Accessible',t:'single',o:YN},{q:'Operates normally',t:'single',o:YN},
+      {q:'Water leaks',t:'single',o:YN},{q:'Rust',t:'single',o:['None','Some','Heavy']}
+    ]},
+    'Chimney':{icon:'flame',pics:['Exterior','Crown','Flue','Concerns'],items:[
+      {q:'Type',t:'single',o:['Brick','Metal','Stucco','Clay']},{q:'Crown',t:'single',o:['Good','Cracked','Missing']},
+      {q:'Flue / cap',t:'single',o:['Cap present','No cap','Damaged']},{q:'Clearance',t:'single',o:['Proper','Too close','Unknown']},{q:'Mortar',t:'single',o:['Sound','Cracked','Missing']}
+    ]},
+    'Radon':{icon:'flask',pics:['Monitor','Concerns'],items:env()},
+    'Meth Test':{icon:'flask',pics:['Sample','Concerns'],items:env()},
+    'Lead':{icon:'flask',pics:['Sample','Concerns'],items:env()},
+    'Thermal Audit':{icon:'flask',pics:['Thermal 1','Thermal 2','Concerns'],items:[
+      {q:'Scan performed',t:'single',o:YN},{q:'Anomalies found',t:'single',o:['None','Moisture','Missing insulation','Electrical hot spot']},{q:'Areas scanned',t:'multi',o:['Walls','Ceiling','Electrical','Windows']}
+    ]},
+    'Air Quality':{icon:'flask',pics:['Sample','Concerns'],items:env()},
+    'Septic':{icon:'flask',pics:['Tank','Drain Field','Concerns'],items:[
+      {q:'System type',t:'single',o:['Conventional','Mound','Aerobic','Unknown']},{q:'Tank condition',t:'single',o:['Good','Needs pump','Damage']},{q:'Drain field',t:'single',o:['Dry','Wet spots','Failure signs']},{q:'Test performed',t:'single',o:YN}
+    ]},
+    'Wood-Destroying Organism':{icon:'flask',pics:['Evidence','Concerns'],items:[
+      {q:'Evidence found',t:'single',o:['None','Termites','Carpenter ants','Fungus/rot']},{q:'Location',t:'multi',o:['Foundation','Crawl space','Deck','Attic']},{q:'Prior treatment',t:'single',o:['Yes','No','Unknown']}
+    ]}
+  };
+
+  function baseName(n){ return n.replace(/\s+\d+$/,''); }
+
+  // Section templates keyed to Jeremy's menu labels (aliases + additions)
+  Object.assign(SEC,{
+    'Kitchen':{pics:['Overview','Sink','Appliances','Cabinets','Concerns'],items:[
+      {q:'Countertops',t:'multi',o:['Laminate','Granite','Quartz','Tile','Butcher block']},
+      {q:'Cabinets',t:'single',o:['Good','Worn','Damage']},{q:'Sink & faucet',t:'single',o:['Good','Leaks','Low flow']},
+      {q:'Appliances',t:'multi',o:['Range','Oven','Dishwasher','Disposal','Microwave','Refrigerator']},
+      {q:'GFCI at counters',t:'single',o:['Present','Missing']},{q:'Flooring',t:'multi',o:['Tile','Vinyl','Hardwood','Laminate']},{q:'Ventilation',t:'single',o:['Vented hood','Recirculating','None']}
+    ]},
+    'Outside Utilities':SEC['Utilities – Outside'],
+    'HVAC Mechanical':SEC['HVAC'],
+    'Indoor Air Quality':SEC['Air Quality'],
+    'Laundry Room':SEC['Laundry'],
+    'Bathroom':SEC['Bathrooms'],
+    'Bedroom':SEC['Bedrooms'],
+    'Hallway':{pics:['Overview','Concerns'],items:room()},
+    'Den / Home Office':{pics:['Overview','Concerns'],items:room()},
+    'Pool House & Pool':SEC['Pool House'],
+    'Outbuilding – Shed':{pics:['Overview','Interior','Concerns'],items:[{q:'Structure',t:'single',o:COND},{q:'Roof',t:'single',o:COND},{q:'Electrical',t:'single',o:['Present','None']},{q:'Floor',t:'single',o:['Concrete','Dirt','Wood']}]},
+    'Outbuilding – Car Port':{pics:['Overview','Concerns'],items:[{q:'Structure',t:'single',o:COND},{q:'Roof',t:'single',o:COND},{q:'Attachment',t:'single',o:['Attached','Free-standing']}]},
+    'Deck':{pics:['Overview','Underside','Stairs','Concerns'],items:[{q:'Material',t:'multi',o:['Wood','Composite','Metal']},{q:'Condition',t:'single',o:COND},{q:'Railing',t:'single',o:['Secure','Loose','Improper spacing','None']},{q:'Ledger attachment',t:'single',o:['Flashed','No flashing','Loose']},{q:'Stairs',t:'single',o:['Solid','Settling','Damage','N/A']}]},
+    'Patio':{pics:['Overview','Concerns'],items:[{q:'Material',t:'multi',o:['Concrete','Pavers','Stone','Brick']},{q:'Condition',t:'single',o:COND},{q:'Drainage',t:'single',o:['Away from house','Toward house','Ponding']}]},
+    'Detached Garage':{pics:['Overview','Door','Concerns'],items:SEC['Garage'].items},
+    'Mobile Home Undercarriage':{pics:['Skirting','Tie-downs','Undercarriage','Concerns'],items:[{q:'Skirting',t:'single',o:['Intact','Damaged','Missing']},{q:'Tie-downs / anchors',t:'single',o:['Present','Loose','Missing']},{q:'Support piers',t:'single',o:['Solid','Settling','Damaged']},{q:'Vapor barrier',t:'single',o:['Intact','Torn','Missing']},{q:'Plumbing under home',t:'single',o:['Good','Leaks','Not insulated']}]},
+    'Utility Room':{pics:['Overview','Concerns'],items:[{q:'Contents',t:'multi',o:['Furnace','Water heater','Panel','Softener']},{q:'Condition',t:'single',o:COND},{q:'Ventilation',t:'single',o:['Adequate','Poor']}]},
+    'Boiler':{pics:['Overview','Gauges','Concerns'],items:[{q:'Fuel',t:'single',o:['Gas','Oil','Electric']},{q:'Age',t:'single',o:['0-10 yrs','11-20 yrs','20+ yrs']},{q:'Operation',t:'single',o:YN},{q:'Pressure relief valve',t:'single',o:['Present','Missing']},{q:'Leaks',t:'single',o:['None','Present']}]},
+    'Heating Oil Tank':{pics:['Tank','Lines','Concerns'],items:[{q:'Location',t:'single',o:['Above ground','Underground','Basement']},{q:'Condition',t:'single',o:['Good','Rust','Weeping']},{q:'Capacity',t:'single',o:['<250 gal','250-500 gal','Unknown']},{q:'Leaks / staining',t:'single',o:['None','Present']}]},
+    'Termite':{pics:['Evidence','Concerns'],items:[{q:'Evidence found',t:'single',o:['None','Termites','Carpenter ants','Fungus / rot']},{q:'Location',t:'multi',o:['Foundation','Crawl space','Deck','Attic']},{q:'Prior treatment',t:'single',o:['Yes','No','Unknown']}]},
+    'Sewer Scope':{pics:['Cleanout','Line','Concerns'],items:[{q:'Scope performed',t:'single',o:YN},{q:'Pipe material',t:'single',o:['PVC','Cast iron','Clay','Orangeburg ⚠']},{q:'Findings',t:'single',o:['Clear','Roots','Belly','Break / offset']}]},
+    'Condo':{pics:['Unit Overview','Common Areas','Concerns'],items:[
+      {q:'Unit floor / level',t:'single',o:['Ground','Middle','Top','Multi-level']},
+      {q:'Common areas',t:'single',o:['Well kept','Aging','Concern']},
+      {q:'HOA-maintained items',t:'multi',o:['Roof','Exterior','Grounds','Elevator']},
+      {q:'Shared walls / sound',t:'single',o:['Good','Thin','Concern']},
+      {q:'Unit balcony / patio',t:'single',o:['N/A','Good','Damage']}
+    ]},
+    'Additional Living Space':{pics:['Overview','Kitchen / Bath','Entry','Concerns'],items:[
+      {q:'Type',t:'single',o:['ADU','Basement apt','Garage conversion','Casita']},
+      {q:'Separate entrance',t:'single',o:YN},
+      {q:'Kitchen / kitchenette',t:'single',o:['Full','Partial','None']},
+      {q:'Bathroom',t:'single',o:['Full','Half','None']},
+      {q:'Heating / cooling',t:'single',o:['Independent','Shared','None']},
+      {q:'Egress',t:'single',o:['Compliant','Non-compliant','N/A']}
+    ]},
+    'Asbestos':{pics:['Suspect material','Sample','Concerns'],items:[
+      {q:'Test performed',t:'single',o:['Yes','No','Referred out']},
+      {q:'Suspect materials',t:'multi',o:['Popcorn ceiling','Floor tile','Pipe insulation','Siding','None']},
+      {q:'Sample sent to lab',t:'single',o:YN},
+      {q:'Result',t:'single',o:['Negative','Positive','Pending']}
+    ]},
+    'Wind Mitigation':{pics:['Roof deck','Roof-wall attach','Openings','Concerns'],items:[
+      {q:'Roof covering',t:'single',o:['FBC compliant','Non-FBC','Unknown']},
+      {q:'Roof deck attachment',t:'single',o:['A – 6d nails','B – 8d nails','C – dimensional','Unknown']},
+      {q:'Roof-to-wall attachment',t:'single',o:['Toe nail','Clips','Single wrap','Double wrap']},
+      {q:'Roof geometry',t:'single',o:['Hip','Flat','Other']},
+      {q:'Opening protection',t:'single',o:['All glazed impact','All openings','None']},
+      {q:'Secondary water resistance',t:'single',o:YN}
+    ]}
+  });
+
+  // ===== Faithful alignment to Jeremy's checklist (verbatim labels, photo categories, options). Standard-tier lines use Reviewed/N-A/Concerns. =====
+  var RC=['Reviewed','N/A','Concerns'];
+  function L(labels){ return labels.map(function(q){ return {q:q,t:'single',o:RC}; }); }
+  Object.assign(SEC,{
+    'Landscaping':{pics:['Front Yard','Left Side Yard','Right Side Yard','Back Yard 1','Back Yard 2','Fence','Driveway','Any Debris','Retaining Wall','Concerns'],items:L(['Fence Type','Front Gate','Other Gate','Grading','Landscaping','Vegetation','Water Feature','Brush Fire Defensible Space','Surface Drainage','Wall','Retaining Wall','Driveway','Walk Ways','Bushes','Trees','Electrical Receptacles','Sprinkler System'])},
+    'Exterior Walls':{pics:['Front','Left Side','Right Side','Back','Chimney','Concerns'],items:L(['Siding Material','Soffits','Trim','Rain Gutters','Water Down Spouts','Windows','Lintels','Concrete Sidewalk','Front Steps','Front Porch','Doorbell','Exterior Doors','Chimney','Foundation Type','Exterior Foundation','Dryer Exhaust Vent','Hose Bib(s)','Lighting','Electrical Receptacles','Mail Box'])},
+    'Roof':{pics:['North Side','East Side','West Side','South Side','Chimney','Sky Light','Utility penetrations','Concerns'],items:[{q:'Did the inspector walk the roof?',t:'single',o:['Yes','No']},{q:'Reason (if not walked)',t:'single',o:['Too tall / steep','Heat unsafe','Snow covered','Raining','Windy']}].concat(L(['Roof Type','Roof Material','Parapet','Saddles Condition','Roof Install Workmanship','Roof Age','Chimney','Cricket in Place','Roof Penetrations','Roof Vents','Sky Light','Roof Flashing','Ice Dam Potential Areas','Fascia','Dormer(s)','Tree in Contact','Moss / Mold or Mildew','Swamp Cooler','Solar Panels']))},
+    'Chimney':{pics:['Chimney','Crown','Flue & Lining','Mantle','Firebox','Damper'],items:[
+      {q:'Material (outside)',t:'single',o:['Metal','Masonry','Stone','Enclosed']},
+      {q:'Chimney is plumb',t:'single',o:['Yes','No']},{q:'Properly attached to structure',t:'single',o:['Yes','No']},
+      {q:'Condition',t:'multi',o:['Gaps','Missing sections','Cracks','None']},
+      {q:'Crown condition',t:'multi',o:['Good','Missing sections','Cracks']},
+      {q:'Clearance',t:'multi',o:['Proper','3 ft above penetration','2 ft above point 10 ft away']},
+      {q:'Rain caps',t:'single',o:['In place','Damaged','None']},
+      {q:'Flue lining',t:'single',o:['Tile','Clay','Metal single wall','Metal double wall']},
+      {q:'Flue condition',t:'multi',o:['Gaps','Missing sections','Cracks','None']},
+      {q:'Flashing type',t:'single',o:['Straight','Step','Sealed at edges']},
+      {q:'Mantle (inside)',t:'single',o:['Stone','Masonry','Wood','Metal','Copper']},
+      {q:'Doors',t:'single',o:['None','Metal solid','Metal screen','Glass']},
+      {q:'Lintel over firebox',t:'single',o:['In place & good','Missing','Poor']},
+      {q:'Damper',t:'single',o:['In place & functional','Not functional','Missing']}
+    ]},
+    'Outside Utilities':{pics:['Swamp Cooler','Compressor','Coolant Lines','Meter','Gas Meter','Water Meter','Concerns'],items:[{q:'Cooling system',t:'single',o:['Swamp Cooler','Central Air','None']}].concat(L(['Compressor / Fan','Fins','Coolant Lines','Power Cut Off','Compressor Size'])).concat([{q:'Electric meter condition',t:'single',o:['Good','Rusted','Broken']},{q:'Meter & brackets secure',t:'single',o:['Yes','No']}]).concat(L(['Electric Service','Electric Service Drop','Over-current Protection','AMP Rating','Solar Panel Breakers','Gas Meter','Gas Cut Off','Water Meter','Rain Water Collection','Outdoor Sewer Access','Sewer Main']))},
+    'Pool House & Pool':{pics:['Pool Area','Fence','Deck Area','Diving Board','Pool House Front','Pool Pump','Concerns'],items:[{q:'Pool',t:'single',o:['N/A – outside scope','Present']}].concat(L(['Pool Fenced','Pool Gate','Pool Deck Area','Slide / Diving Board','Water Level Alarm','Pool House Roof Type','Pool House Roof Material','Pool House Exterior Walls','Windows','Foundation','Hose Bib(s)','Door(s)','Floor','Ceiling','Ceiling Fans','Interior Walls','Pool House Plumbing','Pool Pump','Pool House Electrical','Wiring Condition','Electrical Receptacles','Lighting','Smoke Alarm']))},
+    'Outbuilding – Shed':{pics:['Front','Roof','Inside','Damage','Water Well Head','Concerns'],items:[{q:'Shed type',t:'single',o:['Shed','Work Shop','Water Well House','No Shed']}].concat(L(['Roof Material','Exterior Walls','Electrical','Receptacles (outside)','Door(s)','Floor','Trusses','Connector Plates','Ceiling','Windows','Inside Walls','Wiring Type','Electrical Receptacles','Lighting','Plumbing','Condition','Water Well']))},
+    'Outbuilding – Car Port':{pics:['Car Port','Pillars','Storage Area','Concerns'],items:L(['Position','Roof Type','Roof Material','Condition','Trusses','Connector Plates','Ceiling','Door(s)','Exterior Walls','Storage Area','Windows','Lighting','Electrical Receptacles','Electric Wiring Type','EV Charging','Plumbing','Pressure'])},
+    'Mobile Home Undercarriage':{pics:['Skirt','Joists 1','Joists 2','Supports 1','Supports 2','Sewer Connection','Concerns'],items:[{q:'Signs of pests',t:'single',o:['Yes','No']}].concat(L(['Undercarriage','Foundation','Access','Skirt','Joists','Supports','Axels Present','Foundation / Pad','Signs of Settling','Sewer Connection(s)','Electrical Receptacles','Electric Wiring Type']))},
+    'Deck':{pics:['Deck','Steps','Railing','Header','Beams','Piers','Hangers','Concerns'],items:L(['Deck Size','Deck Material','Awning','Railing','Steps','Posts','Beams','Header / Ledger','Flashing','Skirt','Under-Deck Storage','Ground Surface','Under-Deck Drainage','Any Sign of Pests','Electrical Receptacles'])},
+    'Patio':{pics:['Surface','Steps','Railing','Concerns'],items:L(['Size','Material','Awning','Railing','Steps','Ground Surface','Drainage','Any Sign of Pests','Electrical Receptacles'])},
+    'Balcony':{pics:['Surface','Railing','Header','Hangers','Concerns'],items:[{q:'Any sign of pests',t:'single',o:['Yes','No']}].concat(L(['Size Sqft','Material','Awning','Railing','Steps','Posts','Beams','Header / Ledger','Flashing','Electrical Receptacles']))},
+    'Garage':{pics:['Front','Roof','Garage Inside 1','Garage Inside 2','Garage Door (Outside)','Garage Door (Inside)','Garage Door Opener','Concerns'],items:[{q:'Garage type',t:'single',o:['None','Attached','Detached','Living Space in Garage']}].concat(L(['Foundation Type','Roof Type','Exterior Walls','Electrical','Hose Bib(s)','Door(s)','Floor Surfacing','Visible Foundation','Trusses','Connector Plates','Ceiling','Attic (secondary)','Windows','Thermal Imaging','Garage Door(s)','Lintels','Interior Walls','Lighting','Wiring Type','Electrical Receptacles','EV Charging','Mold','Heated']))},
+    'Attic':{pics:['Sheathing','Vents','Trusses','Connector Plates','Insulation Tag','Insulation Levels','Concerns'],items:L(['Access','Access Structure','Roof Sheathing','Plumbing Vents','Trusses','Connector Plates','Ventilation','Insulation','Chimney Area','Lighting','Wiring','Wiring Connections','Electrical Receptacles','Mildew Present','Signs of Pests','Thermal Imaging'])},
+    'Bathroom':{pics:['Vanity / Sink','Under-Sink Plumbing','Toilet','Toilet Valve','Bath / Shower','Concerns'],items:[{q:'Type',t:'single',o:['Master Bath','Full','½ Bath','Water Closet']},{q:'Level',t:'single',o:['Main Floor','Basement','2nd Story','3rd Story']}].concat(L(['Remodel','Door(s)','Ceiling','Floor','Sub Floor','Interior Walls','Windows','Thermal Anomalies','Counters','Sink','Plumbing','Bathtub / Shower','Toilet','Lighting','Electrical Receptacles','Ventilation','HVAC']))},
+    'Bedroom':{pics:['General Room','Closet','Windows','Smoke Detector','Concerns'],items:[{q:'Type',t:'single',o:['Master Bed','Standard Bed','Small Bed']},{q:'Level',t:'single',o:['Main Floor','Basement','2nd Floor','3rd Floor','4th Floor']}].concat(L(['Door(s)','Ceiling','Floor','Sub Floor','Interior Walls','Windows','Thermal Anomalies','Closet','Lighting','Shelves','Electrical Receptacles','Ceiling Fan','HVAC','Thermostat','Alarms']))},
+    'Hallway':{pics:['General Area','Closet','Windows','Concerns'],items:[{q:'Level',t:'single',o:['Main Floor','Basement','Story 2','Story 3']}].concat(L(['Door(s)','Ceiling','Floor','Sub Floor','Interior Walls','Windows','Thermal Anomalies','Closet','Lighting','Shelves','Electrical Receptacles','Ceiling Fan','HVAC','Alarms']))},
+    'Living Room':{pics:['General Area','Front Door / Entry','Windows','Fireplace','Stairs','Smoke Detector','Concerns'],items:L(['Door(s)','Ceiling','Floor','Sub Floor','Stairways','Railing','Interior Walls','Windows','Thermal Anomalies','Lighting','Electrical Receptacles','Ceiling Fans','Fireplace','HVAC','Alarms'])},
+    'Reception':{pics:['General Area','Front Door / Entry','Windows','Fireplace','Stairs','Concerns'],items:L(['Door(s)','Ceiling','Floor','Sub Floor','Stairways','Railing','Interior Walls','Windows','Thermal Anomalies','Lighting','Electrical Receptacles','Ceiling Fans','Fireplace','HVAC','Alarms'])},
+    'Den / Home Office':{pics:['General Room','Closet','Windows','Concerns'],items:L(['Door(s)','Ceiling','Floor','Sub Floor','Interior Walls','Windows','Thermal Anomalies','Lighting','Electrical Receptacles','Ceiling Fans','Fireplace','HVAC','Alarms'])},
+    'Family Room':{pics:['General Area','Refrigerator','Cabinets','Sink','Plumbing Under Sink','Concerns'],items:L(['Door(s)','Ceiling','Floor','Sub Floor','Interior Walls','Windows','Thermal Anomalies','Lighting','Electrical Receptacles','Ceiling Fans','Fireplace','Kitchenette / Wet Bar','Counter','Sink','Plumbing','Refrigerator','HVAC','Alarms'])},
+    'Kitchen':{pics:['General Area','Floor','Stove','Refrigerator','Cabinets','Island','Sink','Plumbing Under Sink','Concerns'],items:L(['Remodel','Door(s)','Ceiling','Floor','Sub Floor','Interior Walls','Windows','Thermal Anomalies','Counters','Cupboards','Cabinets','Island','Pantry','Sink','Plumbing','Dishwasher','Stove & Oven','Exhaust Hood','Refrigerator','Lighting','Electrical Receptacles','HVAC'])},
+    'Dining Room':{pics:['General Area','Windows','Sliding Glass','Concerns'],items:L(['Door(s)','Ceiling','Floor','Sub Floor','Interior Walls','Windows','Lintels','Thermal Anomalies','Lighting','Electrical Receptacles','Ceiling Fans','Fireplace','HVAC','Alarms'])},
+    'Laundry Room':{pics:['Laundry Area','Hook Ups','Plumbing','Floor Drain','Concerns'],items:L(['Location','Door(s)','Ceiling','Floor','Sub Floor','Interior Walls','Windows','Thermal Anomalies','Lighting','Electrical Receptacles','Ventilation','Sink','Plumbing','Cabinets','Counters','Washer Hook-ups','Hot Connection','Cold Connection','Drain Line','Pan','Floor Drain','Dryer','HVAC','Alarms'])},
+    'Storage Room':{pics:['General Area','Concerns'],items:L(['Door(s)','Ceiling','Floor','Sub Floor','Interior Walls','Windows','Thermal Anomalies','Lighting','Electrical Receptacles','Shelves','Signs of Pests','Mildew Present','HVAC','Stairs','Alarms'])},
+    'Additional Living Space':{pics:['Front','Roof','Inside','Damage','Concerns'],items:[{q:'Type',t:'single',o:['ALS detached','ALS in garage','Mother-in-law apartment','Bunk house']}].concat(L(['Roof Type','Roof Material','Exterior Walls','Electrical','Receptacles (outside)','Door(s)','Floor','Trusses','Connector Plates','Ceiling','Windows','Inside Walls','Electrical Receptacles','Lighting','Plumbing','Condition']))},
+    'Foundation / Crawl Space':{pics:['Entrance','Floor Joists','Vapor Barrier','Foundation 1','Foundation 2','Concerns'],items:[{q:'Foundation visibility',t:'single',o:['<10%','10-25%','25-50%','50-75%','75-100%']},{q:'Water infiltration present',t:'single',o:['Yes','No']},{q:'Mold or mildew',t:'single',o:['None observed','Possibly present']}].concat(L(['Foundation Type','Exterior Foundation','Basement','Crawl Space','Floor Joists','Sub Floor','Underside of Subfloor','Vapor Barrier in Place','Sump Pump & Pit','Any Pests / Mud Tubes','Ventilation','Alarms']))},
+    'Utility Room':{pics:['General Area','Concerns'],items:L(['Contents','Condition','Ventilation','Electrical Receptacles','Lighting'])},
+    'Electrical':{pics:['Breaker Panel Cover On','Breaker Panel List','Breaker Panel Label','Panel Cover Off','Close-up of Wiring','Concerns'],items:[
+      {q:'Panel',t:'single',o:['Primary Panel','Secondary Panel','Fuse Box']},
+      {q:'Wiring type',t:'multi',o:['Metallic sheathed (Romex)','Aluminum ⚠','Knob & Tube ⚠','None']},
+      {q:'Any hot breakers',t:'single',o:['Yes','No']},
+      {q:'Breakers in good repair',t:'single',o:['Yes','No']},
+      {q:'Breakers labeled',t:'single',o:['Yes','No']},
+      {q:'Empty slots covered',t:'single',o:['Yes','No']},
+      {q:'Any double taps',t:'single',o:['Yes','No']},
+      {q:'Wires with broken / stripped insulation',t:'single',o:['Yes','No']},
+      {q:'Any charred / cracking areas',t:'single',o:['Yes','No']},
+      {q:'Amp load',t:'single',o:['60','100','150','200','200+','Not visible']},
+      {q:'Panel brand',t:'multi',o:['Square D','Cutler Hammer','Eaton','Siemens','GE','Murray','Zinsco ⚠','Federal Pacific ⚠','Pushmatic','Other']},
+      {q:'Panel recalled',t:'single',o:['Yes','No','Unknown']},
+      {q:'Alarms',t:'multi',o:['Smoke alarm','CO alarm']}
+    ]},
+    'HVAC Mechanical':{pics:['Manufacturer Plate','Blower Fan','Burner','Computer Board','Concerns'],items:[
+      {q:'Furnace type',t:'single',o:['Forced air – natural gas','Forced air – electric','Electric baseboards','Fuel oil','Heat pump']},
+      {q:'Location',t:'single',o:['Attic','Main floor','Basement']},
+      {q:'Heating operation',t:'single',o:['Good','Poor','Not tested']}].concat(L(['Gas Valve','Gas Line','Intake','Venting','Ductwork','Flame Color','Combustion Chamber','Computer Board','Air Filter Access'])).concat([
+      {q:'Thermostat type',t:'single',o:['Programmable','Smart','Manual']},
+      {q:'Cooling system',t:'single',o:['Central Air','Not tested','None']},
+      {q:'Cooling operates normally',t:'single',o:['Yes','No']},
+      {q:'Any abnormal sounds',t:'single',o:['Yes','No']},
+      {q:'Condensation tube in place',t:'single',o:['Yes','No']}])},
+    'Heating Oil Tank':{pics:['Tank','Capacity','Relief Valve','Location'],items:[
+      {q:'Tank location',t:'single',o:['Inside','Outdoors','Ground level','Basement']},
+      {q:'Tank capacity (gallons)',t:'single',o:['<250','250-500','500+','Unknown']},
+      {q:'Pressure gauge',t:'single',o:['Top of tank','Side of tank','None']},
+      {q:'Relief valve in place',t:'single',o:['Yes','No']},
+      {q:'Condition of tank',t:'single',o:['Clean / painted','Light rust','Heavy rust']},
+      {q:'Leaks',t:'multi',o:['Tank','Valve connections','Piping','None']},
+      {q:'Odor of oil',t:'single',o:['Yes','No']},
+      {q:'Piping material',t:'single',o:['PVC','ABS','Copper','Cast iron','Galvanized','Other']},
+      {q:'Ignition proximity',t:'single',o:['Within 2 ft','2 ft+','5 ft+','Fire-rated barrier']}
+    ]},
+    'Boiler':{pics:['Tank','Gas Regulator','Gas Burners','Fill Glass','Emergency Valve','Duct Work','Concerns'],items:[
+      {q:'Tank leaking',t:'single',o:['No','Small','Medium','Large']},
+      {q:'Tank rusted',t:'single',o:['None','Some','Moderate','A lot','Compromised']},
+      {q:'Fill glass intact',t:'single',o:['Yes','No']},
+      {q:'Pressure gauge',t:'single',o:['In place & functional','Not functional','Missing']},
+      {q:'Temperature gauge functional',t:'single',o:['Yes','No']},
+      {q:'Feed pipe material',t:'single',o:['Galvanized','Cast iron','Copper','ABS','PVC']},
+      {q:'Feed pipe condition',t:'multi',o:['Proper supports','Sagging','Connections leaking']},
+      {q:'Heating pipe material',t:'single',o:['Galvanized','Cast iron','Copper','ABS','PVC']},
+      {q:'Radiators',t:'single',o:['N/A','Good','Rusted','Poor']}
+    ]},
+    'Water Heater':{pics:['General','Manufacturer Plate','Vent','Relief Valve','Regulator','Concerns'],items:[
+      {q:'Number of units',t:'single',o:['1','2']},
+      {q:'Fuel',t:'single',o:['Gas','Electric']},
+      {q:'Type',t:'single',o:['Tank','Tankless']},
+      {q:'Capacity',t:'single',o:['40 gal','50 gal','75 gal','Other']},
+      {q:'Pilot',t:'single',o:['Standing','Gas','Electric']},
+      {q:'Staining / rust on tank',t:'single',o:['Yes','No']},
+      {q:'Tank leaking',t:'single',o:['Yes','No']},
+      {q:'Gas valve',t:'multi',o:['Open','Rusted','Leaking']},
+      {q:'Gas line',t:'single',o:['Pipe','Flex line','Leaking']},
+      {q:'Securing straps in place',t:'single',o:['Yes','No']},
+      {q:'Expansion tank',t:'multi',o:['Installed','Installed properly','Damage']},
+      {q:'Pressure relief valve',t:'single',o:['Functions','Corrosion']},
+      {q:'Relief pipe terminates 6" from floor',t:'single',o:['Yes','No']},
+      {q:'Venting',t:'multi',o:['Level','1" clearance at base','6" before bend','¼" per foot rise']}
+    ]},
+    'Plumbing':{pics:['Water Main','Sewer Cleanout','Distribution Lines','Manifold','Water Softener','Softener Tag','Concerns'],items:[
+      {q:'Distribution system',t:'single',o:['Pipe','Manifold','Straight line with Ts','Branch from manifold']},
+      {q:'Pipe type',t:'multi',o:['Galvanized ⚠','Copper','Poly gray','PEX','PVC','Polybutylene ⚠']},
+      {q:'Water main valve',t:'single',o:['Screw valve','Ball valve','Any leaks']},
+      {q:'Reverse flow preventer in place',t:'single',o:['Yes','No']},
+      {q:'Sewer outflow pipe',t:'single',o:['Galvanized','White PVC','Black ABS']},
+      {q:'Sewer cleanout',t:'multi',o:['Accessible','Operable']},
+      {q:'Any corrosion visible',t:'single',o:['Yes','No']},
+      {q:'Any leaking visible',t:'single',o:['Yes','No']},
+      {q:'Water softener',t:'single',o:['Salt system','Reverse osmosis','None']},
+      {q:'Hydronic floor heating',t:'single',o:['Present','None']}
+    ]},
+    'Septic':{pics:['Tank','Lids','Baffles','Leech Field','Drain Field','Concerns'],items:[
+      {q:'System type',t:'single',o:['Conventional','Aerobic','Evaporative','Gravity','Raised ridge']},
+      {q:'Type of tank',t:'single',o:['Single tank','Double tank (aerobic)','Triple tank (anaerobic)']},
+      {q:'Tank material',t:'single',o:['Concrete','Steel','Fiberglass','Plastic']},
+      {q:'Any loads on / over tank',t:'single',o:['Yes','No']},
+      {q:'Tank lids accessible',t:'single',o:['Yes','No']},
+      {q:'Raisers in place',t:'single',o:['Yes','No','Advised']},
+      {q:'Sign of previous repair',t:'single',o:['Yes','No']},
+      {q:'Ground softening',t:'multi',o:['Over tank','Over pipes','None']},
+      {q:'Leech field',t:'single',o:['Yes','No']},
+      {q:'Filter condition',t:'single',o:['Good','Aged','Replace']},
+      {q:'Condition of tank',t:'single',o:['Good','Corroded','Crumbling','Cracked','Leaking']},
+      {q:'Baffles',t:'single',o:['Good','Bad','None']},
+      {q:'Air pump functioning',t:'single',o:['Yes','No','N/A']}
+    ]},
+    'Radon':{pics:['Monitor','Location','Concerns'],items:[
+      {q:'Test performed',t:'single',o:['Yes','No','Referred out']},
+      {q:'Measured level (pCi/L)',t:'single',o:['< 2.0','2.0 – 3.9','4.0 – 5.9','6.0 +']},
+      {q:'Result vs EPA action level (4.0)',t:'single',o:['Below','At','Above']}
+    ]},
+    'Meth Test':{pics:['Sample Area','Concerns'],items:[
+      {q:'Test performed',t:'single',o:['Yes','No','Referred out']},
+      {q:'Area tested',t:'single',o:['Living area','Kitchen','Bedroom','HVAC','Whole house']},
+      {q:'Contamination scale (1 worst … 10 best)',t:'single',o:['1','2','3','4','5','6','7','8','9','10']}
+    ]},
+    'Thermal Audit':{pics:['True Color','Thermal Image','Concerns'],items:[
+      {q:'Scan performed',t:'single',o:['Yes','No']},
+      {q:'Areas scanned',t:'multi',o:['House exterior','Roof','Windows','Doors','Living room','Kitchen','Circuit panel','Bathrooms','Bedrooms']},
+      {q:'Anomalies found',t:'multi',o:['None','Moisture','Missing insulation','Electrical hot spot','Air leakage']}
+    ]},
+    'Termite':{pics:['Evidence','Damage','Concerns'],items:[
+      {q:'Areas inspected',t:'multi',o:['Deck','Garage','Attic','Main room','Kitchen','Pantry','Laundry','Basement','Crawlspace']},
+      {q:'Insects / pests observed',t:'multi',o:['Termites','Wasps','Ants','Rodents','None']},
+      {q:'Findings',t:'single',o:['No visible evidence','Visible evidence observed']},
+      {q:'Evidence type',t:'multi',o:['Live insects','Dead insects','Visible damage']}
+    ]},
+    'Lead':{pics:['Sample 1','Sample 2','Concerns'],items:[
+      {q:'Test performed',t:'single',o:['Yes','No','Referred out']},
+      {q:'Samples taken',t:'single',o:['1','2','3','4']},
+      {q:'Lead present level (1 low … 10 high)',t:'single',o:['1','2','3','4','5','6','7','8','9','10']}
+    ]},
+    'Indoor Air Quality':{pics:['Meter','Concerns'],items:[
+      {q:'Formaldehyde (HCHO)',t:'single',o:['1 Good','2','3 Mild','4 Moderate','5 Severe','6 Serious']},
+      {q:'TVOC',t:'single',o:['1 Good','2','3 Mild','4 Moderate','5 Severe','6 Serious']},
+      {q:'PM2.5',t:'single',o:['1 Good','2','3 Mild','4 Moderate','5 Severe','6 Serious']},
+      {q:'PM10',t:'single',o:['1 Good','2','3 Mild','4 Moderate','5 Severe','6 Serious']},
+      {q:'CO2',t:'single',o:['1 Good','2','3 Mild','4 Moderate','5 Severe','6 Serious']},
+      {q:'CO',t:'single',o:['1 Good','2','3 Mild','4 Moderate','5 Severe','6 Serious']}
+    ]},
+    'Wind Mitigation':{pics:['Roof Deck','Roof-Wall Attachment','Openings','Concerns'],items:[
+      {q:'1. Building code',t:'single',o:['A – FBC compliant','B – SFBC-94 (HVHZ)','C – Unknown / neither']},
+      {q:'2. Roof covering type',t:'multi',o:['Asphalt / fiberglass shingle','Concrete / clay tile','Metal','Built-up','Membrane','Other']},
+      {q:'2. Roof covering compliance',t:'single',o:['Meets FBC / Miami-Dade','HVHZ product approval','One+ do not meet','None meet']},
+      {q:'3. Roof deck attachment (weakest)',t:'single',o:['A','B','C','D – reinforced concrete','No attic access']},
+      {q:'4. Roof-to-wall attachment (weakest)',t:'single',o:['A – toe nails','B – clips','C – single wraps','D – double wraps','E – structural anchor','No attic access']},
+      {q:'5. Roof geometry',t:'single',o:['Hip','Flat','Other']},
+      {q:'6. Secondary water resistance',t:'single',o:['SWR (sealed deck)','No SWR','Unknown']},
+      {q:'7. Opening protection (weakest)',t:'single',o:['A','B','C','N','X – none / some glazed']}
+    ]},
+    'Sewer Scope':{pics:['Cleanout','Line','Concerns'],items:[
+      {q:'Scope performed',t:'single',o:['Yes','No']},
+      {q:'Pipe material',t:'single',o:['PVC','Cast iron','Clay','Orangeburg ⚠']},
+      {q:'Findings',t:'single',o:['Clear','Roots','Belly','Break / offset']}
+    ]},
+    'Asbestos':{pics:['Suspect Material','Sample','Concerns'],items:[
+      {q:'Test performed',t:'single',o:['Yes','No','Referred out']},
+      {q:'Suspect materials',t:'multi',o:['Popcorn ceiling','Floor tile','Pipe insulation','Siding','None']},
+      {q:'Sample sent to lab',t:'single',o:['Yes','No']},
+      {q:'Result',t:'single',o:['Negative','Positive','Pending']}
+    ]},
+    'Condo':{pics:['Common Area','Stairs','Landing','Concerns'],items:[{q:'Approach',t:'single',o:['Open','Enclosed','Indoor']}].concat(L(['Stairs','Landing','Fence Type','Front Gate','Grading','Landscaping','Vegetation','Surface Drainage','Wall','Retaining Wall','Walk Ways','Bushes','Trees','Electrical Receptacles','Sprinkler System']))}
+  });
+  SEC['Detached Garage']=SEC['Garage'];
+
+  // Catalogs (from Jeremy's App Flow Chart + property-info page)
+  var INSPECTION_TYPES=['Real Estate Sale','New Construction','Pre-Sale / Maintenance'];
+  var STRUCTURE_TYPES=['Single Family','Duplex','Multi-Unit','Townhouse','Condo','Mobile / Manufactured'];
+  var EXT_OPT=['Chimney','Pool House & Pool','Outbuilding – Shed','Outbuilding – Car Port','Deck','Patio','Balcony','Detached Garage'];
+  var ROOM_OPT=['Living Room','Family Room','Den / Home Office','Reception','Kitchen','Dining Room','Laundry Room','Storage Room','Attic','Garage','Additional Living Space'];
+  var UTIL_OPT=['Boiler','Heating Oil Tank'];
+  var TEST_OPT=['Radon','Meth Test','Thermal Audit','Termite','Lead','Indoor Air Quality','Septic','Sewer Scope','Asbestos','Wind Mitigation'];
+  var CUSTOM={Exterior:[],Interior:[],Utility:[],Testing:[]}; // admin-added sections
+  var ADMIN_GROUPS=[
+    ['Exterior',['Landscaping','Roof','Chimney','Exterior Walls','Outside Utilities','Pool House & Pool','Outbuilding – Shed','Outbuilding – Car Port','Deck','Patio','Balcony','Detached Garage','Mobile Home Undercarriage','Condo']],
+    ['Interior',['Garage','Attic','Bathroom','Bedroom','Hallway','Living Room','Den / Home Office','Family Room','Reception','Kitchen','Dining Room','Laundry Room','Storage Room','Additional Living Space']],
+    ['Utility',['Utility Room','HVAC Mechanical','Electrical','Water Heater','Boiler','Heating Oil Tank','Plumbing','Foundation / Crawl Space']],
+    ['Testing',['Radon','Meth Test','Thermal Audit','Termite','Lead','Indoor Air Quality','Septic','Sewer Scope','Asbestos','Wind Mitigation']]
+  ];
+
+  // selection state — drives which sections appear (structure -> rooms -> testing)
+  var sel={
+    inspType:'Real Estate Sale', loan:'Conventional', structure:'Single Family',
+    bedrooms:4, bathrooms:3, hallways:2,
+    rooms:{'Living Room':1,'Family Room':1,'Den / Home Office':1,'Reception':0,'Kitchen':1,'Dining Room':1,'Laundry Room':1,'Storage Room':1,'Attic':1,'Garage':1,'Additional Living Space':0},
+    exterior:{'Chimney':1,'Pool House & Pool':0,'Outbuilding – Shed':0,'Outbuilding – Car Port':0,'Deck':1,'Patio':0,'Balcony':0,'Detached Garage':0},
+    utilOpt:{'Boiler':0,'Heating Oil Tank':0},
+    tests:{'Radon':1,'Meth Test':0,'Thermal Audit':1,'Termite':1,'Lead':0,'Indoor Air Quality':0,'Septic':0,'Sewer Scope':0,'Asbestos':0,'Wind Mitigation':0}
+  };
+  function repeatSec(base,n){ var a=[]; for(var i=1;i<=n;i++) a.push(base+' '+i); return a; }
+  function buildGroups(){
+    var ext=['Landscaping','Roof','Exterior Walls','Outside Utilities'];
+    EXT_OPT.forEach(function(k){ if(sel.exterior[k]) ext.push(k); });
+    if(sel.structure==='Condo') ext.push('Condo');
+    if(sel.structure==='Mobile / Manufactured') ext.push('Mobile Home Undercarriage');
+    var interior=[];
+    if(sel.rooms['Garage']) interior.push('Garage');
+    if(sel.rooms['Attic']) interior.push('Attic');
+    interior=interior.concat(repeatSec('Bathroom',sel.bathrooms)).concat(repeatSec('Bedroom',sel.bedrooms)).concat(repeatSec('Hallway',sel.hallways));
+    ['Living Room','Den / Home Office','Family Room','Reception','Kitchen','Dining Room','Laundry Room','Storage Room','Additional Living Space'].forEach(function(k){ if(sel.rooms[k]) interior.push(k); });
+    var util=['Utility Room','HVAC Mechanical','Electrical','Water Heater'];
+    UTIL_OPT.forEach(function(k){ if(sel.utilOpt[k]) util.push(k); });
+    util=util.concat(['Plumbing','Foundation / Crawl Space']);
+    var tests=[]; TEST_OPT.forEach(function(k){ if(sel.tests[k]) tests.push(k); });
+    ext=ext.concat(CUSTOM.Exterior); interior=interior.concat(CUSTOM.Interior); util=util.concat(CUSTOM.Utility); tests=tests.concat(CUSTOM.Testing);
+    return [
+      {h:'Inspection Info',icon:'info',link:'s-new'},
+      {h:'Property Exterior',icon:'tree',secs:ext},
+      {h:'Property Interior',icon:'sofa',secs:interior,sub:{h:'Utility & Function',secs:util}},
+      {h:'Testing',icon:'flask',secs:tests},
+      {h:'Summary',icon:'list',link:'s-summary'}
+    ];
+  }
+  var GROUPS=buildGroups();
+  function leafSecs(){ var out=[]; GROUPS.forEach(function(g){ if(g.secs){ g.secs.forEach(function(n){out.push(n);}); if(g.sub) g.sub.secs.forEach(function(n){out.push(n);}); } }); return out; }
+  var STATUS={};
+  leafSecs().forEach(function(n){STATUS[n]='todo';});
+  ['Landscaping','Exterior Walls','Garage','Living Room','Kitchen','Bedroom 1'].forEach(function(k){STATUS[k]='done';});
+  ['Roof','Outside Utilities','Electrical','Foundation / Crawl Space'].forEach(function(k){STATUS[k]='prog';});
+  function refreshChecklist(){ GROUPS=buildGroups(); leafSecs().forEach(function(n){ if(!(n in STATUS)) STATUS[n]='todo'; }); }
+
+  var FINDINGS=[
+    {cat:1,txt:'No power to exterior receptacle — wiring damaged at housing (back of property).',sec:'Landscaping'},
+    {cat:1,txt:'Rail required for stairs down to basement back door.',sec:'Exterior Walls'},
+    {cat:1,txt:'Tree branches in contact with the structure.',sec:'Landscaping'},
+    {cat:2,txt:'Section of concrete is lifting — trip hazard.',sec:'Exterior Walls'},
+    {cat:2,txt:'No diverter; water going into foundation causing settling.',sec:'Roof'},
+    {cat:3,txt:'Residue of ivy on the front of the house.',sec:'Exterior Walls'}
+  ];
+
+  var THUMBS=['%234a6572','%235b6b78','%237a6a55','%238a5a4a','%235a6b52'];
+  function thumb(i){var c=THUMBS[i%THUMBS.length];return "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><rect width='120' height='120' fill='"+c+"'/><path d='M0 80 L45 46 L78 68 L120 42 L120 120 L0 120Z' fill='rgba(0,0,0,0.22)'/></svg>";}
+
+  // ---------- router ----------
+  var stack=[], curSection='Roof';
+  window.go=function(id,nopush){
+    var cur=document.querySelector('.screen.active');
+    if(cur){ if(!nopush && cur.id!==id) stack.push(cur.id); cur.classList.remove('active'); }
+    var el=document.getElementById(id); if(!el) return;
+    el.classList.add('active'); document.getElementById('body').scrollTop=0;
+    setHeader(el); closeDrawer(); closeRev();
+    if(id==='s-summary') renderSummary();
+    if(id==='s-sections') renderOverview();
+  };
+  function back(){ var p=stack.pop(); go(p||'s-home',true); }
+  window.goHome=function(){ stack=[]; go('s-home',true); };
+
+  var HSVG={back:'<path d="M19 12H5M12 19l-7-7 7-7"/>',menu:'<path d="M3 6h18M3 12h18M3 18h18"/>',home:'<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20h14V9.5"/>',add:'<path d="M12 5v14M5 12h14"/>',photos:'<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"/><circle cx="12" cy="13" r="3"/>',sections:'<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>'};
+  function wrapSvg(p){return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+p+'</svg>';}
+  var INSP=['s-sections','s-section','s-photos','s-summary','s-report','s-generated'];
+  function setHeader(el){
+    var hdr=document.getElementById('apphdr');
+    if((el.getAttribute('data-hdr')||'menu')==='none'){ hdr.style.display='none'; return; }
+    hdr.style.display='flex';
+    document.getElementById('hdrtitle').textContent=el.getAttribute('data-title')||'VIMS';
+    document.getElementById('hdrsub').textContent = INSP.indexOf(el.id)>=0 ? '1428 Ridgeline Dr' : 'Vision Property Inspections';
+    var id=el.id, isHome=(id==='s-home');
+    var li=document.getElementById('hdrleft'), lic=document.getElementById('hdrlefticon');
+    if(isHome){ lic.innerHTML=HSVG.menu; li.setAttribute('data-mode','menu'); li.setAttribute('aria-label','Menu'); }
+    else { lic.innerHTML=HSVG.back; li.setAttribute('data-mode','back'); li.setAttribute('aria-label','Back'); }
+    var acts;
+    if(isHome){ acts=[['add','New inspection']]; }
+    else if(id==='s-section'){ acts=[['photos','Photos'],['sections','Sections'],['home','Home']]; }
+    else if(id==='s-sections'){ acts=[['home','Home']]; }
+    else if(INSP.indexOf(id)>=0){ acts=[['sections','Sections'],['home','Home']]; }
+    else { acts=[['home','Home']]; }
+    var wrap=document.getElementById('hdractions'); wrap.innerHTML='';
+    acts.forEach(function(a){ var b=document.createElement('button'); b.className='ic'; b.type='button'; b.setAttribute('aria-label',a[1]); b.innerHTML=wrapSvg(HSVG[a[0]]); b.addEventListener('click',function(){headerAct(a[0]);}); wrap.appendChild(b); });
+  }
+  function headerAct(k){ if(k==='add')go('s-new'); else if(k==='photos')go('s-photos'); else if(k==='home')goHome(); else if(k==='sections')openDrawer(); }
+  window.hdrLeft=function(){ var m=document.getElementById('hdrleft').getAttribute('data-mode'); if(m==='back') back(); else openDrawer(); };
+
+  window.openInspection=function(addr){ document.getElementById('insp-addr').textContent=addr; document.getElementById('drawer-addr').textContent=addr; renderOverview(); go('s-sections'); };
+
+  // ---------- progress ----------
+  function updateProgress(){
+    var leafs=leafSecs(); var done=0; leafs.forEach(function(n){ if(STATUS[n]==='done') done++; });
+    var total=leafs.length, pct=total?Math.round(done/total*100):0;
+    var pb=document.getElementById('progbar'); if(pb){pb.style.width=pct+'%';}
+    var set=function(id,v){var e=document.getElementById(id); if(e)e.textContent=v;};
+    set('pct',pct+'%'); set('cntdone',done); set('cntleft',total-done); set('cntfind',FINDINGS.length);
+  }
+
+  function dotClass(st){return st==='done'?'g':st==='prog'?'a':'n';}
+  function statusWord(st){return st==='done'?'Done':st==='prog'?'In progress':'Not started';}
+
+  // ---------- overview (grouped accordion) ----------
+  function secRow(n){ var st=STATUS[n]||'todo'; var r=document.createElement('button'); r.className='srow'; r.type='button'; r.innerHTML='<span class="sdot '+dotClass(st)+'"></span><span class="sn">'+n+'</span><span class="ss">'+statusWord(st)+'</span>'; r.onclick=function(){openSection(n);}; return r; }
+  function renderOverview(){
+    updateProgress();
+    var wrap=document.getElementById('overviewgroups'); wrap.innerHTML='';
+    GROUPS.forEach(function(g,gi){
+      if(g.link){
+        var lg=document.createElement('div'); lg.className='grp';
+        var lh=document.createElement('button'); lh.className='gh'; lh.type='button';
+        lh.innerHTML='<span class="gi">'+ico(g.icon)+'</span><b>'+g.h+'</b><span class="caret">'+wrapSvg('<path d="m9 6 6 6-6 6"/>')+'</span>';
+        lh.onclick=function(){ go(g.link); };
+        lg.appendChild(lh); wrap.appendChild(lg); return;
+      }
+      var leafs=g.secs.concat(g.sub?g.sub.secs:[]);
+      var doneN=leafs.filter(function(n){return STATUS[n]==='done';}).length;
+      var grp=document.createElement('div'); grp.className='grp'+(gi===1?' open':'');
+      var gh=document.createElement('button'); gh.className='gh'; gh.type='button';
+      gh.innerHTML='<span class="gi">'+ico(g.icon)+'</span><b>'+g.h+'</b><span class="cnt">'+doneN+'/'+leafs.length+'</span><span class="caret">'+wrapSvg('<path d="m6 9 6 6 6-6"/>')+'</span>';
+      gh.onclick=function(){ grp.classList.toggle('open'); };
+      var gb=document.createElement('div'); gb.className='gbody';
+      g.secs.forEach(function(n){ gb.appendChild(secRow(n)); });
+      if(g.sub){ var sd=document.createElement('div'); sd.className='subhead'; sd.textContent=g.sub.h; gb.appendChild(sd); g.sub.secs.forEach(function(n){ gb.appendChild(secRow(n)); }); }
+      grp.appendChild(gh); grp.appendChild(gb); wrap.appendChild(grp);
+    });
+  }
+
+  // ---------- drawer (grouped accordion) ----------
+  function drawRow(n){ var st=STATUS[n]||'todo'; var r=document.createElement('button'); r.className='di-row'+(n===curSection?' on':''); r.type='button'; r.innerHTML='<span class="sdot '+dotClass(st)+'"></span><span class="nm">'+n+'</span>'; r.onclick=function(){openSection(n);}; return r; }
+  function renderDrawer(){
+    var dn=document.getElementById('drawernav'); dn.innerHTML='';
+    GROUPS.forEach(function(g){
+      if(g.link){ var lg=document.createElement('div'); lg.className='dgrp'; var lh=document.createElement('button'); lh.className='dgh'; lh.type='button'; lh.innerHTML='<span class="di">'+ico(g.icon)+'</span><b>'+g.h+'</b><span class="car">'+wrapSvg('<path d="m9 6 6 6-6 6"/>')+'</span>'; lh.onclick=function(){go(g.link);}; lg.appendChild(lh); dn.appendChild(lg); return; }
+      var leafs=g.secs.concat(g.sub?g.sub.secs:[]);
+      var hasCur=leafs.indexOf(curSection)>=0;
+      var dg=document.createElement('div'); dg.className='dgrp'+(hasCur?' open':'');
+      var dh=document.createElement('button'); dh.className='dgh'; dh.type='button';
+      dh.innerHTML='<span class="di">'+ico(g.icon)+'</span><b>'+g.h+'</b><span class="ct">'+leafs.length+'</span><span class="car">'+wrapSvg('<path d="m6 9 6 6 6-6"/>')+'</span>';
+      dh.onclick=function(){ dg.classList.toggle('open'); };
+      var db=document.createElement('div'); db.className='db';
+      g.secs.forEach(function(n){ db.appendChild(drawRow(n)); });
+      if(g.sub){ var sd=document.createElement('div'); sd.className='subhead'; sd.textContent=g.sub.h; db.appendChild(sd); g.sub.secs.forEach(function(n){ db.appendChild(drawRow(n)); }); }
+      dg.appendChild(dh); dg.appendChild(db); dn.appendChild(dg);
+    });
+  }
+
+  // ---------- section entry (dynamic) ----------
+  window.openSection=function(name){
+    var s=SEC[baseName(name)];
+    if(s&&s.link){ closeDrawer(); go(s.link); return; }
+    curSection=name;
+    document.getElementById('s-section').setAttribute('data-title',name);
+    renderSectionBody(name);
+    renderDrawer();
+    go('s-section');
+  };
+  function renderSectionBody(name){
+    var s=SEC[baseName(name)]||{items:[]};
+    var h='<div class="banner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9z"/></svg><div><b>Fast entry:</b> tap what applies, scroll to the next line. Saves in one go.</div></div>';
+    (s.items||[]).forEach(function(it){
+      h+='<div class="li"><div class="q">'+it.q+'</div><div class="chips"'+(it.t==='single'?' data-single':'')+'>';
+      it.o.forEach(function(op){ h+='<button class="chip">'+op+'</button>'; });
+      h+='</div></div>';
+    });
+    h+='<p class="lbl">Overall condition</p><div class="seg">';
+    OVERALL.forEach(function(o,i){ h+='<button'+(i===1?' class="on"':'')+'>'+o+'</button>'; });
+    h+='</div>';
+    h+='<p class="lbl">Comments</p><textarea class="txt" placeholder="Notes for this section…"></textarea>';
+    h+='<div class="btnrow"><button class="btn ghost" onclick="go(\'s-photos\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"/><circle cx="12" cy="13" r="3"/></svg>Photos</button><button class="btn primary" onclick="saveSection()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Save section</button></div>';
+    document.getElementById('sectionbody').innerHTML=h;
+  }
+  window.saveSection=function(){ STATUS[curSection]='done'; toast('Section saved'); setTimeout(function(){ renderOverview(); go('s-sections'); },550); };
+
+  // ---------- photos (dynamic) ----------
+  window.go_photos=function(){};
+  function renderPhotos(name){
+    var s=SEC[baseName(name)]||{pics:['Overview','Concerns']};
+    document.getElementById('s-photos').setAttribute('data-title',name+' photos');
+    var h='<p style="font-size:13px;color:var(--ink-3);margin:2px 0 14px">Tap a photo to view, mark up, or flag as a finding. Each slot holds multiple photos.</p>';
+    (s.pics||['Overview','Concerns']).forEach(function(cat,ci){
+      var isConcern=/concern/i.test(cat);
+      var n = ci===0?2 : (isConcern?1:0);
+      h+='<div class="pcat"><div class="ph"><b>'+cat+'</b><span>'+n+' photo'+(n===1?'':'s')+'</span></div><div class="pgrid">';
+      for(var k=0;k<n;k++){
+        var flag = (isConcern)?'<span class="flag" style="background:var(--c1)">1</span>':(ci===0&&k===1?'<span class="flag" style="background:var(--c2)">2</span>':'');
+        h+='<div class="pi" style="background-image:url(\''+thumb(ci+k)+'\')" onclick="openViewer(\''+name+' — '+cat+'\',this)">'+flag+'</div>';
+      }
+      h+='<button class="add" onclick="addPhoto()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"/><circle cx="12" cy="13" r="3"/></svg>Add</button></div></div>';
+    });
+    h+='<button class="btn primary" style="margin-top:6px" onclick="go(\'s-section\')">Done</button>';
+    document.getElementById('photosbody').innerHTML=h;
+  }
+
+  // ---------- new-inspection wizard ----------
+  var wizStep=1;
+  function wchip(label,on){ var b=document.createElement('button'); b.className='chip'+(on?' on':''); b.type='button'; b.textContent=label; return b; }
+  function buildWizardChips(){
+    var t=document.getElementById('wtype'); t.innerHTML=''; INSPECTION_TYPES.forEach(function(x){ var b=wchip(x,sel.inspType===x); b.onclick=function(){ sel.inspType=x; Array.prototype.forEach.call(t.children,function(c){c.classList.remove('on');}); b.classList.add('on'); }; t.appendChild(b); });
+    var s=document.getElementById('wstruct'); s.innerHTML=''; STRUCTURE_TYPES.forEach(function(x){ var b=wchip(x,sel.structure===x); b.onclick=function(){ sel.structure=x; Array.prototype.forEach.call(s.children,function(c){c.classList.remove('on');}); b.classList.add('on'); renderUnitMix(); }; s.appendChild(b); });
+    var rc=document.getElementById('wroomcounts'); rc.innerHTML='';
+    [['Bedrooms','bedrooms'],['Bathrooms','bathrooms'],['Hallways','hallways']].forEach(function(p){
+      var row=document.createElement('div'); row.className='counter';
+      row.innerHTML='<b>'+p[0]+'</b><div class="cc"><button type="button">&minus;</button><span>'+sel[p[1]]+'</span><button type="button">+</button></div>';
+      var span=row.querySelector('span'), btns=row.querySelectorAll('button');
+      btns[0].onclick=function(){ if(sel[p[1]]>0){sel[p[1]]--;span.textContent=sel[p[1]];} };
+      btns[1].onclick=function(){ if(sel[p[1]]<12){sel[p[1]]++;span.textContent=sel[p[1]];} };
+      rc.appendChild(row);
+    });
+    var r=document.getElementById('wrooms'); r.innerHTML=''; ROOM_OPT.forEach(function(x){ var b=wchip(x,!!sel.rooms[x]); b.onclick=function(){ sel.rooms[x]=sel.rooms[x]?0:1; b.classList.toggle('on'); }; r.appendChild(b); });
+    var te=document.getElementById('wtests'); te.innerHTML=''; TEST_OPT.forEach(function(x){ var b=wchip(x,!!sel.tests[x]); b.onclick=function(){ sel.tests[x]=sel.tests[x]?0:1; b.classList.toggle('on'); }; te.appendChild(b); });
+  }
+  function renderWizard(){
+    var sb=document.getElementById('stepsbar'); sb.innerHTML='';
+    for(var i=1;i<=4;i++){ var d=document.createElement('div'); d.className='st'+(i===wizStep?' on':(i<wizStep?' done':'')); sb.appendChild(d); }
+    for(var j=1;j<=4;j++){ document.getElementById('w'+j).style.display=(j===wizStep?'block':'none'); }
+    document.getElementById('wback').style.visibility=(wizStep===1?'hidden':'visible');
+    document.getElementById('wnext').innerHTML=(wizStep===4?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>Build checklist':'Next');
+  }
+  function renderUnitMix(){
+    var wu=document.getElementById('wunitmix'); if(!wu) return;
+    if(sel.structure!=='Multi-Unit'){ wu.innerHTML=''; return; }
+    if(!sel.unitmix) sel.unitmix={'Studio':0,'1 Bed / 1 Bath':2,'2 Bed / 1 Bath':4,'2 Bed / 2 Bath':2,'3 Bed / 2 Bath':0};
+    var h='<p class="lbl">Unit mix</p>';
+    Object.keys(sel.unitmix).forEach(function(k){
+      h+='<div class="counter"><b>'+k+'</b><div class="cc"><button type="button" data-k="'+k+'" data-d="-1">&minus;</button><span>'+sel.unitmix[k]+'</span><button type="button" data-k="'+k+'" data-d="1">+</button></div></div>';
+    });
+    wu.innerHTML=h;
+    wu.querySelectorAll('button').forEach(function(b){ b.onclick=function(){ var k=b.getAttribute('data-k'),d=+b.getAttribute('data-d'); sel.unitmix[k]=Math.max(0,sel.unitmix[k]+d); b.parentElement.querySelector('span').textContent=sel.unitmix[k]; }; });
+  }
+  function startWizard(){ wizStep=1; buildWizardChips(); renderUnitMix(); renderWizard(); }
+
+  // ---------- admin: checklist editor ----------
+  function renderAdmin(){
+    var wrap=document.getElementById('adminlist'); if(!wrap) return; wrap.innerHTML='';
+    var GKEY={Exterior:'Exterior',Interior:'Interior',Utility:'Utility',Testing:'Testing'};
+    ADMIN_GROUPS.forEach(function(g,gi){
+      var names=g[1].concat(CUSTOM[GKEY[g[0]]]||[]);
+      var grp=document.createElement('div'); grp.className='grp'+(gi===0?' open':'');
+      var gh=document.createElement('button'); gh.className='gh'; gh.type='button';
+      gh.innerHTML='<span class="gi">'+ico(g[0]==='Testing'?'flask':g[0]==='Utility'?'bolt':g[0]==='Interior'?'sofa':'tree')+'</span><b>'+g[0]+'</b><span class="cnt">'+names.length+'</span><span class="caret">'+wrapSvg('<path d="m6 9 6 6 6-6"/>')+'</span>';
+      gh.onclick=function(){ grp.classList.toggle('open'); };
+      var gb=document.createElement('div'); gb.className='gbody';
+      names.forEach(function(n){
+        var s=SEC[n]||{items:[]}; var cnt=(s.items||[]).length;
+        var r=document.createElement('button'); r.className='srow'; r.type='button';
+        r.innerHTML='<span class="sn">'+n+'</span><span class="ss">'+cnt+' items</span><span class="chev" style="color:#b7c3d0">'+wrapSvg('<path d="m9 18 6-6-6-6"/>')+'</span>';
+        r.onclick=function(){ openEditSec(n); };
+        gb.appendChild(r);
+      });
+      grp.appendChild(gh); grp.appendChild(gb); wrap.appendChild(grp);
+    });
+  }
+  var editSecName='';
+  window.openEditSec=function(name){ editSecName=name; document.getElementById('s-editsec').setAttribute('data-title',name); renderEditSec(); go('s-editsec'); };
+  function ensureSec(n){ if(!SEC[n]) SEC[n]={pics:['Overview','Concerns'],items:[]}; if(!SEC[n].items) SEC[n].items=[]; return SEC[n]; }
+  function renderEditSec(){
+    var s=ensureSec(editSecName); var host=document.getElementById('editsecbody'); host.innerHTML='';
+    var head=document.createElement('p'); head.className='lbl'; head.textContent='Checklist items · '+editSecName; host.appendChild(head);
+    s.items.forEach(function(it,idx){
+      var card=document.createElement('div'); card.className='ed-item';
+      var eh=document.createElement('div'); eh.className='eh';
+      var inp=document.createElement('input'); inp.value=it.q; inp.oninput=function(){ it.q=inp.value; };
+      var eb=document.createElement('div'); eb.className='eb';
+      eb.innerHTML='<button title="Up">'+wrapSvg('<path d="m18 15-6-6-6 6"/>')+'</button><button title="Down">'+wrapSvg('<path d="m6 9 6 6 6-6"/>')+'</button><button title="Delete">'+wrapSvg('<path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/>')+'</button>';
+      var b=eb.querySelectorAll('button');
+      b[0].onclick=function(){ if(idx>0){ s.items.splice(idx-1,0,s.items.splice(idx,1)[0]); renderEditSec(); } };
+      b[1].onclick=function(){ if(idx<s.items.length-1){ s.items.splice(idx+1,0,s.items.splice(idx,1)[0]); renderEditSec(); } };
+      b[2].onclick=function(){ s.items.splice(idx,1); renderEditSec(); };
+      eh.appendChild(inp); eh.appendChild(eb); card.appendChild(eh);
+      var opts=document.createElement('div');
+      (it.o||[]).forEach(function(op,oi){ var chip=document.createElement('span'); chip.className='opt'; chip.innerHTML=op+' '; var x=document.createElement('button'); x.textContent='×'; x.onclick=function(){ it.o.splice(oi,1); renderEditSec(); }; chip.appendChild(x); opts.appendChild(chip); });
+      card.appendChild(opts);
+      var add=document.createElement('div'); add.className='opt-add';
+      var ai=document.createElement('input'); ai.placeholder='Add option…'; var ab=document.createElement('button'); ab.textContent='Add';
+      ab.onclick=function(){ var v=ai.value.trim(); if(v){ (it.o=it.o||[]).push(v); renderEditSec(); } };
+      ai.onkeydown=function(e){ if(e.key==='Enter'){ ab.onclick(); } };
+      add.appendChild(ai); add.appendChild(ab); card.appendChild(add);
+      host.appendChild(card);
+    });
+    var addItem=document.createElement('button'); addItem.className='btn ghost'; addItem.innerHTML=wrapSvg('<path d="M12 5v14M5 12h14"/>')+'Add item';
+    addItem.onclick=function(){ s.items.push({q:'New item',t:'single',o:['Yes','No','N/A']}); renderEditSec(); };
+    host.appendChild(addItem);
+    var save=document.createElement('button'); save.className='btn primary'; save.style.marginTop='10px'; save.innerHTML=wrapSvg('<path d="M20 6 9 17l-5-5"/>')+'Save &amp; done';
+    save.onclick=function(){ refreshChecklist(); toast('Checklist updated'); back(); };
+    host.appendChild(save);
+  }
+  window.addSection=function(){
+    var name=(document.getElementById('newsecname').value||'').trim(); if(!name){ toast('Enter a section name'); return; }
+    var gsel=document.querySelector('#newsecgroup .chip.on'); var grp=gsel?gsel.textContent:'Exterior';
+    if(!SEC[name]) SEC[name]={pics:['Overview','Concerns'],items:[{q:'Condition',t:'single',o:['Good','Fair','Poor','N/A']}]};
+    if(CUSTOM[grp].indexOf(name)<0) CUSTOM[grp].push(name);
+    refreshChecklist(); document.getElementById('newsecname').value=''; renderAdmin(); toast('Added “'+name+'”'); openEditSec(name);
+  };
+  window.wizNext=function(){ if(wizStep<4){ wizStep++; renderWizard(); document.getElementById('body').scrollTop=0; } else { refreshChecklist(); renderOverview(); toast('Checklist built — '+sel.structure); go('s-sections'); } };
+  window.wizPrev=function(){ if(wizStep>1){ wizStep--; renderWizard(); document.getElementById('body').scrollTop=0; } };
+
+  // chips / seg delegation
+  document.addEventListener('click',function(e){
+    var c=e.target.closest('.chip'); if(c){ var grp=c.parentElement; if(grp.hasAttribute('data-manual')) return; if(grp.hasAttribute('data-single')){grp.querySelectorAll('.chip').forEach(function(x){x.classList.remove('on');});c.classList.add('on');} else c.classList.toggle('on'); return; }
+    var s=e.target.closest('.seg button'); if(s){ s.parentElement.querySelectorAll('button').forEach(function(x){x.classList.remove('on');}); s.classList.add('on'); }
+  });
+
+  // drawer
+  window.openDrawer=function(){ renderDrawer(); document.getElementById('drawer').classList.add('on'); document.getElementById('scrim').classList.add('on'); };
+  window.closeDrawer=function(){ document.getElementById('drawer').classList.remove('on'); document.getElementById('scrim').classList.remove('on'); };
+
+  // finding modal
+  var curCat=2;
+  window.openFinding=function(){ document.getElementById('findmodal').classList.add('on'); };
+  window.closeModal=function(){ document.getElementById('findmodal').classList.remove('on'); };
+  window.pickCat=function(b,n){ document.querySelectorAll('.catpick button').forEach(function(x){x.classList.remove('on');}); b.classList.add('on'); curCat=n; };
+  window.saveFinding=function(){ var t=document.getElementById('findtext').value.trim()||'Finding noted'; FINDINGS.push({cat:curCat,txt:t,sec:curSection}); closeModal(); var rf=document.getElementById('rep-findings'); if(rf)rf.textContent=FINDINGS.length; toast('Finding added to summary'); };
+
+  // summary
+  function renderSummary(){
+    var wrap=document.getElementById('summarywrap'); if(!wrap)return; wrap.innerHTML='';
+    var rf=document.getElementById('rep-findings'); if(rf)rf.textContent=FINDINGS.length;
+    var meta={1:['Category 1','Safety / Major'],2:['Category 2','Moderate'],3:['Category 3','Minor / Cosmetic']};
+    [1,2,3].forEach(function(cat){
+      var items=FINDINGS.filter(function(f){return f.cat===cat;});
+      var box=document.createElement('div'); box.className='sumcat c'+cat;
+      var its=items.map(function(f){return '<div class="sfind c'+cat+'"><span class="dt"></span><div><b>'+f.sec+'</b> — '+f.txt+'</div></div>';}).join('')||'<div class="empty">No findings in this category.</div>';
+      box.innerHTML='<div class="sh"><div class="cn">'+cat+'</div><div><b>'+meta[cat][0]+'</b><span> · '+meta[cat][1]+'</span></div><div class="cnt">'+items.length+'</div></div>'+its;
+      wrap.appendChild(box);
+    });
+  }
+
+  // viewer + annotation
+  var cv,ctx,drawing=false,pen='#e5483b',stamp=null,strokes=[],cur=null;
+  window.openViewer=function(title,tile){ document.getElementById('viewer-title').textContent=title; var img=document.getElementById('vimg'); var bg=tile&&tile.style.backgroundImage; img.src=bg?bg.slice(5,-2).replace(/^["']|["']$/g,''):''; document.getElementById('viewer').classList.add('on'); setTimeout(initCanvas,60); };
+  window.closeViewer=function(){ document.getElementById('viewer').classList.remove('on'); };
+  function initCanvas(){ cv=document.getElementById('vcanvas'); var st=document.getElementById('vstage'); cv.width=st.clientWidth; cv.height=st.clientHeight; ctx=cv.getContext('2d'); strokes=[]; redraw(); }
+  function pos(e){ var r=cv.getBoundingClientRect(); var t=e.touches?e.touches[0]:e; return {x:t.clientX-r.left,y:t.clientY-r.top}; }
+  function start(e){ e.preventDefault(); var p=pos(e); if(stamp){ strokes.push({stamp:stamp,color:pen,x:p.x,y:p.y}); redraw(); return; } drawing=true; cur={color:pen,pts:[p]}; }
+  function move(e){ if(!drawing)return; e.preventDefault(); cur.pts.push(pos(e)); redraw(); drawCur(); }
+  function end(){ if(drawing&&cur){strokes.push(cur);cur=null;} drawing=false; }
+  function drawCur(){ if(!cur)return; ctx.strokeStyle=cur.color;ctx.lineWidth=4;ctx.lineCap='round';ctx.lineJoin='round';ctx.beginPath();cur.pts.forEach(function(p,i){i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y);});ctx.stroke(); }
+  function redraw(){ if(!ctx)return; ctx.clearRect(0,0,cv.width,cv.height); strokes.forEach(function(s){ if(s.stamp){ctx.fillStyle=s.color;ctx.font='34px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(s.stamp,s.x,s.y);} else {ctx.strokeStyle=s.color;ctx.lineWidth=4;ctx.lineCap='round';ctx.lineJoin='round';ctx.beginPath();s.pts.forEach(function(p,i){i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y);});ctx.stroke();} }); }
+  window.pickPen=function(el){ document.querySelectorAll('.swatch').forEach(function(x){x.classList.remove('on');}); el.classList.add('on'); pen=el.getAttribute('data-color'); stamp=null; };
+  window.setStamp=function(s){ stamp=s; };
+  window.undoDraw=function(){ strokes.pop(); redraw(); };
+  window.clearDraw=function(){ strokes=[]; redraw(); };
+  (function(){ var stage=document.getElementById('vstage'); ['mousedown','touchstart'].forEach(function(ev){stage.addEventListener(ev,start,{passive:false});}); ['mousemove','touchmove'].forEach(function(ev){stage.addEventListener(ev,move,{passive:false});}); ['mouseup','mouseleave','touchend'].forEach(function(ev){stage.addEventListener(ev,end);}); })();
+
+  window.addPhoto=function(){ toast('Camera / upload…'); };
+  window.pickCover=function(el){ document.querySelectorAll('.cover').forEach(function(x){x.classList.remove('on');x.querySelector('.cn b').innerHTML='&nbsp;';}); el.classList.add('on'); el.querySelector('.cn b').textContent='Selected'; };
+  window.syncNow=function(){ var b=document.getElementById('netbadge'); b.className='nb on'; b.innerHTML='<span class="d"></span>Synced'; document.getElementById('homequeue').textContent='0'; toast('Synced to portal'); };
+
+  // ---------- subscription / accounts (Phase 1) ----------
+  var PLANS={ app:{name:'App only',price:34.95,desc:'Inspection app · iOS & Android'}, portal:{name:'Portal + App',price:64.95,desc:'App + web portal'} };
+  var EXTRA=24.95;
+  var SUB={ plan:'app', trialDays:22, active:false, inspectors:[{name:'Jeremy Heath',email:'jeremy@visionpropertyinspections.com',owner:true}] };
+  function subTotal(){ return PLANS[SUB.plan].price + Math.max(0,SUB.inspectors.length-1)*EXTRA; }
+  function money(n){ return '$'+n.toFixed(2); }
+  function renderSubscribe(){
+    var pw=document.getElementById('planwrap'); pw.innerHTML='';
+    Object.keys(PLANS).forEach(function(k){
+      var p=PLANS[k]; var soon=(k==='portal');
+      var b=document.createElement('button'); b.className='plan'+(SUB.plan===k?' on':''); b.type='button';
+      b.innerHTML='<span class="radio"></span><span class="pinfo"><b>'+p.name+'</b><span>'+p.desc+'</span>'+(soon?'<span class="tag">Available when the web portal launches (Phase 2)</span>':'')+'</span><span class="pprice">'+money(p.price)+'<small>/mo</small></span>';
+      b.onclick=function(){ SUB.plan=k; renderSubscribe(); };
+      pw.appendChild(b);
+    });
+    document.getElementById('subcount').textContent=SUB.inspectors.length;
+    document.getElementById('subtotal').textContent=money(subTotal());
+    document.getElementById('trialdays').textContent=SUB.trialDays;
+  }
+  window.subSeat=function(d){ if(d>0){ SUB.inspectors.push({name:'Inspector '+(SUB.inspectors.length+1),email:''}); } else if(SUB.inspectors.length>1){ SUB.inspectors.pop(); } renderSubscribe(); };
+  window.startSub=function(){ SUB.active=true; document.getElementById('ss-plan').textContent=PLANS[SUB.plan].name; updateSubUI(); go('s-substarted'); };
+  function renderInspectors(){
+    var w=document.getElementById('inspectorlist'); w.innerHTML='';
+    SUB.inspectors.forEach(function(ins,i){
+      var r=document.createElement('div'); r.className='row'; r.style.cursor='default';
+      var initials=(ins.name||'?').split(' ').map(function(s){return s[0]||'';}).slice(0,2).join('').toUpperCase();
+      r.innerHTML='<div class="lead" style="background:linear-gradient(140deg,#3c9cbe,#1a4f64);color:#fff;font-family:var(--fd);font-weight:700;font-size:13px">'+initials+'</div><div class="mid"><b>'+ins.name+(ins.owner?' · Owner':'')+'</b><span>'+(ins.email||'no email yet')+'</span></div>'+(ins.owner?'<div class="end"><span class="pill done"><span class="d"></span>Included</span></div>':'<div class="end"><button class="pill queued" style="border:0;cursor:pointer;font-family:inherit" onclick="removeInspector('+i+')">Remove</button></div>');
+      w.appendChild(r);
+    });
+    var note=document.createElement('p'); note.style.cssText='font-size:12.5px;color:var(--ink-3);margin:4px 2px 14px';
+    note.innerHTML='<b style="color:var(--ink)">'+SUB.inspectors.length+' inspector'+(SUB.inspectors.length>1?'s':'')+'</b> · monthly total '+money(subTotal());
+    w.appendChild(note);
+  }
+  window.addInspector=function(){ var n=(document.getElementById('newinspname').value||'').trim(); var e=(document.getElementById('newinspemail').value||'').trim(); if(!n){ toast('Enter a name'); return; } SUB.inspectors.push({name:n,email:e}); document.getElementById('newinspname').value=''; document.getElementById('newinspemail').value=''; renderInspectors(); updateSubUI(); toast('Inspector added · +$24.95/mo'); };
+  window.removeInspector=function(i){ if(SUB.inspectors[i]&&!SUB.inspectors[i].owner){ SUB.inspectors.splice(i,1); renderInspectors(); updateSubUI(); } };
+  function renderBilling(){
+    var b=document.getElementById('billingbody'); if(!b) return;
+    var status = SUB.active ? '<span class="pill done"><span class="d"></span>Active · auto-pay</span>' : '<span class="pill queued"><span class="d"></span>Trial · '+SUB.trialDays+'d left</span>';
+    var h='<div class="card" style="padding:0;overflow:hidden">';
+    h+='<div class="binforow"><span>Status</span>'+status+'</div>';
+    h+='<div class="binforow"><span>Plan</span><b>'+PLANS[SUB.plan].name+' · '+money(PLANS[SUB.plan].price)+'/mo</b></div>';
+    h+='<div class="binforow"><span>Inspectors</span><b>'+SUB.inspectors.length+' ('+Math.max(0,SUB.inspectors.length-1)+' × $24.95)</b></div>';
+    h+='<div class="binforow"><span>Monthly total</span><b>'+money(subTotal())+'</b></div>';
+    h+='<div class="binforow"><span>Payment</span><b>'+(SUB.active?'Square · Visa ····4242':'Not set up')+'</b></div>';
+    h+='<div class="binforow"><span>'+(SUB.active?'Next billing':'Trial ends')+'</span><b>'+(SUB.active?'Sep 27, 2026':'in '+SUB.trialDays+' days')+'</b></div>';
+    h+='</div>';
+    h+='<button class="btn ghost" onclick="go(\'s-inspectors\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>Manage inspectors</button>';
+    h+='<button class="btn '+(SUB.active?'ghost':'primary')+'" style="margin-top:10px" onclick="go(\'s-subscribe\')">'+(SUB.active?'Change plan / payment':'Set up subscription')+'</button>';
+    b.innerHTML=h;
+  }
+  function updateSubUI(){
+    var ht=document.getElementById('hometrial'); if(ht) ht.textContent=SUB.trialDays;
+    var tb=document.querySelector('#s-home .trialbar'); if(tb) tb.style.display=SUB.active?'none':'flex';
+    var pl=document.getElementById('set-planline'); if(pl) pl.textContent=PLANS[SUB.plan].name+' · '+(SUB.active?money(subTotal())+'/mo':'trial');
+    var il=document.getElementById('set-inspline'); if(il) il.textContent=SUB.inspectors.length+' inspector'+(SUB.inspectors.length>1?'s':'');
+  }
+
+  // per-screen hooks on show
+  var _go=window.go; window.go=function(id,nopush){ if(id==='s-photos') renderPhotos(curSection); if(id==='s-new') startWizard(); if(id==='s-admin') renderAdmin(); if(id==='s-subscribe') renderSubscribe(); if(id==='s-inspectors') renderInspectors(); if(id==='s-billing') renderBilling(); if(id==='s-settings'||id==='s-home') updateSubUI(); _go(id,nopush); };
+
+  var tmo; window.toast=function(msg){ var t=document.getElementById('toast'); document.getElementById('toasttext').textContent=msg; t.classList.add('on'); clearTimeout(tmo); tmo=setTimeout(function(){t.classList.remove('on');},1900); };
+
+  var SCREENS=[['s-login','Sign in'],['s-signup','Create account'],['s-forgot','Reset password'],['s-home','Inspections (home)'],['s-subscribe','Subscribe'],['s-billing','Plan & billing'],['s-inspectors','Inspectors'],['s-new','New inspection (wizard)'],['s-sections','Sections overview'],['s-section','Section entry'],['s-photos','Photos'],['s-summary','Summary'],['s-report','Report / cover'],['s-generated','Report ready'],['s-settings','Settings'],['s-admin','Manage checklist']];
+  window.toggleRev=function(){ document.getElementById('revmenu').classList.toggle('on'); };
+  function closeRev(){ document.getElementById('revmenu').classList.remove('on'); }
+  (function(){ var m=document.getElementById('revmenu'); m.innerHTML='<div class="rt">Jump to screen</div>'; SCREENS.forEach(function(s){ var b=document.createElement('button'); b.textContent=s[1]; b.onclick=function(){ if(s[0]==='s-section'){openSection(curSection);return;} if(s[0]==='s-photos'){renderPhotos(curSection);} go(s[0]); }; m.appendChild(b); }); })();
+
+  // init
+  renderOverview(); renderSummary(); renderSectionBody('Roof'); renderDrawer(); updateSubUI();
+  window.addEventListener('resize',function(){ if(document.getElementById('viewer').classList.contains('on')) initCanvas(); });
+  go('s-login',true);
+})();
+</script>
+</body>
+</html>
