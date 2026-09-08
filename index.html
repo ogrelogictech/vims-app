@@ -19,7 +19,7 @@
     --c1:#d0584a;--c1-bg:#fbe9e6;--c2:#c98a1a;--c2-bg:#fbf1dd;--c3:#2f9e6b;--c3-bg:#e7f4ee;
     --pass:#2f9e6b;--fail:#d0584a;
     --fd:'Archivo',system-ui,sans-serif;--fu:'IBM Plex Sans',system-ui,sans-serif;--fm:'IBM Plex Mono',ui-monospace,monospace;
-    --hdr:#1a4f64;
+    --hdr:#2f5ec9;--hdr-sub:#d7e3f7;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{margin:0;height:100%}
@@ -38,7 +38,7 @@
   .apphdr .ic svg{width:20px;height:20px}
   .apphdr .tt{flex:1;min-width:0}
   .apphdr .tt b{font-family:var(--fd);font-weight:700;font-size:17px;display:block;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .apphdr .tt span{font-size:12px;color:#bcd7e2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+  .apphdr .tt span{font-size:12px;color:var(--hdr-sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
   .hdractions{display:flex;align-items:center;gap:7px;flex:none}
 
   .body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;background:var(--paper-2)}
@@ -75,6 +75,10 @@
   .li{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:14px 15px;margin-bottom:11px}
   .li .q{font-size:14.5px;font-weight:600;color:var(--ink);margin-bottom:11px}
   .subq{margin-top:10px;font-size:12px;color:var(--ink-3)}
+  /* highlighted sub-section name within a section (e.g. Electricity, Natural Gas) */
+  .lihead{display:flex;align-items:center;gap:9px;margin:20px 0 11px;padding:9px 13px;background:var(--hdr);color:#fff;border-radius:11px;font-family:var(--fd);font-weight:700;font-size:14px;box-shadow:0 6px 16px -10px rgba(47,94,201,.8)}
+  .lihead:first-child{margin-top:2px}
+  .lihead svg{width:17px;height:17px;flex:none;opacity:.9}
 
   .seg{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
   .seg button{font-family:var(--fu);font-size:12px;font-weight:600;padding:11px 4px;border-radius:10px;border:1.5px solid var(--line);background:var(--paper-2);color:var(--ink-2);cursor:pointer;min-height:46px}
@@ -156,7 +160,7 @@
   .drawer.on{transform:none}
   .drawer .dh{background:var(--hdr);color:#fff;padding:18px}
   .drawer .dh b{font-family:var(--fd);font-size:16px;display:block}
-  .drawer .dh span{font-size:12px;color:#bcd7e2}
+  .drawer .dh span{font-size:12px;color:var(--hdr-sub)}
   .drawer .dl{flex:1;overflow-y:auto;padding:10px}
   .dgrp{margin-bottom:8px;background:var(--paper);border:1px solid var(--line);border-radius:12px;overflow:hidden}
   .dgrp .dgh{display:flex;align-items:center;gap:10px;width:100%;border:0;background:none;padding:12px 13px;cursor:pointer;font-family:inherit;text-align:left}
@@ -240,6 +244,33 @@
   .cover .cn{padding:8px 10px;font-size:12px;color:var(--ink-2);display:flex;justify-content:space-between;align-items:center}
   .cover.on .cn b{color:var(--brand)}
 
+  /* cover picker — color -> category -> option */
+  .cpsteps{display:flex;gap:6px;margin:2px 0 14px}
+  .cpsteps .cs{flex:1;text-align:center;font-family:var(--fm);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);padding:7px 4px;border-radius:9px;background:var(--paper-3)}
+  .cpsteps .cs.on{background:var(--hdr);color:#fff}
+  .cpsteps .cs.done{background:rgba(47,94,201,.14);color:var(--brand-deep)}
+  .colorrow{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  .colorpick{border:2px solid var(--line);border-radius:13px;padding:0;overflow:hidden;cursor:pointer;background:var(--paper);font-family:inherit}
+  .colorpick .sw{height:56px}.colorpick .nm{padding:9px 6px;font-size:12.5px;font-weight:600;color:var(--ink-2);text-align:center}
+  .colorpick.on{border-color:var(--brand);box-shadow:0 0 0 3px rgba(47,94,201,.15)}.colorpick.on .nm{color:var(--brand)}
+  .optrow{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+  .optbtn{border:1.5px solid var(--line);background:var(--paper);border-radius:12px;padding:13px 12px;cursor:pointer;font-family:var(--fu);font-size:13.5px;font-weight:600;color:var(--ink-2);text-align:left;display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .optbtn.on{border-color:var(--brand);background:rgba(47,94,201,.06);color:var(--brand-deep)}
+  .optbtn .ok{color:var(--brand);display:none}.optbtn.on .ok{display:block}.optbtn .ok svg{width:16px;height:16px;display:block}
+  .stylerow{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:9px}
+  .coverprev{display:flex;gap:13px;align-items:center;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:13px;margin-bottom:14px}
+  .coverprev .cpimg{width:78px;height:104px;border-radius:9px;flex:none;display:flex;align-items:flex-end;padding:8px;color:#fff}
+  .coverprev .cpimg b{font-family:var(--fd);font-size:11px;text-shadow:0 1px 4px rgba(0,0,0,.55);line-height:1.15}
+  .coverprev .cpmeta b{font-size:15px;color:var(--ink);display:block}.coverprev .cpmeta span{font-size:12.5px;color:var(--ink-3)}
+
+  /* inspector join code */
+  .codebox{background:var(--paper);border:1px dashed var(--brand);border-radius:13px;padding:15px 16px;margin-bottom:14px}
+  .codebox .cl{font-family:var(--fm);font-size:10.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--ink-3);margin-bottom:7px}
+  .codebox .cv{font-family:var(--fm);font-weight:600;font-size:24px;letter-spacing:.18em;color:var(--brand-deep);display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .codebox .cv button{border:0;background:var(--paper-3);color:var(--brand-deep);border-radius:9px;padding:8px 12px;font-family:var(--fu);font-size:12.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+  .codebox .cv button svg{width:15px;height:15px}
+  .codebox p{margin:9px 0 0;font-size:12px;color:var(--ink-3);line-height:1.45}
+
   .banner{display:flex;gap:11px;align-items:flex-start;background:var(--c2-bg);border:1px solid #f0dcae;border-radius:12px;padding:12px 14px;margin-bottom:14px}
   .banner svg{width:19px;height:19px;color:var(--signal-deep);flex:none;margin-top:1px}
   .banner div{font-size:12.5px;color:#7a5a10;line-height:1.45}.banner b{color:#5e440a}
@@ -296,13 +327,14 @@
       <div style="background:var(--hdr);color:#fff;padding:46px 24px 40px;text-align:center">
         <div style="width:72px;height:72px;border-radius:20px;background:rgba(255,255,255,.14);display:grid;place-items:center;margin:0 auto 18px"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:38px;height:38px"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20h14V9.5"/><path d="m9 13 2 2 4-4"/></svg></div>
         <div style="font-family:var(--fd);font-weight:800;font-size:30px;letter-spacing:.02em">VIMS</div>
-        <div style="font-size:13px;color:#bcd7e2;margin-top:4px">Vision Inspection Management</div>
+        <div style="font-size:13px;color:var(--hdr-sub);margin-top:4px">Vision Inspection Management</div>
       </div>
       <div style="padding:24px 18px">
         <div class="field"><label>Email</label><input class="txt" type="email" value="jeremy@visionpropertyinspections.com"></div>
         <div class="field"><label>Password</label><input class="txt" type="password" value="••••••••••"></div>
         <button class="btn primary" onclick="go('s-home')">Sign in</button>
         <button class="btn ghost" style="margin-top:10px" onclick="go('s-signup')">Create account</button>
+        <button class="btn ghost" style="margin-top:10px" onclick="go('s-join')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>Join a company with a code</button>
         <p style="text-align:center;font-size:12.5px;color:var(--ink-3);margin-top:16px;cursor:pointer" onclick="go('s-forgot')">Forgot password?</p>
       </div>
     </section>
@@ -322,6 +354,16 @@
       <p style="font-size:14px;color:var(--ink-2);margin:4px 0 16px;line-height:1.5">Enter your email and we'll send a reset link.</p>
       <div class="field"><label>Email</label><input class="txt" type="email" placeholder="you@company.com"></div>
       <button class="btn primary" onclick="toast('Reset link sent');setTimeout(function(){go('s-login')},700)">Send reset link</button>
+    </section>
+
+    <!-- JOIN A COMPANY BY CODE -->
+    <section class="screen" id="s-join" data-title="Join a company">
+      <p style="font-size:14px;color:var(--ink-2);margin:4px 0 16px;line-height:1.5">Enter the company code your inspection company shared with you. Your account will be linked to their license and billing.</p>
+      <div class="field"><label>Full name</label><input class="txt" placeholder="Your name"></div>
+      <div class="field"><label>Email</label><input class="txt" type="email" placeholder="you@email.com"></div>
+      <div class="field"><label>Company code</label><input class="txt" id="joincode" placeholder="VIS-4827" style="font-family:var(--fm);letter-spacing:.14em;text-transform:uppercase"></div>
+      <button class="btn primary" onclick="joinCompany()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Link my account</button>
+      <p style="text-align:center;font-size:12.5px;color:var(--ink-3);margin-top:16px;cursor:pointer" onclick="go('s-login')">Back to sign in</p>
     </section>
 
     <!-- HOME -->
@@ -348,26 +390,47 @@
       <div class="wstep" id="w1">
         <p class="lbl">Client &amp; inspection</p>
         <div class="field"><label>Client name</label><input class="txt" placeholder="Client name"></div>
+        <div class="field"><label>Agent name</label><input class="txt" placeholder="Agent name (optional)"></div>
         <div class="field"><label>Inspection address</label><input class="txt" placeholder="Street, City, State"></div>
         <div class="stat2" style="gap:10px"><div class="field" style="margin:0"><label>Date</label><input class="txt" type="date"></div><div class="field" style="margin:0"><label>Time</label><input class="txt" type="time"></div></div>
-        <div class="field" style="margin-top:13px"><label>Real estate agent</label><input class="txt" placeholder="Agent name (optional)"></div>
-        <p class="lbl">Type of inspection</p><div class="chips" data-manual id="wtype"></div>
         <p class="lbl">Type of loan</p><div class="chips" data-single><button class="chip">FHA</button><button class="chip">VA</button><button class="chip on">Conventional</button></div>
+        <p class="lbl">Type of inspection</p><div class="chips" data-manual id="wtype"></div>
+        <div id="wcomponent"></div>
+        <p class="lbl">Property status</p><div class="chips" data-single><button class="chip on">Owner Occupied</button><button class="chip">Second Residence</button><button class="chip">Tenant Occupied</button><button class="chip">Currently Vacant</button><button class="chip">Flipper</button><button class="chip">Bank Owned</button></div>
+        <p class="lbl">Weather &amp; site conditions</p>
+        <div class="field" style="margin-bottom:11px"><label>Temperature (&deg;F)</label><input class="txt" placeholder="72" style="max-width:120px"></div>
+        <div class="chips" data-single style="margin-bottom:14px"><button class="chip on">Sunny</button><button class="chip">Cloudy</button><button class="chip">Overcast</button><button class="chip">Windy</button><button class="chip">Rainy</button><button class="chip">Snowing</button></div>
+        <div class="counter"><b>Power is on</b><div class="chips" data-single style="margin:0"><button class="chip on">Yes</button><button class="chip">No</button><button class="chip">Unknown</button></div></div>
+        <div class="counter"><b>Gas is on</b><div class="chips" data-single style="margin:0"><button class="chip on">Yes</button><button class="chip">No</button><button class="chip">Unknown</button></div></div>
+        <div class="counter" style="margin-bottom:14px"><b>Water is on</b><div class="chips" data-single style="margin:0"><button class="chip on">Yes</button><button class="chip">No</button><button class="chip">Unknown</button></div></div>
+        <div class="field"><label>Buyer's areas of concern</label><textarea class="txt" placeholder="What the buyer specifically asked us to look at…"></textarea></div>
+        <div class="field"><label>Apparent hazards observed before inspection</label><textarea class="txt" placeholder="Anything noted on arrival…"></textarea></div>
       </div>
 
       <div class="wstep" id="w2" style="display:none">
-        <p class="lbl">Structure type</p><div class="chips" data-manual id="wstruct"></div>
+        <p class="lbl">Property type</p><div class="chips" data-manual id="wstruct"></div>
         <div id="wunitmix"></div>
         <p class="lbl">Property details</p>
-        <div class="stat2" style="gap:10px"><div class="field" style="margin:0"><label>Year built</label><input class="txt" placeholder="1998"></div><div class="field" style="margin:0"><label>Sq ft</label><input class="txt" placeholder="2400"></div></div>
-        <div class="field" style="margin-top:11px"><label>Stories</label><div class="chips" data-single><button class="chip">1</button><button class="chip on">1.5</button><button class="chip">2</button><button class="chip">3</button><button class="chip">Basement</button></div></div>
-        <p class="lbl">Checklist depth</p><div class="chips" data-single><button class="chip">High Detail</button><button class="chip on">Standard</button><button class="chip">Fast Intuitive</button></div>
+        <div class="stat2" style="gap:10px"><div class="field" style="margin:0"><label>Year of construction</label><input class="txt" placeholder="1998"></div><div class="field" style="margin:0"><label>Total sq ft</label><input class="txt" placeholder="2400"></div></div>
+        <div class="stat2" style="gap:10px;margin-top:11px"><div class="field" style="margin:0"><label>Valuation ($)</label><input class="txt" placeholder="450,000"></div><div class="field" style="margin:0"><label>Lot size (acres)</label><input class="txt" placeholder="0.25"></div></div>
+        <p class="lbl">Construction style</p><div class="chips" data-single><button class="chip on">Ranch</button><button class="chip">Bungalow</button><button class="chip">Bi-Level / Raised Ranch</button><button class="chip">Tri-Level</button><button class="chip">Log Home</button></div>
+        <p class="lbl">Stories</p><div class="chips" data-single><button class="chip">1</button><button class="chip on">1.5</button><button class="chip">2</button><button class="chip">2.5</button><button class="chip">3</button><button class="chip">Other</button></div>
+        <p class="lbl">Basement</p><div class="chips" data-single><button class="chip on">None</button><button class="chip">Unfinished</button><button class="chip">Finished</button><button class="chip">Walk-out</button><button class="chip">Crawl space</button></div>
+        <p class="lbl">Garage</p><div class="chips" data-single><button class="chip">None</button><button class="chip on">Attached</button><button class="chip">Built-in</button><button class="chip">Detached</button><button class="chip">Living space above</button></div>
+        <p class="lbl">Car port</p><div class="chips" data-single><button class="chip on">None</button><button class="chip">Attached</button><button class="chip">Detached</button></div>
+        <p class="lbl">Number of cars</p><div class="chips" data-single><button class="chip">1</button><button class="chip on">2</button><button class="chip">3</button><button class="chip">4</button></div>
+        <p class="lbl">Checklist depth</p>
+        <p style="font-size:12px;color:var(--ink-3);margin:-4px 2px 9px">Changes how much detail each section asks for. You can also change this per inspection in Settings.</p>
+        <div class="chips" data-single data-req id="wdepth"><button class="chip" data-depth="high">High Detail</button><button class="chip on" data-depth="standard">Standard</button><button class="chip" data-depth="free">Fast Intuitive</button></div>
       </div>
 
       <div class="wstep" id="w3" style="display:none">
-        <p style="font-size:13px;color:var(--ink-3);margin:2px 0 12px">Set room counts and pick which rooms to include &mdash; this builds the interior checklist.</p>
+        <p style="font-size:13px;color:var(--ink-3);margin:2px 0 12px">Choose every area to inspect &mdash; add or remove anything. This builds the checklist.</p>
+        <p class="lbl">Exterior areas</p><div class="chips" data-manual id="wext"></div>
+        <p class="lbl">Room counts</p>
         <div id="wroomcounts"></div>
-        <p class="lbl">Rooms to include</p><div class="chips" data-manual id="wrooms"></div>
+        <p class="lbl">Interior rooms</p><div class="chips" data-manual id="wrooms"></div>
+        <p class="lbl">Utility &amp; systems</p><div class="chips" data-manual id="wutil"></div>
       </div>
 
       <div class="wstep" id="w4" style="display:none">
@@ -418,13 +481,11 @@
           <div><div style="font-family:var(--fd);font-weight:700;font-size:17px">24</div><div style="font-size:10px;color:#a9c6d2;font-family:var(--fm)">PHOTOS</div></div>
         </div>
       </div>
-      <p class="lbl">Choose a cover</p>
-      <div class="covers">
-        <div class="cover on" onclick="pickCover(this)"><div class="cimg" style="background:linear-gradient(150deg,#2e6f8e,#123047)"><b>Blue · Mountains</b></div><div class="cn"><span>Framed</span><b>Selected</b></div></div>
-        <div class="cover" onclick="pickCover(this)"><div class="cimg" style="background:linear-gradient(150deg,#3a6b4a,#16351f)"><b>Green · Solid</b></div><div class="cn"><span>Solid</span><b>&nbsp;</b></div></div>
-        <div class="cover" onclick="pickCover(this)"><div class="cimg" style="background:linear-gradient(150deg,#6a4a7a,#2a1836)"><b>Astronomy</b></div><div class="cn"><span>Shaded</span><b>&nbsp;</b></div></div>
-        <div class="cover" onclick="pickCover(this)"><div class="cimg" style="background:linear-gradient(150deg,#7a5a2a,#3a2a10)"><b>Fishing</b></div><div class="cn"><span>Framed</span><b>&nbsp;</b></div></div>
-      </div>
+      <p class="lbl">Report cover</p>
+      <div id="coverpicker"></div>
+      <p class="lbl">Report contents · in checklist order</p>
+      <p style="font-size:12px;color:var(--ink-3);margin:-4px 2px 10px">Completed sections populate the report in the order they're numbered on your master checklist.</p>
+      <div class="card" style="padding:6px 0" id="reportcontents"></div>
       <div class="banner" style="margin-top:16px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-9 9 9 9 0 0 1-6.7-3L3 16M3 12a9 9 0 0 1 9-9 9 9 0 0 1 6.7 3L21 8"/></svg><div>You're <b>offline</b>. The report generates on the device now; it uploads on the next sync.</div></div>
       <button class="btn primary" onclick="go('s-generated')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>Generate PDF report</button>
     </section>
@@ -498,7 +559,7 @@
       <button class="row" onclick="go('s-admin')"><div class="lead"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></div><div class="mid"><b>Manage checklist</b><span>Add &amp; edit sections and items</span></div><div class="end"><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></span></div></button>
 
       <p class="lbl">Defaults</p>
-      <div class="row" style="cursor:default"><div class="mid"><b>Checklist depth</b><span>Standard</span></div></div>
+      <div class="card"><b style="font-size:14px">Checklist depth</b><p style="font-size:12px;color:var(--ink-3);margin:4px 0 11px">Applies to new inspections. High Detail asks for measurements; Fast Intuitive is quick condition &amp; notes.</p><div class="chips" data-single data-req id="setdepth"><button class="chip" data-depth="high">High Detail</button><button class="chip on" data-depth="standard">Standard</button><button class="chip" data-depth="free">Fast Intuitive</button></div></div>
       <div class="row" style="cursor:default"><div class="mid"><b>Report cover</b><span>Blue · Mountains</span></div></div>
       <div class="row" style="cursor:default"><div class="mid"><b>Photo size</b><span>JPG · ~750 KB</span></div></div>
       <button class="btn ghost" style="margin-top:6px" onclick="go('s-login')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>Sign out</button>
@@ -529,7 +590,7 @@
   <div class="modal" id="findmodal">
     <div class="sheet">
       <h3>Flag a finding</h3><p class="sub">Pick a category and add a note. It's added to the summary and the report automatically.</p>
-      <div class="catpick"><button class="c1" onclick="pickCat(this,1)"><span class="cn">1</span><span class="cl">Safety / Major</span></button><button class="c2 on" onclick="pickCat(this,2)"><span class="cn">2</span><span class="cl">Moderate</span></button><button class="c3" onclick="pickCat(this,3)"><span class="cn">3</span><span class="cl">Minor / Cosmetic</span></button></div>
+      <div class="catpick"><button class="c1" onclick="pickCat(this,1)"><span class="cn">1</span><span class="cl">Safety</span></button><button class="c2 on" onclick="pickCat(this,2)"><span class="cn">2</span><span class="cl">Functional</span></button><button class="c3" onclick="pickCat(this,3)"><span class="cn">3</span><span class="cl">Items to monitor</span></button></div>
       <div class="field"><label>Description</label><textarea class="txt" id="findtext" placeholder="Describe the concern…">Rain water down spout is missing.</textarea></div>
       <div class="btnrow" style="margin-top:4px"><button class="btn ghost" onclick="closeModal()">Cancel</button><button class="btn primary" onclick="saveFinding()">Add finding</button></div>
     </div>
@@ -838,7 +899,7 @@
       {q:'Lintel over firebox',t:'single',o:['In place & good','Missing','Poor']},
       {q:'Damper',t:'single',o:['In place & functional','Not functional','Missing']}
     ]},
-    'Outside Utilities':{pics:['Swamp Cooler','Compressor','Coolant Lines','Meter','Gas Meter','Water Meter','Concerns'],items:[{q:'Cooling system',t:'single',o:['Swamp Cooler','Central Air','None']}].concat(L(['Compressor / Fan','Fins','Coolant Lines','Power Cut Off','Compressor Size'])).concat([{q:'Electric meter condition',t:'single',o:['Good','Rusted','Broken']},{q:'Meter & brackets secure',t:'single',o:['Yes','No']}]).concat(L(['Electric Service','Electric Service Drop','Over-current Protection','AMP Rating','Solar Panel Breakers','Gas Meter','Gas Cut Off','Water Meter','Rain Water Collection','Outdoor Sewer Access','Sewer Main']))},
+    'Outside Utilities':{pics:['Swamp Cooler','Compressor','Coolant Lines','Service Mast','Meter','Gas Meter','Water','Concerns'],items:[{h:'Cooling System'},{q:'Cooling system',t:'single',o:['Swamp Cooler','Central Air','None']}].concat(L(['Podium','Vegetation','Fan','Fins','Coolant Lines','Cut Off','Compressor Size'])).concat([{h:'Electricity'},{q:'Electric meter condition',t:'single',o:['Good','Rusted','Broken']},{q:'Meter & brackets secure',t:'single',o:['Yes','No']}]).concat(L(['Electric Service','Electric Service Drop','Power Cut Off','Over-current Protection','AMP Rating','Solar Panel Breakers'])).concat([{h:'Natural Gas'}]).concat(L(['Gas Meter','Gas Cut Off'])).concat([{h:'Water'}]).concat(L(['Water Meter','Rain Water Collection'])).concat([{h:'Sewer'}]).concat(L(['Outdoor Sewer Access','Sewer Main','Sewer']))},
     'Pool House & Pool':{pics:['Pool Area','Fence','Deck Area','Diving Board','Pool House Front','Pool Pump','Concerns'],items:[{q:'Pool',t:'single',o:['N/A – outside scope','Present']}].concat(L(['Pool Fenced','Pool Gate','Pool Deck Area','Slide / Diving Board','Water Level Alarm','Pool House Roof Type','Pool House Roof Material','Pool House Exterior Walls','Windows','Foundation','Hose Bib(s)','Door(s)','Floor','Ceiling','Ceiling Fans','Interior Walls','Pool House Plumbing','Pool Pump','Pool House Electrical','Wiring Condition','Electrical Receptacles','Lighting','Smoke Alarm']))},
     'Outbuilding – Shed':{pics:['Front','Roof','Inside','Damage','Water Well Head','Concerns'],items:[{q:'Shed type',t:'single',o:['Shed','Work Shop','Water Well House','No Shed']}].concat(L(['Roof Material','Exterior Walls','Electrical','Receptacles (outside)','Door(s)','Floor','Trusses','Connector Plates','Ceiling','Windows','Inside Walls','Wiring Type','Electrical Receptacles','Lighting','Plumbing','Condition','Water Well']))},
     'Outbuilding – Car Port':{pics:['Car Port','Pillars','Storage Area','Concerns'],items:L(['Position','Roof Type','Roof Material','Condition','Trusses','Connector Plates','Ceiling','Door(s)','Exterior Walls','Storage Area','Windows','Lighting','Electrical Receptacles','Electric Wiring Type','EV Charging','Plumbing','Pressure'])},
@@ -1010,10 +1071,14 @@
   });
   SEC['Detached Garage']=SEC['Garage'];
 
-  // Catalogs (from Jeremy's App Flow Chart + property-info page)
-  var INSPECTION_TYPES=['Real Estate Sale','New Construction','Pre-Sale / Maintenance'];
+  // Catalogs (from Jeremy's App Flow Chart + Inspection Info checklist 01)
+  var INSPECTION_TYPES=['Real Estate Sale','New Construction','Pre-Sale / Maintenance','Component','Code','Tests Only','Phase 1 Foundation','Phase 2 Pre-Dry Wall','New Build Final'];
+  var COMPONENT_OPT=['Roof','HVAC','Electrical','Plumbing'];
   var STRUCTURE_TYPES=['Single Family','Duplex','Multi-Unit','Townhouse','Condo','Mobile / Manufactured'];
-  var EXT_OPT=['Chimney','Pool House & Pool','Outbuilding – Shed','Outbuilding – Car Port','Deck','Patio','Balcony','Detached Garage'];
+  var EXT_OPT=['Chimney','Pool House & Pool','Outbuilding – Shed','Outbuilding – Car Port','Deck','Patio','Balcony','Detached Garage','Condo','Mobile Home Undercarriage'];
+  // master-checklist section numbers (drives report order — feedback item 13)
+  var NUM={'Inspection Info':1,'Landscaping':2,'Condo':3,'Pool House & Pool':3,'Additional Living Space':4,'Outbuilding – Shed':5,'Outbuilding – Car Port':6,'Mobile Home Undercarriage':7,'Roof':8,'Exterior Walls':10,'Outside Utilities':11,'Deck':12,'Patio':12,'Balcony':13,'Garage':14,'Detached Garage':14,'Attic':15,'Bathroom':16,'Bedroom':17,'Hallway':18,'Living Room':19,'Reception':20,'Den / Home Office':21,'Family Room':22,'Kitchen':23,'Dining Room':24,'Laundry Room':25,'Storage Room':26,'Utility Room':26,'Electrical':27,'HVAC Mechanical':28,'Heating Oil Tank':29,'Boiler':30,'Water Heater':31,'Plumbing':32,'Foundation / Crawl Space':33,'Radon':34,'Meth Test':35,'Thermal Audit':36,'Termite':37,'Lead':38,'Indoor Air Quality':39,'Septic':40,'Wind Mitigation':41,'Chimney':42,'Sewer Scope':40,'Asbestos':37,'Summary':43};
+  function secNum(n){ var b=baseName(n); return NUM[b]||99; }
   var ROOM_OPT=['Living Room','Family Room','Den / Home Office','Reception','Kitchen','Dining Room','Laundry Room','Storage Room','Attic','Garage','Additional Living Space'];
   var UTIL_OPT=['Boiler','Heating Oil Tank'];
   var TEST_OPT=['Radon','Meth Test','Thermal Audit','Termite','Lead','Indoor Air Quality','Septic','Sewer Scope','Asbestos','Wind Mitigation'];
@@ -1027,10 +1092,10 @@
 
   // selection state — drives which sections appear (structure -> rooms -> testing)
   var sel={
-    inspType:'Real Estate Sale', loan:'Conventional', structure:'Single Family',
+    inspType:'Real Estate Sale', loan:'Conventional', structure:'Single Family', depth:'standard',
     bedrooms:4, bathrooms:3, hallways:2,
     rooms:{'Living Room':1,'Family Room':1,'Den / Home Office':1,'Reception':0,'Kitchen':1,'Dining Room':1,'Laundry Room':1,'Storage Room':1,'Attic':1,'Garage':1,'Additional Living Space':0},
-    exterior:{'Chimney':1,'Pool House & Pool':0,'Outbuilding – Shed':0,'Outbuilding – Car Port':0,'Deck':1,'Patio':0,'Balcony':0,'Detached Garage':0},
+    exterior:{'Chimney':1,'Pool House & Pool':0,'Outbuilding – Shed':0,'Outbuilding – Car Port':0,'Deck':1,'Patio':0,'Balcony':0,'Detached Garage':0,'Condo':0,'Mobile Home Undercarriage':0},
     utilOpt:{'Boiler':0,'Heating Oil Tank':0},
     tests:{'Radon':1,'Meth Test':0,'Thermal Audit':1,'Termite':1,'Lead':0,'Indoor Air Quality':0,'Septic':0,'Sewer Scope':0,'Asbestos':0,'Wind Mitigation':0}
   };
@@ -1038,8 +1103,6 @@
   function buildGroups(){
     var ext=['Landscaping','Roof','Exterior Walls','Outside Utilities'];
     EXT_OPT.forEach(function(k){ if(sel.exterior[k]) ext.push(k); });
-    if(sel.structure==='Condo') ext.push('Condo');
-    if(sel.structure==='Mobile / Manufactured') ext.push('Mobile Home Undercarriage');
     var interior=[];
     if(sel.rooms['Garage']) interior.push('Garage');
     if(sel.rooms['Attic']) interior.push('Attic');
@@ -1188,12 +1251,22 @@
   };
   function renderSectionBody(name){
     var s=SEC[baseName(name)]||{items:[]};
+    var depth=sel.depth||'standard';
     var h='<div class="banner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9z"/></svg><div><b>Fast entry:</b> tap what applies, scroll to the next line. Saves in one go.</div></div>';
-    (s.items||[]).forEach(function(it){
-      h+='<div class="li"><div class="q">'+it.q+'</div><div class="chips"'+(it.t==='single'?' data-single':'')+'>';
-      it.o.forEach(function(op){ h+='<button class="chip">'+op+'</button>'; });
-      h+='</div></div>';
-    });
+    if(depth==='free'){
+      h+='<div class="banner" style="background:var(--c3-bg);border-color:#bfe3d0"><svg viewBox="0 0 24 24" fill="none" stroke="var(--c3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9z"/></svg><div style="color:#1f7a52"><b>Fast Intuitive mode:</b> quick overall condition and notes &mdash; no line-by-line. Change depth in Settings.</div></div>';
+      var quick=(s.items||[]).filter(function(it){return it.q;});
+      if(quick.length){ h+='<p class="lbl">Items present</p><div class="chips">'; quick.forEach(function(it){ h+='<button class="chip">'+it.q+'</button>'; }); h+='</div>'; }
+    } else {
+      (s.items||[]).forEach(function(it){
+        if(it.h){ h+='<div class="lihead">'+ico('list')+it.h+'</div>'; return; }
+        h+='<div class="li"><div class="q">'+it.q+'</div><div class="chips"'+(it.t==='single'?' data-single':'')+'>';
+        it.o.forEach(function(op){ h+='<button class="chip">'+op+'</button>'; });
+        h+='</div>';
+        if(depth==='high'){ h+='<input class="txt" style="margin-top:9px;min-height:42px;font-size:13px" placeholder="Detail / measurement (optional)">'; }
+        h+='</div>';
+      });
+    }
     h+='<p class="lbl">Overall condition</p><div class="seg">';
     OVERALL.forEach(function(o,i){ h+='<button'+(i===1?' class="on"':'')+'>'+o+'</button>'; });
     h+='</div>';
@@ -1203,21 +1276,31 @@
   }
   window.saveSection=function(){ STATUS[curSection]='done'; toast('Section saved'); setTimeout(function(){ renderOverview(); go('s-sections'); },550); };
 
-  // ---------- photos (dynamic) ----------
-  window.go_photos=function(){};
+  // ---------- photos (dynamic, stateful) ----------
+  var PHOTOS={};
+  function seedPhotos(name,pics){
+    if(PHOTOS[name]) return;
+    PHOTOS[name]={};
+    (pics||['Overview','Concerns']).forEach(function(cat,ci){
+      var isConcern=/concern/i.test(cat); var n=ci===0?2:(isConcern?1:0); var arr=[];
+      for(var k=0;k<n;k++){ arr.push({src:thumb(ci+k),flag:isConcern?1:(ci===0&&k===1?2:0)}); }
+      PHOTOS[name][cat]=arr;
+    });
+  }
   function renderPhotos(name){
-    var s=SEC[baseName(name)]||{pics:['Overview','Concerns']};
+    var s=SEC[baseName(name)]||{pics:['Overview','Concerns']}; var pics=s.pics||['Overview','Concerns'];
+    seedPhotos(name,pics);
     document.getElementById('s-photos').setAttribute('data-title',name+' photos');
-    var h='<p style="font-size:13px;color:var(--ink-3);margin:2px 0 14px">Tap a photo to view, mark up, or flag as a finding. Each slot holds multiple photos.</p>';
-    (s.pics||['Overview','Concerns']).forEach(function(cat,ci){
-      var isConcern=/concern/i.test(cat);
-      var n = ci===0?2 : (isConcern?1:0);
-      h+='<div class="pcat"><div class="ph"><b>'+cat+'</b><span>'+n+' photo'+(n===1?'':'s')+'</span></div><div class="pgrid">';
-      for(var k=0;k<n;k++){
-        var flag = (isConcern)?'<span class="flag" style="background:var(--c1)">1</span>':(ci===0&&k===1?'<span class="flag" style="background:var(--c2)">2</span>':'');
-        h+='<div class="pi" style="background-image:url(\''+thumb(ci+k)+'\')" onclick="openViewer(\''+name+' — '+cat+'\',this)">'+flag+'</div>';
-      }
-      h+='<button class="add" onclick="addPhoto()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"/><circle cx="12" cy="13" r="3"/></svg>Add</button></div></div>';
+    var js=function(x){ return String(x).replace(/'/g,"\\'"); };
+    var h='<p style="font-size:13px;color:var(--ink-3);margin:2px 0 14px">Tap <b>Add</b> to capture a photo, then tap it to mark it up or flag it as a finding.</p>';
+    pics.forEach(function(cat){
+      var arr=PHOTOS[name][cat]||[];
+      h+='<div class="pcat"><div class="ph"><b>'+cat+'</b><span>'+arr.length+' photo'+(arr.length===1?'':'s')+'</span></div><div class="pgrid">';
+      arr.forEach(function(p){
+        var flag=p.flag?'<span class="flag" style="background:var(--c'+p.flag+')">'+p.flag+'</span>':'';
+        h+='<div class="pi" style="background-image:url(\''+p.src+'\')" onclick="openViewer(\''+js(name)+' — '+js(cat)+'\',this)">'+flag+'</div>';
+      });
+      h+='<button class="add" onclick="addPhoto(\''+js(name)+'\',\''+js(cat)+'\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"/><circle cx="12" cy="13" r="3"/></svg>Add</button></div></div>';
     });
     h+='<button class="btn primary" style="margin-top:6px" onclick="go(\'s-section\')">Done</button>';
     document.getElementById('photosbody').innerHTML=h;
@@ -1227,8 +1310,10 @@
   var wizStep=1;
   function wchip(label,on){ var b=document.createElement('button'); b.className='chip'+(on?' on':''); b.type='button'; b.textContent=label; return b; }
   function buildWizardChips(){
-    var t=document.getElementById('wtype'); t.innerHTML=''; INSPECTION_TYPES.forEach(function(x){ var b=wchip(x,sel.inspType===x); b.onclick=function(){ sel.inspType=x; Array.prototype.forEach.call(t.children,function(c){c.classList.remove('on');}); b.classList.add('on'); }; t.appendChild(b); });
-    var s=document.getElementById('wstruct'); s.innerHTML=''; STRUCTURE_TYPES.forEach(function(x){ var b=wchip(x,sel.structure===x); b.onclick=function(){ sel.structure=x; Array.prototype.forEach.call(s.children,function(c){c.classList.remove('on');}); b.classList.add('on'); renderUnitMix(); }; s.appendChild(b); });
+    var t=document.getElementById('wtype'); t.innerHTML=''; INSPECTION_TYPES.forEach(function(x){ var b=wchip(x,sel.inspType===x); b.onclick=function(){ sel.inspType=x; Array.prototype.forEach.call(t.children,function(c){c.classList.remove('on');}); b.classList.add('on'); renderComponentSub(); }; t.appendChild(b); });
+    renderComponentSub();
+    var s=document.getElementById('wstruct'); s.innerHTML=''; STRUCTURE_TYPES.forEach(function(x){ var b=wchip(x,sel.structure===x); b.onclick=function(){ sel.structure=x; Array.prototype.forEach.call(s.children,function(c){c.classList.remove('on');}); b.classList.add('on'); if(x==='Condo') sel.exterior['Condo']=1; if(x==='Mobile / Manufactured') sel.exterior['Mobile Home Undercarriage']=1; renderUnitMix(); }; s.appendChild(b); });
+    syncDepthUI();
     var rc=document.getElementById('wroomcounts'); rc.innerHTML='';
     [['Bedrooms','bedrooms'],['Bathrooms','bathrooms'],['Hallways','hallways']].forEach(function(p){
       var row=document.createElement('div'); row.className='counter';
@@ -1238,7 +1323,9 @@
       btns[1].onclick=function(){ if(sel[p[1]]<12){sel[p[1]]++;span.textContent=sel[p[1]];} };
       rc.appendChild(row);
     });
+    var xe=document.getElementById('wext'); if(xe){ xe.innerHTML=''; EXT_OPT.forEach(function(x){ var b=wchip(x,!!sel.exterior[x]); b.onclick=function(){ sel.exterior[x]=sel.exterior[x]?0:1; b.classList.toggle('on'); }; xe.appendChild(b); }); }
     var r=document.getElementById('wrooms'); r.innerHTML=''; ROOM_OPT.forEach(function(x){ var b=wchip(x,!!sel.rooms[x]); b.onclick=function(){ sel.rooms[x]=sel.rooms[x]?0:1; b.classList.toggle('on'); }; r.appendChild(b); });
+    var ue=document.getElementById('wutil'); if(ue){ ue.innerHTML=''; UTIL_OPT.forEach(function(x){ var b=wchip(x,!!sel.utilOpt[x]); b.onclick=function(){ sel.utilOpt[x]=sel.utilOpt[x]?0:1; b.classList.toggle('on'); }; ue.appendChild(b); }); }
     var te=document.getElementById('wtests'); te.innerHTML=''; TEST_OPT.forEach(function(x){ var b=wchip(x,!!sel.tests[x]); b.onclick=function(){ sel.tests[x]=sel.tests[x]?0:1; b.classList.toggle('on'); }; te.appendChild(b); });
   }
   function renderWizard(){
@@ -1258,6 +1345,18 @@
     });
     wu.innerHTML=h;
     wu.querySelectorAll('button').forEach(function(b){ b.onclick=function(){ var k=b.getAttribute('data-k'),d=+b.getAttribute('data-d'); sel.unitmix[k]=Math.max(0,sel.unitmix[k]+d); b.parentElement.querySelector('span').textContent=sel.unitmix[k]; }; });
+  }
+  function renderComponentSub(){
+    var wc=document.getElementById('wcomponent'); if(!wc) return;
+    if(sel.inspType!=='Component'){ wc.innerHTML=''; return; }
+    if(!sel.component) sel.component={'Roof':1,'HVAC':0,'Electrical':0,'Plumbing':0};
+    var h='<p class="lbl">Component(s) to inspect</p><div class="chips">';
+    COMPONENT_OPT.forEach(function(k){ h+='<button class="chip'+(sel.component[k]?' on':'')+'" data-comp="'+k+'">'+k+'</button>'; });
+    wc.innerHTML=h+'</div>';
+    wc.querySelectorAll('[data-comp]').forEach(function(b){ b.onclick=function(){ var k=b.getAttribute('data-comp'); sel.component[k]=sel.component[k]?0:1; b.classList.toggle('on'); }; });
+  }
+  function syncDepthUI(){
+    ['wdepth','setdepth'].forEach(function(id){ var g=document.getElementById(id); if(!g) return; g.querySelectorAll('.chip').forEach(function(c){ c.classList.toggle('on', c.getAttribute('data-depth')===sel.depth); }); });
   }
   function startWizard(){ wizStep=1; buildWizardChips(); renderUnitMix(); renderWizard(); }
 
@@ -1328,8 +1427,14 @@
 
   // chips / seg delegation
   document.addEventListener('click',function(e){
-    var c=e.target.closest('.chip'); if(c){ var grp=c.parentElement; if(grp.hasAttribute('data-manual')) return; if(grp.hasAttribute('data-single')){grp.querySelectorAll('.chip').forEach(function(x){x.classList.remove('on');});c.classList.add('on');} else c.classList.toggle('on'); return; }
-    var s=e.target.closest('.seg button'); if(s){ s.parentElement.querySelectorAll('button').forEach(function(x){x.classList.remove('on');}); s.classList.add('on'); }
+    var c=e.target.closest('.chip'); if(c){ var grp=c.parentElement; if(grp.hasAttribute('data-manual')) return;
+      if(grp.hasAttribute('data-single')){
+        if(c.classList.contains('on') && !grp.hasAttribute('data-req')){ c.classList.remove('on'); }   // tap again to deselect
+        else { grp.querySelectorAll('.chip').forEach(function(x){x.classList.remove('on');}); c.classList.add('on'); }
+      } else c.classList.toggle('on');
+      if(c.hasAttribute('data-depth') && c.classList.contains('on')){ sel.depth=c.getAttribute('data-depth'); syncDepthUI(); }
+      return; }
+    var s=e.target.closest('.seg button'); if(s){ if(s.classList.contains('on')){ s.classList.remove('on'); } else { s.parentElement.querySelectorAll('button').forEach(function(x){x.classList.remove('on');}); s.classList.add('on'); } }
   });
 
   // drawer
@@ -1347,7 +1452,7 @@
   function renderSummary(){
     var wrap=document.getElementById('summarywrap'); if(!wrap)return; wrap.innerHTML='';
     var rf=document.getElementById('rep-findings'); if(rf)rf.textContent=FINDINGS.length;
-    var meta={1:['Category 1','Safety / Major'],2:['Category 2','Moderate'],3:['Category 3','Minor / Cosmetic']};
+    var meta={1:['Category 1','Safety'],2:['Category 2','Functional'],3:['Category 3','Items to monitor']};
     [1,2,3].forEach(function(cat){
       var items=FINDINGS.filter(function(f){return f.cat===cat;});
       var box=document.createElement('div'); box.className='sumcat c'+cat;
@@ -1359,7 +1464,8 @@
 
   // viewer + annotation
   var cv,ctx,drawing=false,pen='#e5483b',stamp=null,strokes=[],cur=null;
-  window.openViewer=function(title,tile){ document.getElementById('viewer-title').textContent=title; var img=document.getElementById('vimg'); var bg=tile&&tile.style.backgroundImage; img.src=bg?bg.slice(5,-2).replace(/^["']|["']$/g,''):''; document.getElementById('viewer').classList.add('on'); setTimeout(initCanvas,60); };
+  window.openViewer=function(title,tile){ var bg=tile&&tile.style.backgroundImage; openViewerSrc(title, bg?bg.slice(5,-2).replace(/^["']|["']$/g,''):''); };
+  window.openViewerSrc=function(title,src){ document.getElementById('viewer-title').textContent=title; document.getElementById('vimg').src=src||''; document.getElementById('viewer').classList.add('on'); setTimeout(initCanvas,60); };
   window.closeViewer=function(){ document.getElementById('viewer').classList.remove('on'); };
   function initCanvas(){ cv=document.getElementById('vcanvas'); var st=document.getElementById('vstage'); cv.width=st.clientWidth; cv.height=st.clientHeight; ctx=cv.getContext('2d'); strokes=[]; redraw(); }
   function pos(e){ var r=cv.getBoundingClientRect(); var t=e.touches?e.touches[0]:e; return {x:t.clientX-r.left,y:t.clientY-r.top}; }
@@ -1374,14 +1480,63 @@
   window.clearDraw=function(){ strokes=[]; redraw(); };
   (function(){ var stage=document.getElementById('vstage'); ['mousedown','touchstart'].forEach(function(ev){stage.addEventListener(ev,start,{passive:false});}); ['mousemove','touchmove'].forEach(function(ev){stage.addEventListener(ev,move,{passive:false});}); ['mouseup','mouseleave','touchend'].forEach(function(ev){stage.addEventListener(ev,end);}); })();
 
-  window.addPhoto=function(){ toast('Camera / upload…'); };
-  window.pickCover=function(el){ document.querySelectorAll('.cover').forEach(function(x){x.classList.remove('on');x.querySelector('.cn b').innerHTML='&nbsp;';}); el.classList.add('on'); el.querySelector('.cn b').textContent='Selected'; };
+  window.addPhoto=function(name,cat){
+    if(!name){ toast('Camera / upload…'); return; }
+    seedPhotos(name,(SEC[baseName(name)]||{}).pics);
+    var arr=PHOTOS[name][cat]||(PHOTOS[name][cat]=[]);
+    var p={src:thumb(arr.length+2),flag:0}; arr.push(p);
+    renderPhotos(name); toast('Photo captured');
+    setTimeout(function(){ openViewerSrc(name+' — '+cat, p.src); },220);
+  };
+  // ---------- report cover picker: color -> category -> option -> style ----------
+  var COVER_COLORS=[['Blue','#2f5ec9','#123047'],['Green','#3a6b4a','#16351f'],['Red','#a4443a','#3a1512']];
+  var COVER_CATS={
+    'Solid':[], 'Activities':['Horses','Planes','Astronomy','Science & Math','Mountains'],
+    'Hobbies':['Skiing','Enterprise 1799','Fishing','F1 Racing'],
+    'Holidays':['Easter','Christmas','4th of July','Hanukkah','Passover'],
+    'Seasonal':['Summer','Winter','Spring','Fall']
+  };
+  var cover={color:'Blue',category:'Activities',option:'Mountains',style:'Framed',step:1};
+  function coverGrad(){ var c=COVER_COLORS.filter(function(x){return x[0]===cover.color;})[0]||COVER_COLORS[0]; return 'linear-gradient(150deg,'+c[1]+','+c[2]+')'; }
+  function coverLabel(){ return cover.color+' · '+(cover.category==='Solid'?'Solid':cover.option)+' · '+cover.style; }
+  window.renderCoverPicker=function(){
+    var host=document.getElementById('coverpicker'); if(!host) return;
+    var opts=COVER_CATS[cover.category]||[];
+    var h='<div class="coverprev"><div class="cpimg" style="background:'+coverGrad()+'"><b>'+(cover.category==='Solid'?cover.color:cover.option)+'</b></div><div class="cpmeta"><b>'+coverLabel()+'</b><span>Tap to change color, theme, or style</span></div></div>';
+    h+='<div class="cpsteps"><div class="cs'+(cover.step===1?' on':' done')+'">1 · Color</div><div class="cs'+(cover.step===2?' on':(cover.step>2?' done':''))+'">2 · Theme</div><div class="cs'+(cover.step===3?' on':'')+'">3 · Style</div></div>';
+    if(cover.step===1){
+      h+='<div class="colorrow">';
+      COVER_COLORS.forEach(function(c){ h+='<button class="colorpick'+(cover.color===c[0]?' on':'')+'" onclick="coverPick(\'color\',\''+c[0]+'\')"><div class="sw" style="background:linear-gradient(150deg,'+c[1]+','+c[2]+')"></div><div class="nm">'+c[0]+'</div></button>'; });
+      h+='</div><button class="btn primary" style="margin-top:12px" onclick="coverStep(2)">Next: theme</button>';
+    } else if(cover.step===2){
+      h+='<p class="lbl" style="margin-top:2px">Category</p><div class="optrow">';
+      Object.keys(COVER_CATS).forEach(function(cat){ h+='<button class="optbtn'+(cover.category===cat?' on':'')+'" onclick="coverPick(\'category\',\''+cat+'\')"><span>'+cat+'</span><span class="ok">'+wrapSvg('<path d="M20 6 9 17l-5-5"/>')+'</span></button>'; });
+      h+='</div>';
+      if(opts.length){ h+='<p class="lbl">Image</p><div class="optrow">'; opts.forEach(function(o){ h+='<button class="optbtn'+(cover.option===o?' on':'')+'" onclick="coverPick(\'option\',\''+o+'\')"><span>'+o+'</span><span class="ok">'+wrapSvg('<path d="M20 6 9 17l-5-5"/>')+'</span></button>'; }); h+='</div>'; }
+      h+='<div class="btnrow"><button class="btn ghost" onclick="coverStep(1)">Back</button><button class="btn primary" onclick="coverStep(3)">Next: style</button></div>';
+    } else {
+      h+='<p class="lbl" style="margin-top:2px">Style</p><div class="stylerow">';
+      (cover.category==='Solid'?['Solid']:['Framed','Shaded']).forEach(function(st){ h+='<button class="optbtn"'+(cover.style===st?' style="border-color:var(--brand);background:rgba(47,94,201,.06)"':'')+' onclick="coverPick(\'style\',\''+st+'\')"><span>'+st+'</span><span class="ok" style="display:'+(cover.style===st?'block':'none')+'">'+wrapSvg('<path d="M20 6 9 17l-5-5"/>')+'</span></button>'; });
+      h+='</div><button class="btn ghost" style="margin-top:12px" onclick="coverStep(2)">Back</button>';
+    }
+    host.innerHTML=h;
+  };
+  window.coverStep=function(n){ cover.step=n; renderCoverPicker(); };
+  window.coverPick=function(k,v){ cover[k]=v; if(k==='category'){ cover.option=(COVER_CATS[v]||[])[0]||''; if(v==='Solid') cover.style='Solid'; else if(cover.style==='Solid') cover.style='Framed'; } renderCoverPicker(); };
+  window.renderReportContents=function(){
+    var host=document.getElementById('reportcontents'); if(!host) return;
+    var done=leafSecs().filter(function(n){return STATUS[n]==='done';});
+    done.sort(function(a,b){ return secNum(a)-secNum(b) || a.localeCompare(b); });
+    if(!done.length){ host.innerHTML='<div class="binforow"><span style="color:var(--ink-3)">No sections completed yet</span></div>'; return; }
+    var h=''; done.forEach(function(n){ var num=('0'+secNum(n)).slice(-2); h+='<div class="binforow"><span><b style="font-family:var(--fm);color:var(--brand-deep);margin-right:8px">'+num+'</b>'+n+'</span><span class="pill done"><span class="d"></span>Included</span></div>'; });
+    host.innerHTML=h;
+  };
   window.syncNow=function(){ var b=document.getElementById('netbadge'); b.className='nb on'; b.innerHTML='<span class="d"></span>Synced'; document.getElementById('homequeue').textContent='0'; toast('Synced to portal'); };
 
   // ---------- subscription / accounts (Phase 1) ----------
   var PLANS={ app:{name:'App only',price:34.95,desc:'Inspection app · iOS & Android'}, portal:{name:'Portal + App',price:64.95,desc:'App + web portal'} };
   var EXTRA=24.95;
-  var SUB={ plan:'app', trialDays:22, active:false, inspectors:[{name:'Jeremy Heath',email:'jeremy@visionpropertyinspections.com',owner:true}] };
+  var SUB={ plan:'app', trialDays:22, active:false, companyCode:'VIS-4827', inspectors:[{name:'Jeremy Heath',email:'jeremy@visionpropertyinspections.com',owner:true}] };
   function subTotal(){ return PLANS[SUB.plan].price + Math.max(0,SUB.inspectors.length-1)*EXTRA; }
   function money(n){ return '$'+n.toFixed(2); }
   function renderSubscribe(){
@@ -1399,8 +1554,13 @@
   }
   window.subSeat=function(d){ if(d>0){ SUB.inspectors.push({name:'Inspector '+(SUB.inspectors.length+1),email:''}); } else if(SUB.inspectors.length>1){ SUB.inspectors.pop(); } renderSubscribe(); };
   window.startSub=function(){ SUB.active=true; document.getElementById('ss-plan').textContent=PLANS[SUB.plan].name; updateSubUI(); go('s-substarted'); };
+  window.copyCode=function(){ var c=SUB.companyCode; if(navigator.clipboard){ navigator.clipboard.writeText(c).catch(function(){}); } toast('Code '+c+' copied'); };
+  window.joinCompany=function(){ var v=(document.getElementById('joincode').value||'').trim(); if(!v){ toast('Enter the company code'); return; } toast('Linked to Vision Property Inspections'); setTimeout(function(){ go('s-home'); },800); };
   function renderInspectors(){
     var w=document.getElementById('inspectorlist'); w.innerHTML='';
+    var box=document.createElement('div'); box.className='codebox';
+    box.innerHTML='<div class="cl">Company join code</div><div class="cv">'+SUB.companyCode+'<button onclick="copyCode()">'+wrapSvg('<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>')+'Copy</button></div><p>Share this code with an inspector. They download VIMS, tap <b>Join a company with a code</b>, and their account links to your license &amp; billing.</p>';
+    w.appendChild(box);
     SUB.inspectors.forEach(function(ins,i){
       var r=document.createElement('div'); r.className='row'; r.style.cursor='default';
       var initials=(ins.name||'?').split(' ').map(function(s){return s[0]||'';}).slice(0,2).join('').toUpperCase();
@@ -1436,11 +1596,11 @@
   }
 
   // per-screen hooks on show
-  var _go=window.go; window.go=function(id,nopush){ if(id==='s-photos') renderPhotos(curSection); if(id==='s-new') startWizard(); if(id==='s-admin') renderAdmin(); if(id==='s-subscribe') renderSubscribe(); if(id==='s-inspectors') renderInspectors(); if(id==='s-billing') renderBilling(); if(id==='s-settings'||id==='s-home') updateSubUI(); _go(id,nopush); };
+  var _go=window.go; window.go=function(id,nopush){ if(id==='s-photos') renderPhotos(curSection); if(id==='s-new') startWizard(); if(id==='s-admin') renderAdmin(); if(id==='s-subscribe') renderSubscribe(); if(id==='s-inspectors') renderInspectors(); if(id==='s-billing') renderBilling(); if(id==='s-report'){ renderCoverPicker(); renderReportContents(); } if(id==='s-settings'){ updateSubUI(); syncDepthUI(); } if(id==='s-home') updateSubUI(); _go(id,nopush); };
 
   var tmo; window.toast=function(msg){ var t=document.getElementById('toast'); document.getElementById('toasttext').textContent=msg; t.classList.add('on'); clearTimeout(tmo); tmo=setTimeout(function(){t.classList.remove('on');},1900); };
 
-  var SCREENS=[['s-login','Sign in'],['s-signup','Create account'],['s-forgot','Reset password'],['s-home','Inspections (home)'],['s-subscribe','Subscribe'],['s-billing','Plan & billing'],['s-inspectors','Inspectors'],['s-new','New inspection (wizard)'],['s-sections','Sections overview'],['s-section','Section entry'],['s-photos','Photos'],['s-summary','Summary'],['s-report','Report / cover'],['s-generated','Report ready'],['s-settings','Settings'],['s-admin','Manage checklist']];
+  var SCREENS=[['s-login','Sign in'],['s-signup','Create account'],['s-forgot','Reset password'],['s-join','Join a company (code)'],['s-home','Inspections (home)'],['s-subscribe','Subscribe'],['s-billing','Plan & billing'],['s-inspectors','Inspectors'],['s-new','New inspection (wizard)'],['s-sections','Sections overview'],['s-section','Section entry'],['s-photos','Photos'],['s-summary','Summary'],['s-report','Report / cover'],['s-generated','Report ready'],['s-settings','Settings'],['s-admin','Manage checklist']];
   window.toggleRev=function(){ document.getElementById('revmenu').classList.toggle('on'); };
   function closeRev(){ document.getElementById('revmenu').classList.remove('on'); }
   (function(){ var m=document.getElementById('revmenu'); m.innerHTML='<div class="rt">Jump to screen</div>'; SCREENS.forEach(function(s){ var b=document.createElement('button'); b.textContent=s[1]; b.onclick=function(){ if(s[0]==='s-section'){openSection(curSection);return;} if(s[0]==='s-photos'){renderPhotos(curSection);} go(s[0]); }; m.appendChild(b); }); })();
