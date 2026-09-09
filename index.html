@@ -13,7 +13,7 @@
     color-scheme:light;
     --bg:#0c1119;
     --paper:#ffffff;--paper-2:#f4f7fa;--paper-3:#e9eef4;--line:#dde5ee;--line-2:#eef2f7;
-    --ink:#17222e;--ink-2:#48586a;--ink-3:#7d8b9c;
+    --ink:#17222e;--ink-2:#3f4e5e;--ink-3:#5f6d7d;
     --brand:#2f5ec9;--brand-bright:#5580e6;--brand-deep:#1e3d94;
     --signal:#e4a11b;--signal-deep:#a5730a;
     --c1:#d0584a;--c1-bg:#fbe9e6;--c2:#c98a1a;--c2-bg:#fbf1dd;--c3:#2f9e6b;--c3-bg:#e7f4ee;
@@ -66,6 +66,10 @@
   textarea.txt{min-height:84px;resize:vertical;line-height:1.5}
   input.txt:focus,textarea.txt:focus{outline:2px solid var(--brand);outline-offset:1px;border-color:var(--brand)}
   input.txt::placeholder{color:#a7b4c2}
+  .pwwrap{position:relative}
+  .pwwrap input.txt{padding-right:48px}
+  .pweye{position:absolute;top:50%;right:6px;transform:translateY(-50%);width:38px;height:38px;border:0;background:none;color:var(--ink-3);cursor:pointer;display:grid;place-items:center;border-radius:9px}
+  .pweye:active{background:var(--paper-3)}.pweye.on{color:var(--brand)}.pweye svg{width:20px;height:20px}
 
   .chips{display:flex;flex-wrap:wrap;gap:8px}
   .chip{font-family:var(--fu);font-size:13.5px;font-weight:500;color:var(--ink-2);background:var(--paper);border:1.5px solid var(--line);border-radius:22px;padding:9px 15px;cursor:pointer;min-height:40px;display:inline-flex;align-items:center;transition:.12s}
@@ -88,15 +92,15 @@
   .row:active{background:var(--paper-2)}
   .row .lead{width:44px;height:44px;border-radius:11px;flex:none;display:grid;place-items:center;background:var(--paper-3);color:var(--brand)}
   .row .lead svg{width:22px;height:22px}
-  .row .lead.time{font-family:var(--fm);font-weight:700;font-size:13px;color:var(--brand);flex-direction:column;line-height:1.05}
-  .row .lead.time small{font-size:9px;color:var(--ink-3);font-weight:400}
+  .row .lead.time{font-family:var(--fm);font-weight:800;font-size:15px;color:var(--brand-deep);flex-direction:column;line-height:1.05}
+  .row .lead.time small{font-size:10px;color:var(--ink-2);font-weight:700}
   .row .mid{flex:1;min-width:0}
   .row .mid b{display:block;font-size:15px;color:var(--ink);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .row .mid span{font-size:12.5px;color:var(--ink-3)}
+  .row .mid span{font-size:12.5px;color:var(--ink-2);font-weight:500}
   .row .end{flex:none;display:flex;align-items:center;gap:8px}
   .row .chev{color:#b7c3d0}.row .chev svg{width:18px;height:18px;display:block}
 
-  .pill{font-family:var(--fm);font-size:10px;padding:3px 9px;border-radius:20px;font-weight:600;white-space:nowrap;display:inline-flex;align-items:center;gap:5px}
+  .pill{font-family:var(--fm);font-size:10.5px;line-height:1.5;padding:5px 10px;border-radius:20px;font-weight:700;white-space:nowrap;display:inline-flex;align-items:center;gap:5px}
   .pill .d{width:6px;height:6px;border-radius:50%;background:currentColor}
   .pill.done{background:var(--c3-bg);color:#1f7a52}.pill.prog{background:rgba(47,94,201,.13);color:var(--brand-deep)}
   .pill.queued{background:var(--c2-bg);color:var(--signal-deep)}.pill.new{background:var(--paper-3);color:var(--ink-3)}
@@ -126,7 +130,7 @@
   .srow .sdot{width:9px;height:9px;border-radius:50%;flex:none}
   .sdot.g{background:var(--pass)}.sdot.a{background:var(--signal)}.sdot.n{background:var(--paper-3);border:1px solid var(--line)}
   .srow .sn{flex:1;font-size:14px;color:var(--ink);font-weight:500}
-  .srow .ss{font-family:var(--fm);font-size:10.5px;color:var(--ink-3)}
+  .srow .ss{font-family:var(--fm);font-size:10.5px;color:var(--ink-2);font-weight:600}
   .subhead{font-family:var(--fm);font-size:10px;letter-spacing:.11em;text-transform:uppercase;color:var(--brand-deep);padding:12px 15px 7px 18px;background:var(--paper-2);border-top:1px solid var(--line-2);font-weight:600}
   .steps-bar{display:flex;gap:6px;margin:4px 0 16px}
   .steps-bar .st{flex:1;height:5px;border-radius:4px;background:var(--paper-3)}
@@ -188,11 +192,13 @@
   .pgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
   .pgrid .pi{aspect-ratio:1;border-radius:11px;background-size:cover;background-position:center;border:1px solid var(--line);position:relative;cursor:pointer;overflow:hidden}
   .pgrid .pi .flag{position:absolute;top:5px;right:5px;width:20px;height:20px;border-radius:6px;display:grid;place-items:center;font-family:var(--fm);font-size:11px;font-weight:700;color:#fff}
+  .pgrid .pi .pdel{position:absolute;top:4px;left:4px;width:24px;height:24px;border-radius:7px;border:0;background:rgba(12,17,25,.62);color:#fff;font-size:17px;line-height:1;cursor:pointer;display:grid;place-items:center;padding:0}
+  .pgrid .pi .pdel:active{background:var(--c1)}
   .pgrid .add{aspect-ratio:1;border-radius:11px;border:1.5px dashed var(--brand);background:var(--paper);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--brand);cursor:pointer;font-size:10.5px;font-weight:600}
   .pgrid .add svg{width:22px;height:22px}
 
   /* modal */
-  .modal{position:absolute;inset:0;z-index:60;display:none;align-items:flex-end}
+  .modal{position:absolute;inset:0;z-index:100;display:none;align-items:flex-end}
   .modal.on{display:flex}
   .modal .sheet{background:var(--paper);width:100%;border-radius:22px 22px 0 0;padding:20px 18px 26px;box-shadow:0 -20px 50px -20px #000;animation:up .24s ease}
   @keyframes up{from{transform:translateY(30px)}to{transform:none}}
@@ -297,7 +303,7 @@
   .binforow{display:flex;justify-content:space-between;padding:12px 15px;border-bottom:1px solid var(--line-2);font-size:14px}
   .binforow:last-child{border-bottom:0}.binforow b{color:var(--ink)}
   .rev{position:absolute;right:12px;bottom:14px;z-index:90}
-  .rev-btn{width:46px;height:46px;border-radius:50%;background:var(--signal);color:#3a2a05;border:0;box-shadow:0 8px 20px -6px rgba(0,0,0,.5);cursor:pointer;display:grid;place-items:center}
+  .rev-btn{width:46px;height:46px;border-radius:50%;background:#f7d24e;color:#5a4405;border:0;box-shadow:0 8px 20px -6px rgba(0,0,0,.5);cursor:pointer;display:grid;place-items:center}
   .rev-btn svg{width:22px;height:22px}
   .rev-menu{position:absolute;right:0;bottom:56px;background:var(--paper);border:1px solid var(--line);border-radius:14px;box-shadow:0 20px 50px -16px #000;padding:8px;width:220px;max-height:64vh;overflow-y:auto;display:none}
   .rev-menu.on{display:block}
@@ -324,14 +330,14 @@
 
     <!-- LOGIN -->
     <section class="screen pad0" id="s-login" data-hdr="none">
-      <div style="background:var(--hdr);color:#fff;padding:46px 24px 40px;text-align:center">
-        <div style="width:72px;height:72px;border-radius:20px;background:rgba(255,255,255,.14);display:grid;place-items:center;margin:0 auto 18px"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:38px;height:38px"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20h14V9.5"/><path d="m9 13 2 2 4-4"/></svg></div>
+      <div style="background:var(--hdr);color:#fff;padding:40px 24px 36px;text-align:center">
+        <div style="width:96px;height:96px;border-radius:22px;background:#fff;display:grid;place-items:center;margin:0 auto 16px;box-shadow:0 12px 30px -12px rgba(0,0,0,.5)"><img src="vims-logo.png" alt="VIMS logo" style="width:74px;height:74px;object-fit:contain"></div>
         <div style="font-family:var(--fd);font-weight:800;font-size:30px;letter-spacing:.02em">VIMS</div>
         <div style="font-size:13px;color:var(--hdr-sub);margin-top:4px">Vision Inspection Management</div>
       </div>
       <div style="padding:24px 18px">
         <div class="field"><label>Email</label><input class="txt" type="email" value="jeremy@visionpropertyinspections.com"></div>
-        <div class="field"><label>Password</label><input class="txt" type="password" value="••••••••••"></div>
+        <div class="field"><label>Password</label><div class="pwwrap"><input class="txt" id="loginpw" type="password" value="inspect2026"><button type="button" class="pweye" aria-label="Show password" onclick="togglePw('loginpw',this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
         <button class="btn primary" onclick="go('s-home')">Sign in</button>
         <button class="btn ghost" style="margin-top:10px" onclick="go('s-signup')">Create account</button>
         <button class="btn ghost" style="margin-top:10px" onclick="go('s-join')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>Join a company with a code</button>
@@ -390,8 +396,12 @@
       <div class="wstep" id="w1">
         <p class="lbl">Client &amp; inspection</p>
         <div class="field"><label>Client name</label><input class="txt" placeholder="Client name"></div>
-        <div class="field"><label>Agent name</label><input class="txt" placeholder="Agent name (optional)"></div>
+        <div class="field"><label>Client phone</label><input class="txt" type="tel" placeholder="(801) 555-0134"></div>
+        <div class="field"><label>Client email</label><input class="txt" type="email" placeholder="client@email.com"></div>
         <div class="field"><label>Inspection address</label><input class="txt" placeholder="Street, City, State"></div>
+        <div class="field"><label>Real estate agent name</label><input class="txt" placeholder="Agent name (optional)"></div>
+        <div class="field"><label>Real estate agent email</label><input class="txt" type="email" placeholder="agent@email.com"></div>
+        <p style="font-size:12px;color:var(--ink-3);margin:-2px 2px 12px">Client &amp; agent emails are used to send the finished report.</p>
         <div class="stat2" style="gap:10px"><div class="field" style="margin:0"><label>Date</label><input class="txt" type="date"></div><div class="field" style="margin:0"><label>Time</label><input class="txt" type="time"></div></div>
         <p class="lbl">Type of loan</p><div class="chips" data-single><button class="chip">FHA</button><button class="chip">VA</button><button class="chip on">Conventional</button></div>
         <p class="lbl">Type of inspection</p><div class="chips" data-manual id="wtype"></div>
@@ -557,6 +567,7 @@
 
       <p class="lbl">Admin</p>
       <button class="row" onclick="go('s-admin')"><div class="lead"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></div><div class="mid"><b>Manage checklist</b><span>Add &amp; edit sections and items</span></div><div class="end"><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></span></div></button>
+      <button class="row" onclick="go('s-plans')"><div class="lead"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div><div class="mid"><b>Plans &amp; pricing</b><span>Edit subscription plans &amp; prices</span></div><div class="end"><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></span></div></button>
 
       <p class="lbl">Defaults</p>
       <div class="card"><b style="font-size:14px">Checklist depth</b><p style="font-size:12px;color:var(--ink-3);margin:4px 0 11px">Applies to new inspections. High Detail asks for measurements; Fast Intuitive is quick condition &amp; notes.</p><div class="chips" data-single data-req id="setdepth"><button class="chip" data-depth="high">High Detail</button><button class="chip on" data-depth="standard">Standard</button><button class="chip" data-depth="free">Fast Intuitive</button></div></div>
@@ -578,6 +589,12 @@
 
     <!-- ADMIN: edit a section -->
     <section class="screen" id="s-editsec" data-title="Edit section"><div id="editsecbody"></div></section>
+
+    <!-- ADMIN: subscription plans & pricing -->
+    <section class="screen" id="s-plans" data-title="Plans &amp; pricing">
+      <p style="font-size:13px;color:var(--ink-3);margin:2px 0 12px">Owner admin &mdash; edit plan prices, add a plan, or set the per-inspector rate. Changes apply to the subscribe screen.</p>
+      <div id="plansadminbody"></div>
+    </section>
 
   </div>
 
@@ -1014,6 +1031,7 @@
     ]},
     'Radon':{pics:['Monitor','Location','Concerns'],items:[
       {q:'Test performed',t:'single',o:['Yes','No','Referred out']},
+      {q:'Actual reading (pCi/L)',t:'num',ph:'e.g. 2.7'},
       {q:'Measured level (pCi/L)',t:'single',o:['< 2.0','2.0 – 3.9','4.0 – 5.9','6.0 +']},
       {q:'Result vs EPA action level (4.0)',t:'single',o:['Below','At','Above']}
     ]},
@@ -1070,6 +1088,74 @@
     'Condo':{pics:['Common Area','Stairs','Landing','Concerns'],items:[{q:'Approach',t:'single',o:['Open','Enclosed','Indoor']}].concat(L(['Stairs','Landing','Fence Type','Front Gate','Grading','Landscaping','Vegetation','Surface Drainage','Wall','Retaining Wall','Walk Ways','Bushes','Trees','Electrical Receptacles','Sprinkler System']))}
   });
   SEC['Detached Garage']=SEC['Garage'];
+
+  // High Detail variant for Outside Utilities (from Jeremy's "1 High Detail Checklist" file) — drives depth='high'
+  SEC['Outside Utilities'].picsHigh=['Swamp Cooler','Compressor','Coolant Lines','Power Cut Off','MFR Tag','Service Mast','Meter','Service Cut Off','Gas Meter','Water Meter','Sewer Access','Rain Water System','Concerns'];
+  SEC['Outside Utilities'].itemsHigh=[
+    {h:'Cooling System'},
+    {q:'Cooling system',t:'single',o:['Swamp Cooler','Central Air','None']},
+    {h:'Swamp Cooler'},
+    {q:'Location',t:'single',o:['Roof Top','Wall / Side Vent']},
+    {q:'Accessible',t:'single',o:['Yes','No']},{q:'Covered',t:'single',o:['Yes','No']},
+    {q:'Operates normally',t:'single',o:['Yes','No']},{q:'Edges sealed',t:'single',o:['Yes','No']},
+    {q:'Water leaks',t:'single',o:['Yes','No']},{q:'Rust',t:'single',o:['Yes','No']},
+    {q:'Overall condition',t:'single',o:OVERALL},
+    {h:'Central Air — Fan / Compressor'},
+    {q:'Podium',t:'single',o:['None','Concrete','Brick','Wood','Plastic']},
+    {q:'Podium 3 inches +',t:'single',o:['Yes','No']},
+    {q:'Vegetation cut back (min 18")',t:'single',o:['Yes','No','None']},
+    {q:'Fan operational',t:'single',o:['Yes','No']},{q:'Good belt',t:'single',o:['Yes','No']},
+    {q:'Fins clean',t:'single',o:['Clean','Mostly clean','Dirty']},
+    {q:'Fins mostly straight',t:'single',o:['Yes','No']},
+    {q:'Coolant lines — insulation intact',t:'single',o:['Yes','No']},
+    {q:'Coolant lines — ends sealed',t:'single',o:['Yes','No']},
+    {q:'Thermal camera shows leaks',t:'single',o:['Yes','No','N/A']},
+    {q:'Cut off location',t:'single',o:['Near unit','Near door']},
+    {q:'Cut off condition',t:'single',o:['Good','Bad','Damaged']},
+    {q:'Compressor size (sq ft)',t:'num',ph:'e.g. 2400'},
+    {q:'Compressor size (tons)',t:'num',ph:'sq ft × 20 ÷ 12,000 BTU'},
+    {q:'Proper size',t:'single',o:['Yes','No']},
+    {q:'Overall condition',t:'single',o:OVERALL},
+    {h:'Electricity'},
+    {q:'Electric meter condition',t:'single',o:['Good','Rusted over','Broken']},
+    {q:'Meter & brackets secure',t:'single',o:['Yes','No']},
+    {q:'Electric service',t:'single',o:['Overhead lines','Underground']},
+    {q:'Service drop above roof line',t:'single',o:['Yes','No','N/A']},
+    {q:'Clear of tree branches (2 ft)',t:'single',o:['Yes','No']},
+    {q:'Drip loop',t:'single',o:['Good','Missing']},
+    {q:'Stand pipe attachment',t:'single',o:['Good','Missing']},
+    {q:'Power cut off near meter',t:'single',o:['Yes','No','N/A']},
+    {q:'Power cut off accessible',t:'single',o:['Yes','No']},
+    {q:'Over-current protection in good order',t:'single',o:['Yes','No','None']},
+    {q:'AMP rating',t:'single',o:['60','100','150','200','400','Other']},
+    {q:'Solar panel breakers',t:'single',o:['None','In place','In good repair']},
+    {q:'Overall condition',t:'single',o:OVERALL},
+    {h:'Natural Gas'},
+    {q:'Gas meter condition',t:'single',o:['Good','Rusted over','Broken']},
+    {q:'Gas valve open',t:'single',o:['Yes','No']},
+    {q:'Leaking',t:'single',o:['Yes','No','None detected']},
+    {q:'Protective barrier',t:'single',o:['Yes','No','N/A']},
+    {q:'Gas cut off accessible',t:'single',o:['Yes','No']},
+    {q:'Vegetation trimmed',t:'single',o:['Yes','No']},
+    {q:'Overall condition',t:'single',o:OVERALL},
+    {h:'Water'},
+    {q:'Water meter accessible',t:'single',o:['Yes','No']},
+    {q:'Water meter leaking',t:'single',o:['Yes','No','Unknown']},
+    {q:'Location',t:'single',o:['Front','Left','Right','Back']},
+    {q:'Number of tanks',t:'num',ph:'e.g. 1'},
+    {q:'Condition of tanks',t:'single',o:['Good','Poor','Needs repair']},
+    {q:'Piping',t:'single',o:['Good','Poor','Needs repair']},
+    {h:'Sewer'},
+    {q:'Outdoor sewer access',t:'single',o:['Accessible','None']},
+    {q:'RV dump',t:'single',o:['Yes','No']},
+    {q:'Any puddling or sagging',t:'single',o:['Yes','No']},
+    {q:'Sewer main scope ordered',t:'single',o:['Yes','No']},
+    {q:'Pipe appears intact',t:'single',o:['Yes','No']},
+    {q:'Obstructions visible',t:'single',o:['Yes','No']},
+    {q:'Breaks, valleys or separations',t:'single',o:['Yes','None visible']},
+    {q:'Sewer access accessible',t:'single',o:['Yes','No']},
+    {q:'Overall condition',t:'single',o:OVERALL}
+  ];
 
   // Catalogs (from Jeremy's App Flow Chart + Inspection Info checklist 01)
   var INSPECTION_TYPES=['Real Estate Sale','New Construction','Pre-Sale / Maintenance','Component','Code','Tests Only','Phase 1 Foundation','Phase 2 Pre-Dry Wall','New Build Final'];
@@ -1258,12 +1344,16 @@
       var quick=(s.items||[]).filter(function(it){return it.q;});
       if(quick.length){ h+='<p class="lbl">Items present</p><div class="chips">'; quick.forEach(function(it){ h+='<button class="chip">'+it.q+'</button>'; }); h+='</div>'; }
     } else {
-      (s.items||[]).forEach(function(it){
+      var useHigh=(depth==='high' && s.itemsHigh);
+      if(depth==='high'){ h+='<div class="banner" style="background:rgba(47,94,201,.08);border-color:#c3d2f2"><svg viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4h10M11 8h10M11 12h10M3 4v16M3 20l4-4M3 20l-1-5"/></svg><div style="color:var(--brand-deep)"><b>High Detail mode:</b> the fuller checklist'+(s.itemsHigh?'':' — extra detail line under each item')+'.</div></div>'; }
+      var items = useHigh ? s.itemsHigh : (s.items||[]);
+      items.forEach(function(it){
         if(it.h){ h+='<div class="lihead">'+ico('list')+it.h+'</div>'; return; }
+        if(it.t==='num'||it.t==='text'){ h+='<div class="li"><div class="q">'+it.q+'</div><input class="txt" '+(it.t==='num'?'type="text" inputmode="decimal" ':'')+'placeholder="'+(it.ph||'Enter a value')+'"></div>'; return; }
         h+='<div class="li"><div class="q">'+it.q+'</div><div class="chips"'+(it.t==='single'?' data-single':'')+'>';
         it.o.forEach(function(op){ h+='<button class="chip">'+op+'</button>'; });
         h+='</div>';
-        if(depth==='high'){ h+='<input class="txt" style="margin-top:9px;min-height:42px;font-size:13px" placeholder="Detail / measurement (optional)">'; }
+        if(depth==='high' && !s.itemsHigh){ h+='<input class="txt" style="margin-top:9px;min-height:42px;font-size:13px" placeholder="Detail / measurement (optional)">'; }
         h+='</div>';
       });
     }
@@ -1271,34 +1361,37 @@
     OVERALL.forEach(function(o,i){ h+='<button'+(i===1?' class="on"':'')+'>'+o+'</button>'; });
     h+='</div>';
     h+='<p class="lbl">Comments</p><textarea class="txt" placeholder="Notes for this section…"></textarea>';
-    h+='<div class="btnrow"><button class="btn ghost" onclick="go(\'s-photos\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"/><circle cx="12" cy="13" r="3"/></svg>Photos</button><button class="btn primary" onclick="saveSection()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Save section</button></div>';
+    h+='<div class="btnrow"><button class="btn ghost" onclick="go(\'s-photos\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"/><circle cx="12" cy="13" r="3"/></svg>Photos</button><button class="btn ghost" onclick="saveSection()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Save</button></div>';
+    h+='<button class="btn primary" style="margin-top:10px" onclick="saveNext()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5M13 6l6 6-6 6"/></svg>Save &amp; next section</button>';
     document.getElementById('sectionbody').innerHTML=h;
   }
   window.saveSection=function(){ STATUS[curSection]='done'; toast('Section saved'); setTimeout(function(){ renderOverview(); go('s-sections'); },550); };
+  window.saveNext=function(){ STATUS[curSection]='done'; var leafs=leafSecs(); var i=leafs.indexOf(curSection); var next=(i>=0&&i<leafs.length-1)?leafs[i+1]:null; if(next){ toast('Saved — next: '+next); setTimeout(function(){ openSection(next); document.getElementById('body').scrollTop=0; },500); } else { toast('Saved — last section'); setTimeout(function(){ renderOverview(); go('s-summary'); },500); } };
 
   // ---------- photos (dynamic, stateful) ----------
   var PHOTOS={};
   function seedPhotos(name,pics){
-    if(PHOTOS[name]) return;
-    PHOTOS[name]={};
+    if(!PHOTOS[name]) PHOTOS[name]={};
     (pics||['Overview','Concerns']).forEach(function(cat,ci){
+      if(PHOTOS[name][cat]) return;
       var isConcern=/concern/i.test(cat); var n=ci===0?2:(isConcern?1:0); var arr=[];
       for(var k=0;k<n;k++){ arr.push({src:thumb(ci+k),flag:isConcern?1:(ci===0&&k===1?2:0)}); }
       PHOTOS[name][cat]=arr;
     });
   }
+  function photoPics(name){ var s=SEC[baseName(name)]||{}; return (sel.depth==='high'&&s.picsHigh)?s.picsHigh:(s.pics||['Overview','Concerns']); }
   function renderPhotos(name){
-    var s=SEC[baseName(name)]||{pics:['Overview','Concerns']}; var pics=s.pics||['Overview','Concerns'];
+    var pics=photoPics(name);
     seedPhotos(name,pics);
     document.getElementById('s-photos').setAttribute('data-title',name+' photos');
     var js=function(x){ return String(x).replace(/'/g,"\\'"); };
-    var h='<p style="font-size:13px;color:var(--ink-3);margin:2px 0 14px">Tap <b>Add</b> to capture a photo, then tap it to mark it up or flag it as a finding.</p>';
+    var h='<p style="font-size:13px;color:var(--ink-3);margin:2px 0 14px">Tap <b>Add</b> to capture a photo, tap a photo to mark it up or flag it, or tap <b>&times;</b> to delete one.</p>';
     pics.forEach(function(cat){
       var arr=PHOTOS[name][cat]||[];
       h+='<div class="pcat"><div class="ph"><b>'+cat+'</b><span>'+arr.length+' photo'+(arr.length===1?'':'s')+'</span></div><div class="pgrid">';
-      arr.forEach(function(p){
+      arr.forEach(function(p,idx){
         var flag=p.flag?'<span class="flag" style="background:var(--c'+p.flag+')">'+p.flag+'</span>':'';
-        h+='<div class="pi" style="background-image:url(\''+p.src+'\')" onclick="openViewer(\''+js(name)+' — '+js(cat)+'\',this)">'+flag+'</div>';
+        h+='<div class="pi" style="background-image:url(\''+p.src+'\')" onclick="openViewer(\''+js(name)+' — '+js(cat)+'\',this)">'+flag+'<button class="pdel" aria-label="Delete photo" onclick="event.stopPropagation();delPhoto(\''+js(name)+'\',\''+js(cat)+'\','+idx+')">&times;</button></div>';
       });
       h+='<button class="add" onclick="addPhoto(\''+js(name)+'\',\''+js(cat)+'\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"/><circle cx="12" cy="13" r="3"/></svg>Add</button></div></div>';
     });
@@ -1482,12 +1575,13 @@
 
   window.addPhoto=function(name,cat){
     if(!name){ toast('Camera / upload…'); return; }
-    seedPhotos(name,(SEC[baseName(name)]||{}).pics);
+    seedPhotos(name,photoPics(name));
     var arr=PHOTOS[name][cat]||(PHOTOS[name][cat]=[]);
     var p={src:thumb(arr.length+2),flag:0}; arr.push(p);
     renderPhotos(name); toast('Photo captured');
     setTimeout(function(){ openViewerSrc(name+' — '+cat, p.src); },220);
   };
+  window.delPhoto=function(name,cat,idx){ if(PHOTOS[name]&&PHOTOS[name][cat]){ PHOTOS[name][cat].splice(idx,1); renderPhotos(name); toast('Photo deleted'); } };
   // ---------- report cover picker: color -> category -> option -> style ----------
   var COVER_COLORS=[['Blue','#2f5ec9','#123047'],['Green','#3a6b4a','#16351f'],['Red','#a4443a','#3a1512']];
   var COVER_CATS={
@@ -1532,24 +1626,27 @@
     host.innerHTML=h;
   };
   window.syncNow=function(){ var b=document.getElementById('netbadge'); b.className='nb on'; b.innerHTML='<span class="d"></span>Synced'; document.getElementById('homequeue').textContent='0'; toast('Synced to portal'); };
+  window.togglePw=function(id,btn){ var i=document.getElementById(id); if(!i) return; var show=i.type==='password'; i.type=show?'text':'password'; btn.classList.toggle('on',show); btn.setAttribute('aria-label',show?'Hide password':'Show password'); };
 
   // ---------- subscription / accounts (Phase 1) ----------
-  var PLANS={ app:{name:'App only',price:34.95,desc:'Inspection app · iOS & Android'}, portal:{name:'Portal + App',price:64.95,desc:'App + web portal'} };
+  var PLANS={ app:{name:'App only',price:34.95,desc:'Inspection app · iOS & Android'}, portal:{name:'Portal + App',price:64.95,desc:'App + web portal'}, payg:{name:'Pay per report',price:5.00,unit:'/report',desc:'No monthly fee · $5.00 per report',perReport:true} };
+  var PLAN_ORDER=['app','portal','payg'];
   var EXTRA=24.95;
   var SUB={ plan:'app', trialDays:22, active:false, companyCode:'VIS-4827', inspectors:[{name:'Jeremy Heath',email:'jeremy@visionpropertyinspections.com',owner:true}] };
-  function subTotal(){ return PLANS[SUB.plan].price + Math.max(0,SUB.inspectors.length-1)*EXTRA; }
-  function money(n){ return '$'+n.toFixed(2); }
+  function subTotal(){ return PLANS[SUB.plan].perReport ? 0 : PLANS[SUB.plan].price + Math.max(0,SUB.inspectors.length-1)*EXTRA; }
+  function subTotalLabel(){ var p=PLANS[SUB.plan]; return p.perReport ? money(p.price)+' / report' : money(subTotal())+'/mo'; }
+  function money(n){ return '$'+Number(n).toFixed(2); }
   function renderSubscribe(){
     var pw=document.getElementById('planwrap'); pw.innerHTML='';
-    Object.keys(PLANS).forEach(function(k){
-      var p=PLANS[k]; var soon=(k==='portal');
+    PLAN_ORDER.forEach(function(k){
+      var p=PLANS[k]; if(!p) return; var soon=(k==='portal');
       var b=document.createElement('button'); b.className='plan'+(SUB.plan===k?' on':''); b.type='button';
-      b.innerHTML='<span class="radio"></span><span class="pinfo"><b>'+p.name+'</b><span>'+p.desc+'</span>'+(soon?'<span class="tag">Available when the web portal launches (Phase 2)</span>':'')+'</span><span class="pprice">'+money(p.price)+'<small>/mo</small></span>';
+      b.innerHTML='<span class="radio"></span><span class="pinfo"><b>'+p.name+'</b><span>'+p.desc+'</span>'+(soon?'<span class="tag">Available when the web portal launches (Phase 2)</span>':'')+'</span><span class="pprice">'+money(p.price)+'<small>'+(p.unit||'/mo')+'</small></span>';
       b.onclick=function(){ SUB.plan=k; renderSubscribe(); };
       pw.appendChild(b);
     });
     document.getElementById('subcount').textContent=SUB.inspectors.length;
-    document.getElementById('subtotal').textContent=money(subTotal());
+    document.getElementById('subtotal').textContent=subTotalLabel();
     document.getElementById('trialdays').textContent=SUB.trialDays;
   }
   window.subSeat=function(d){ if(d>0){ SUB.inspectors.push({name:'Inspector '+(SUB.inspectors.length+1),email:''}); } else if(SUB.inspectors.length>1){ SUB.inspectors.pop(); } renderSubscribe(); };
@@ -1578,9 +1675,9 @@
     var status = SUB.active ? '<span class="pill done"><span class="d"></span>Active · auto-pay</span>' : '<span class="pill queued"><span class="d"></span>Trial · '+SUB.trialDays+'d left</span>';
     var h='<div class="card" style="padding:0;overflow:hidden">';
     h+='<div class="binforow"><span>Status</span>'+status+'</div>';
-    h+='<div class="binforow"><span>Plan</span><b>'+PLANS[SUB.plan].name+' · '+money(PLANS[SUB.plan].price)+'/mo</b></div>';
-    h+='<div class="binforow"><span>Inspectors</span><b>'+SUB.inspectors.length+' ('+Math.max(0,SUB.inspectors.length-1)+' × $24.95)</b></div>';
-    h+='<div class="binforow"><span>Monthly total</span><b>'+money(subTotal())+'</b></div>';
+    h+='<div class="binforow"><span>Plan</span><b>'+PLANS[SUB.plan].name+' · '+money(PLANS[SUB.plan].price)+(PLANS[SUB.plan].unit||'/mo')+'</b></div>';
+    if(!PLANS[SUB.plan].perReport) h+='<div class="binforow"><span>Inspectors</span><b>'+SUB.inspectors.length+' ('+Math.max(0,SUB.inspectors.length-1)+' × $24.95)</b></div>';
+    h+='<div class="binforow"><span>'+(PLANS[SUB.plan].perReport?'Billing':'Monthly total')+'</span><b>'+subTotalLabel()+'</b></div>';
     h+='<div class="binforow"><span>Payment</span><b>'+(SUB.active?'Square · Visa ····4242':'Not set up')+'</b></div>';
     h+='<div class="binforow"><span>'+(SUB.active?'Next billing':'Trial ends')+'</span><b>'+(SUB.active?'Sep 27, 2026':'in '+SUB.trialDays+' days')+'</b></div>';
     h+='</div>';
@@ -1588,19 +1685,42 @@
     h+='<button class="btn '+(SUB.active?'ghost':'primary')+'" style="margin-top:10px" onclick="go(\'s-subscribe\')">'+(SUB.active?'Change plan / payment':'Set up subscription')+'</button>';
     b.innerHTML=h;
   }
+  function renderPlansAdmin(){
+    var host=document.getElementById('plansadminbody'); if(!host) return; host.innerHTML='';
+    PLAN_ORDER.forEach(function(k){
+      var p=PLANS[k]; var card=document.createElement('div'); card.className='ed-item';
+      card.innerHTML='<div class="eh"><b style="flex:1;font-size:14.5px">'+p.name+'</b></div><div style="display:flex;align-items:center;gap:10px"><span style="font-size:13px;color:var(--ink-2)">Price&nbsp;$</span><input class="txt" style="max-width:130px" inputmode="decimal" value="'+Number(p.price).toFixed(2)+'"><span style="font-size:12.5px;color:var(--ink-3)">'+(p.unit||'/mo')+'</span></div><p style="font-size:12px;color:var(--ink-3);margin:8px 0 0">'+p.desc+'</p>';
+      var inp=card.querySelector('input'); inp.onchange=function(){ var v=parseFloat(inp.value); if(!isNaN(v)&&v>=0){ PLANS[k].price=v; toast(p.name+' → '+money(v)); } else { inp.value=Number(PLANS[k].price).toFixed(2); } };
+      host.appendChild(card);
+    });
+    var ex=document.createElement('div'); ex.className='ed-item';
+    ex.innerHTML='<div class="eh"><b style="flex:1;font-size:14.5px">Additional inspector</b></div><div style="display:flex;align-items:center;gap:10px"><span style="font-size:13px;color:var(--ink-2)">Price&nbsp;$</span><input class="txt" style="max-width:130px" inputmode="decimal" value="'+EXTRA.toFixed(2)+'"><span style="font-size:12.5px;color:var(--ink-3)">/mo each</span></div>';
+    ex.querySelector('input').onchange=function(){ var v=parseFloat(this.value); if(!isNaN(v)&&v>=0){ EXTRA=v; toast('Extra inspector → '+money(v)); } else { this.value=EXTRA.toFixed(2); } };
+    host.appendChild(ex);
+    var add=document.createElement('div'); add.className='addsec';
+    add.innerHTML='<input id="npname" placeholder="Plan name (e.g. Team)"><input id="npprice" placeholder="Monthly price (e.g. 99.00)" inputmode="decimal"><input id="npdesc" placeholder="Short description">';
+    var b=document.createElement('button'); b.className='btn primary'; b.style.minHeight='46px'; b.innerHTML=wrapSvg('<path d="M12 5v14M5 12h14"/>')+'Add plan';
+    b.onclick=addPlan; add.appendChild(b); host.appendChild(add);
+  }
+  window.addPlan=function(){
+    var n=(document.getElementById('npname').value||'').trim(); var pr=parseFloat(document.getElementById('npprice').value); var d=(document.getElementById('npdesc').value||'').trim();
+    if(!n){ toast('Enter a plan name'); return; } if(isNaN(pr)||pr<0){ toast('Enter a valid price'); return; }
+    var key='plan'+(Object.keys(PLANS).length+1); PLANS[key]={name:n,price:pr,desc:d||'Custom plan'}; PLAN_ORDER.push(key);
+    renderPlansAdmin(); toast('Added “'+n+'”');
+  };
   function updateSubUI(){
     var ht=document.getElementById('hometrial'); if(ht) ht.textContent=SUB.trialDays;
     var tb=document.querySelector('#s-home .trialbar'); if(tb) tb.style.display=SUB.active?'none':'flex';
-    var pl=document.getElementById('set-planline'); if(pl) pl.textContent=PLANS[SUB.plan].name+' · '+(SUB.active?money(subTotal())+'/mo':'trial');
+    var pl=document.getElementById('set-planline'); if(pl) pl.textContent=PLANS[SUB.plan].name+' · '+(SUB.active?subTotalLabel():'trial');
     var il=document.getElementById('set-inspline'); if(il) il.textContent=SUB.inspectors.length+' inspector'+(SUB.inspectors.length>1?'s':'');
   }
 
   // per-screen hooks on show
-  var _go=window.go; window.go=function(id,nopush){ if(id==='s-photos') renderPhotos(curSection); if(id==='s-new') startWizard(); if(id==='s-admin') renderAdmin(); if(id==='s-subscribe') renderSubscribe(); if(id==='s-inspectors') renderInspectors(); if(id==='s-billing') renderBilling(); if(id==='s-report'){ renderCoverPicker(); renderReportContents(); } if(id==='s-settings'){ updateSubUI(); syncDepthUI(); } if(id==='s-home') updateSubUI(); _go(id,nopush); };
+  var _go=window.go; window.go=function(id,nopush){ if(id==='s-photos') renderPhotos(curSection); if(id==='s-new') startWizard(); if(id==='s-admin') renderAdmin(); if(id==='s-subscribe') renderSubscribe(); if(id==='s-inspectors') renderInspectors(); if(id==='s-billing') renderBilling(); if(id==='s-plans') renderPlansAdmin(); if(id==='s-report'){ renderCoverPicker(); renderReportContents(); } if(id==='s-settings'){ updateSubUI(); syncDepthUI(); } if(id==='s-home') updateSubUI(); _go(id,nopush); };
 
   var tmo; window.toast=function(msg){ var t=document.getElementById('toast'); document.getElementById('toasttext').textContent=msg; t.classList.add('on'); clearTimeout(tmo); tmo=setTimeout(function(){t.classList.remove('on');},1900); };
 
-  var SCREENS=[['s-login','Sign in'],['s-signup','Create account'],['s-forgot','Reset password'],['s-join','Join a company (code)'],['s-home','Inspections (home)'],['s-subscribe','Subscribe'],['s-billing','Plan & billing'],['s-inspectors','Inspectors'],['s-new','New inspection (wizard)'],['s-sections','Sections overview'],['s-section','Section entry'],['s-photos','Photos'],['s-summary','Summary'],['s-report','Report / cover'],['s-generated','Report ready'],['s-settings','Settings'],['s-admin','Manage checklist']];
+  var SCREENS=[['s-login','Sign in'],['s-signup','Create account'],['s-forgot','Reset password'],['s-join','Join a company (code)'],['s-home','Inspections (home)'],['s-subscribe','Subscribe'],['s-billing','Plan & billing'],['s-inspectors','Inspectors'],['s-new','New inspection (wizard)'],['s-sections','Sections overview'],['s-section','Section entry'],['s-photos','Photos'],['s-summary','Summary'],['s-report','Report / cover'],['s-generated','Report ready'],['s-settings','Settings'],['s-admin','Manage checklist'],['s-plans','Plans & pricing (admin)']];
   window.toggleRev=function(){ document.getElementById('revmenu').classList.toggle('on'); };
   function closeRev(){ document.getElementById('revmenu').classList.remove('on'); }
   (function(){ var m=document.getElementById('revmenu'); m.innerHTML='<div class="rt">Jump to screen</div>'; SCREENS.forEach(function(s){ var b=document.createElement('button'); b.textContent=s[1]; b.onclick=function(){ if(s[0]==='s-section'){openSection(curSection);return;} if(s[0]==='s-photos'){renderPhotos(curSection);} go(s[0]); }; m.appendChild(b); }); })();
