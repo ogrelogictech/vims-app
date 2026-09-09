@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>VIMS — Report Format Preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+  :root{
+    color-scheme:light;
+    --ink:#17222e;--ink-2:#3f4e5e;--ink-3:#5f6d7d;--line:#dde5ee;--line-2:#eef2f7;
+    --brand:#2f5ec9;--brand-deep:#1e3d94;--paper:#fff;--paper-2:#f4f7fa;
+    --c1:#d0584a;--c1-bg:#fbe9e6;--c2:#c98a1a;--c2-bg:#fbf1dd;--c3:#2f9e6b;--c3-bg:#e7f4ee;
+    --fd:'Archivo',system-ui,sans-serif;--fu:'IBM Plex Sans',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{font-family:var(--fu);color:var(--ink);background:#0c1119;padding:26px 14px 60px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .wrap{max-width:850px;margin:0 auto}
+  .toolbar{max-width:850px;margin:0 auto 20px;display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+  .toolbar .t-l{color:#cfe0ee;font-size:13.5px}.toolbar .t-l b{color:#fff;font-family:var(--fd)}
+  .toolbar a,.toolbar button{font-family:var(--fu);font-weight:600;font-size:13.5px;border:0;border-radius:10px;padding:10px 15px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:7px}
+  .toolbar .print{background:var(--brand);color:#fff}
+  .toolbar .back{background:rgba(255,255,255,.12);color:#fff}
+
+  .page{background:#fff;width:100%;aspect-ratio:8.5/11;margin:0 auto 22px;box-shadow:0 20px 50px -24px #000;position:relative;overflow:hidden;padding:46px 48px;display:flex;flex-direction:column}
+  .page.cover{padding:0}
+
+  /* running header on content pages */
+  .rhead{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid var(--brand);padding-bottom:12px;margin-bottom:22px}
+  .rhead .brand{display:flex;align-items:center;gap:11px}
+  .rhead .brand img{width:44px;height:44px;object-fit:contain}
+  .rhead .brand .bn b{font-family:var(--fd);font-weight:800;font-size:16px;color:var(--brand-deep);display:block;line-height:1}
+  .rhead .brand .bn span{font-size:11px;color:var(--ink-3)}
+  .rhead .addr{text-align:right;font-size:10.5px;color:var(--ink-2);line-height:1.5}
+  .rhead .addr b{color:var(--ink);font-size:11.5px}
+
+  .ptitle{font-family:var(--fd);font-weight:800;font-size:20px;color:var(--ink);margin:0 0 3px}
+  .psub{font-size:12.5px;color:var(--ink-3);margin:0 0 20px}
+  .pfoot{margin-top:auto;padding-top:14px;border-top:1px solid var(--line);display:flex;justify-content:space-between;font-size:10px;color:var(--ink-3)}
+
+  /* COVER */
+  .cover .ctop{padding:40px 46px 0;display:flex;justify-content:space-between;align-items:flex-start}
+  .cover .ctop .brand{display:flex;align-items:center;gap:13px}
+  .cover .ctop .brand img{width:64px;height:64px;object-fit:contain}
+  .cover .ctop .brand .bn b{font-family:var(--fd);font-weight:800;font-size:24px;color:var(--brand-deep);display:block;line-height:1}
+  .cover .ctop .brand .bn span{font-size:13px;color:#7c8a55;font-weight:600}
+  .cover .ctop .addr{text-align:right;font-size:11.5px;color:var(--ink-2);line-height:1.6}
+  .cover .ctop .addr b{color:var(--ink);font-size:12.5px}
+  .cover h1{text-align:center;font-family:var(--fd);font-weight:800;font-size:26px;margin:26px 0 18px}
+  .cover .fields{padding:0 60px}
+  .cover .frow{display:flex;align-items:baseline;gap:12px;margin-bottom:15px}
+  .cover .frow .fl{font-weight:700;font-size:15px;color:var(--ink);white-space:nowrap}
+  .cover .frow .fv{flex:1;font-size:20px;color:var(--ink);border-bottom:1px solid #9fb0c2;padding-bottom:2px}
+  .cover .cimgwrap{margin:22px 60px 0;border:1px solid var(--line);border-radius:6px;overflow:hidden;flex:1;min-height:0;position:relative}
+  .cover .cimgwrap img{width:100%;height:100%;object-fit:cover;display:block}
+  .cover .cart{position:relative;margin-top:auto;background:linear-gradient(160deg,#3a6fd8,#1e3d94);color:#fff;padding:20px 40px 24px;text-align:center}
+  .cover .cart .notice{font-family:var(--fd);font-weight:700;font-size:15px;line-height:1.5;max-width:60%}
+  .cover .cart .art{position:absolute;right:34px;bottom:14px;font-size:12px;color:#cfe0ff;text-align:right;opacity:.9}
+  .cover .cart .arttag{display:inline-block;margin-top:4px;font-size:10px;background:rgba(255,255,255,.16);padding:3px 9px;border-radius:20px}
+
+  /* info fields */
+  .info-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px 26px}
+  .frow2{display:flex;justify-content:space-between;gap:14px;padding:8px 0;border-bottom:1px solid var(--line-2);font-size:13px}
+  .frow2 .k{color:var(--ink-3)}.frow2 .v{color:var(--ink);font-weight:600;text-align:right}
+  .blocklbl{font-family:var(--fd);font-weight:700;font-size:13px;color:var(--brand-deep);margin:20px 0 8px;text-transform:uppercase;letter-spacing:.04em}
+  .note{background:var(--paper-2);border:1px solid var(--line);border-radius:8px;padding:11px 13px;font-size:12.5px;color:var(--ink-2);line-height:1.5}
+
+  /* section data table */
+  .sectitle{display:flex;align-items:center;gap:10px;background:var(--brand);color:#fff;border-radius:9px;padding:11px 15px;margin-bottom:14px}
+  .sectitle .num{font-family:var(--fd);font-weight:800;font-size:15px;background:rgba(255,255,255,.2);border-radius:7px;padding:2px 9px}
+  .sectitle b{font-family:var(--fd);font-weight:700;font-size:16px}
+  .subband{font-family:var(--fd);font-weight:700;font-size:12.5px;color:var(--brand-deep);background:var(--paper-2);border-left:3px solid var(--brand);padding:7px 11px;margin:14px 0 8px;border-radius:0 6px 6px 0}
+  table.lines{width:100%;border-collapse:collapse;font-size:12.5px}
+  table.lines td{padding:7px 6px;border-bottom:1px solid var(--line-2);vertical-align:top}
+  table.lines td.k{color:var(--ink-2);width:52%}
+  table.lines td.v{color:var(--ink);font-weight:600}
+  table.lines td.v .flagdot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-left:7px;vertical-align:middle}
+  .oc{display:flex;justify-content:space-between;align-items:center;margin-top:14px;background:var(--c3-bg);border:1px solid #bfe3d0;border-radius:8px;padding:10px 14px;font-size:13px}
+  .oc b{color:#1f7a52}
+
+  /* photo page */
+  .pgrid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .pcard{border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .pcard .pimg{aspect-ratio:4/3;position:relative}
+  .pcard .pimg img{width:100%;height:100%;object-fit:cover;display:block}
+  .pcard .pcap{padding:8px 11px;font-size:11.5px;color:var(--ink-2);display:flex;justify-content:space-between;align-items:center}
+  .pcard .pcap .cf{font-size:10px;font-weight:700;color:#fff;padding:2px 8px;border-radius:20px}
+  .concern-tag{position:absolute;top:8px;left:8px;background:var(--c1);color:#fff;font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px}
+
+  /* summary */
+  .sumcat{border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-bottom:14px}
+  .sumcat .sh{display:flex;align-items:center;gap:12px;padding:12px 15px}
+  .sumcat .sh .cn{width:34px;height:34px;border-radius:8px;display:grid;place-items:center;font-family:var(--fd);font-weight:800;font-size:16px;color:#fff}
+  .sumcat.c1 .sh{background:var(--c1-bg)}.sumcat.c1 .cn{background:var(--c1)}
+  .sumcat.c2 .sh{background:var(--c2-bg)}.sumcat.c2 .cn{background:var(--c2)}
+  .sumcat.c3 .sh{background:var(--c3-bg)}.sumcat.c3 .cn{background:var(--c3)}
+  .sumcat .sh b{font-family:var(--fd);font-size:15px}
+  .sumcat .sh span{font-size:12px;color:var(--ink-2)}
+  .sumcat .sh .ct{margin-left:auto;font-weight:700;font-size:15px}
+  .sfind{display:flex;gap:11px;padding:9px 15px;border-top:1px solid var(--line-2);font-size:12.5px;color:var(--ink-2)}
+  .sfind .n{font-weight:700;color:var(--ink);min-width:20px}
+  .sfind .sec{color:var(--ink-3)}
+
+  /* invoice */
+  .inv-grid{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px}
+  .inv-grid th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3);border-bottom:2px solid var(--line);padding:8px 6px}
+  .inv-grid td{padding:10px 6px;border-bottom:1px solid var(--line-2)}
+  .inv-grid td.r,.inv-grid th.r{text-align:right}
+  .inv-tot{display:flex;justify-content:flex-end;margin-top:14px}
+  .inv-tot .box{width:250px}
+  .inv-tot .row{display:flex;justify-content:space-between;padding:7px 0;font-size:13px;color:var(--ink-2)}
+  .inv-tot .row.grand{border-top:2px solid var(--brand);margin-top:6px;padding-top:10px;font-family:var(--fd);font-weight:800;font-size:17px;color:var(--brand-deep)}
+
+  .pagenote{max-width:850px;margin:0 auto 8px;color:#8aa0b4;font-size:11.5px;font-family:var(--fu)}
+  @media print{
+    body{background:#fff;padding:0}
+    .toolbar,.pagenote{display:none}
+    .page{box-shadow:none;margin:0;page-break-after:always;aspect-ratio:auto;height:100vh}
+  }
+  @media(max-width:560px){ .page{padding:26px 22px} .cover .fields,.cover .cimgwrap{padding-left:24px;padding-right:24px;margin-left:24px;margin-right:24px} .cover .ctop{padding:24px 24px 0} .info-grid{grid-template-columns:1fr} }
+</style>
+</head>
+<body>
+<div class="toolbar">
+  <div class="t-l"><b>VIMS report format</b> — sample layout · 1428 Ridgeline Dr</div>
+  <div>
+    <a class="back" href="index.html">&larr; Back to app</a>
+    <button class="print" onclick="window.print()">Print / Save PDF</button>
+  </div>
+</div>
+<div class="pagenote">This is a format preview with sample data — it shows how the finished PDF is laid out. Cover artwork, photos, and content populate automatically from the inspection. Full report is ~75–80 pages.</div>
+
+<div class="wrap" id="wrap"></div>
+
+<script>
+  var LOGO='vims-logo.png';
+  var COMPANY={name:'Vision Property Inspections',addr:['2029 N Main St Suite 103','Sunset, UT 84015','VisionPropertyInspections@Gmail.com']};
+  var INSP={client:'Tysen and Chantel Gough',address:'1428 Ridgeline Dr',city:'Ogden, UT 84403',date:'08/30/2026',agent:'Cyndi Farrais',inspector:'Jeremy K. Heath'};
+
+  // sample photo placeholder
+  function photo(seed,label){
+    var cols=['4a6572','5b6b78','7a6a55','8a5a4a','5a6b52','6a5a7a'];var c=cols[seed%cols.length];
+    return "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='320' height='240'><rect width='320' height='240' fill='%23"+c+"'/><path d='M0 165 L120 96 L200 140 L320 88 L320 240 L0 240Z' fill='rgba(0,0,0,0.22)'/><circle cx='250' cy='60' r='26' fill='rgba(255,255,255,0.5)'/><text x='12' y='228' fill='rgba(255,255,255,0.85)' font-family='sans-serif' font-size='13'>"+label+"</text></svg>";
+  }
+
+  function rhead(){
+    return '<div class="rhead"><div class="brand"><img src="'+LOGO+'" alt=""><div class="bn"><b>Vision Property</b><span>Inspections</span></div></div>'
+      +'<div class="addr"><b>'+COMPANY.name+'</b><br>'+COMPANY.addr.join('<br>')+'</div></div>';
+  }
+  function pfoot(n){ return '<div class="pfoot"><span>'+INSP.address+' &middot; '+INSP.date+'</span><span>Page '+n+'</span></div>'; }
+
+  var pages=[];
+
+  // 1. COVER
+  pages.push('<div class="page cover">'
+    +'<div class="ctop"><div class="brand"><img src="'+LOGO+'" alt=""><div class="bn"><b>Vision Property</b><span>Inspections</span></div></div>'
+    +'<div class="addr"><b>'+COMPANY.name+'</b><br>'+COMPANY.addr.join('<br>')+'</div></div>'
+    +'<h1>Inspection Report</h1>'
+    +'<div class="fields">'
+    +frow('Client Name',INSP.client)
+    +frow('Address of Inspection',INSP.address)
+    +frow('',INSP.city)
+    +frow('Date of Inspection',INSP.date)
+    +frow('Real Estate Agent',INSP.agent)
+    +frow('Name of Inspector',INSP.inspector)
+    +'</div>'
+    +'<div class="cimgwrap"><img src="'+photo(0,'Front of property')+'" alt="Property"></div>'
+    +'<div class="cart"><div class="notice">This inspection report is the property of Vision Property Inspections. Any reproduction or distribution without written consent is prohibited.</div>'
+    +'<div class="art">Cover artwork<br><span class="arttag">Blue · Hobbies · F1 Racing · Framed</span></div></div>'
+    +'</div>');
+  function frow(l,v){ return '<div class="frow"><div class="fl">'+l+'</div><div class="fv">'+v+'</div></div>'; }
+
+  // 2. PROPERTY INFORMATION
+  pages.push('<div class="page">'+rhead()
+    +'<div class="ptitle">Property Information</div><div class="psub">Inspection details &amp; property description</div>'
+    +'<div class="info-grid">'
+    +inf('Type of inspection','Real Estate Sale')+inf('Type of loan','Conventional')
+    +inf('Property type','Single Family Dwelling')+inf('Construction style','Ranch')
+    +inf('Year of construction','1998')+inf('Total square footage','2,400 sq ft')
+    +inf('Valuation','$450,000')+inf('Lot size','0.25 acres')
+    +inf('Stories','1.5')+inf('Basement','Unfinished')
+    +inf('Garage','Attached · 2 cars')+inf('Car port','None')
+    +inf('Bedrooms','4')+inf('Bathrooms','3')
+    +inf('Kitchen','1')+inf('Hallways','2')
+    +'</div>'
+    +'<div class="blocklbl">Additional inspection services</div>'
+    +'<div class="note">Radon Test &middot; Thermal Audit &middot; Termite Inspection</div>'
+    +pfoot(2)+'</div>');
+  function inf(k,v){ return '<div class="frow2"><span class="k">'+k+'</span><span class="v">'+v+'</span></div>'; }
+
+  // 3. BEGINNING NOTES
+  pages.push('<div class="page">'+rhead()
+    +'<div class="ptitle">Beginning Notes</div><div class="psub">Conditions at the time of inspection</div>'
+    +'<div class="info-grid">'
+    +inf('Property status','Owner Occupied')+inf('Weather','Sunny')
+    +inf('Temperature','72&deg;F')+inf('Power is on','Yes')
+    +inf('Gas is on','Yes')+inf('Water is on','Yes')
+    +'</div>'
+    +'<div class="blocklbl">Buyer&rsquo;s areas of concern</div>'
+    +'<div class="note">Buyer asked us to pay particular attention to the roof, the electrical panel, and any signs of water intrusion in the basement.</div>'
+    +'<div class="blocklbl">Apparent hazards observed before inspection</div>'
+    +'<div class="note">Tree branches in contact with the structure on the north side. Section of front walkway concrete lifting &mdash; trip hazard.</div>'
+    +pfoot(3)+'</div>');
+
+  // 4. SECTION DATA PAGE (Outside Utilities — High Detail sample)
+  var ou=[
+    {h:'Cooling System'},
+    ['Cooling system','Central Air'],['Podium','Concrete'],['Vegetation cut back (min 18")','Yes'],
+    ['Fan operational','Yes'],['Fins clean','Mostly clean'],['Coolant lines — insulation intact','Yes'],
+    ['Compressor size','3.5 tons'],['Proper size','Yes'],
+    {h:'Electricity'},
+    ['Electric meter condition','Good'],['Meter & brackets secure','Yes'],['Electric service','Overhead lines'],
+    ['AMP rating','200'],['Over-current protection','In good order'],
+    ['Solar panel breakers','None', 0],
+    {h:'Natural Gas'},
+    ['Gas meter condition','Good'],['Gas valve','Open'],['Leaking','None detected'],['Gas cut off accessible','Yes'],
+    {h:'Water & Sewer'},
+    ['Water meter accessible','Yes'],['Water meter leaking','No'],
+    ['Outdoor sewer access','Accessible'],['Sewer main scope ordered','No'],['Pipe appears intact','Yes',2]
+  ];
+  var outxt='<div class="page">'+rhead()+'<div class="sectitle"><span class="num">11</span><b>Utilities &ndash; Outside</b></div>';
+  var open=false;
+  ou.forEach(function(it){
+    if(it.h){ if(open){outxt+='</table>';} outxt+='<div class="subband">'+it.h+'</div><table class="lines">'; open=true; return; }
+    var flag=it[2]; var dot = flag? '<span class="flagdot" style="background:var(--c'+flag+')"></span>' : '';
+    outxt+='<tr><td class="k">'+it[0]+'</td><td class="v">'+it[1]+dot+'</td></tr>';
+  });
+  if(open) outxt+='</table>';
+  outxt+='<div class="oc"><span>Overall condition</span><b>Good</b></div>';
+  outxt+='<div class="blocklbl">Comments</div><div class="note">A/C compressor operates normally. Recommend trimming vegetation back from the condenser unit for airflow.</div>';
+  outxt+=pfoot(4)+'</div>';
+  pages.push(outxt);
+
+  // 5. PHOTO PAGE
+  var photos=[['Compressor',0,0],['Coolant Lines',1,0],['Service Mast & Meter',2,0],['Gas Meter',3,0],['Sewer Access',4,0],['Concern — corroded meter bracket',5,1]];
+  var ph='<div class="page">'+rhead()+'<div class="sectitle"><span class="num">11</span><b>Utilities &ndash; Outside · Photos</b></div><div class="pgrid">';
+  photos.forEach(function(p){
+    var flag = p[2]? '<span class="concern-tag">Concern</span>' : '';
+    var cf = p[2]? '<span class="cf" style="background:var(--c1)">Cat 1</span>' : '';
+    ph+='<div class="pcard"><div class="pimg">'+flag+'<img src="'+photo(p[1],p[0])+'" alt=""></div><div class="pcap"><span>'+p[0]+'</span>'+cf+'</div></div>';
+  });
+  ph+='</div>'+pfoot(5)+'</div>';
+  pages.push(ph);
+
+  // 6. SUMMARY
+  var FIND={
+    1:[['No power to exterior receptacles — wiring damaged at housing.','Landscaping'],['Rail required for stairs down to basement back door.','Exterior Walls'],['Tree branches in contact with the structure.','Landscaping'],['Exposed wiring in the garage near the ceiling.','Garage']],
+    2:[['Section of front walkway concrete lifting — trip hazard.','Exterior Walls'],['No downspout diverter; water draining toward foundation.','Roof'],['Front storm door does not close properly; flash plate damaged.','Exterior Walls']],
+    3:[['Residue of ivy on the front of the house.','Exterior Walls'],['Bath 2 — cracked grout in corner.','Bathroom'],['Weather-stripping needed on lower back door.','Exterior Walls']]
+  };
+  var meta={1:['Category 1','Safety'],2:['Category 2','Functional'],3:['Category 3','Items to monitor']};
+  var sm='<div class="page">'+rhead()+'<div class="ptitle">Summary of Findings</div><div class="psub">Findings grouped by category, in the order they appear in the report</div>';
+  [1,2,3].forEach(function(cat){
+    var items=FIND[cat];
+    sm+='<div class="sumcat c'+cat+'"><div class="sh"><div class="cn">'+cat+'</div><div><b>'+meta[cat][0]+'</b> <span>&middot; '+meta[cat][1]+'</span></div><div class="ct">'+items.length+'</div></div>';
+    items.forEach(function(f,i){ sm+='<div class="sfind"><span class="n">'+(i+1)+'</span><span>'+f[0]+' <span class="sec">('+f[1]+')</span></span></div>'; });
+    sm+='</div>';
+  });
+  sm+=pfoot(6)+'</div>';
+  pages.push(sm);
+
+  // 7. INVOICE
+  pages.push('<div class="page">'+rhead()
+    +'<div class="ptitle">Invoice</div><div class="psub">Invoice #VPI-20260830 · Due on receipt</div>'
+    +'<div class="info-grid" style="margin-bottom:16px">'+inf('Bill to',INSP.client)+inf('Property',INSP.address)+inf('Inspection date',INSP.date)+inf('Inspector',INSP.inspector)+'</div>'
+    +'<table class="inv-grid"><thead><tr><th>Service</th><th class="r">Amount</th></tr></thead><tbody>'
+    +'<tr><td>Full home inspection — 2,400 sq ft</td><td class="r">$425.00</td></tr>'
+    +'<tr><td>Radon test</td><td class="r">$125.00</td></tr>'
+    +'<tr><td>Thermal audit</td><td class="r">$75.00</td></tr>'
+    +'<tr><td>Termite inspection</td><td class="r">$60.00</td></tr>'
+    +'</tbody></table>'
+    +'<div class="inv-tot"><div class="box"><div class="row"><span>Subtotal</span><span>$685.00</span></div><div class="row"><span>Discount</span><span>&minus;$0.00</span></div><div class="row grand"><span>Total due</span><span>$685.00</span></div></div></div>'
+    +'<div class="note" style="margin-top:20px">Thank you for choosing Vision Property Inspections. Payment accepted by card, check, or Square.</div>'
+    +pfoot(7)+'</div>');
+
+  document.getElementById('wrap').innerHTML=pages.join('');
+</script>
+</body>
+</html>
