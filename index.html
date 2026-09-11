@@ -83,6 +83,12 @@
   .lihead{display:flex;align-items:center;gap:9px;margin:20px 0 11px;padding:9px 13px;background:var(--hdr);color:#fff;border-radius:11px;font-family:var(--fd);font-weight:700;font-size:14px;box-shadow:0 6px 16px -10px rgba(47,94,201,.8)}
   .lihead:first-child{margin-top:2px}
   .lihead svg{width:17px;height:17px;flex:none;opacity:.9}
+  /* checklist mode tile (badges reflect the current depth) */
+  .modetile{display:flex;align-items:center;flex-wrap:wrap;gap:8px;background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:11px 13px;margin-bottom:14px}
+  .modebadge{font-family:var(--fu);font-size:12px;font-weight:700;color:#fff;background:var(--ink-3);border-radius:20px;padding:5px 11px;display:inline-flex;align-items:center;gap:5px}
+  .modebadge.hi{background:var(--brand)}
+  .modebadge.fe{background:var(--signal-deep)}
+  .modehint{font-size:11.5px;color:var(--ink-3);flex:1;min-width:120px}
 
   .seg{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
   .seg button{font-family:var(--fu);font-size:12px;font-weight:600;padding:11px 4px;border-radius:10px;border:1.5px solid var(--line);background:var(--paper-2);color:var(--ink-2);cursor:pointer;min-height:46px}
@@ -212,6 +218,18 @@
   .catpick button.c2.on{background:var(--c2-bg);border-color:var(--c2)} .catpick button.c2.on .cn{color:var(--c2)}
   .catpick button.c3.on{background:var(--c3-bg);border-color:var(--c3)} .catpick button.c3.on .cn{color:var(--c3)}
 
+  /* free-look countdown splash */
+  .splash{position:absolute;inset:0;z-index:110;display:none;align-items:center;justify-content:center;background:rgba(10,15,22,.72);padding:24px}
+  .splash.on{display:flex}
+  .splashcard{background:var(--paper);border-radius:20px;padding:26px 22px;text-align:center;max-width:320px;width:100%;box-shadow:0 30px 70px -20px #000;animation:up .24s ease}
+  .splashcard .sl{width:72px;height:72px;border-radius:18px;background:#fff;border:1px solid var(--line);display:grid;place-items:center;margin:0 auto 14px}
+  .splashcard .sl img{width:58px;height:58px;object-fit:contain}
+  .splashcard .days{display:inline-flex;align-items:baseline;gap:6px;background:var(--c2-bg);color:var(--signal-deep);border-radius:20px;padding:6px 14px;font-weight:700;font-size:13px;margin-bottom:12px}
+  .splashcard .days.urgent{background:var(--c1-bg);color:var(--c1)}
+  .splashcard .days b{font-family:var(--fd);font-size:22px}
+  .splashcard h3{font-family:var(--fd);font-size:19px;margin:0 0 8px}
+  .splashcard p{font-size:13px;color:var(--ink-2);line-height:1.5;margin:0 0 18px}
+
   /* viewer */
   .viewer{position:absolute;inset:0;background:#0b0f15;z-index:70;display:none;flex-direction:column}
   .viewer.on{display:flex}
@@ -228,6 +246,8 @@
   .swatch.on{border-color:#fff;box-shadow:0 0 0 2px #12181f,0 0 0 4px #fff}
   .tbtn{background:rgba(255,255,255,.1);border:0;color:#fff;height:34px;min-width:34px;padding:0 10px;border-radius:9px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-family:var(--fu);font-size:13px}
   .tbtn svg{width:17px;height:17px}.tbtn.sym{font-size:16px;justify-content:center}
+  .qcsel{flex:1;min-width:0;background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.18);border-radius:9px;padding:9px 11px;font-family:var(--fu);font-size:13px}
+  .qcsel option{color:#17222e}
 
   /* summary */
   .sumcat{border:1px solid var(--line);border-radius:14px;overflow:hidden;margin-bottom:12px;background:var(--paper)}
@@ -303,7 +323,7 @@
   .binforow{display:flex;justify-content:space-between;padding:12px 15px;border-bottom:1px solid var(--line-2);font-size:14px}
   .binforow:last-child{border-bottom:0}.binforow b{color:var(--ink)}
   .rev{position:absolute;right:12px;bottom:14px;z-index:90}
-  .rev-btn{width:46px;height:46px;border-radius:50%;background:#f7d24e;color:#5a4405;border:0;box-shadow:0 8px 20px -6px rgba(0,0,0,.5);cursor:pointer;display:grid;place-items:center}
+  .rev-btn{width:46px;height:46px;border-radius:50%;background:#ffff61;color:#5a4405;border:0;box-shadow:0 8px 20px -6px rgba(0,0,0,.5);cursor:pointer;display:grid;place-items:center}
   .rev-btn svg{width:22px;height:22px}
   .rev-menu{position:absolute;right:0;bottom:56px;background:var(--paper);border:1px solid var(--line);border-radius:14px;box-shadow:0 20px 50px -16px #000;padding:8px;width:220px;max-height:64vh;overflow-y:auto;display:none}
   .rev-menu.on{display:block}
@@ -333,12 +353,12 @@
       <div style="background:var(--hdr);color:#fff;padding:40px 24px 36px;text-align:center">
         <div style="width:96px;height:96px;border-radius:22px;background:#fff;display:grid;place-items:center;margin:0 auto 16px;box-shadow:0 12px 30px -12px rgba(0,0,0,.5)"><img src="vims-logo.png" alt="VIMS logo" style="width:74px;height:74px;object-fit:contain"></div>
         <div style="font-family:var(--fd);font-weight:800;font-size:30px;letter-spacing:.02em">VIMS</div>
-        <div style="font-size:13px;color:var(--hdr-sub);margin-top:4px">Vision Inspection Management</div>
+        <div style="font-size:13px;color:var(--hdr-sub);margin-top:4px;line-height:1.35">Vision Inspection Management Solutions</div>
       </div>
       <div style="padding:24px 18px">
         <div class="field"><label>Email</label><input class="txt" type="email" value="jeremy@visionpropertyinspections.com"></div>
         <div class="field"><label>Password</label><div class="pwwrap"><input class="txt" id="loginpw" type="password" value="inspect2026"><button type="button" class="pweye" aria-label="Show password" onclick="togglePw('loginpw',this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
-        <button class="btn primary" onclick="go('s-home')">Sign in</button>
+        <button class="btn primary" onclick="signIn()">Sign in</button>
         <button class="btn ghost" style="margin-top:10px" onclick="go('s-signup')">Create account</button>
         <button class="btn ghost" style="margin-top:10px" onclick="go('s-join')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>Join a company with a code</button>
         <p style="text-align:center;font-size:12.5px;color:var(--ink-3);margin-top:16px;cursor:pointer" onclick="go('s-forgot')">Forgot password?</p>
@@ -424,14 +444,15 @@
         <div class="stat2" style="gap:10px"><div class="field" style="margin:0"><label>Year of construction</label><input class="txt" placeholder="1998"></div><div class="field" style="margin:0"><label>Total sq ft</label><input class="txt" placeholder="2400"></div></div>
         <div class="stat2" style="gap:10px;margin-top:11px"><div class="field" style="margin:0"><label>Valuation ($)</label><input class="txt" placeholder="450,000"></div><div class="field" style="margin:0"><label>Lot size (acres)</label><input class="txt" placeholder="0.25"></div></div>
         <p class="lbl">Construction style</p><div class="chips" data-single><button class="chip on">Ranch</button><button class="chip">Bungalow</button><button class="chip">Bi-Level / Raised Ranch</button><button class="chip">Tri-Level</button><button class="chip">Log Home</button></div>
-        <p class="lbl">Stories</p><div class="chips" data-single><button class="chip">1</button><button class="chip on">1.5</button><button class="chip">2</button><button class="chip">2.5</button><button class="chip">3</button><button class="chip">Other</button></div>
+        <p class="lbl">Stories</p><div class="chips" data-single id="wstories"><button class="chip">1</button><button class="chip on">1.5</button><button class="chip">2</button><button class="chip">2.5</button><button class="chip">3</button><button class="chip">Other</button></div>
+        <div class="field" id="wstoriesother" style="display:none;margin-top:10px"><textarea class="txt" placeholder="Describe what 'other' consists of (e.g. split-level, loft, partial third story)…"></textarea></div>
         <p class="lbl">Basement</p><div class="chips" data-single><button class="chip on">None</button><button class="chip">Unfinished</button><button class="chip">Finished</button><button class="chip">Walk-out</button><button class="chip">Crawl space</button></div>
         <p class="lbl">Garage</p><div class="chips" data-single><button class="chip">None</button><button class="chip on">Attached</button><button class="chip">Built-in</button><button class="chip">Detached</button><button class="chip">Living space above</button></div>
         <p class="lbl">Car port</p><div class="chips" data-single><button class="chip on">None</button><button class="chip">Attached</button><button class="chip">Detached</button></div>
-        <p class="lbl">Number of cars</p><div class="chips" data-single><button class="chip">1</button><button class="chip on">2</button><button class="chip">3</button><button class="chip">4</button></div>
+        <p class="lbl">Number of cars</p><div class="chips" data-single><button class="chip">1</button><button class="chip on">2</button><button class="chip">3</button><button class="chip">4</button><button class="chip">5 or more</button></div>
         <p class="lbl">Checklist depth</p>
         <p style="font-size:12px;color:var(--ink-3);margin:-4px 2px 9px">Changes how much detail each section asks for. You can also change this per inspection in Settings.</p>
-        <div class="chips" data-single data-req id="wdepth"><button class="chip" data-depth="high">High Detail</button><button class="chip on" data-depth="standard">Standard</button><button class="chip" data-depth="free">Fast Intuitive</button></div>
+        <div class="chips" data-single data-req id="wdepth"><button class="chip" data-depth="high">High Detail</button><button class="chip on" data-depth="standard">Standard</button><button class="chip" data-depth="free">Fast Entry</button></div>
       </div>
 
       <div class="wstep" id="w3" style="display:none">
@@ -477,6 +498,7 @@
     <section class="screen" id="s-summary" data-title="Summary">
       <p style="font-size:13px;color:var(--ink-3);margin:2px 0 14px">Every finding you flag lands here automatically, grouped by category. This drives the summary pages of the report.</p>
       <div id="summarywrap"></div>
+      <button class="btn primary" style="margin-top:14px" onclick="go('s-report')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 15l2 2 4-4"/></svg>Save and generate report</button>
     </section>
 
     <!-- REPORT -->
@@ -558,6 +580,7 @@
     <section class="screen" id="s-settings" data-title="Settings">
       <p class="lbl">Account</p>
       <div class="card" style="display:flex;align-items:center;gap:13px"><div style="width:48px;height:48px;border-radius:50%;background:linear-gradient(140deg,#5580e6,#1e3d94);color:#fff;display:grid;place-items:center;font-family:var(--fd);font-weight:700">JH</div><div><b style="font-size:15px">Jeremy Heath</b><div style="font-size:12.5px;color:var(--ink-3)">Vision Property Inspections</div></div></div>
+      <button class="btn ghost" onclick="go('s-login')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>Sign out</button>
       <p class="lbl">Sync</p>
       <div class="card" style="display:flex;align-items:center;justify-content:space-between"><div><b style="font-size:14px">Auto-sync when online</b><div style="font-size:12px;color:var(--ink-3)">1 inspection waiting</div></div><div style="width:46px;height:28px;border-radius:20px;background:var(--brand);position:relative"><div style="position:absolute;top:3px;right:3px;width:22px;height:22px;border-radius:50%;background:#fff"></div></div></div>
       <button class="btn ghost" onclick="syncNow()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-9 9 9 9 0 0 1-6.7-3L3 16M3 12a9 9 0 0 1 9-9 9 9 0 0 1 6.7 3L21 8M21 3v5h-5M3 21v-5h5"/></svg>Sync now</button>
@@ -570,11 +593,14 @@
       <button class="row" onclick="go('s-admin')"><div class="lead"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></div><div class="mid"><b>Manage checklist</b><span>Add &amp; edit sections and items</span></div><div class="end"><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></span></div></button>
       <button class="row" onclick="go('s-plans')"><div class="lead"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div><div class="mid"><b>Plans &amp; pricing</b><span>Edit subscription plans &amp; prices</span></div><div class="end"><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></span></div></button>
 
+      <p class="lbl">Company &amp; help</p>
+      <button class="row" onclick="go('s-company')"><div class="lead"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h.01M9 13h.01M9 17h.01M15 9h.01M15 13h.01M15 17h.01"/></svg></div><div class="mid"><b>Company profile &amp; logo</b><span>Inspector info, logo, review link</span></div><div class="end"><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></span></div></button>
+      <button class="row" onclick="go('s-instructions')"><div class="lead"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01"/></svg></div><div class="mid"><b>How VIMS works</b><span>Instructions &amp; new-account tutorial</span></div><div class="end"><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></span></div></button>
+
       <p class="lbl">Defaults</p>
-      <div class="card"><b style="font-size:14px">Checklist depth</b><p style="font-size:12px;color:var(--ink-3);margin:4px 0 11px">Applies to new inspections. High Detail asks for measurements; Fast Intuitive is quick condition &amp; notes.</p><div class="chips" data-single data-req id="setdepth"><button class="chip" data-depth="high">High Detail</button><button class="chip on" data-depth="standard">Standard</button><button class="chip" data-depth="free">Fast Intuitive</button></div></div>
+      <div class="card"><b style="font-size:14px">Checklist depth</b><p style="font-size:12px;color:var(--ink-3);margin:4px 0 11px">Applies to new inspections. High Detail asks for measurements; Fast Entry is quick condition &amp; notes.</p><div class="chips" data-single data-req id="setdepth"><button class="chip" data-depth="high">High Detail</button><button class="chip on" data-depth="standard">Standard</button><button class="chip" data-depth="free">Fast Entry</button></div></div>
       <div class="row" style="cursor:default"><div class="mid"><b>Report cover</b><span>Blue · Mountains</span></div></div>
       <div class="row" style="cursor:default"><div class="mid"><b>Photo size</b><span>JPG · ~750 KB</span></div></div>
-      <button class="btn ghost" style="margin-top:6px" onclick="go('s-login')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>Sign out</button>
     </section>
 
     <!-- ADMIN: manage checklist -->
@@ -597,6 +623,33 @@
       <div id="plansadminbody"></div>
     </section>
 
+    <!-- COMPANY PROFILE & BRANDING -->
+    <section class="screen" id="s-company" data-title="Company profile">
+      <p class="lbl">Company logo</p>
+      <p style="font-size:12px;color:var(--ink-3);margin:-4px 2px 10px">This logo appears on your report covers.</p>
+      <div class="card" style="display:flex;align-items:center;gap:14px">
+        <div style="width:76px;height:76px;border-radius:16px;background:#fff;border:1px solid var(--line);display:grid;place-items:center;flex:none;overflow:hidden"><img id="companylogo" src="vims-logo.png" alt="Company logo" style="width:64px;height:64px;object-fit:contain"></div>
+        <div style="flex:1"><label class="btn ghost" style="min-height:44px" for="logofile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>Upload logo</label>
+        <input id="logofile" type="file" accept="image/*" style="display:none" onchange="uploadLogo(this)"><p style="font-size:11.5px;color:var(--ink-3);margin:8px 2px 0">PNG or JPG, square works best.</p></div>
+      </div>
+      <p class="lbl">Company details</p>
+      <div class="field"><label>Company name</label><input class="txt" value="Vision Property Inspections"></div>
+      <div class="field"><label>Address</label><input class="txt" value="2029 N Main St Suite 103, Sunset, UT 84015"></div>
+      <p class="lbl">Lead inspector</p>
+      <div class="field"><label>Inspector name</label><input class="txt" value="Jeremy K. Heath"></div>
+      <div class="stat2" style="gap:10px"><div class="field" style="margin:0"><label>License #</label><input class="txt" placeholder="e.g. UT-12345"></div><div class="field" style="margin:0"><label>Phone</label><input class="txt" type="tel" placeholder="(801) 555-0134"></div></div>
+      <div class="field" style="margin-top:11px"><label>Email</label><input class="txt" type="email" value="VisionPropertyInspections@Gmail.com"></div>
+      <p class="lbl">Online review link</p>
+      <p style="font-size:12px;color:var(--ink-3);margin:-4px 2px 9px">Add the URL where clients can leave a review of the inspection. It's included with the report so clients can rate you.</p>
+      <div class="field"><label>Review URL</label><input class="txt" type="url" placeholder="https://g.page/r/your-review-link"></div>
+      <button class="btn primary" onclick="toast('Company profile saved')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Save profile</button>
+    </section>
+
+    <!-- INSTRUCTIONS / HOW IT WORKS -->
+    <section class="screen" id="s-instructions" data-title="How VIMS works">
+      <div id="instructionsbody"></div>
+    </section>
+
   </div>
 
   <div class="scrim" id="scrim" onclick="closeDrawer()"></div>
@@ -609,6 +662,7 @@
     <div class="sheet">
       <h3>Flag a finding</h3><p class="sub">Pick a category and add a note. It's added to the summary and the report automatically.</p>
       <div class="catpick"><button class="c1" onclick="pickCat(this,1)"><span class="cn">1</span><span class="cl">Safety</span></button><button class="c2 on" onclick="pickCat(this,2)"><span class="cn">2</span><span class="cl">Functional</span></button><button class="c3" onclick="pickCat(this,3)"><span class="cn">3</span><span class="cl">Items to monitor</span></button></div>
+      <div class="field"><label>Quick comment</label><select class="txt" id="qcsel-find" onchange="if(this.value){document.getElementById('findtext').value=this.value;}"></select></div>
       <div class="field"><label>Description</label><textarea class="txt" id="findtext" placeholder="Describe the concern…">Rain water down spout is missing.</textarea></div>
       <div class="btnrow" style="margin-top:4px"><button class="btn ghost" onclick="closeModal()">Cancel</button><button class="btn primary" onclick="saveFinding()">Add finding</button></div>
     </div>
@@ -618,13 +672,25 @@
     <div class="vtop"><button onclick="closeViewer()" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button><b id="viewer-title">Photo</b><button style="margin-left:auto" onclick="openFinding()" aria-label="Flag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><path d="M4 22v-7"/></svg></button></div>
     <div class="vstage" id="vstage"><img class="vimg" id="vimg" alt="Inspection photo"><canvas id="vcanvas"></canvas></div>
     <div class="vtools">
+      <div class="toolrow"><span style="color:#9aa8ba;font-size:12px;font-family:var(--fm)">Comment</span><select class="qcsel" id="qcsel" onchange="applyQuickComment(this.value)"></select></div>
       <div class="toolrow"><span style="color:#9aa8ba;font-size:12px;font-family:var(--fm)">Draw</span><span class="swatch on" style="background:#e5483b" data-color="#e5483b" onclick="pickPen(this)"></span><span class="swatch" style="background:#f0c020" data-color="#f0c020" onclick="pickPen(this)"></span><span class="swatch" style="background:#3d8bf0" data-color="#3d8bf0" onclick="pickPen(this)"></span><button class="tbtn" onclick="undoDraw()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 5 5v1a5 5 0 0 1-5 5H9"/></svg></button><button class="tbtn" onclick="clearDraw()">Clear</button></div>
       <div class="toolrow"><span style="color:#9aa8ba;font-size:12px;font-family:var(--fm)">Stamp</span><button class="tbtn sym" onclick="setStamp('★')">★</button><button class="tbtn sym" onclick="setStamp('↑')">↑</button><button class="tbtn sym" onclick="setStamp('↓')">↓</button><button class="tbtn sym" onclick="setStamp('←')">←</button><button class="tbtn sym" onclick="setStamp('→')">→</button></div>
-      <button class="btn signal" onclick="closeViewer();toast('Markup saved to photo')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Save markup</button>
+      <div class="btnrow"><button class="btn signal" onclick="closeViewer();toast('Markup saved to photo')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Save markup</button><button class="btn primary" onclick="closeViewer();go('s-section')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5M13 6l6 6-6 6"/></svg>Save &amp; return</button></div>
     </div>
   </div>
 
   <div class="rev"><div class="rev-menu" id="revmenu"></div><button class="rev-btn" onclick="toggleRev()" title="Jump to screen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg></button></div>
+
+  <div class="splash" id="splash">
+    <div class="splashcard">
+      <div class="sl"><img src="vims-logo.png" alt="VIMS"></div>
+      <div class="days" id="splashdays"><b id="splashnum">10</b> days left</div>
+      <h3 id="splashttl">Your free look is counting down</h3>
+      <p id="splashmsg"></p>
+      <button class="btn primary" onclick="closeSplash();go('s-subscribe')">Set up subscription</button>
+      <button class="btn ghost" style="margin-top:10px" onclick="closeSplash()">Continue to app</button>
+    </div>
+  </div>
 
   <div class="toast" id="toast"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span id="toasttext"></span></div>
 
@@ -1089,6 +1155,19 @@
     'Condo':{pics:['Common Area','Stairs','Landing','Concerns'],items:[{q:'Approach',t:'single',o:['Open','Enclosed','Indoor']}].concat(L(['Stairs','Landing','Fence Type','Front Gate','Grading','Landscaping','Vegetation','Surface Drainage','Wall','Retaining Wall','Walk Ways','Bushes','Trees','Electrical Receptacles','Sprinkler System']))}
   });
   SEC['Detached Garage']=SEC['Garage'];
+  SEC['Propane Tank']={icon:'flame',pics:['Tank','Regulator','Gas Line','Shut-off','Gauge','Concerns'],items:[
+    {q:'Tank type',t:'single',o:['Above ground','Underground','Portable']},
+    {q:'Tank size',t:'single',o:['100 gal','250 gal','500 gal','1000 gal','Other']},
+    {q:'Ownership',t:'single',o:['Owned','Leased','Unknown']},
+    {q:'Tank condition',t:'single',o:['Good','Surface rust','Heavy rust','Damage']},
+    {q:'Regulator',t:'single',o:['Present & good','Corroded','Missing']},
+    {q:'Gas line material',t:'single',o:['Copper','Black iron','Poly (underground)','Flex']},
+    {q:'Visible leaks',t:'single',o:['None','Suspected','Confirmed']},
+    {q:'Shut-off valve accessible',t:'single',o:['Yes','No']},
+    {q:'Tank clearance from structure / ignition',t:'single',o:['Adequate','Too close','Unknown']},
+    {q:'Gauge reading (%)',t:'num',ph:'e.g. 40'},
+    {q:'Cathodic protection (underground)',t:'single',o:['Present','None','N/A']}
+  ]};
 
   // High Detail variant for Outside Utilities (from Jeremy's "1 High Detail Checklist" file) — drives depth='high'
   SEC['Outside Utilities'].picsHigh=['Swamp Cooler','Compressor','Coolant Lines','Power Cut Off','MFR Tag','Service Mast','Meter','Service Cut Off','Gas Meter','Water Meter','Sewer Access','Rain Water System','Concerns'];
@@ -3899,15 +3978,16 @@ SEC['Wind Mitigation'].itemsHigh=[
   var EXT_OPT=['Chimney','Pool House & Pool','Outbuilding – Shed','Outbuilding – Car Port','Deck','Patio','Balcony','Detached Garage','Condo','Mobile Home Undercarriage'];
   // master-checklist section numbers (drives report order — feedback item 13)
   var NUM={'Inspection Info':1,'Landscaping':2,'Condo':3,'Pool House & Pool':3,'Additional Living Space':4,'Outbuilding – Shed':5,'Outbuilding – Car Port':6,'Mobile Home Undercarriage':7,'Roof':8,'Exterior Walls':10,'Outside Utilities':11,'Deck':12,'Patio':12,'Balcony':13,'Garage':14,'Detached Garage':14,'Attic':15,'Bathroom':16,'Bedroom':17,'Hallway':18,'Living Room':19,'Reception':20,'Den / Home Office':21,'Family Room':22,'Kitchen':23,'Dining Room':24,'Laundry Room':25,'Storage Room':26,'Utility Room':26,'Electrical':27,'HVAC Mechanical':28,'Heating Oil Tank':29,'Boiler':30,'Water Heater':31,'Plumbing':32,'Foundation / Crawl Space':33,'Radon':34,'Meth Test':35,'Thermal Audit':36,'Termite':37,'Lead':38,'Indoor Air Quality':39,'Septic':40,'Wind Mitigation':41,'Chimney':42,'Sewer Scope':40,'Asbestos':37,'Summary':43};
+  NUM['Propane Tank']=30;
   function secNum(n){ var b=baseName(n); return NUM[b]||99; }
   var ROOM_OPT=['Living Room','Family Room','Den / Home Office','Reception','Kitchen','Dining Room','Laundry Room','Storage Room','Attic','Garage','Additional Living Space'];
-  var UTIL_OPT=['Boiler','Heating Oil Tank'];
+  var UTIL_OPT=['Boiler','Heating Oil Tank','Propane Tank'];
   var TEST_OPT=['Radon','Meth Test','Thermal Audit','Termite','Lead','Indoor Air Quality','Septic','Sewer Scope','Asbestos','Wind Mitigation'];
   var CUSTOM={Exterior:[],Interior:[],Utility:[],Testing:[]}; // admin-added sections
   var ADMIN_GROUPS=[
     ['Exterior',['Landscaping','Roof','Chimney','Exterior Walls','Outside Utilities','Pool House & Pool','Outbuilding – Shed','Outbuilding – Car Port','Deck','Patio','Balcony','Detached Garage','Mobile Home Undercarriage','Condo']],
     ['Interior',['Garage','Attic','Bathroom','Bedroom','Hallway','Living Room','Den / Home Office','Family Room','Reception','Kitchen','Dining Room','Laundry Room','Storage Room','Additional Living Space']],
-    ['Utility',['Utility Room','HVAC Mechanical','Electrical','Water Heater','Boiler','Heating Oil Tank','Plumbing','Foundation / Crawl Space']],
+    ['Utility',['Utility Room','HVAC Mechanical','Electrical','Water Heater','Boiler','Heating Oil Tank','Propane Tank','Plumbing','Foundation / Crawl Space']],
     ['Testing',['Radon','Meth Test','Thermal Audit','Termite','Lead','Indoor Air Quality','Septic','Sewer Scope','Asbestos','Wind Mitigation']]
   ];
 
@@ -3917,7 +3997,7 @@ SEC['Wind Mitigation'].itemsHigh=[
     bedrooms:4, bathrooms:3, hallways:2,
     rooms:{'Living Room':1,'Family Room':1,'Den / Home Office':1,'Reception':0,'Kitchen':1,'Dining Room':1,'Laundry Room':1,'Storage Room':1,'Attic':1,'Garage':1,'Additional Living Space':0},
     exterior:{'Chimney':1,'Pool House & Pool':0,'Outbuilding – Shed':0,'Outbuilding – Car Port':0,'Deck':1,'Patio':0,'Balcony':0,'Detached Garage':0,'Condo':0,'Mobile Home Undercarriage':0},
-    utilOpt:{'Boiler':0,'Heating Oil Tank':0},
+    utilOpt:{'Boiler':0,'Heating Oil Tank':0,'Propane Tank':0},
     tests:{'Radon':1,'Meth Test':0,'Thermal Audit':1,'Termite':1,'Lead':0,'Indoor Air Quality':0,'Septic':0,'Sewer Scope':0,'Asbestos':0,'Wind Mitigation':0}
   };
   function repeatSec(base,n){ var a=[]; for(var i=1;i<=n;i++) a.push(base+' '+i); return a; }
@@ -4073,14 +4153,16 @@ SEC['Wind Mitigation'].itemsHigh=[
   function renderSectionBody(name){
     var s=SEC[baseName(name)]||{items:[]};
     var depth=sel.depth||'standard';
-    var h='<div class="banner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9z"/></svg><div><b>Fast entry:</b> tap what applies, scroll to the next line. Saves in one go.</div></div>';
+    var badges = depth==='high' ? '<span class="modebadge hi">High Detail</span><span class="modebadge fe">Fast Entry</span>'
+               : depth==='free' ? '<span class="modebadge fe">Fast Entry</span>'
+               : '<span class="modebadge fe">Fast Entry</span>';
+    var h='<div class="modetile">'+badges+'<span class="modehint">Tap what applies, scroll to the next line — saves in one go.</span></div>';
     if(depth==='free'){
-      h+='<div class="banner" style="background:var(--c3-bg);border-color:#bfe3d0"><svg viewBox="0 0 24 24" fill="none" stroke="var(--c3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9z"/></svg><div style="color:#1f7a52"><b>Fast Intuitive mode:</b> quick overall condition and notes &mdash; no line-by-line. Change depth in Settings.</div></div>';
+      h+='<div class="banner" style="background:var(--c3-bg);border-color:#bfe3d0"><svg viewBox="0 0 24 24" fill="none" stroke="var(--c3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9z"/></svg><div style="color:#1f7a52"><b>Fast Entry:</b> quick overall condition and notes &mdash; no line-by-line. Change depth in Settings.</div></div>';
       var quick=(s.items||[]).filter(function(it){return it.q;});
       if(quick.length){ h+='<p class="lbl">Items present</p><div class="chips">'; quick.forEach(function(it){ h+='<button class="chip">'+it.q+'</button>'; }); h+='</div>'; }
     } else {
       var useHigh=(depth==='high' && s.itemsHigh);
-      if(depth==='high'){ h+='<div class="banner" style="background:rgba(47,94,201,.08);border-color:#c3d2f2"><svg viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4h10M11 8h10M11 12h10M3 4v16M3 20l4-4M3 20l-1-5"/></svg><div style="color:var(--brand-deep)"><b>High Detail mode:</b> the fuller checklist'+(s.itemsHigh?'':' — extra detail line under each item')+'.</div></div>'; }
       var items = useHigh ? s.itemsHigh : (s.items||[]);
       items.forEach(function(it){
         if(it.h){ h+='<div class="lihead">'+ico('list')+it.h+'</div>'; return; }
@@ -4261,6 +4343,7 @@ SEC['Wind Mitigation'].itemsHigh=[
         else { grp.querySelectorAll('.chip').forEach(function(x){x.classList.remove('on');}); c.classList.add('on'); }
       } else c.classList.toggle('on');
       if(c.hasAttribute('data-depth') && c.classList.contains('on')){ sel.depth=c.getAttribute('data-depth'); syncDepthUI(); }
+      if(c.closest('#wstories')){ var box=document.getElementById('wstoriesother'); if(box){ var otherOn=!!Array.prototype.filter.call(c.parentElement.querySelectorAll('.chip'),function(x){return x.classList.contains('on')&&x.textContent.trim()==='Other';}).length; box.style.display=otherOn?'block':'none'; } }
       return; }
     var s=e.target.closest('.seg button'); if(s){ if(s.classList.contains('on')){ s.classList.remove('on'); } else { s.parentElement.querySelectorAll('button').forEach(function(x){x.classList.remove('on');}); s.classList.add('on'); } }
   });
@@ -4275,6 +4358,20 @@ SEC['Wind Mitigation'].itemsHigh=[
   window.closeModal=function(){ document.getElementById('findmodal').classList.remove('on'); };
   window.pickCat=function(b,n){ document.querySelectorAll('.catpick button').forEach(function(x){x.classList.remove('on');}); b.classList.add('on'); curCat=n; };
   window.saveFinding=function(){ var t=document.getElementById('findtext').value.trim()||'Finding noted'; FINDINGS.push({cat:curCat,txt:t,sec:curSection}); closeModal(); var rf=document.getElementById('rep-findings'); if(rf)rf.textContent=FINDINGS.length; toast('Finding added to summary'); };
+
+  // quick comments for photos & findings (Jeremy's canned list)
+  var QUICK_COMMENTS=[
+    'Safety concern - address immediately',
+    'Recommend further evaluation by a qualified professional',
+    'Non-standard installation or repair',
+    'Complex repair - contact professional',
+    'Simple repair - can be done by homeowner',
+    'Unable to inspect due to access limitation',
+    'Item to monitor, if condition deteriorates contact a qualified professional',
+    'Condition is typical for a property of this age.'
+  ];
+  function fillQuickSelect(id,placeholder){ var s=document.getElementById(id); if(!s) return; s.innerHTML='<option value="">'+placeholder+'</option>'+QUICK_COMMENTS.map(function(c){return '<option value="'+c.replace(/"/g,'&quot;')+'">'+c+'</option>';}).join(''); }
+  window.applyQuickComment=function(v){ if(v){ toast('Comment added'); } };
 
   // summary
   function renderSummary(){
@@ -4362,12 +4459,39 @@ SEC['Wind Mitigation'].itemsHigh=[
   };
   window.syncNow=function(){ var b=document.getElementById('netbadge'); b.className='nb on'; b.innerHTML='<span class="d"></span>Synced'; document.getElementById('homequeue').textContent='0'; toast('Synced to portal'); };
   window.togglePw=function(id,btn){ var i=document.getElementById(id); if(!i) return; var show=i.type==='password'; i.type=show?'text':'password'; btn.classList.toggle('on',show); btn.setAttribute('aria-label',show?'Hide password':'Show password'); };
+  window.uploadLogo=function(inp){ var f=inp.files&&inp.files[0]; if(!f) return; var r=new FileReader(); r.onload=function(e){ var img=document.getElementById('companylogo'); if(img) img.src=e.target.result; toast('Logo updated'); }; r.readAsDataURL(f); };
+
+  // free-look countdown splash (shows every sign-in during the trial)
+  window.showSplash=function(){ if(SUB.active) return; var d=SUB.trialDays; var soon=d<=10;
+    document.getElementById('splashnum').textContent=d;
+    document.getElementById('splashdays').className='days'+(soon?' urgent':'');
+    document.getElementById('splashttl').textContent = soon ? 'Only '+d+' day'+(d===1?'':'s')+' left in your free look' : 'Your free look is counting down';
+    document.getElementById('splashmsg').textContent = soon
+      ? 'You have '+d+' day'+(d===1?'':'s')+' left to sign up. Set up your subscription so access continues without interruption when the free look ends.'
+      : 'You are on the 30-day free look — '+d+' days left. Subscribe any time to keep access after it ends.';
+    document.getElementById('splash').classList.add('on'); };
+  window.closeSplash=function(){ document.getElementById('splash').classList.remove('on'); };
+  window.signIn=function(){ go('s-home'); setTimeout(showSplash,320); };
+
+  function renderInstructions(){
+    var host=document.getElementById('instructionsbody'); if(!host) return;
+    function card(icon,title,body){ return '<div class="card"><div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><span style="width:30px;height:30px;border-radius:8px;background:var(--paper-3);color:var(--brand);display:grid;place-items:center;flex:none">'+ico(icon)+'</span><b style="font-family:var(--fd);font-size:15px">'+title+'</b></div><div style="font-size:13px;color:var(--ink-2);line-height:1.55">'+body+'</div></div>'; }
+    host.innerHTML =
+      '<div class="banner" style="background:rgba(47,94,201,.08);border-color:#c3d2f2"><svg viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9z"/></svg><div style="color:var(--brand-deep)"><b>Everything saves on your device.</b> All inspection data and photos are stored locally and work fully offline &mdash; they upload automatically the next time you are online.</div></div>'
+      + card('info','Getting started','<b>New account:</b> tap <b>Create account</b> on sign-in and enter your details, or tap <b>Join a company with a code</b> if your company gave you one. New companies start on a <b>30-day free look</b> &mdash; set up your company profile and logo in Settings first.')
+      + card('list','Run an inspection','Tap <b>New inspection</b>, then step through: inspection info &rarr; property details &rarr; the areas to inspect. On each section, tap the answers that apply, add photos, mark them up, and flag any concern into a category. Use <b>Save &amp; next section</b> to move through quickly.')
+      + card('flask','Checklist depth','Pick <b>High Detail</b>, <b>Standard</b>, or <b>Fast Entry</b> per inspection (or set a default in Settings). High Detail asks the most; Fast Entry is a quick condition-and-notes pass.')
+      + card('file','Photos &amp; findings','Tap <b>Add</b> to capture a photo, then tap it to draw on it or add a quick comment. Flagging a photo as a concern adds it to the <b>Summary</b> under Category 1 Safety, 2 Functional, or 3 Items to monitor.')
+      + card('file','Generate the report','From the Summary tap <b>Save and generate report</b>, choose a cover (color &rarr; theme &rarr; style), and the app builds your branded PDF. It queues to send when you are back online.')
+      + card('bolt','Subscription &amp; inspectors','Your free look counts down at every sign-in. Subscribe through <b>Square</b> any time. Add inspectors under your company license and share your <b>company code</b> so they can join.')
+      + '<div class="card" style="text-align:center"><div style="font-size:13px;color:var(--ink-3)">Need a hand? Contact your VIMS setup team</div><div style="font-family:var(--fm);font-size:13px;color:var(--brand-deep);margin-top:4px">support@ogrelogic.com</div></div>';
+  }
 
   // ---------- subscription / accounts (Phase 1) ----------
   var PLANS={ app:{name:'App only',price:34.95,desc:'Inspection app · iOS & Android'}, portal:{name:'Portal + App',price:64.95,desc:'App + web portal'}, payg:{name:'Pay per report',price:5.00,unit:'/report',desc:'No monthly fee · $5.00 per report',perReport:true} };
   var PLAN_ORDER=['app','portal','payg'];
   var EXTRA=24.95;
-  var SUB={ plan:'app', trialDays:22, active:false, companyCode:'VIS-4827', inspectors:[{name:'Jeremy Heath',email:'jeremy@visionpropertyinspections.com',owner:true}] };
+  var SUB={ plan:'app', trialDays:10, active:false, companyCode:'VIS-4827', inspectors:[{name:'Jeremy Heath',email:'jeremy@visionpropertyinspections.com',owner:true}] };
   function subTotal(){ return PLANS[SUB.plan].perReport ? 0 : PLANS[SUB.plan].price + Math.max(0,SUB.inspectors.length-1)*EXTRA; }
   function subTotalLabel(){ var p=PLANS[SUB.plan]; return p.perReport ? money(p.price)+' / report' : money(subTotal())+'/mo'; }
   function money(n){ return '$'+Number(n).toFixed(2); }
@@ -4451,17 +4575,18 @@ SEC['Wind Mitigation'].itemsHigh=[
   }
 
   // per-screen hooks on show
-  var _go=window.go; window.go=function(id,nopush){ if(id==='s-photos') renderPhotos(curSection); if(id==='s-new') startWizard(); if(id==='s-admin') renderAdmin(); if(id==='s-subscribe') renderSubscribe(); if(id==='s-inspectors') renderInspectors(); if(id==='s-billing') renderBilling(); if(id==='s-plans') renderPlansAdmin(); if(id==='s-report'){ renderCoverPicker(); renderReportContents(); } if(id==='s-settings'){ updateSubUI(); syncDepthUI(); } if(id==='s-home') updateSubUI(); _go(id,nopush); };
+  var _go=window.go; window.go=function(id,nopush){ if(id==='s-photos') renderPhotos(curSection); if(id==='s-new') startWizard(); if(id==='s-admin') renderAdmin(); if(id==='s-subscribe') renderSubscribe(); if(id==='s-inspectors') renderInspectors(); if(id==='s-billing') renderBilling(); if(id==='s-plans') renderPlansAdmin(); if(id==='s-instructions') renderInstructions(); if(id==='s-report'){ renderCoverPicker(); renderReportContents(); } if(id==='s-settings'){ updateSubUI(); syncDepthUI(); } if(id==='s-home') updateSubUI(); _go(id,nopush); };
 
   var tmo; window.toast=function(msg){ var t=document.getElementById('toast'); document.getElementById('toasttext').textContent=msg; t.classList.add('on'); clearTimeout(tmo); tmo=setTimeout(function(){t.classList.remove('on');},1900); };
 
-  var SCREENS=[['s-login','Sign in'],['s-signup','Create account'],['s-forgot','Reset password'],['s-join','Join a company (code)'],['s-home','Inspections (home)'],['s-subscribe','Subscribe'],['s-billing','Plan & billing'],['s-inspectors','Inspectors'],['s-new','New inspection (wizard)'],['s-sections','Sections overview'],['s-section','Section entry'],['s-photos','Photos'],['s-summary','Summary'],['s-report','Report / cover'],['s-generated','Report ready'],['s-settings','Settings'],['s-admin','Manage checklist'],['s-plans','Plans & pricing (admin)']];
+  var SCREENS=[['s-login','Sign in'],['s-signup','Create account'],['s-forgot','Reset password'],['s-join','Join a company (code)'],['s-home','Inspections (home)'],['s-subscribe','Subscribe'],['s-billing','Plan & billing'],['s-inspectors','Inspectors'],['s-new','New inspection (wizard)'],['s-sections','Sections overview'],['s-section','Section entry'],['s-photos','Photos'],['s-summary','Summary'],['s-report','Report / cover'],['s-generated','Report ready'],['s-settings','Settings'],['s-admin','Manage checklist'],['s-plans','Plans & pricing (admin)'],['s-company','Company profile'],['s-instructions','How VIMS works']];
   window.toggleRev=function(){ document.getElementById('revmenu').classList.toggle('on'); };
   function closeRev(){ document.getElementById('revmenu').classList.remove('on'); }
   (function(){ var m=document.getElementById('revmenu'); m.innerHTML='<div class="rt">Jump to screen</div>'; SCREENS.forEach(function(s){ var b=document.createElement('button'); b.textContent=s[1]; b.onclick=function(){ if(s[0]==='s-section'){openSection(curSection);return;} if(s[0]==='s-photos'){renderPhotos(curSection);} go(s[0]); }; m.appendChild(b); }); })();
 
   // init
   renderOverview(); renderSummary(); renderSectionBody('Roof'); renderDrawer(); updateSubUI();
+  fillQuickSelect('qcsel','Add a quick comment…'); fillQuickSelect('qcsel-find','Pick a quick comment…');
   window.addEventListener('resize',function(){ if(document.getElementById('viewer').classList.contains('on')) initCanvas(); });
   go('s-login',true);
 })();

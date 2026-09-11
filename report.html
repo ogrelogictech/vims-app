@@ -99,7 +99,7 @@
   .sumcat.c2 .sh{background:var(--c2-bg)}.sumcat.c2 .cn{background:var(--c2)}
   .sumcat.c3 .sh{background:var(--c3-bg)}.sumcat.c3 .cn{background:var(--c3)}
   .sumcat .sh b{font-family:var(--fd);font-size:15px}
-  .sumcat .sh span{font-size:12px;color:var(--ink-2)}
+  .sumcat .sh span{font-family:var(--fd);font-size:15px;color:var(--ink-2)}
   .sumcat .sh .ct{margin-left:auto;font-weight:700;font-size:15px}
   .sfind{display:flex;gap:11px;padding:9px 15px;border-top:1px solid var(--line-2);font-size:12.5px;color:var(--ink-2)}
   .sfind .n{font-weight:700;color:var(--ink);min-width:20px}
@@ -151,7 +151,7 @@
     return '<div class="rhead"><div class="brand"><img src="'+LOGO+'" alt=""><div class="bn"><b>Vision Property</b><span>Inspections</span></div></div>'
       +'<div class="addr"><b>'+COMPANY.name+'</b><br>'+COMPANY.addr.join('<br>')+'</div></div>';
   }
-  function pfoot(n){ return '<div class="pfoot"><span>'+INSP.address+' &middot; '+INSP.date+'</span><span>Page '+n+'</span></div>'; }
+  function pfoot(n){ return '<div class="pfoot"><span><b style="color:var(--ink);font-weight:700">'+INSP.client+'</b><br>'+INSP.address+' &middot; '+INSP.date+'</span><span>Page '+n+'</span></div>'; }
 
   var pages=[];
 
