@@ -4155,9 +4155,9 @@ SEC['Wind Mitigation'].itemsHigh=[
     var depth=sel.depth||'standard';
     var depthName = depth==='high'?'High Detail':depth==='free'?'Fast Entry':'Standard';
     var depthCls  = depth==='high'?'hi':depth==='free'?'fe':'std';
-    var h='<div class="modetile"><span class="modebadge '+depthCls+'">'+depthName+' checklist</span><span class="modehint">Tap what applies, scroll to the next line — saves in one go.</span></div>';
+    var hint = depth==='free' ? 'Overall condition and notes — no line-by-line. Change depth in Settings.' : 'Tap what applies, scroll to the next line — saves in one go.';
+    var h='<div class="modetile"><span class="modebadge '+depthCls+'">'+depthName+' checklist</span><span class="modehint">'+hint+'</span></div>';
     if(depth==='free'){
-      h+='<div class="banner" style="background:var(--c3-bg);border-color:#bfe3d0"><svg viewBox="0 0 24 24" fill="none" stroke="var(--c3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9z"/></svg><div style="color:#1f7a52"><b>Quick checklist:</b> overall condition and notes &mdash; no line-by-line. Change depth in Settings.</div></div>';
       var quick=(s.items||[]).filter(function(it){return it.q;});
       if(quick.length){ h+='<p class="lbl">Items present</p><div class="chips">'; quick.forEach(function(it){ h+='<button class="chip">'+it.q+'</button>'; }); h+='</div>'; }
     } else {
