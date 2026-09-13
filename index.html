@@ -642,6 +642,14 @@
       <p class="lbl">Online review link</p>
       <p style="font-size:12px;color:var(--ink-3);margin:-4px 2px 9px">Add the URL where clients can leave a review of the inspection. It's included with the report so clients can rate you.</p>
       <div class="field"><label>Review URL</label><input class="txt" type="url" placeholder="https://g.page/r/your-review-link"></div>
+      <p class="lbl">Inspection agreement</p>
+      <p style="font-size:12px;color:var(--ink-3);margin:-4px 2px 10px">Legal requirements vary by state, so use your own agreement. Upload it here and clients sign it before each inspection.</p>
+      <div class="card" style="display:flex;align-items:center;gap:12px">
+        <div style="width:44px;height:44px;border-radius:11px;background:var(--paper-3);color:var(--brand);display:grid;place-items:center;flex:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:22px;height:22px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 15h6M9 11h2"/></svg></div>
+        <div style="flex:1;min-width:0"><b id="agreementname" style="font-size:14px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">No agreement uploaded</b><div style="font-size:12px;color:var(--ink-3)">PDF or Word document</div></div>
+        <label class="btn ghost" for="agreementfile" style="width:auto;min-height:42px;padding:11px 16px;flex:none">Upload</label>
+        <input id="agreementfile" type="file" accept=".pdf,.doc,.docx" style="display:none" onchange="uploadAgreement(this)">
+      </div>
       <button class="btn primary" onclick="toast('Company profile saved')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Save profile</button>
     </section>
 
@@ -1155,6 +1163,52 @@
     'Condo':{pics:['Common Area','Stairs','Landing','Concerns'],items:[{q:'Approach',t:'single',o:['Open','Enclosed','Indoor']}].concat(L(['Stairs','Landing','Fence Type','Front Gate','Grading','Landscaping','Vegetation','Surface Drainage','Wall','Retaining Wall','Walk Ways','Bushes','Trees','Electrical Receptacles','Sprinkler System']))}
   });
   SEC['Detached Garage']=SEC['Garage'];
+  // ===== Phase (new-construction) inspection checklists — from Jeremy's Phase 1/2 files =====
+  var PF=['Pass','Fail','N/A'];
+  SEC['Phase 1 — Foundation']={icon:'layers',pics:['Foundation','Site & Aggregate','Tension Cables','Plumbing','Concerns'],items:[
+    {h:'Foundation type'},
+    {q:'Slab',t:'single',o:PF},{q:'Shallow',t:'single',o:PF},{q:'Basement',t:'single',o:PF},
+    {h:'Site'},
+    {q:'Site level',t:'single',o:PF},{q:'Site is dry',t:'single',o:PF},{q:'Aggregate in place',t:'single',o:PF},{q:'Aggregate clean',t:'single',o:PF},
+    {h:'Post-tension'},
+    {q:'Tension cable in place',t:'single',o:PF},{q:'Cradles in place',t:'single',o:PF},
+    {h:'Plumbing'},
+    {q:'Plumbing installed',t:'single',o:PF},{q:'Plumbing hangers',t:'single',o:PF},{q:'Connected to sewer',t:'single',o:PF},
+    {q:'Comments',t:'text',ph:'notes'},
+    {q:'Inspection result',t:'single',o:['Pass','Fail']}
+  ]};
+  SEC['Phase 2 — Exterior']={icon:'tree',pics:['Grounds','Foundation','Walls','Roof','Utilities','Concerns'],items:[
+    {q:'Grounds',t:'single',o:PF},{q:'Drainage',t:'single',o:PF},{q:'Vegetation',t:'single',o:PF},{q:'Retaining walls',t:'single',o:PF},{q:'Foundation',t:'single',o:PF},
+    {q:'Walls — secure / square / stable',t:'single',o:PF},{q:'Water proofing',t:'single',o:PF},{q:'Windows — sealed / operate / welds',t:'single',o:PF},{q:'Trim and soffit',t:'single',o:PF},{q:'Rain gutters',t:'single',o:PF},
+    {q:'HVAC unit installation',t:'single',o:PF},{q:'Roof',t:'single',o:PF},{q:'Deck',t:'single',o:PF},{q:'Shingles / tiles / covering',t:'single',o:PF},
+    {q:'Utility connections — electricity / gas / water',t:'single',o:PF},
+    {q:'Comments',t:'text',ph:'notes'}
+  ]};
+  SEC['Phase 2 — Framing & Interior']={icon:'box',pics:['Attic','Trusses','Framing','Windows','Concerns'],items:[
+    {q:'Attic',t:'single',o:PF},{q:'Roof trusses',t:'single',o:PF},{q:'Connecting plates',t:'single',o:PF},
+    {q:'Framing — square / plumb / level',t:'single',o:PF},{q:'Between floors — blocking / bracing / supports / openings',t:'single',o:PF},
+    {q:'Doors — square / operate',t:'single',o:PF},{q:'Windows — sealed / operate / welds',t:'single',o:PF},{q:'Insulation — walls / attic',t:'single',o:PF},
+    {q:'Comments',t:'text',ph:'notes'}
+  ]};
+  SEC['Phase 2 — Floor System']={icon:'layers',pics:['Flooring','Floor Joists','Stairs','Penetrations','Concerns'],items:[
+    {q:'Flooring',t:'single',o:PF},{q:'Floor joists',t:'single',o:PF},{q:'Stairs — railing / steps',t:'single',o:PF},{q:'Penetrations',t:'single',o:PF},{q:'Fire blocking',t:'single',o:PF},
+    {q:'Comments',t:'text',ph:'notes'}
+  ]};
+  SEC['Phase 2 — Plumbing']={icon:'drop',pics:['Pipe Install','Hangers','Water Heater','Sewer Access','Concerns'],items:[
+    {q:'Plumbing',t:'single',o:PF},{q:'Pipe installation',t:'single',o:PF},{q:'Hanger locations',t:'single',o:PF},{q:'Proper slope',t:'single',o:PF},{q:'Proper access',t:'single',o:PF},
+    {q:'Water heater — unions / exhaust / expansion tank',t:'single',o:PF},{q:'Sewer access',t:'single',o:PF},
+    {q:'Comments',t:'text',ph:'notes'}
+  ]};
+  SEC['Phase 2 — Electrical']={icon:'bolt',pics:['Panel','Receptacles','Lighting','Concerns'],items:[
+    {q:'Electrical',t:'single',o:PF},{q:'Receptacles — placement / type',t:'single',o:PF},{q:'Lighting — placement / set-up',t:'single',o:PF},{q:'Panel — install / breakers / wiring',t:'single',o:PF},
+    {q:'Comments',t:'text',ph:'notes'}
+  ]};
+  SEC['Phase 2 — HVAC']={icon:'wind',pics:['Ductwork','Blower','Drainage','Concerns'],items:[
+    {q:'HVAC',t:'single',o:PF},{q:'Ductwork / piping installation',t:'single',o:PF},{q:'Ductwork hangers',t:'single',o:PF},{q:'Ductwork sealed',t:'single',o:PF},{q:'Unit blower',t:'single',o:PF},{q:'Drainage — drain pan / drain pipe',t:'single',o:PF},
+    {q:'Comments',t:'text',ph:'notes'},
+    {q:'Inspection result',t:'single',o:['Pass','Fail']}
+  ]};
+
   SEC['Propane Tank']={icon:'flame',pics:['Tank','Regulator','Gas Line','Shut-off','Gauge','Concerns'],items:[
     {q:'Tank type',t:'single',o:['Above ground','Underground','Portable']},
     {q:'Tank size',t:'single',o:['100 gal','250 gal','500 gal','1000 gal','Other']},
@@ -3988,7 +4042,8 @@ SEC['Wind Mitigation'].itemsHigh=[
     ['Exterior',['Landscaping','Roof','Chimney','Exterior Walls','Outside Utilities','Pool House & Pool','Outbuilding – Shed','Outbuilding – Car Port','Deck','Patio','Balcony','Detached Garage','Mobile Home Undercarriage','Condo']],
     ['Interior',['Garage','Attic','Bathroom','Bedroom','Hallway','Living Room','Den / Home Office','Family Room','Reception','Kitchen','Dining Room','Laundry Room','Storage Room','Additional Living Space']],
     ['Utility',['Utility Room','HVAC Mechanical','Electrical','Water Heater','Boiler','Heating Oil Tank','Propane Tank','Plumbing','Foundation / Crawl Space']],
-    ['Testing',['Radon','Meth Test','Thermal Audit','Termite','Lead','Indoor Air Quality','Septic','Sewer Scope','Asbestos','Wind Mitigation']]
+    ['Testing',['Radon','Meth Test','Thermal Audit','Termite','Lead','Indoor Air Quality','Septic','Sewer Scope','Asbestos','Wind Mitigation']],
+    ['Phase Inspections',['Phase 1 — Foundation','Phase 2 — Exterior','Phase 2 — Framing & Interior','Phase 2 — Floor System','Phase 2 — Plumbing','Phase 2 — Electrical','Phase 2 — HVAC']]
   ];
 
   // selection state — drives which sections appear (structure -> rooms -> testing)
@@ -4002,6 +4057,12 @@ SEC['Wind Mitigation'].itemsHigh=[
   };
   function repeatSec(base,n){ var a=[]; for(var i=1;i<=n;i++) a.push(base+' '+i); return a; }
   function buildGroups(){
+    if(sel.inspType==='Phase 1 Foundation'){
+      return [ {h:'Inspection Info',icon:'info',link:'s-new'}, {h:'Pre-Pour Foundation',icon:'layers',secs:['Phase 1 — Foundation']}, {h:'Summary',icon:'list',link:'s-summary'} ];
+    }
+    if(sel.inspType==='Phase 2 Pre-Dry Wall'){
+      return [ {h:'Inspection Info',icon:'info',link:'s-new'}, {h:'Pre-Dry Wall (4-Way)',icon:'box',secs:['Phase 2 — Exterior','Phase 2 — Framing & Interior','Phase 2 — Floor System','Phase 2 — Plumbing','Phase 2 — Electrical','Phase 2 — HVAC']}, {h:'Summary',icon:'list',link:'s-summary'} ];
+    }
     var ext=['Landscaping','Roof','Exterior Walls','Outside Utilities'];
     EXT_OPT.forEach(function(k){ if(sel.exterior[k]) ext.push(k); });
     var interior=[];
@@ -4459,6 +4520,7 @@ SEC['Wind Mitigation'].itemsHigh=[
   window.syncNow=function(){ var b=document.getElementById('netbadge'); b.className='nb on'; b.innerHTML='<span class="d"></span>Synced'; document.getElementById('homequeue').textContent='0'; toast('Synced to portal'); };
   window.togglePw=function(id,btn){ var i=document.getElementById(id); if(!i) return; var show=i.type==='password'; i.type=show?'text':'password'; btn.classList.toggle('on',show); btn.setAttribute('aria-label',show?'Hide password':'Show password'); };
   window.uploadLogo=function(inp){ var f=inp.files&&inp.files[0]; if(!f) return; var r=new FileReader(); r.onload=function(e){ var img=document.getElementById('companylogo'); if(img) img.src=e.target.result; toast('Logo updated'); }; r.readAsDataURL(f); };
+  window.uploadAgreement=function(inp){ var f=inp.files&&inp.files[0]; if(!f) return; var el=document.getElementById('agreementname'); if(el) el.textContent=f.name; toast('Agreement uploaded'); };
 
   // free-look countdown splash (shows every sign-in during the trial)
   window.showSplash=function(){ if(SUB.active) return; var d=SUB.trialDays; var soon=d<=10;
