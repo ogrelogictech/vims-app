@@ -248,13 +248,15 @@
   .tbtn svg{width:17px;height:17px}.tbtn.sym{font-size:16px;justify-content:center}
   .qcsel{flex:1;min-width:0;background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.18);border-radius:9px;padding:9px 11px;font-family:var(--fu);font-size:13px}
   .qcsel option{color:#17222e}
+  .qcinput{flex:1;min-width:0;background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.18);border-radius:9px;padding:9px 11px;font-family:var(--fu);font-size:13px}
+  .qcinput::placeholder{color:#9aa8ba}
 
   /* summary */
   .sumcat{border:1px solid var(--line);border-radius:14px;overflow:hidden;margin-bottom:12px;background:var(--paper)}
   .sumcat .sh{display:flex;align-items:center;gap:11px;padding:13px 15px}
   .sumcat .sh .cn{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;font-family:var(--fd);font-weight:800;font-size:16px;color:#fff}
   .sumcat.c1 .sh .cn{background:var(--c1)}.sumcat.c2 .sh .cn{background:var(--c2)}.sumcat.c3 .sh .cn{background:var(--c3)}
-  .sumcat .sh b{font-size:14.5px;color:var(--ink);font-weight:700}.sumcat .sh span{font-size:12px;color:var(--ink-3)}
+  .sumcat .sh b{font-size:14.5px;color:var(--ink);font-weight:700}.sumcat .sh span{font-size:14.5px;color:var(--ink-2)}
   .sumcat .sh .cnt{margin-left:auto;font-family:var(--fm);font-weight:700;font-size:15px;color:var(--ink)}
   .sfind{padding:11px 15px;border-top:1px solid var(--line-2);font-size:13.5px;color:var(--ink-2);display:flex;gap:10px}
   .sfind .dt{width:7px;height:7px;border-radius:50%;margin-top:6px;flex:none}
@@ -592,6 +594,10 @@
       <p class="lbl">Admin</p>
       <button class="row" onclick="go('s-admin')"><div class="lead"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></div><div class="mid"><b>Manage checklist</b><span>Add &amp; edit sections and items</span></div><div class="end"><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></span></div></button>
       <button class="row" onclick="go('s-plans')"><div class="lead"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div><div class="mid"><b>Plans &amp; pricing</b><span>Edit subscription plans &amp; prices</span></div><div class="end"><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></span></div></button>
+      <button class="row" onclick="go('s-feedbackadmin')"><div class="lead"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 6-10 7L2 6"/></svg></div><div class="mid"><b>Feedback &amp; support</b><span>Change the feedback contact email</span></div><div class="end"><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></span></div></button>
+
+      <p class="lbl">Help &amp; feedback</p>
+      <div class="card"><b style="font-size:14px">Questions or feedback?</b><p style="font-size:12.5px;color:var(--ink-3);margin:6px 0 12px;line-height:1.5">We'd love to hear from you. Reach the VIMS team at <b id="feedbackemail" style="color:var(--brand-deep)">VIMSInspect@Gmail.com</b>.</p><a class="btn ghost" id="feedbacklink" href="mailto:VIMSInspect@Gmail.com?subject=VIMS%20app%20feedback" style="text-decoration:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 6-10 7L2 6"/></svg>Send feedback</a></div>
 
       <p class="lbl">Company &amp; help</p>
       <button class="row" onclick="go('s-company')"><div class="lead"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h.01M9 13h.01M9 17h.01M15 9h.01M15 13h.01M15 17h.01"/></svg></div><div class="mid"><b>Company profile &amp; logo</b><span>Inspector info, logo, review link</span></div><div class="end"><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></span></div></button>
@@ -658,6 +664,13 @@
       <div id="instructionsbody"></div>
     </section>
 
+    <!-- ADMIN: feedback / support email -->
+    <section class="screen" id="s-feedbackadmin" data-title="Feedback &amp; support">
+      <p style="font-size:13px;color:var(--ink-3);margin:2px 0 14px">Owner admin &mdash; set the email address that receives help &amp; feedback messages sent from the app.</p>
+      <div class="field"><label>Feedback contact email</label><input class="txt" id="feedbackinput" type="email" value="VIMSInspect@Gmail.com"></div>
+      <button class="btn primary" onclick="saveFeedbackEmail()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Save</button>
+    </section>
+
   </div>
 
   <div class="scrim" id="scrim" onclick="closeDrawer()"></div>
@@ -681,6 +694,7 @@
     <div class="vstage" id="vstage"><img class="vimg" id="vimg" alt="Inspection photo"><canvas id="vcanvas"></canvas></div>
     <div class="vtools">
       <div class="toolrow"><span style="color:#9aa8ba;font-size:12px;font-family:var(--fm)">Comment</span><select class="qcsel" id="qcsel" onchange="applyQuickComment(this.value)"></select></div>
+      <div class="toolrow"><input class="qcinput" id="qccustom" placeholder="Custom comment…"></div>
       <div class="toolrow"><span style="color:#9aa8ba;font-size:12px;font-family:var(--fm)">Draw</span><span class="swatch on" style="background:#e5483b" data-color="#e5483b" onclick="pickPen(this)"></span><span class="swatch" style="background:#f0c020" data-color="#f0c020" onclick="pickPen(this)"></span><span class="swatch" style="background:#3d8bf0" data-color="#3d8bf0" onclick="pickPen(this)"></span><button class="tbtn" onclick="undoDraw()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 5 5v1a5 5 0 0 1-5 5H9"/></svg></button><button class="tbtn" onclick="clearDraw()">Clear</button></div>
       <div class="toolrow"><span style="color:#9aa8ba;font-size:12px;font-family:var(--fm)">Stamp</span><button class="tbtn sym" onclick="setStamp('★')">★</button><button class="tbtn sym" onclick="setStamp('↑')">↑</button><button class="tbtn sym" onclick="setStamp('↓')">↓</button><button class="tbtn sym" onclick="setStamp('←')">←</button><button class="tbtn sym" onclick="setStamp('→')">→</button></div>
       <div class="btnrow"><button class="btn signal" onclick="closeViewer();toast('Markup saved to photo')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Save markup</button><button class="btn primary" onclick="closeViewer();go('s-section')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5M13 6l6 6-6 6"/></svg>Save &amp; return</button></div>
@@ -1106,19 +1120,29 @@
     ]},
     'Radon':{pics:['Monitor','Location','Concerns'],items:[
       {q:'Test performed',t:'single',o:['Yes','No','Referred out']},
-      {q:'Actual reading (pCi/L)',t:'num',ph:'e.g. 2.7'},
-      {q:'Measured level (pCi/L)',t:'single',o:['< 2.0','2.0 – 3.9','4.0 – 5.9','6.0 +']},
-      {q:'Result vs EPA action level (4.0)',t:'single',o:['Below','At','Above']}
+      {q:'Date of testing',t:'date'},
+      {q:'Time of testing',t:'time'},
+      {q:'Measured level (pCi/L)',t:'text',ph:'e.g. 2.7'}
     ]},
     'Meth Test':{pics:['Sample Area','Concerns'],items:[
       {q:'Test performed',t:'single',o:['Yes','No','Referred out']},
       {q:'Area tested',t:'single',o:['Living area','Kitchen','Bedroom','HVAC','Whole house']},
       {q:'Contamination scale (1 worst … 10 best)',t:'single',o:['1','2','3','4','5','6','7','8','9','10']}
     ]},
-    'Thermal Audit':{pics:['True Color','Thermal Image','Concerns'],items:[
+    'Thermal Audit':{pics:['Outside HVAC Compressor','Front of House','Back of House','Living Room','Kitchen','Bathrooms','Water Heater','Inside HVAC Unit','Electrical Panel','Concerns'],items:[
       {q:'Scan performed',t:'single',o:['Yes','No']},
-      {q:'Areas scanned',t:'multi',o:['House exterior','Roof','Windows','Doors','Living room','Kitchen','Circuit panel','Bathrooms','Bedrooms']},
-      {q:'Anomalies found',t:'multi',o:['None','Moisture','Missing insulation','Electrical hot spot','Air leakage']}
+      {h:'Areas scanned'},
+      {q:'Outside HVAC compressor',t:'single',o:['Scanned','Concern','N/A']},
+      {q:'Front of house',t:'single',o:['Scanned','Concern','N/A']},
+      {q:'Back of house',t:'single',o:['Scanned','Concern','N/A']},
+      {q:'Living room',t:'single',o:['Scanned','Concern','N/A']},
+      {q:'Kitchen',t:'single',o:['Scanned','Concern','N/A']},
+      {q:'Bathrooms',t:'single',o:['Scanned','Concern','N/A']},
+      {q:'Water heater',t:'single',o:['Scanned','Concern','N/A']},
+      {q:'Inside HVAC unit',t:'single',o:['Scanned','Concern','N/A']},
+      {q:'Electrical panel',t:'single',o:['Scanned','Concern','N/A']},
+      {q:'Anomalies found',t:'multi',o:['None','Moisture','Missing insulation','Electrical hot spot','Air leakage']},
+      {q:'Comments',t:'text',ph:'notes'}
     ]},
     'Termite':{pics:['Evidence','Damage','Concerns'],items:[
       {q:'Areas inspected',t:'multi',o:['Deck','Garage','Attic','Main room','Kitchen','Pantry','Laundry','Basement','Crawlspace']},
@@ -4226,7 +4250,7 @@ SEC['Wind Mitigation'].itemsHigh=[
       var items = useHigh ? s.itemsHigh : (s.items||[]);
       items.forEach(function(it){
         if(it.h){ h+='<div class="lihead">'+ico('list')+it.h+'</div>'; return; }
-        if(it.t==='num'||it.t==='text'){ h+='<div class="li"><div class="q">'+it.q+'</div><input class="txt" '+(it.t==='num'?'type="text" inputmode="decimal" ':'')+'placeholder="'+(it.ph||'Enter a value')+'"></div>'; return; }
+        if(it.t==='num'||it.t==='text'||it.t==='date'||it.t==='time'){ var itype=it.t==='date'?'date':it.t==='time'?'time':'text'; var extra=it.t==='num'?'inputmode="decimal" ':''; var ph=(it.t==='date'||it.t==='time')?'':'placeholder="'+(it.ph||'Enter a value')+'" '; h+='<div class="li"><div class="q">'+it.q+'</div><input class="txt" type="'+itype+'" '+extra+ph+'></div>'; return; }
         h+='<div class="li"><div class="q">'+it.q+'</div><div class="chips"'+(it.t==='single'?' data-single':'')+'>';
         it.o.forEach(function(op){ h+='<button class="chip">'+op+'</button>'; });
         h+='</div>';
@@ -4522,6 +4546,15 @@ SEC['Wind Mitigation'].itemsHigh=[
   window.uploadLogo=function(inp){ var f=inp.files&&inp.files[0]; if(!f) return; var r=new FileReader(); r.onload=function(e){ var img=document.getElementById('companylogo'); if(img) img.src=e.target.result; toast('Logo updated'); }; r.readAsDataURL(f); };
   window.uploadAgreement=function(inp){ var f=inp.files&&inp.files[0]; if(!f) return; var el=document.getElementById('agreementname'); if(el) el.textContent=f.name; toast('Agreement uploaded'); };
 
+  // help & feedback contact (admin-editable)
+  var FEEDBACK_EMAIL='VIMSInspect@Gmail.com';
+  function updateFeedbackUI(){
+    var e=document.getElementById('feedbackemail'); if(e) e.textContent=FEEDBACK_EMAIL;
+    var a=document.getElementById('feedbacklink'); if(a) a.href='mailto:'+FEEDBACK_EMAIL+'?subject=VIMS%20app%20feedback';
+    var inp=document.getElementById('feedbackinput'); if(inp) inp.value=FEEDBACK_EMAIL;
+  }
+  window.saveFeedbackEmail=function(){ var v=(document.getElementById('feedbackinput').value||'').trim(); if(!v||v.indexOf('@')<0){ toast('Enter a valid email'); return; } FEEDBACK_EMAIL=v; updateFeedbackUI(); toast('Feedback email saved'); };
+
   // free-look countdown splash (shows every sign-in during the trial)
   window.showSplash=function(){ if(SUB.active) return; var d=SUB.trialDays; var soon=d<=10;
     document.getElementById('splashnum').textContent=d;
@@ -4636,16 +4669,19 @@ SEC['Wind Mitigation'].itemsHigh=[
   }
 
   // per-screen hooks on show
-  var _go=window.go; window.go=function(id,nopush){ if(id==='s-photos') renderPhotos(curSection); if(id==='s-new') startWizard(); if(id==='s-admin') renderAdmin(); if(id==='s-subscribe') renderSubscribe(); if(id==='s-inspectors') renderInspectors(); if(id==='s-billing') renderBilling(); if(id==='s-plans') renderPlansAdmin(); if(id==='s-instructions') renderInstructions(); if(id==='s-report'){ renderCoverPicker(); renderReportContents(); } if(id==='s-settings'){ updateSubUI(); syncDepthUI(); } if(id==='s-home') updateSubUI(); _go(id,nopush); };
+  var _go=window.go; window.go=function(id,nopush){ if(id==='s-photos') renderPhotos(curSection); if(id==='s-new') startWizard(); if(id==='s-admin') renderAdmin(); if(id==='s-subscribe') renderSubscribe(); if(id==='s-inspectors') renderInspectors(); if(id==='s-billing') renderBilling(); if(id==='s-plans') renderPlansAdmin(); if(id==='s-instructions') renderInstructions(); if(id==='s-feedbackadmin') updateFeedbackUI(); if(id==='s-report'){ renderCoverPicker(); renderReportContents(); } if(id==='s-settings'){ updateSubUI(); syncDepthUI(); updateFeedbackUI(); } if(id==='s-home') updateSubUI(); _go(id,nopush); };
 
   var tmo; window.toast=function(msg){ var t=document.getElementById('toast'); document.getElementById('toasttext').textContent=msg; t.classList.add('on'); clearTimeout(tmo); tmo=setTimeout(function(){t.classList.remove('on');},1900); };
 
-  var SCREENS=[['s-login','Sign in'],['s-signup','Create account'],['s-forgot','Reset password'],['s-join','Join a company (code)'],['s-home','Inspections (home)'],['s-subscribe','Subscribe'],['s-billing','Plan & billing'],['s-inspectors','Inspectors'],['s-new','New inspection (wizard)'],['s-sections','Sections overview'],['s-section','Section entry'],['s-photos','Photos'],['s-summary','Summary'],['s-report','Report / cover'],['s-generated','Report ready'],['s-settings','Settings'],['s-admin','Manage checklist'],['s-plans','Plans & pricing (admin)'],['s-company','Company profile'],['s-instructions','How VIMS works']];
+  var SCREENS=[['s-login','Sign in'],['s-signup','Create account'],['s-forgot','Reset password'],['s-join','Join a company (code)'],['s-home','Inspections (home)'],['s-subscribe','Subscribe'],['s-billing','Plan & billing'],['s-inspectors','Inspectors'],['s-new','New inspection (wizard)'],['s-sections','Sections overview'],['s-section','Section entry'],['s-photos','Photos'],['s-summary','Summary'],['s-report','Report / cover'],['s-generated','Report ready'],['s-settings','Settings'],['s-admin','Manage checklist'],['s-plans','Plans & pricing (admin)'],['s-company','Company profile'],['s-instructions','How VIMS works'],['s-feedbackadmin','Feedback & support (admin)']];
   window.toggleRev=function(){ document.getElementById('revmenu').classList.toggle('on'); };
   function closeRev(){ document.getElementById('revmenu').classList.remove('on'); }
   (function(){ var m=document.getElementById('revmenu'); m.innerHTML='<div class="rt">Jump to screen</div>'; SCREENS.forEach(function(s){ var b=document.createElement('button'); b.textContent=s[1]; b.onclick=function(){ if(s[0]==='s-section'){openSection(curSection);return;} if(s[0]==='s-photos'){renderPhotos(curSection);} go(s[0]); }; m.appendChild(b); }); })();
 
   // init
+  // Radon & Thermal Audit: use the same structure at every depth (per client's final notes)
+  SEC['Radon'].itemsHigh=SEC['Radon'].items;
+  SEC['Thermal Audit'].itemsHigh=SEC['Thermal Audit'].items; SEC['Thermal Audit'].picsHigh=SEC['Thermal Audit'].pics;
   renderOverview(); renderSummary(); renderSectionBody('Roof'); renderDrawer(); updateSubUI();
   fillQuickSelect('qcsel','Add a quick comment…'); fillQuickSelect('qcsel-find','Pick a quick comment…');
   window.addEventListener('resize',function(){ if(document.getElementById('viewer').classList.contains('on')) initCanvas(); });
