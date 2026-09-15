@@ -523,6 +523,7 @@
       <a class="btn ghost" href="report.html" style="margin-top:10px;text-decoration:none" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>Preview report format</a>
       <div class="banner" style="margin-top:16px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-9 9 9 9 0 0 1-6.7-3L3 16M3 12a9 9 0 0 1 9-9 9 9 0 0 1 6.7 3L21 8"/></svg><div>You're <b>offline</b>. The report generates on the device now; it uploads on the next sync.</div></div>
       <button class="btn primary" onclick="go('s-generated')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>Generate PDF report</button>
+      <button class="btn ghost" style="margin-top:10px" onclick="go('s-payment')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>Collect payment</button>
     </section>
 
     <!-- SUBSCRIBE -->
@@ -572,9 +573,24 @@
         <div class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
         <h2>Report generated</h2>
         <p>78-page report for 1428 Ridgeline Dr is saved on this device and queued to sync to the portal.</p>
-        <button class="btn primary" onclick="toast('Opening PDF preview…')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>Preview PDF</button>
+        <button class="btn primary" onclick="go('s-payment')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>Collect payment</button>
+        <button class="btn ghost" style="margin-top:10px" onclick="toast('Opening PDF preview…')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>Preview PDF</button>
         <button class="btn ghost" style="margin-top:10px" onclick="toast('Report queued to email on next sync')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 6-10 7L2 6"/></svg>Email to client</button>
         <button class="btn ghost" style="margin-top:10px" onclick="goHome()">Back to inspections</button>
+      </div>
+    </section>
+
+    <!-- COLLECT PAYMENT (inspection fee) -->
+    <section class="screen" id="s-payment" data-title="Collect payment"><div id="paymentbody"></div></section>
+
+    <!-- PAYMENT RECEIVED -->
+    <section class="screen" id="s-paid" data-title="Payment received">
+      <div class="success">
+        <div class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
+        <h2>Payment received</h2>
+        <p id="paid-msg">Charged <b>$685.00</b> to the client's card via Square. A receipt is queued to send.</p>
+        <button class="btn ghost" onclick="toast('Receipt sent to client')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 6-10 7L2 6"/></svg>Email receipt</button>
+        <button class="btn primary" style="margin-top:10px" onclick="goHome()">Back to inspections</button>
       </div>
     </section>
 
@@ -4677,6 +4693,49 @@ SEC['Wind Mitigation'].itemsHigh=[
     var key='plan'+(Object.keys(PLANS).length+1); PLANS[key]={name:n,price:pr,desc:d||'Custom plan'}; PLAN_ORDER.push(key);
     renderPlansAdmin(); toast('Added “'+n+'”');
   };
+  // ---------- collect payment for an inspection (client-facing, via Square) ----------
+  var PAYITEMS=[{name:'Full home inspection — 2,400 sq ft',amt:425},{name:'Radon test',amt:125},{name:'Thermal audit',amt:75},{name:'Termite inspection',amt:60}];
+  var PAYMETHOD='card';
+  function payTotal(){ return PAYITEMS.reduce(function(s,it){return s+(parseFloat(it.amt)||0);},0); }
+  function renderPayment(){
+    var host=document.getElementById('paymentbody'); if(!host) return;
+    var h='<div class="card" style="background:linear-gradient(160deg,#274fb0,#101f45);border:0;color:#fff;padding:18px">'
+      +'<div style="font-family:var(--fm);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:#f2c869">Amount due</div>'
+      +'<div style="font-family:var(--fd);font-weight:800;font-size:30px;margin:4px 0 2px" id="paydue">'+money(payTotal())+'</div>'
+      +'<div style="font-size:12.5px;color:#cfe2eb">1428 Ridgeline Dr &middot; Tysen and Chantel Gough</div></div>';
+    h+='<p class="lbl">Charge for</p><div class="card" style="padding:6px 0" id="paylines"></div>';
+    h+='<div class="opt-add" style="padding:0 2px 4px"><input id="paynewname" placeholder="Add a line (e.g. Sewer scope)"><input id="paynewamt" placeholder="$0" inputmode="decimal" style="max-width:90px"><button onclick="addPayLine()">Add</button></div>';
+    h+='<p class="lbl">Payment method</p><div class="chips" id="paymethodrow"></div>';
+    h+='<div id="paycard"></div>';
+    h+='<button class="btn primary" style="margin-top:16px" id="paybtn" onclick="takePayment()"></button>';
+    host.innerHTML=h; renderPayLines(); renderPayMethod();
+  }
+  function renderPayLines(){
+    var w=document.getElementById('paylines'); if(!w) return; var h='';
+    PAYITEMS.forEach(function(it,i){
+      h+='<div class="binforow"><span style="flex:1">'+it.name+'</span><span style="display:flex;align-items:center;gap:8px"><span style="color:var(--ink-3)">$</span><input class="txt" style="width:88px;padding:8px 10px;text-align:right" inputmode="decimal" value="'+Number(it.amt).toFixed(2)+'" oninput="setPayAmt('+i+',this.value)"><button aria-label="Remove line" onclick="delPayLine('+i+')" style="border:0;background:none;color:var(--ink-3);cursor:pointer;font-size:18px;line-height:1">&times;</button></span></div>';
+    });
+    h+='<div class="binforow" style="border-top:1px solid var(--line)"><b>Total</b><b id="paytotal" style="font-family:var(--fm);font-size:16px;color:var(--brand-deep)">'+money(payTotal())+'</b></div>';
+    w.innerHTML=h;
+  }
+  function syncPayTotals(){ var t=money(payTotal()); var a=document.getElementById('paytotal'),b=document.getElementById('paydue'); if(a)a.textContent=t; if(b)b.textContent=t; updatePayBtn(); }
+  window.setPayAmt=function(i,v){ PAYITEMS[i].amt=parseFloat(v)||0; syncPayTotals(); };
+  window.delPayLine=function(i){ PAYITEMS.splice(i,1); renderPayLines(); syncPayTotals(); };
+  window.addPayLine=function(){ var n=(document.getElementById('paynewname').value||'').trim(); var a=parseFloat(document.getElementById('paynewamt').value)||0; if(!n){ toast('Enter a line name'); return; } PAYITEMS.push({name:n,amt:a}); document.getElementById('paynewname').value='';document.getElementById('paynewamt').value=''; renderPayLines(); syncPayTotals(); };
+  function renderPayMethod(){
+    var w=document.getElementById('paymethodrow'); if(!w) return;
+    var methods=[['card','Card'],['cash','Cash'],['check','Check'],['link','Payment link']];
+    w.innerHTML=methods.map(function(m){return '<button class="chip'+(PAYMETHOD===m[0]?' on':'')+'" onclick="setPayMethod(\''+m[0]+'\')">'+m[1]+'</button>';}).join('');
+    var c=document.getElementById('paycard');
+    if(PAYMETHOD==='card'){ c.innerHTML='<p class="lbl">Card &mdash; via Square</p><div class="field"><label>Card number</label><input class="txt" placeholder="1234 5678 9012 3456"></div><div class="stat2" style="gap:10px"><div class="field" style="margin:0"><label>Expiry</label><input class="txt" placeholder="MM / YY"></div><div class="field" style="margin:0"><label>CVC</label><input class="txt" placeholder="123"></div></div><div style="display:flex;align-items:center;gap:8px;margin:8px 2px 0;font-size:12px;color:var(--ink-3)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Secured by Square</div>'; }
+    else if(PAYMETHOD==='link'){ c.innerHTML='<div class="banner" style="margin-top:6px">'+ico('info')+'<div>We\'ll text or email the client a secure Square payment link. They pay from their phone, and it marks paid here once they do.</div></div>'; }
+    else { c.innerHTML='<div class="banner" style="margin-top:6px">'+ico('info')+'<div>Record a '+(PAYMETHOD==='cash'?'cash':'check')+' payment for this inspection &mdash; no card is charged.</div></div>'; }
+    updatePayBtn();
+  }
+  window.setPayMethod=function(m){ PAYMETHOD=m; renderPayMethod(); };
+  function updatePayBtn(){ var b=document.getElementById('paybtn'); if(!b) return; var t=money(payTotal()); var lbl=PAYMETHOD==='card'?'Charge '+t:PAYMETHOD==='link'?'Send payment link':'Record '+(PAYMETHOD==='cash'?'cash':'check')+' payment'; b.innerHTML=wrapSvg('<path d="M20 6 9 17l-5-5"/>')+lbl; }
+  window.takePayment=function(){ var t=money(payTotal()); var msg; if(PAYMETHOD==='card'){ msg='Charged <b>'+t+'</b> to the client\'s card via Square. A receipt is queued to send.'; } else if(PAYMETHOD==='link'){ msg='A secure Square payment link for <b>'+t+'</b> was sent to the client. It will mark paid here once they pay.'; } else { msg='Recorded a '+(PAYMETHOD==='cash'?'cash':'check')+' payment of <b>'+t+'</b> for this inspection.'; } var pm=document.getElementById('paid-msg'); if(pm)pm.innerHTML=msg; go('s-paid'); };
+
   function updateSubUI(){
     var ht=document.getElementById('hometrial'); if(ht) ht.textContent=SUB.trialDays;
     var tb=document.querySelector('#s-home .trialbar'); if(tb) tb.style.display=SUB.active?'none':'flex';
@@ -4685,11 +4744,11 @@ SEC['Wind Mitigation'].itemsHigh=[
   }
 
   // per-screen hooks on show
-  var _go=window.go; window.go=function(id,nopush){ if(id==='s-photos') renderPhotos(curSection); if(id==='s-new') startWizard(); if(id==='s-admin') renderAdmin(); if(id==='s-subscribe') renderSubscribe(); if(id==='s-inspectors') renderInspectors(); if(id==='s-billing') renderBilling(); if(id==='s-plans') renderPlansAdmin(); if(id==='s-instructions') renderInstructions(); if(id==='s-feedbackadmin') updateFeedbackUI(); if(id==='s-report'){ renderCoverPicker(); renderReportContents(); } if(id==='s-settings'){ updateSubUI(); syncDepthUI(); updateFeedbackUI(); } if(id==='s-home') updateSubUI(); _go(id,nopush); };
+  var _go=window.go; window.go=function(id,nopush){ if(id==='s-photos') renderPhotos(curSection); if(id==='s-new') startWizard(); if(id==='s-admin') renderAdmin(); if(id==='s-subscribe') renderSubscribe(); if(id==='s-inspectors') renderInspectors(); if(id==='s-billing') renderBilling(); if(id==='s-plans') renderPlansAdmin(); if(id==='s-instructions') renderInstructions(); if(id==='s-feedbackadmin') updateFeedbackUI(); if(id==='s-payment') renderPayment(); if(id==='s-report'){ renderCoverPicker(); renderReportContents(); } if(id==='s-settings'){ updateSubUI(); syncDepthUI(); updateFeedbackUI(); } if(id==='s-home') updateSubUI(); _go(id,nopush); };
 
   var tmo; window.toast=function(msg){ var t=document.getElementById('toast'); document.getElementById('toasttext').textContent=msg; t.classList.add('on'); clearTimeout(tmo); tmo=setTimeout(function(){t.classList.remove('on');},1900); };
 
-  var SCREENS=[['s-login','Sign in'],['s-signup','Create account'],['s-forgot','Reset password'],['s-join','Join a company (code)'],['s-home','Inspections (home)'],['s-subscribe','Subscribe'],['s-billing','Plan & billing'],['s-inspectors','Inspectors'],['s-new','New inspection (wizard)'],['s-sections','Sections overview'],['s-section','Section entry'],['s-photos','Photos'],['s-summary','Summary'],['s-report','Report / cover'],['s-generated','Report ready'],['s-settings','Settings'],['s-admin','Manage checklist'],['s-plans','Plans & pricing (admin)'],['s-company','Company profile'],['s-instructions','How VIMS works'],['s-feedbackadmin','Feedback & support (admin)']];
+  var SCREENS=[['s-login','Sign in'],['s-signup','Create account'],['s-forgot','Reset password'],['s-join','Join a company (code)'],['s-home','Inspections (home)'],['s-subscribe','Subscribe'],['s-billing','Plan & billing'],['s-inspectors','Inspectors'],['s-new','New inspection (wizard)'],['s-sections','Sections overview'],['s-section','Section entry'],['s-photos','Photos'],['s-summary','Summary'],['s-report','Report / cover'],['s-generated','Report ready'],['s-payment','Collect payment'],['s-paid','Payment received'],['s-settings','Settings'],['s-admin','Manage checklist'],['s-plans','Plans & pricing (admin)'],['s-company','Company profile'],['s-instructions','How VIMS works'],['s-feedbackadmin','Feedback & support (admin)']];
   window.toggleRev=function(){ document.getElementById('revmenu').classList.toggle('on'); };
   function closeRev(){ document.getElementById('revmenu').classList.remove('on'); }
   (function(){ var m=document.getElementById('revmenu'); m.innerHTML='<div class="rt">Jump to screen</div>'; SCREENS.forEach(function(s){ var b=document.createElement('button'); b.textContent=s[1]; b.onclick=function(){ if(s[0]==='s-section'){openSection(curSection);return;} if(s[0]==='s-photos'){renderPhotos(curSection);} go(s[0]); }; m.appendChild(b); }); })();
