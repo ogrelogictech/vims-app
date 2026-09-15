@@ -256,7 +256,7 @@
   .sumcat .sh{display:flex;align-items:center;gap:11px;padding:13px 15px}
   .sumcat .sh .cn{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;font-family:var(--fd);font-weight:800;font-size:16px;color:#fff}
   .sumcat.c1 .sh .cn{background:var(--c1)}.sumcat.c2 .sh .cn{background:var(--c2)}.sumcat.c3 .sh .cn{background:var(--c3)}
-  .sumcat .sh b{font-size:14.5px;color:var(--ink);font-weight:700}.sumcat .sh span{font-size:14.5px;color:var(--ink-2)}
+  .sumcat .sh b{font-size:14.5px;color:var(--ink);font-weight:700}.sumcat .sh span{font-size:14.5px;color:var(--ink);font-weight:700}
   .sumcat .sh .cnt{margin-left:auto;font-family:var(--fm);font-weight:700;font-size:15px;color:var(--ink)}
   .sfind{padding:11px 15px;border-top:1px solid var(--line-2);font-size:13.5px;color:var(--ink-2);display:flex;gap:10px}
   .sfind .dt{width:7px;height:7px;border-radius:50%;margin-top:6px;flex:none}
@@ -597,7 +597,7 @@
       <button class="row" onclick="go('s-feedbackadmin')"><div class="lead"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 6-10 7L2 6"/></svg></div><div class="mid"><b>Feedback &amp; support</b><span>Change the feedback contact email</span></div><div class="end"><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></span></div></button>
 
       <p class="lbl">Help &amp; feedback</p>
-      <div class="card"><b style="font-size:14px">Questions or feedback?</b><p style="font-size:12.5px;color:var(--ink-3);margin:6px 0 12px;line-height:1.5">We'd love to hear from you. Reach the VIMS team at <b id="feedbackemail" style="color:var(--brand-deep)">VIMSInspect@Gmail.com</b>.</p><a class="btn ghost" id="feedbacklink" href="mailto:VIMSInspect@Gmail.com?subject=VIMS%20app%20feedback" style="text-decoration:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 6-10 7L2 6"/></svg>Send feedback</a></div>
+      <div class="card"><b style="font-size:14px">Questions or feedback?</b><p style="font-size:12.5px;color:var(--ink-3);margin:6px 0 12px;line-height:1.5">We'd love to hear from you &mdash; send us a note and the VIMS team will get back to you.</p><a class="btn ghost" id="feedbacklink" href="mailto:VIMSInspect@Gmail.com?subject=VIMS%20app%20feedback" style="text-decoration:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 6-10 7L2 6"/></svg>Send feedback</a></div>
 
       <p class="lbl">Company &amp; help</p>
       <button class="row" onclick="go('s-company')"><div class="lead"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h.01M9 13h.01M9 17h.01M15 9h.01M15 13h.01M15 17h.01"/></svg></div><div class="mid"><b>Company profile &amp; logo</b><span>Inspector info, logo, review link</span></div><div class="end"><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></span></div></button>
@@ -1173,10 +1173,16 @@
       {q:'6. Secondary water resistance',t:'single',o:['SWR (sealed deck)','No SWR','Unknown']},
       {q:'7. Opening protection (weakest)',t:'single',o:['A','B','C','N','X – none / some glazed']}
     ]},
-    'Sewer Scope':{pics:['Cleanout','Line','Concerns'],items:[
+    'Sewer Scope':{pics:['Sewer Access Point','Camera Feed','Findings','Concerns'],items:[
       {q:'Scope performed',t:'single',o:['Yes','No']},
-      {q:'Pipe material',t:'single',o:['PVC','Cast iron','Clay','Orangeburg ⚠']},
-      {q:'Findings',t:'single',o:['Clear','Roots','Belly','Break / offset']}
+      {q:'Location used for sewer access',t:'text',ph:'e.g. cleanout at front'},
+      {q:'Condition of sewer access point',t:'text',ph:'describe condition'},
+      {q:'Sewer pipe material',t:'single',o:['Concrete','Cast Iron','PVC']},
+      {q:'Camera length run into sewer (ft)',t:'num',ph:'e.g. 75'},
+      {q:'Pipe collapsed',t:'single',o:['Yes','None observed']},
+      {q:'Tree roots in pipe',t:'single',o:['Yes','None observed']},
+      {q:'Separations or valleys in the pipe',t:'single',o:['Yes','None observed']},
+      {q:'Any findings',t:'text',ph:'notes'}
     ]},
     'Asbestos':{pics:['Suspect Material','Sample','Concerns'],items:[
       {q:'Test performed',t:'single',o:['Yes','No','Referred out']},
@@ -4611,10 +4617,19 @@ SEC['Wind Mitigation'].itemsHigh=[
     var box=document.createElement('div'); box.className='codebox';
     box.innerHTML='<div class="cl">Company join code</div><div class="cv">'+SUB.companyCode+'<button onclick="copyCode()">'+wrapSvg('<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>')+'Copy</button></div><p>Share this code with an inspector. They download VIMS, tap <b>Join a company with a code</b>, and their account links to your license &amp; billing.</p>';
     w.appendChild(box);
+    var note=document.createElement('p'); note.style.cssText='font-size:12px;color:var(--ink-3);margin:0 2px 12px;line-height:1.5';
+    note.innerHTML='You (the account owner) are an <b>admin</b> by default. Tap <b>Make admin</b> to grant any inspector admin access &mdash; admins can manage checklists, plans, the company profile, and settings. Nothing is hard-coded; roles are set here.';
+    w.appendChild(note);
     SUB.inspectors.forEach(function(ins,i){
       var r=document.createElement('div'); r.className='row'; r.style.cursor='default';
       var initials=(ins.name||'?').split(' ').map(function(s){return s[0]||'';}).slice(0,2).join('').toUpperCase();
-      r.innerHTML='<div class="lead" style="background:linear-gradient(140deg,#5580e6,#1e3d94);color:#fff;font-family:var(--fd);font-weight:700;font-size:13px">'+initials+'</div><div class="mid"><b>'+ins.name+(ins.owner?' · Owner':'')+'</b><span>'+(ins.email||'no email yet')+'</span></div>'+(ins.owner?'<div class="end"><span class="pill done"><span class="d"></span>Included</span></div>':'<div class="end"><button class="pill queued" style="border:0;cursor:pointer;font-family:inherit" onclick="removeInspector('+i+')">Remove</button></div>');
+      var role=ins.owner?'Owner · Admin':(ins.admin?'Admin':'Inspector');
+      var end;
+      if(ins.owner){ end='<div class="end"><span class="pill done"><span class="d"></span>Admin</span></div>'; }
+      else { end='<div class="end" style="flex-wrap:wrap;justify-content:flex-end;gap:6px">'
+        +'<button class="pill '+(ins.admin?'prog':'new')+'" style="border:0;cursor:pointer;font-family:inherit" onclick="toggleAdmin('+i+')">'+(ins.admin?'Admin ✓':'Make admin')+'</button>'
+        +'<button class="pill queued" style="border:0;cursor:pointer;font-family:inherit" onclick="removeInspector('+i+')">Remove</button></div>'; }
+      r.innerHTML='<div class="lead" style="background:linear-gradient(140deg,#5580e6,#1e3d94);color:#fff;font-family:var(--fd);font-weight:700;font-size:13px">'+initials+'</div><div class="mid"><b>'+ins.name+' · '+role+'</b><span>'+(ins.email||'no email yet')+'</span></div>'+end;
       w.appendChild(r);
     });
     var note=document.createElement('p'); note.style.cssText='font-size:12.5px;color:var(--ink-3);margin:4px 2px 14px';
@@ -4623,6 +4638,7 @@ SEC['Wind Mitigation'].itemsHigh=[
   }
   window.addInspector=function(){ var n=(document.getElementById('newinspname').value||'').trim(); var e=(document.getElementById('newinspemail').value||'').trim(); if(!n){ toast('Enter a name'); return; } SUB.inspectors.push({name:n,email:e}); document.getElementById('newinspname').value=''; document.getElementById('newinspemail').value=''; renderInspectors(); updateSubUI(); toast('Inspector added · +$24.95/mo'); };
   window.removeInspector=function(i){ if(SUB.inspectors[i]&&!SUB.inspectors[i].owner){ SUB.inspectors.splice(i,1); renderInspectors(); updateSubUI(); } };
+  window.toggleAdmin=function(i){ var ins=SUB.inspectors[i]; if(!ins||ins.owner) return; ins.admin=!ins.admin; renderInspectors(); toast(ins.admin?ins.name+' is now an admin':ins.name+' is no longer an admin'); };
   function renderBilling(){
     var b=document.getElementById('billingbody'); if(!b) return;
     var status = SUB.active ? '<span class="pill done"><span class="d"></span>Active · auto-pay</span>' : '<span class="pill queued"><span class="d"></span>Trial · '+SUB.trialDays+'d left</span>';
@@ -4679,9 +4695,10 @@ SEC['Wind Mitigation'].itemsHigh=[
   (function(){ var m=document.getElementById('revmenu'); m.innerHTML='<div class="rt">Jump to screen</div>'; SCREENS.forEach(function(s){ var b=document.createElement('button'); b.textContent=s[1]; b.onclick=function(){ if(s[0]==='s-section'){openSection(curSection);return;} if(s[0]==='s-photos'){renderPhotos(curSection);} go(s[0]); }; m.appendChild(b); }); })();
 
   // init
-  // Radon & Thermal Audit: use the same structure at every depth (per client's final notes)
+  // Radon, Thermal Audit & Sewer Scope: use the same structure at every depth (per client's final notes)
   SEC['Radon'].itemsHigh=SEC['Radon'].items;
   SEC['Thermal Audit'].itemsHigh=SEC['Thermal Audit'].items; SEC['Thermal Audit'].picsHigh=SEC['Thermal Audit'].pics;
+  SEC['Sewer Scope'].itemsHigh=SEC['Sewer Scope'].items; SEC['Sewer Scope'].picsHigh=SEC['Sewer Scope'].pics;
   renderOverview(); renderSummary(); renderSectionBody('Roof'); renderDrawer(); updateSubUI();
   fillQuickSelect('qcsel','Add a quick comment…'); fillQuickSelect('qcsel-find','Pick a quick comment…');
   window.addEventListener('resize',function(){ if(document.getElementById('viewer').classList.contains('on')) initCanvas(); });
