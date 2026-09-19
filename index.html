@@ -257,6 +257,7 @@
   .sumcat .sh .cn{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;font-family:var(--fd);font-weight:800;font-size:16px;color:#fff}
   .sumcat.c1 .sh .cn{background:var(--c1)}.sumcat.c2 .sh .cn{background:var(--c2)}.sumcat.c3 .sh .cn{background:var(--c3)}
   .sumcat .sh b{font-size:14.5px;color:var(--ink);font-weight:700}.sumcat .sh span{font-size:14.5px;color:var(--ink);font-weight:700}
+  .sumcat .sh .sh-note{font-size:12px;font-weight:400;color:var(--ink-3);margin-top:2px;line-height:1.3}
   .sumcat .sh .cnt{margin-left:auto;font-family:var(--fm);font-weight:700;font-size:15px;color:var(--ink)}
   .sfind{padding:11px 15px;border-top:1px solid var(--line-2);font-size:13.5px;color:var(--ink-2);display:flex;gap:10px}
   .sfind .dt{width:7px;height:7px;border-radius:50%;margin-top:6px;flex:none}
@@ -4484,11 +4485,12 @@ SEC['Wind Mitigation'].itemsHigh=[
     var wrap=document.getElementById('summarywrap'); if(!wrap)return; wrap.innerHTML='';
     var rf=document.getElementById('rep-findings'); if(rf)rf.textContent=FINDINGS.length;
     var meta={1:['Category 1','Safety'],2:['Category 2','Functional'],3:['Category 3','Items to monitor']};
+    var subnote={1:'Address before closing',2:'Address in the first few months after closing',3:'Monitor and address over time'};
     [1,2,3].forEach(function(cat){
       var items=FINDINGS.filter(function(f){return f.cat===cat;});
       var box=document.createElement('div'); box.className='sumcat c'+cat;
       var its=items.map(function(f){return '<div class="sfind c'+cat+'"><span class="dt"></span><div><b>'+f.sec+'</b> — '+f.txt+'</div></div>';}).join('')||'<div class="empty">No findings in this category.</div>';
-      box.innerHTML='<div class="sh"><div class="cn">'+cat+'</div><div><b>'+meta[cat][0]+'</b><span> · '+meta[cat][1]+'</span></div><div class="cnt">'+items.length+'</div></div>'+its;
+      box.innerHTML='<div class="sh"><div class="cn">'+cat+'</div><div><b>'+meta[cat][0]+'</b><span> · '+meta[cat][1]+'</span><div class="sh-note">'+subnote[cat]+'</div></div><div class="cnt">'+items.length+'</div></div>'+its;
       wrap.appendChild(box);
     });
   }
