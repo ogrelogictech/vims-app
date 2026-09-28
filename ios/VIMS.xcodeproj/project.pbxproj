@@ -179,6 +179,7 @@
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "VIMS lets you add inspection photos and your company logo from your library.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_FILE = "VIMS-Info.plist";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -207,6 +208,7 @@
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "VIMS lets you add inspection photos and your company logo from your library.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_FILE = "VIMS-Info.plist";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

@@ -1,0 +1,294 @@
+import Foundation
+
+// Models for shared/data/vims-checklists.json — the single source of truth for
+// every checklist section/item, wizard option, builder rule, finding category,
+// quick comment, cover option, and plan. Loaded from the app bundle at runtime.
+// Nothing in here should be hardcoded elsewhere.
+
+struct ChecklistConfig: Decodable {
+    let version: String
+    let depths: [DepthDef]
+    let depthRules: [String: String]
+    let overallCondition: [String]
+    let overallConditionDefault: String
+    let sectionGroups: [SectionGroupDef]
+    let sections: [SectionDef]
+    let checklistBuilder: BuilderDef
+    let wizard: WizardDef
+    let findings: FindingsDef
+    var covers: CoversDef
+    let subscription: SubscriptionDef
+    let support: SupportDef
+    let sample: SampleDef
+
+    /// Keys of JSON objects whose order matters but that Swift dictionaries lose.
+    var unitMixOrder: [String] = []
+    var coverCategoryOrder: [String] = []
+
+    private enum CodingKeys: String, CodingKey {
+        case version, depths, depthRules, overallCondition, overallConditionDefault, sectionGroups, sections,
+             checklistBuilder, wizard, findings, covers, subscription, support, sample
+    }
+}
+
+struct DepthDef: Decodable { let id: String; let label: String }
+
+struct SectionGroupDef: Decodable { let group: String; let sections: [String] }
+
+struct SectionDef: Codable, Hashable {
+    var name: String
+    var number: Int
+    var icon: String?
+    var photoCategories: [String]
+    var photoCategoriesHigh: [String]?
+    var items: [ItemDef]
+    var itemsHigh: [ItemDef]?
+}
+
+struct ItemDef: Codable, Hashable {
+    var q: String?
+    var type: String?
+    var options: [String]?
+    var header: String?
+    var placeholder: String?
+
+    var isHeader: Bool { header != nil }
+    var kind: ItemKind {
+        if header != nil { return .header }
+        switch type ?? "single" {
+        case "multi": return .multi
+        case "num": return .num
+        case "text": return .text
+        case "date": return .date
+        case "time": return .time
+        default: return .single
+        }
+    }
+
+    static func question(_ q: String, type: String = "single", options: [String]) -> ItemDef {
+        ItemDef(q: q, type: type, options: options, header: nil, placeholder: nil)
+    }
+}
+
+enum ItemKind { case single, multi, num, text, date, time, header }
+
+struct BuilderDef: Decodable {
+    let phaseTypes: [String: [LayoutEntry]]
+    let standardLayout: [LayoutEntry]
+}
+
+struct LayoutEntry: Decodable {
+    let heading: String
+    let link: String?
+    let icon: String?
+    let sections: [String]?
+    let always: [String]?
+    let optional: String?
+    let order: [String]?
+    let sub: SubLayout?
+}
+
+struct SubLayout: Decodable {
+    let heading: String
+    let always: [String]?
+    let optional: String?
+    let then: [String]?
+}
+
+struct WizardDef: Decodable {
+    let steps: [String]
+    let inspectionTypes: [String]
+    let componentOptions: [String]
+    let structureTypes: [String]
+    let structureSideEffects: [String: [String: String]]
+    let unitMixDefault: [String: Int]
+    let step1: [WizardEntry]
+    let step2: [WizardEntry]
+    let exteriorOptions: [String]
+    let roomOptions: [String]
+    let utilityOptions: [String]
+    let testOptions: [String]
+    let roomCounts: [RoomCountDef]
+    let defaults: WizardDefaults
+}
+
+struct WizardEntry: Decodable, Hashable {
+    let kind: String          // field | chips | dynamic
+    let label: String
+    let type: String?         // text | tel | email | date | time | textarea
+    let placeholder: String?
+    let id: String?
+    let single: Bool?
+    let options: [String]?
+    let `default`: String?
+}
+
+struct RoomCountDef: Decodable { let key: String; let label: String }
+
+struct WizardDefaults: Decodable {
+    let inspType: String
+    let loan: String
+    let structure: String
+    let depth: String
+    let bedrooms: Int
+    let bathrooms: Int
+    let hallways: Int
+    let rooms: [String: Int]
+    let exterior: [String: Int]
+    let utilOpt: [String: Int]
+    let tests: [String: Int]
+}
+
+struct FindingsDef: Decodable {
+    let categories: [FindingCategoryDef]
+    let quickComments: [String]
+}
+
+struct FindingCategoryDef: Decodable, Hashable { let id: Int; let label: String; let note: String }
+
+struct CoverColorDef: Decodable, Hashable { let name: String; let from: String; let to: String }
+
+struct CoversDef: Decodable {
+    let colors: [CoverColorDef]
+    let categories: [String: [String]]
+    let styles: [String]
+    let solidStyle: String
+    let `default`: CoverDefault
+}
+
+struct CoverDefault: Decodable { let color: String; let category: String; let option: String; let style: String }
+
+struct SubscriptionDef: Decodable {
+    let trialDays: Int
+    let plans: [PlanDef]
+    let extraInspectorMonthly: Double
+}
+
+struct PlanDef: Codable, Hashable {
+    var id: String
+    var name: String
+    var price: Double
+    var desc: String
+    var unit: String?
+    var perReport: Bool?
+}
+
+struct SupportDef: Decodable { let feedbackEmail: String }
+
+struct SampleDef: Decodable {
+    let company: SampleCompany
+    let inspectors: [SampleInspector]
+    let findings: [SampleFinding]
+}
+struct SampleCompany: Decodable { let name: String; let code: String }
+struct SampleInspector: Decodable { let name: String; let email: String; let owner: Bool? }
+struct SampleFinding: Decodable { let cat: Int; let txt: String; let sec: String }
+
+// MARK: - Loader
+
+enum ChecklistLoader {
+    enum LoadError: Error { case missing }
+
+    static func load(bundle: Bundle = .main) throws -> ChecklistConfig {
+        guard let url = bundle.url(forResource: "vims-checklists", withExtension: "json") else { throw LoadError.missing }
+        let data = try Data(contentsOf: url)
+        var cfg = try JSONDecoder().decode(ChecklistConfig.self, from: data)
+        // Recover key order for the two objects where display order matters.
+        if let root = OrderedJSON.parse(data) {
+            cfg.unitMixOrder = root.keys(at: ["wizard", "unitMixDefault"]) ?? Array(cfg.wizard.unitMixDefault.keys).sorted()
+            cfg.coverCategoryOrder = root.keys(at: ["covers", "categories"]) ?? Array(cfg.covers.categories.keys).sorted()
+        } else {
+            cfg.unitMixOrder = Array(cfg.wizard.unitMixDefault.keys).sorted()
+            cfg.coverCategoryOrder = Array(cfg.covers.categories.keys).sorted()
+        }
+        return cfg
+    }
+}
+
+/// Minimal JSON parser that keeps object key order (JSONDecoder does not).
+indirect enum OrderedJSON {
+    case object([(String, OrderedJSON)])
+    case array([OrderedJSON])
+    case scalar
+
+    func keys(at path: [String]) -> [String]? {
+        var node = self
+        for p in path {
+            guard case .object(let pairs) = node, let next = pairs.first(where: { $0.0 == p })?.1 else { return nil }
+            node = next
+        }
+        if case .object(let pairs) = node { return pairs.map { $0.0 } }
+        return nil
+    }
+
+    static func parse(_ data: Data) -> OrderedJSON? {
+        var p = Parser(bytes: [UInt8](data))
+        return p.value()
+    }
+
+    private struct Parser {
+        let bytes: [UInt8]
+        var i = 0
+
+        mutating func ws() { while i < bytes.count, [0x20, 0x0A, 0x0D, 0x09].contains(bytes[i]) { i += 1 } }
+
+        mutating func value() -> OrderedJSON? {
+            ws()
+            guard i < bytes.count else { return nil }
+            switch bytes[i] {
+            case UInt8(ascii: "{"):
+                i += 1
+                var pairs: [(String, OrderedJSON)] = []
+                ws()
+                if i < bytes.count, bytes[i] == UInt8(ascii: "}") { i += 1; return .object(pairs) }
+                while i < bytes.count {
+                    ws()
+                    guard let k = string() else { return nil }
+                    ws()
+                    guard i < bytes.count, bytes[i] == UInt8(ascii: ":") else { return nil }
+                    i += 1
+                    guard let v = value() else { return nil }
+                    pairs.append((k, v))
+                    ws()
+                    if i < bytes.count, bytes[i] == UInt8(ascii: ",") { i += 1; continue }
+                    if i < bytes.count, bytes[i] == UInt8(ascii: "}") { i += 1; return .object(pairs) }
+                    return nil
+                }
+                return nil
+            case UInt8(ascii: "["):
+                i += 1
+                var arr: [OrderedJSON] = []
+                ws()
+                if i < bytes.count, bytes[i] == UInt8(ascii: "]") { i += 1; return .array(arr) }
+                while i < bytes.count {
+                    guard let v = value() else { return nil }
+                    arr.append(v)
+                    ws()
+                    if i < bytes.count, bytes[i] == UInt8(ascii: ",") { i += 1; continue }
+                    if i < bytes.count, bytes[i] == UInt8(ascii: "]") { i += 1; return .array(arr) }
+                    return nil
+                }
+                return nil
+            case UInt8(ascii: "\""):
+                return string() == nil ? nil : .scalar
+            default:
+                // number / true / false / null
+                while i < bytes.count, ![UInt8(ascii: ","), UInt8(ascii: "}"), UInt8(ascii: "]"), 0x20, 0x0A, 0x0D, 0x09].contains(bytes[i]) { i += 1 }
+                return .scalar
+            }
+        }
+
+        mutating func string() -> String? {
+            guard i < bytes.count, bytes[i] == UInt8(ascii: "\"") else { return nil }
+            let start = i
+            i += 1
+            while i < bytes.count {
+                if bytes[i] == UInt8(ascii: "\\") { i += 2; continue }
+                if bytes[i] == UInt8(ascii: "\"") { i += 1; break }
+                i += 1
+            }
+            let slice = Data(bytes[start..<i])
+            return try? JSONDecoder().decode(String.self, from: slice)
+        }
+    }
+}

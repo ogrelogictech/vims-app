@@ -1,0 +1,273 @@
+import Foundation
+
+// MARK: - Depth
+
+enum Depth: String, Codable, CaseIterable, Hashable {
+    case high, standard, fast
+
+    /// Wizard/Settings chip label (from JSON `depths`).
+    var label: String {
+        switch self {
+        case .high: return "High Detail"
+        case .standard: return "Standard"
+        case .fast: return "Fast Entry"
+        }
+    }
+
+    init(label: String) {
+        switch label {
+        case "High Detail": self = .high
+        case "Fast Entry": self = .fast
+        default: self = .standard
+        }
+    }
+}
+
+enum SectionStatus: String, Codable { case todo, prog, done }
+
+// MARK: - Checklist groups (output of the checklist builder)
+
+struct ChecklistGroup: Codable, Hashable, Identifiable {
+    var id: String { heading }
+    var heading: String
+    var icon: String?
+    var link: String?              // "inspectionInfo" | "summary"
+    var sections: [String]
+    var sub: ChecklistSubGroup?
+
+    var leafSections: [String] { sections + (sub?.sections ?? []) }
+}
+
+struct ChecklistSubGroup: Codable, Hashable {
+    var heading: String
+    var sections: [String]
+}
+
+// MARK: - Answers
+
+struct SectionAnswers: Codable, Hashable {
+    var choices: [String: [String]] = [:]   // item key -> selected options
+    var text: [String: String] = [:]        // item key -> text/num/date/time value
+    var detail: [String: String] = [:]      // item key -> "Detail / measurement" (High Detail fallback)
+    var present: [String] = []              // Fast Entry "Items present"
+    var overall: String?
+    var comments: String = ""
+
+    var hasContent: Bool {
+        choices.values.contains { !$0.isEmpty } || text.values.contains { !$0.isEmpty } ||
+        detail.values.contains { !$0.isEmpty } || !present.isEmpty || !comments.isEmpty
+    }
+}
+
+// MARK: - Photos & findings
+
+struct PhotoRef: Codable, Hashable, Identifiable {
+    var id: UUID = UUID()
+    var file: String                 // relative path under the app data folder
+    var originalFile: String?        // unmarked original, kept once markup is applied
+    var flag: Int?                   // finding category 1/2/3
+    var comment: String?
+    var takenAt: Date = Date()
+}
+
+struct Finding: Codable, Hashable, Identifiable {
+    var id: UUID = UUID()
+    var category: Int
+    var text: String
+    var section: String
+    var photoID: UUID?
+    var createdAt: Date = Date()
+}
+
+// MARK: - Cover
+
+struct CoverChoice: Codable, Hashable {
+    var color: String
+    var category: String
+    var option: String
+    var style: String
+
+    var label: String { "\(color) · \(category == "Solid" ? "Solid" : option) · \(style)" }
+    var artLabel: String { category == "Solid" ? color : option }
+}
+
+struct ReportInfo: Codable, Hashable {
+    var generatedAt: Date
+    var pageCount: Int
+    var file: String
+}
+
+// MARK: - Inspection
+
+struct Inspection: Codable, Hashable, Identifiable {
+    var id: UUID = UUID()
+    var createdAt: Date = Date()
+
+    /// Values for the JSON-driven wizard fields & chips (step1/step2), keyed by label.
+    var fields: [String: String] = [:]
+    var inspType: String
+    var components: [String] = []
+    var structure: String
+    var unitMix: [String: Int] = [:]
+    var storiesOther: String = ""
+    var depth: Depth
+
+    // Areas to inspect
+    var exterior: [String]
+    var rooms: [String]
+    var utilities: [String]
+    var tests: [String]
+    var counts: [String: Int]
+
+    var groups: [ChecklistGroup] = []
+    var status: [String: SectionStatus] = [:]
+    var answers: [String: SectionAnswers] = [:]
+    var photos: [String: [String: [PhotoRef]]] = [:]
+    var findings: [Finding] = []
+    var cover: CoverChoice
+    var report: ReportInfo?
+
+    // Sync state (offline-first)
+    var needsSync: Bool = true
+    var syncedAt: Date?
+
+    // Convenience accessors for well-known wizard fields
+    func field(_ label: String) -> String { fields[label] ?? "" }
+
+    var address: String { field("Inspection address") }
+    /// Street line, keeping unit/lot suffixes ("210 Willow Park, Lot 17").
+    private var addressSplit: (String, String) {
+        let parts = address.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        guard var line = parts.first else { return ("", "") }
+        var i = 1
+        while i < parts.count, parts[i].range(of: #"^(Lot|Unit|Apt|Suite|Ste|Space|Bldg|#)\b?"#, options: [.regularExpression, .caseInsensitive]) != nil {
+            line += ", " + parts[i]; i += 1
+        }
+        return (line, parts.dropFirst(i).joined(separator: ", "))
+    }
+    var addressLine1: String {
+        let a = addressSplit.0
+        return a.isEmpty ? "New inspection" : a
+    }
+    var addressRest: String { addressSplit.1 }
+    var cityShort: String {
+        // "Ogden, UT 84403" -> "Ogden, UT"
+        let rest = addressRest
+        let comps = rest.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+        guard comps.count >= 2 else { return rest }
+        let state = comps[1].split(separator: " ").first.map(String.init) ?? comps[1]
+        return "\(comps[0]), \(state)"
+    }
+    var clientName: String { field("Client name") }
+
+    var scheduled: Date {
+        let d = field("Date"), t = field("Time")
+        if let dt = Fmt.parse("\(d) \(t.isEmpty ? "09:00" : t)", "yyyy-MM-dd HH:mm") { return dt }
+        return createdAt
+    }
+
+    var leafSections: [String] { groups.flatMap { $0.leafSections } }
+
+    var photoCount: Int { photos.values.reduce(0) { $0 + $1.values.reduce(0) { $0 + $1.count } } }
+
+    var structureShort: String {
+        switch structure {
+        case "Mobile / Manufactured": return "Mobile home"
+        default: return structure
+        }
+    }
+}
+
+// MARK: - Company, people, subscription, settings
+
+struct Inspector: Codable, Hashable, Identifiable {
+    var id: UUID = UUID()
+    var name: String
+    var email: String
+    var owner: Bool = false
+    var admin: Bool = false
+
+    var isAdmin: Bool { owner || admin }
+    var roleLabel: String { owner ? "Owner · Admin" : (admin ? "Admin" : "Inspector") }
+}
+
+struct CompanyProfile: Codable, Hashable {
+    var name: String
+    var address: String
+    var joinCode: String
+    var inspectorName: String
+    var license: String = ""
+    var phone: String = ""
+    var email: String
+    var reviewURL: String = ""
+    var logoFile: String?                 // relative path, nil = bundled VIMS logo
+    var agreementFile: String?            // relative path
+    var agreementName: String?
+    var feedbackEmail: String
+    var inspectors: [Inspector]
+}
+
+struct SubscriptionState: Codable, Hashable {
+    var plans: [PlanDef]
+    var extraInspectorMonthly: Double
+    var selectedPlan: String
+    var trialStart: Date
+    var trialDays: Int
+    var active: Bool = false
+    var paymentLabel: String?
+    var startedAt: Date?
+
+    func plan(_ id: String) -> PlanDef? { plans.first { $0.id == id } }
+
+    var trialDaysLeft: Int {
+        let elapsed = Calendar.current.dateComponents([.day], from: Calendar.current.startOfDay(for: trialStart),
+                                                      to: Calendar.current.startOfDay(for: Date())).day ?? 0
+        return max(0, trialDays - elapsed)
+    }
+
+    func monthlyTotal(seats: Int) -> Double {
+        guard let p = plan(selectedPlan) else { return 0 }
+        if p.perReport == true { return 0 }
+        return p.price + Double(max(0, seats - 1)) * extraInspectorMonthly
+    }
+
+    func totalLabel(seats: Int) -> String {
+        guard let p = plan(selectedPlan) else { return "" }
+        if p.perReport == true { return Fmt.money(p.price) + " / report" }
+        return Fmt.money(monthlyTotal(seats: seats)) + "/mo"
+    }
+
+    var nextBillingDate: Date {
+        let start = startedAt ?? Date()
+        return Calendar.current.date(byAdding: .month, value: 1, to: start) ?? start
+    }
+}
+
+/// Admin checklist edits: overridden section definitions + custom sections per group.
+struct ChecklistOverrides: Codable, Hashable {
+    var sections: [String: SectionDef] = [:]
+    var custom: [String: [String]] = [:]     // "Exterior" | "Interior" | "Utility" | "Testing" -> section names
+}
+
+struct AppSettings: Codable, Hashable {
+    var defaultDepth: Depth
+    var defaultCover: CoverChoice
+    var autoSync: Bool = true
+}
+
+struct Session: Codable, Hashable {
+    var name: String
+    var email: String
+    var inspectorID: UUID?
+    var isAdmin: Bool
+}
+
+/// Everything that is not an inspection, persisted as one JSON document.
+struct AppState: Codable {
+    var session: Session?
+    var company: CompanyProfile
+    var subscription: SubscriptionState
+    var overrides: ChecklistOverrides
+    var settings: AppSettings
+    var seededAt: Date?
+}
