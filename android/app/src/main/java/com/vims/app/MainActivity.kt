@@ -1,14 +1,53 @@
 package com.vims.app
 
+import android.content.Intent
+import android.graphics.Color
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
-import androidx.compose.material3.Text
+import androidx.activity.enableEdgeToEdge
+import androidx.activity.viewModels
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import com.vims.app.ui.AppViewModel
+import com.vims.app.ui.DebugLaunch
+import com.vims.app.ui.VimsRoot
+import com.vims.app.ui.theme.VimsTheme
 
 class MainActivity : ComponentActivity() {
+    private val vm: AppViewModel by viewModels()
+    private var debug by mutableStateOf<DebugLaunch?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val bytes = assets.open("data/vims-checklists.json").use { it.readBytes().size }
-        setContent { Text("VIMS toolchain check — checklist data: $bytes bytes") }
+        // Blue header runs under the status bar (light icons); light navigation bar over the paper background.
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT),
+        )
+        if (savedInstanceState == null) {
+            debug = parseDebug(intent)
+            // Free-look splash: a restored session counts as a sign-in during the trial.
+            if (debug == null && vm.session.value != null) vm.maybeShowSplash()
+        }
+        setContent { VimsTheme { VimsRoot(vm, debug) } }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        parseDebug(intent)?.let { debug = it }
+    }
+
+    /** Debug builds only: `adb shell am start -n com.vims.app/.MainActivity --es screen summary [--es insp ID] [--es section Roof] [--es depth high] [--ez splash true]`. */
+    private fun parseDebug(i: Intent?): DebugLaunch? {
+        if (!BuildConfig.DEBUG || i == null) return null
+        val screen = i.getStringExtra("screen") ?: return null
+        return DebugLaunch(
+            screen = screen, insp = i.getStringExtra("insp"), section = i.getStringExtra("section"), cat = i.getStringExtra("cat"),
+            photo = i.getStringExtra("photo"), depth = i.getStringExtra("depth"), splash = i.getBooleanExtra("splash", false),
+            step = i.getIntExtra("step", 1), coverStep = i.getIntExtra("coverStep", 1),
+        )
     }
 }

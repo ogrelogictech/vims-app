@@ -1,3 +1,10 @@
-<resources>
-    <style name="Theme.VIMS" parent="android:Theme.Material.Light.NoActionBar" />
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- VIMS is light-only (matches the approved prototype). Force-dark is disabled so OS dark mode never restyles the UI. -->
+    <style name="Theme.VIMS" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/vims_paper2</item>
+        <item name="android:colorAccent">@color/vims_hdr</item>
+        <item name="android:colorPrimary">@color/vims_hdr</item>
+        <item name="android:forceDarkAllowed" tools:targetApi="29">false</item>
+    </style>
 </resources>

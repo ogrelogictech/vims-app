@@ -25,6 +25,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     // Checklist data + fonts come from the repo's shared/ folder (single source of truth for iOS and Android).

@@ -1,0 +1,254 @@
+package com.vims.app.data
+
+import kotlinx.serialization.Serializable
+
+/* App data model. Everything here is @Serializable and persisted as JSON in the app's filesDir
+ * (see FileRepository). Field names mirror the prototype so the Laravel API can map 1:1 later. */
+
+@Serializable
+data class Plan(
+    val id: String,
+    val name: String,
+    val price: Double,
+    val desc: String = "",
+    val unit: String? = null,
+    val perReport: Boolean = false,
+)
+
+@Serializable
+data class CoverChoice(
+    val color: String = "Blue",
+    val category: String = "Activities",
+    val option: String = "Mountains",
+    val style: String = "Framed",
+) {
+    /** "Blue · Mountains · Framed" (or "Blue · Solid · Solid") — same label as the prototype. */
+    fun label(): String = "$color · ${if (category == "Solid") "Solid" else option} · $style"
+    fun artLabel(): String = if (category == "Solid") color else option
+    fun tag(): String = if (category == "Solid") "$color · Solid" else "$color · $category · $option · $style"
+}
+
+enum class Role { OWNER, ADMIN, INSPECTOR }
+
+@Serializable
+data class Session(
+    val name: String,
+    val email: String,
+    val role: Role = Role.OWNER,
+    val signedInAt: Long = System.currentTimeMillis(),
+) {
+    val isAdmin: Boolean get() = role != Role.INSPECTOR
+    val initials: String get() = name.split(" ").filter { it.isNotBlank() }.take(2).joinToString("") { it.first().uppercase() }.ifEmpty { "?" }
+}
+
+@Serializable
+data class Inspector(
+    val id: String,
+    val name: String,
+    val email: String = "",
+    val owner: Boolean = false,
+    val admin: Boolean = false,
+) {
+    val initials: String get() = name.split(" ").filter { it.isNotBlank() }.take(2).joinToString("") { it.first().uppercase() }.ifEmpty { "?" }
+    val roleLabel: String get() = if (owner) "Owner · Admin" else if (admin) "Admin" else "Inspector"
+}
+
+/** Company-level subscription / licensing state (Square billing is stubbed in Phase 1). */
+@Serializable
+data class AccountState(
+    val companyCode: String = "",
+    val plans: List<Plan> = emptyList(),
+    val extraInspectorMonthly: Double = 0.0,
+    val planId: String = "app",
+    val active: Boolean = false,
+    val seats: Int = 1,
+    val trialDays: Int = 30,
+    val trialStartEpochDay: Long = 0,
+    val inspectors: List<Inspector> = emptyList(),
+    val feedbackEmail: String = "",
+    val cardLast4: String? = null,
+    val subscribedEpochDay: Long? = null,
+) {
+    val plan: Plan get() = plans.firstOrNull { it.id == planId } ?: plans.firstOrNull() ?: Plan("app", "App", 0.0)
+    val seatCount: Int get() = maxOf(seats, inspectors.size, 1)
+}
+
+@Serializable
+data class CompanyProfile(
+    val name: String = "",
+    val address: String = "",
+    val inspectorName: String = "",
+    val license: String = "",
+    val phone: String = "",
+    val email: String = "",
+    val reviewUrl: String = "",
+    /** Relative to filesDir; null = use the bundled VIMS logo. */
+    val logoFile: String? = null,
+    val agreementName: String? = null,
+    val agreementFile: String? = null,
+)
+
+@Serializable
+data class AppSettings(
+    val seeded: Boolean = false,
+    val defaultDepth: String = "standard",
+    val autoSync: Boolean = true,
+    val defaultCover: CoverChoice = CoverChoice(),
+    val lastSyncAt: Long? = null,
+)
+
+/** Admin checklist edits layered over the shared JSON. Applied to new inspections. */
+@Serializable
+data class ChecklistEdits(
+    val overrides: Map<String, SectionOverride> = emptyMap(),
+    val custom: List<CustomSection> = emptyList(),
+)
+
+@Serializable
+data class SectionOverride(
+    val items: List<ItemDef>? = null,
+    val itemsHigh: List<ItemDef>? = null,
+)
+
+@Serializable
+data class CustomSection(val group: String, val def: SectionDef)
+
+/** Everything the new-inspection wizard collects. Field/chip values are keyed by their JSON label. */
+@Serializable
+data class WizardSelections(
+    val fields: Map<String, String> = emptyMap(),
+    val chips: Map<String, String> = emptyMap(),
+    val inspType: String = "Real Estate Sale",
+    val component: List<String> = emptyList(),
+    val structure: String = "Single Family",
+    val unitMix: Map<String, Int> = emptyMap(),
+    val storiesOther: String = "",
+    val depth: String = "standard",
+    val counts: Map<String, Int> = emptyMap(),
+    val rooms: List<String> = emptyList(),
+    val exterior: List<String> = emptyList(),
+    val utilOpt: List<String> = emptyList(),
+    val tests: List<String> = emptyList(),
+) {
+    fun field(label: String): String = fields[label].orEmpty().trim()
+    fun chip(label: String): String = chips[label].orEmpty()
+    fun count(key: String): Int = counts[key] ?: 0
+
+    val address: String get() = field(F_ADDRESS)
+    val street: String get() = address.substringBefore(",").trim()
+    val cityLine: String get() = if (address.contains(",")) address.substringAfter(",").trim() else ""
+    val clientName: String get() = field(F_CLIENT)
+    val clientEmail: String get() = field(F_CLIENT_EMAIL)
+    val agentName: String get() = field(F_AGENT)
+    val agentEmail: String get() = field(F_AGENT_EMAIL)
+    val date: String get() = field(F_DATE)
+    val time: String get() = field(F_TIME)
+
+    companion object {
+        // Labels from wizard.step1 in vims-checklists.json (used as keys).
+        const val F_CLIENT = "Client name"
+        const val F_CLIENT_PHONE = "Client phone"
+        const val F_CLIENT_EMAIL = "Client email"
+        const val F_ADDRESS = "Inspection address"
+        const val F_AGENT = "Real estate agent name"
+        const val F_AGENT_EMAIL = "Real estate agent email"
+        const val F_DATE = "Date"
+        const val F_TIME = "Time"
+    }
+}
+
+/** One group in the built checklist (Sections overview). `link` groups navigate (Inspection Info / Summary). */
+@Serializable
+data class BuiltGroup(
+    val heading: String,
+    val icon: String? = null,
+    val link: String? = null,
+    val sections: List<String> = emptyList(),
+    val sub: BuiltGroup? = null,
+) {
+    val leaves: List<String> get() = sections + (sub?.sections ?: emptyList())
+}
+
+object InspStatus {
+    const val SCHEDULED = "scheduled"
+    const val IN_PROGRESS = "in_progress"
+    const val QUEUED = "queued"
+    const val DONE = "done"
+}
+
+object SecStatus {
+    const val TODO = "todo"
+    const val PROG = "prog"
+    const val DONE = "done"
+}
+
+@Serializable
+data class Inspection(
+    val id: String,
+    val createdAt: Long,
+    val status: String = InspStatus.IN_PROGRESS,
+    val selections: WizardSelections = WizardSelections(),
+    val groups: List<BuiltGroup> = emptyList(),
+    val cover: CoverChoice = CoverChoice(),
+    val pendingSync: Boolean = true,
+    val reportFile: String? = null,
+    val reportPages: Int = 0,
+    val reportGeneratedAt: Long? = null,
+) {
+    val leafSections: List<String> get() = groups.flatMap { it.leaves }
+}
+
+@Serializable
+data class SectionAnswers(
+    val status: String = SecStatus.TODO,
+    /** Chip selections per item key (single → at most one value). */
+    val values: Map<String, List<String>> = emptyMap(),
+    /** num/text/date/time answers and optional High Detail "Detail / measurement" notes, per item key. */
+    val inputs: Map<String, String> = emptyMap(),
+    /** Fast Entry "Items present" chips. */
+    val present: List<String> = emptyList(),
+    val overall: String? = null,
+    val comments: String = "",
+) {
+    val hasContent: Boolean get() = values.any { it.value.isNotEmpty() } || inputs.any { it.value.isNotBlank() } || present.isNotEmpty() || comments.isNotBlank()
+}
+
+@Serializable
+data class Photo(
+    val id: String,
+    val section: String,
+    val category: String,
+    /** Relative to filesDir. */
+    val file: String,
+    val flag: Int = 0,
+    val quickComment: String = "",
+    val customComment: String = "",
+    val createdAt: Long = System.currentTimeMillis(),
+) {
+    val caption: String get() = listOf(quickComment, customComment).filter { it.isNotBlank() }.joinToString(" — ")
+}
+
+@Serializable
+data class Finding(
+    val id: String,
+    val cat: Int,
+    val text: String,
+    val section: String,
+    val photoId: String? = null,
+    val createdAt: Long = System.currentTimeMillis(),
+)
+
+/** Everything stored for one inspection. `defs` is the checklist snapshot taken when the checklist was built. */
+data class InspectionBundle(
+    val inspection: Inspection,
+    val answers: Map<String, SectionAnswers> = emptyMap(),
+    val photos: List<Photo> = emptyList(),
+    val findings: List<Finding> = emptyList(),
+    val defs: Map<String, SectionDef> = emptyMap(),
+) {
+    val id: String get() = inspection.id
+    fun status(section: String): String = answers[section]?.status ?: SecStatus.TODO
+}
+
+/** "Bathroom 2" → "Bathroom" (numbered room instances share the base section's checklist). */
+fun baseName(name: String): String = name.replace(Regex("\\s+\\d+$"), "")
