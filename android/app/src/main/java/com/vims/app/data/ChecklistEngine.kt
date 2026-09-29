@@ -121,14 +121,17 @@ class ChecklistEngine(val config: ChecklistConfig, val edits: ChecklistEdits) {
 
         /** Items to render for a section at a depth (Fast Entry renders its own "Items present" chips). */
         fun itemsFor(def: SectionDef, depth: String): List<ItemDef> =
-            if (depth == "high" && def.itemsHigh != null) def.itemsHigh else def.items
+            if (def.form == null && depth == "high" && def.itemsHigh != null) def.itemsHigh else def.items
+
+        /** State forms ignore the inspection's checklist depth. */
+        fun effectiveDepth(def: SectionDef?, depth: String): String = if (def?.form != null) "standard" else depth
 
         /** High Detail without a High Detail list → Standard items + an optional "Detail / measurement" input. */
-        fun showDetailInput(def: SectionDef, depth: String): Boolean = depth == "high" && def.itemsHigh == null
+        fun showDetailInput(def: SectionDef, depth: String): Boolean = def.form == null && depth == "high" && def.itemsHigh == null
 
         fun photoCategories(def: SectionDef?, depth: String): List<String> {
             if (def == null) return listOf("Overview", "Concerns")
-            val cats = if (depth == "high" && !def.photoCategoriesHigh.isNullOrEmpty()) def.photoCategoriesHigh else def.photoCategories
+            val cats = if (def.form == null && depth == "high" && !def.photoCategoriesHigh.isNullOrEmpty()) def.photoCategoriesHigh else def.photoCategories
             return cats.ifEmpty { listOf("Overview", "Concerns") }
         }
 

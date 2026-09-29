@@ -96,7 +96,7 @@ object VIcons {
     fun named(name: String?) = when (name) {
         "info" -> info; "tree" -> tree; "sofa" -> sofa; "flask" -> flask; "list" -> list; "layers" -> layers
         "box" -> box; "bolt" -> bolt; "wind" -> wind; "flame" -> flame; "drop", "water" -> drop; "file" -> file
-        "home" -> home; "grid" -> grid
+        "home" -> home; "grid" -> grid; "camera" -> camera
         else -> info
     }
 }

@@ -4,6 +4,10 @@ import android.content.Context
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonPrimitive
 
 /**
  * Typed view of `shared/data/vims-checklists.json` (packaged as assets/data/vims-checklists.json).
@@ -27,10 +31,31 @@ data class ChecklistConfig(
     val subscription: SubscriptionDef = SubscriptionDef(),
     val support: SupportDef = SupportDef(),
     val sample: SampleDef? = null,
+    /** Badge text for state / insurance form sections, keyed by SectionDef.form (texas | fourPoint). */
+    val formLabels: Map<String, String> = emptyMap(),
+    /** Page order of the PDF per inspection type (`typeToLayout` picks the layout). */
+    val reportLayouts: JsonObject = JsonObject(emptyMap()),
 ) {
     fun section(name: String): SectionDef? = sections.firstOrNull { it.name == name }
     fun depthId(label: String): String = depths.firstOrNull { it.label == label }?.id ?: "standard"
     fun depthLabel(id: String): String = depths.firstOrNull { it.id == id }?.label ?: "Standard"
+
+    /** Report layout for an inspection type: [LAYOUT_TEXAS], [LAYOUT_FOUR_POINT] or [LAYOUT_STANDARD]. */
+    fun reportLayout(inspType: String): String {
+        val map = (reportLayouts["typeToLayout"] as? JsonObject).orEmpty()
+        val key = (map[inspType] ?: map["*"])?.jsonPrimitive?.contentOrNull ?: return LAYOUT_STANDARD
+        return when {
+            key == "texas" -> LAYOUT_TEXAS
+            key == "4 Point Inspection" || key.equals("fourPoint", true) || key.equals("4point", true) -> LAYOUT_FOUR_POINT
+            else -> LAYOUT_STANDARD
+        }
+    }
+
+    companion object {
+        const val LAYOUT_STANDARD = "standard"
+        const val LAYOUT_TEXAS = "texas"
+        const val LAYOUT_FOUR_POINT = "fourPoint"
+    }
 }
 
 @Serializable
@@ -48,6 +73,10 @@ data class SectionDef(
     val photoCategoriesHigh: List<String>? = null,
     val items: List<ItemDef> = emptyList(),
     val itemsHigh: List<ItemDef>? = null,
+    /** State / insurance form (texas | fourPoint): ignores checklist depth, no Overall condition row. */
+    val form: String? = null,
+    /** Picture page only: opening it goes straight to the photo screen. */
+    val photosOnly: Boolean = false,
 )
 
 /** One checklist line. Either a sub-section header band (`header`) or a question (`q` + `type`). */
@@ -98,7 +127,20 @@ data class WizardDef(
     val testOptions: List<String> = emptyList(),
     val roomCounts: List<RoomCountDef> = emptyList(),
     val defaults: WizardDefaults = WizardDefaults(),
-)
+    /** Extra step-1 fields per inspection type (Texas sponsor, 4-Point insured / policy #). */
+    val typeFields: JsonObject = JsonObject(emptyMap()),
+) {
+    fun typeFieldsFor(inspType: String): List<TypeFieldDef> =
+        (typeFields[inspType] as? JsonArray)?.mapNotNull { e ->
+            val o = e as? JsonObject ?: return@mapNotNull null
+            val label = o["label"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+            TypeFieldDef(label, o["key"]?.jsonPrimitive?.contentOrNull ?: label)
+        }.orEmpty()
+}
+
+data class TypeFieldDef(val label: String, val key: String)
+
+
 
 @Serializable
 data class WizardFieldDef(

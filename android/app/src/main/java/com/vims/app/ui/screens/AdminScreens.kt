@@ -67,7 +67,7 @@ import com.vims.app.ui.theme.VIcons
 import com.vims.app.util.Fmt
 
 private fun groupIcon(g: String): ImageVector = when (g) {
-    "Testing" -> VIcons.flask; "Utility" -> VIcons.bolt; "Interior" -> VIcons.sofa; "Phase Inspections" -> VIcons.layers; else -> VIcons.tree
+    "Testing" -> VIcons.flask; "Utility" -> VIcons.bolt; "State & Insurance Forms" -> VIcons.file; "Interior" -> VIcons.sofa; "Phase Inspections" -> VIcons.layers; else -> VIcons.tree
 }
 
 @Composable
@@ -139,8 +139,13 @@ fun EditSectionScreen(vm: AppViewModel, nav: NavHostController, name: String) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 34.dp)) {
             item(key = "tier") {
                 Column {
-                    Text("Checklist tier", style = T.ui(12.5.sp, FontWeight.SemiBold, V.ink2), modifier = Modifier.padding(bottom = 7.dp))
-                    SingleChips(listOf("Standard", "High Detail"), if (high) "High Detail" else "Standard", { v -> if (v != null) high = v == "High Detail" }, required = true)
+                    if (def?.form == null) {
+                        Text("Checklist tier", style = T.ui(12.5.sp, FontWeight.SemiBold, V.ink2), modifier = Modifier.padding(bottom = 7.dp))
+                        SingleChips(listOf("Standard", "High Detail"), if (high) "High Detail" else "Standard", { v -> if (v != null) high = v == "High Detail" }, required = true)
+                    } else {
+                        Text("${vm.config.formLabels[def.form] ?: "State form"} — the same items print at every checklist depth.", style = T.ui(12.sp, color = V.ink3))
+                    }
+                    if (def?.photosOnly == true) Text("Picture page — photo categories only, no checklist items.", style = T.ui(12.sp, color = V.ink3), modifier = Modifier.padding(top = 6.dp))
                     if (high && def?.itemsHigh == null) Text("This section has no separate High Detail list yet — saving creates one from these items.", style = T.ui(12.sp, color = V.ink3), modifier = Modifier.padding(top = 8.dp))
                     Lbl("Checklist items · $name")
                 }

@@ -209,6 +209,19 @@ private fun WizardFields(vm: AppViewModel, defs: List<WizardFieldDef>, sel: Wiza
                             Lbl("Component(s) to inspect")
                             MultiChips(cfg.componentOptions, sel.component, { o -> vm.updateSel { it.copy(component = it.component.toggle(o)) } })
                         }
+                        // Texas (TREC REI 7-6) asks for a sponsor; the 4-Point form asks for the insured and policy #.
+                        val typeFields = cfg.typeFieldsFor(sel.inspType)
+                        if (typeFields.isNotEmpty()) {
+                            Lbl(typeFieldsTitle(sel.inspType))
+                            typeFields.forEach { tf ->
+                                Column(Modifier.padding(bottom = 13.dp)) {
+                                    FieldLabel(tf.label)
+                                    VInput(sel.fields[tf.key].orEmpty(), { v -> vm.updateSel { it.copy(fields = it.fields + (tf.key to v)) } },
+                                        placeholder = typeFieldPlaceholder(tf.key, tf.label),
+                                        caps = if (tf.key.contains("name", true)) KeyboardCapitalization.Words else KeyboardCapitalization.None)
+                                }
+                            }
+                        }
                     }
                     "wstruct" -> {
                         SingleChips(cfg.structureTypes, sel.structure, { v ->
@@ -250,4 +263,14 @@ private fun FieldCell(vm: AppViewModel, f: WizardFieldDef, sel: WizardSelections
                 caps = if (f.label.contains("name", true) || f.label.contains("address", true)) KeyboardCapitalization.Words else KeyboardCapitalization.None)
         }
     }
+}
+
+private fun typeFieldsTitle(type: String) = when (type) { "Texas" -> "Texas TREC form"; "4 Point Inspection" -> "4-Point form"; else -> type }
+
+private fun typeFieldPlaceholder(key: String, label: String) = when (key) {
+    "sponsorName" -> "Sponsor name"
+    "sponsorLicense" -> "TREC license #"
+    "insuredName" -> "Name on the insurance application"
+    "policyNumber" -> "Policy or application number"
+    else -> label
 }

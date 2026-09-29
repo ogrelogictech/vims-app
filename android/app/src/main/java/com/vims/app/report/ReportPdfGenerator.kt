@@ -84,6 +84,9 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
     private lateinit var company: CompanyProfile
     private var logo: Bitmap? = null
 
+    /** Page header used by `startPage()` / page breaks (running brand header by default; TREC header on Texas checklist pages). */
+    private var pageHeader: () -> Unit = { runningHeader() }
+
     private fun startPage(header: Boolean = true) {
         finishPage()
         pageNo++
@@ -93,7 +96,7 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
         cv.scale(SCALE, SCALE)
         cv.drawRect(0f, 0f, PW, PH, fill(Color.WHITE))
         y = PADY
-        if (header) runningHeader()
+        if (header) pageHeader()
     }
 
     private fun finishPage() {
@@ -151,6 +154,10 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
     }
 
     private fun footer() {
+        when (layoutKind) {
+            ChecklistConfig.LAYOUT_TEXAS -> { texasFooter(); return }
+            ChecklistConfig.LAYOUT_FOUR_POINT -> { fourPointFooter(); return }
+        }
         val top = PH - PADY - 30f
         cv.drawRect(PADX, top - 14f, PW - PADX, top - 13f, fill(LINE))
         val sel = b.inspection.selections
@@ -220,19 +227,16 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
 
     // ------------------------------------------------------------------ build
 
+    private var layoutKind = ChecklistConfig.LAYOUT_STANDARD
+    /** Total page count for "Page X of Y" footers (Texas / 4-Point) — known after a first layout pass. */
+    private var totalPages = 0
+
     fun generate(bundle: InspectionBundle, company: CompanyProfile): ReportOutput {
         b = bundle; this.company = company
+        layoutKind = config.reportLayout(bundle.inspection.selections.inspType)
         logo = company.logoFile?.let { BitmapFactory.decodeFile(File(context.filesDir, it).path) } ?: BitmapFactory.decodeResource(context.resources, R.drawable.vims_logo)
-        doc = PdfDocument(); pageNo = 0; page = null
-
-        cover()
-        propertyInfo()
-        beginningNotes()
-        val sections = bundle.inspection.leafSections.filter { bundle.status(it) == SecStatus.DONE }
-            .sortedWith(compareBy<String>({ ChecklistEngine.number(bundle.defs, it) }, { it }))
-        sections.forEach { s -> sectionPages(s); photoPages(s) }
-        summary()
-        finishPage()
+        if (layoutKind != ChecklistConfig.LAYOUT_STANDARD) { render(); totalPages = pageNo; doc.close() }
+        render()
 
         val dir = File(repo.inspectionDir(bundle.id), "report").apply { mkdirs() }
         dir.listFiles()?.forEach { it.delete() }
@@ -241,6 +245,34 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
         FileOutputStream(out).use { doc.writeTo(it) }
         doc.close()
         return ReportOutput(out, pageNo)
+    }
+
+    /** Page order per `reportLayouts` in vims-checklists.json. */
+    private fun render() {
+        doc = PdfDocument(); pageNo = 0; page = null; pageHeader = { runningHeader() }
+        cover()
+        when (layoutKind) {
+            ChecklistConfig.LAYOUT_TEXAS -> {
+                trecInfoPage()
+                formSections().forEach { trecChecklist(it) }
+                picturePages()
+                pageHeader = { runningHeader() }
+                summary()
+            }
+            ChecklistConfig.LAYOUT_FOUR_POINT -> {
+                fourPointForm()
+                picturePages()
+            }
+            else -> {
+                propertyInfo()
+                beginningNotes()
+                val sections = b.inspection.leafSections.filter { b.status(it) == SecStatus.DONE }
+                    .sortedWith(compareBy<String>({ ChecklistEngine.number(b.defs, it) }, { it }))
+                sections.forEach { s -> sectionPages(s); photoPages(s) }
+                summary()
+            }
+        }
+        finishPage()
     }
 
     private fun coverColors(): Pair<Int, Int> {
@@ -258,14 +290,22 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
         addrBlock(PW - 46f, 40f, 12.5f, 11.5f, 18.4f)
         y = 40f + maxOf(64f, 12.5f + addrLines().size * 18.4f) + 26f
         val h1 = tp(archivo800, 26f).apply { textAlign = Paint.Align.CENTER }
-        cv.drawText("Inspection Report", PW / 2, y + 24f, h1)
+        cv.drawText(when (layoutKind) {
+            ChecklistConfig.LAYOUT_TEXAS -> "Property Inspection Report"
+            ChecklistConfig.LAYOUT_FOUR_POINT -> "4-Point Inspection Report"
+            else -> "Inspection Report"
+        }, PW / 2, y + 24f, h1)
         y += 26f + 18f + 6f
-        val rows = listOf(
+        val rows = if (layoutKind == ChecklistConfig.LAYOUT_FOUR_POINT) listOf(
+            "Insured / Applicant" to sel.field("insuredName").ifBlank { sel.clientName }, "Application / Policy #" to sel.field("policyNumber"),
+            "Address Inspected" to sel.street, "" to sel.cityLine, "Actual Year Built" to sel.field("Year of construction"),
+            "Date Inspected" to Fmt.slash(sel.date),
+        ) else listOf(
             "Client Name" to sel.clientName, "Address of Inspection" to sel.street, "" to sel.cityLine,
             "Date of Inspection" to Fmt.slash(sel.date), "Real Estate Agent" to sel.agentName,
-            "Name of Inspector" to company.inspectorName,
         )
         val fl = tp(plex700, 15f); val fv = tp(plex400, 20f)
+        fun fit(t: String, w: Float): String { var x = t; while (x.isNotEmpty() && fv.measureText(x) > w) x = x.dropLast(1); return x }
         rows.forEach { (l, v) ->
             val lw = if (l.isEmpty()) 0f else fl.measureText(l) + 12f
             if (l.isNotEmpty()) cv.drawText(l, 60f, y + 20f, fl)
@@ -274,6 +314,20 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
             while (text.isNotEmpty() && fv.measureText(text) > PW - 60f - vx) text = text.dropLast(1)
             cv.drawText(text, vx, y + 20f, fv)
             cv.drawRect(vx, y + 26f, PW - 60f, y + 27f, fill(Color.parseColor("#9FB0C2")))
+            y += 27f + 15f
+        }
+        // Name of Inspector with License # to its right (every report type)
+        run {
+            val lw = fl.measureText("Name of Inspector") + 12f
+            val licLabelW = fl.measureText("License #")
+            val licValX = PW - 60f - 150f
+            val licLabelX = licValX - 12f - licLabelW
+            cv.drawText("Name of Inspector", 60f, y + 20f, fl)
+            cv.drawText(fit(company.inspectorName, licLabelX - 22f - (60f + lw)), 60f + lw, y + 20f, fv)
+            cv.drawRect(60f + lw, y + 26f, licLabelX - 10f, y + 27f, fill(Color.parseColor("#9FB0C2")))
+            cv.drawText("License #", licLabelX, y + 20f, fl)
+            cv.drawText(fit(inspectorLicense(), 150f), licValX, y + 20f, fv)
+            cv.drawRect(licValX, y + 26f, PW - 60f, y + 27f, fill(Color.parseColor("#9FB0C2")))
             y += 27f + 15f
         }
         // cover art band (bottom)
@@ -311,6 +365,8 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
         cv.drawRoundRect(tr, 9f, 9f, fill(Color.argb(41, 255, 255, 255)))
         cv.drawText(tag, tr.left + 9f, tr.bottom - 5.5f, tagP)
     }
+
+    private fun inspectorLicense(): String = b.inspection.selections.license.ifBlank { company.license }
 
     private fun coverPhoto(): Bitmap? {
         val photos = b.photos
@@ -509,7 +565,7 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
 
     private fun summary() {
         startPage()
-        title("Summary of Findings", "Findings grouped by category, in the order they appear in the report")
+        title("Summary of Findings", if (layoutKind == ChecklistConfig.LAYOUT_TEXAS) "Findings grouped by category" else "Findings grouped by category, in the order they appear in the report")
         config.findings.categories.forEach { cat ->
             val items = b.findings.filter { it.cat == cat.id }.sortedWith(compareBy({ ChecklistEngine.number(b.defs, it.section) }, { it.createdAt }))
             val rows = items.mapIndexed { i, f ->
@@ -559,4 +615,366 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
             }
         }
     }
+
+    // ================================================================== state & insurance forms
+
+    /** Checklist sections of a form inspection (everything except the picture page), in checklist order. */
+    private fun formSections(): List<String> = b.inspection.leafSections.filter { b.defs[baseName(it)]?.photosOnly != true }
+        .sortedWith(compareBy<String>({ ChecklistEngine.number(b.defs, it) }, { it }))
+
+    private fun pageOfTotal() = if (totalPages > 0) "Page $pageNo of $totalPages" else "Page $pageNo"
+
+    private fun texasFooter() {
+        val top = PH - PADY - 22f
+        cv.drawRect(PADX, top - 10f, PW - PADX, top - 9f, fill(INK))
+        val p = tp(plex400, 9.5f, INK2)
+        cv.drawText("REI 7-6 (8/9/21)  ·  Promulgated by the Texas Real Estate Commission  ·  (512) 936-3000  ·  www.trec.texas.gov", PADX, top + 6f, p)
+        cv.drawText(pageOfTotal(), PW - PADX, top + 6f, tp(plex400, 9.5f, INK2).apply { textAlign = Paint.Align.RIGHT })
+    }
+
+    private fun fourPointFooter() {
+        val top = PH - PADY - 30f
+        cv.drawRect(PADX, top - 14f, PW - PADX, top - 13f, fill(LINE))
+        val sel = b.inspection.selections
+        cv.drawText("4-Point Inspection · ${sel.street} · ${Fmt.slash(sel.date)}", PADX, top + 2f, tp(plex400, 10f, INK3))
+        cv.drawText(pageOfTotal(), PW - PADX, top + 2f, tp(plex400, 10f, INK3).apply { textAlign = Paint.Align.RIGHT })
+    }
+
+    private fun addressLine(): String = b.inspection.selections.let { listOf(it.street, it.cityLine).filter { x -> x.isNotBlank() }.joinToString(", ") }
+
+    /** TREC REI 7-6 page 1: client / inspector / sponsor block + the promulgated text. */
+    private fun trecInfoPage() {
+        pageHeader = {}
+        startPage(header = false)
+        val sel = b.inspection.selections
+        cv.drawText("PROPERTY INSPECTION REPORT FORM", PW / 2, y + 16f, tp(archivo800, 16f).apply { textAlign = Paint.Align.CENTER })
+        y += 16f + 14f
+        val gap = 16f
+        val w1 = (CW - gap) * 1.6f / 2.6f; val w2 = CW - gap - w1
+        fun cell(x: Float, w: Float, label: String, value: String) {
+            cv.drawText(label, x, y + 10f, tp(plex400, 9.5f, INK3))
+            var v = value; val vp = tp(plex400, 11f, INK)
+            while (v.isNotEmpty() && vp.measureText(v) > w) v = v.dropLast(1)
+            cv.drawText(v, x, y + 24f, vp)
+            cv.drawRect(x, y + 29f, x + w, y + 30f, fill(INK))
+        }
+        fun row(a: Pair<String, String>, b2: Pair<String, String>?) {
+            if (b2 == null) cell(PADX, CW, a.first, a.second)
+            else { cell(PADX, w1, a.first, a.second); cell(PADX + w1 + gap, w2, b2.first, b2.second) }
+            y += 30f + 7f
+        }
+        row("Name of Client" to sel.clientName, "Date of Inspection" to Fmt.slash(sel.date))
+        row("Address of Inspected Property" to addressLine(), null)
+        row("Name of Inspector" to company.inspectorName, "TREC License #" to inspectorLicense())
+        row("Name of Sponsor (if applicable)" to sel.field("sponsorName"), "TREC License #" to sel.field("sponsorLicense"))
+        y += 4f
+        TREC_TEXT.forEach { block ->
+            when (block) {
+                is TrecBlock.Heading -> { val l = layout(block.text, tp(plex700, 10.6f), CW); ensure(l.height + 30f); cv.drawLayout(l, PADX, y); y += l.height }
+                is TrecBlock.Para -> {
+                    val sb = android.text.SpannableStringBuilder()
+                    if (block.lead != null) { sb.append(block.lead); sb.setSpan(android.text.style.StyleSpan(Typeface.BOLD), 0, sb.length, 0); sb.append(" ") }
+                    sb.append(block.text)
+                    val l = layout(sb, tp(plex400, 10.2f), CW, spacing = 1.3f); ensure(l.height + 6f); cv.drawLayout(l, PADX, y); y += l.height + 6f
+                }
+                is TrecBlock.Bullets -> {
+                    block.items.forEach { t ->
+                        val l = layout(t, tp(plex400, 10.2f), CW - 16f, spacing = 1.3f); ensure(l.height.toFloat())
+                        cv.drawText("•", PADX + 4f, y + 10f, tp(plex400, 10.2f)); cv.drawLayout(l, PADX + 16f, y); y += l.height
+                    }
+                    y += 6f
+                }
+            }
+        }
+    }
+
+    private var trecSystem = ""
+
+    private fun trecHeader(system: String) {
+        val p = tp(plex400, 11f, INK2)
+        val bold = tp(plex700, 11f, INK)
+        cv.drawText("Report Identification:", PADX, y + 11f, bold)
+        var addr = addressLine(); val ax = PADX + bold.measureText("Report Identification:") + 5f
+        while (addr.isNotEmpty() && p.measureText(addr) > PW - PADX - ax) addr = addr.dropLast(1)
+        cv.drawText(addr, ax, y + 11f, p)
+        cv.drawRect(PADX, y + 17f, PW - PADX, y + 18f, fill(INK))
+        y += 18f + 8f
+        cv.drawText("I=Inspected    NI=Not Inspected    NP=Not Present    D=Deficient", PADX, y + 10.5f, tp(plex700, 10.5f, INK))
+        y += 10.5f + 10f
+        listOf("I", "NI", "NP", "D").forEachIndexed { i, t ->
+            val r = RectF(PADX + i * 26f, y, PADX + (i + 1) * 26f, y + 17f)
+            cv.drawRect(r, fill(PAPER2)); cv.drawRect(r, stroke(Color.parseColor("#9AA5B1"), 1f))
+            cv.drawText(t, r.centerX(), r.bottom - 5f, tp(plex700, 10f, INK).apply { textAlign = Paint.Align.CENTER })
+        }
+        y += 17f + 8f
+        val l = layout(system, tp(archivo800, 13f), CW)
+        cv.drawLayout(l, PADX, y + 4f); y += l.height + 8f
+        cv.drawRect(PADX, y, PW - PADX, y + 1f, fill(LINE)); y += 4f
+    }
+
+    /** One TREC system (section): rows with I / NI / NP / D boxes, component name, form fields and comments. */
+    private fun trecChecklist(section: String) {
+        val def = b.defs[baseName(section)] ?: return
+        val a = b.answers[section] ?: SectionAnswers()
+        trecSystem = section.substringAfter("— ").uppercase(Locale.US)
+        pageHeader = { trecHeader("$trecSystem (continued)") }
+        startPage(header = false)
+        trecHeader(trecSystem)
+        data class Comp(val name: String, val marks: BooleanArray, val fields: List<String>, val comment: String)
+        val comps = mutableListOf<Comp>()
+        var cur: Comp? = null
+        ChecklistEngine.keyed(def.items).forEach { (key, it) ->
+            if (key == null) { cur?.let { c -> comps += c }; cur = Comp(it.header.orEmpty(), BooleanArray(4), emptyList(), ""); return@forEach }
+            val c = cur ?: Comp("", BooleanArray(4), emptyList(), "").also { n -> cur = n }
+            when {
+                it.isChoice && it.q == "Status" -> a.values[key].orEmpty().forEach { v ->
+                    val idx = listOf("I", "NI", "NP", "D").indexOf(v.substringBefore(" ·").trim())
+                    if (idx >= 0) c.marks[idx] = true
+                }
+                it.q == "Comments" -> cur = c.copy(comment = a.inputs[key].orEmpty().trim())
+                it.isChoice -> cur = c.copy(fields = c.fields + "${it.q}: ${a.values[key].orEmpty().joinToString(", ")}")
+                else -> cur = c.copy(fields = c.fields + "${it.q}: ${answerText(key, it, a, false).orEmpty()}")
+            }
+        }
+        cur?.let { comps += it }
+        val boxBorder = stroke(Color.parseColor("#9AA5B1"), 1f)
+        val itemX = PADX + 4 * 26f + 10f; val itemW = PW - PADX - itemX
+        comps.forEach { c ->
+            val name = layout(c.name, tp(plex700, 11.5f), itemW)
+            val fields = c.fields.map { layout(it, tp(plex400, 11f, INK2), itemW) }
+            val cm = android.text.SpannableStringBuilder("Comments: ").apply {
+                setSpan(android.text.style.ForegroundColorSpan(INK3), 0, length, 0); append(c.comment)
+            }
+            val comment = layout(cm, tp(plex400, 11f, INK), itemW)
+            val h = 5f + name.height + fields.sumOf { it.height + 2 } + 3f + comment.height + 6f
+            ensure(h)
+            listOf(0, 1, 2, 3).forEach { i ->
+                val r = RectF(PADX + i * 26f, y, PADX + (i + 1) * 26f, y + h)
+                cv.drawRect(r, boxBorder)
+                if (c.marks[i]) cv.drawText("✓", r.centerX(), y + 17f, tp(plex700, 12f, INK).apply { textAlign = Paint.Align.CENTER })
+            }
+            var ty = y + 5f
+            cv.drawLayout(name, itemX, ty); ty += name.height
+            fields.forEach { f -> ty += 2f; cv.drawLayout(f, itemX, ty); ty += f.height }
+            ty += 3f; cv.drawLayout(comment, itemX, ty)
+            cv.drawRect(itemX - 10f, y + h - 1f, PW - PADX, y + h, fill(LINE2))
+            y += h
+        }
+    }
+
+    /** Picture pages (Texas + 4-Point): 3 columns, 6 per page; the Pictures section first, then photos from the form sections. */
+    private fun picturePages() {
+        pageHeader = { runningHeader() }
+        val picsSection = b.inspection.leafSections.firstOrNull { b.defs[baseName(it)]?.photosOnly == true }
+        val photos = b.photos.filter { it.section == picsSection } + b.photos.filter { it.section != picsSection }
+        val chunks = photos.chunked(6).ifEmpty { listOf(emptyList()) }
+        val colW = (CW - 24f) / 3; val imgH = colW * 3f / 4f
+        val capP = tp(plex400, 11f, INK2)
+        chunks.forEachIndexed { ci, chunk ->
+            startPage()
+            picTitle(if (ci == 0) "Pictures" else "Pictures (continued)")
+            if (chunk.isEmpty()) { cv.drawText("No pictures were added to this inspection.", PADX, y + 14f, tp(plex400, 12.5f, INK3)); return@forEachIndexed }
+            chunk.chunked(3).forEach { row ->
+                val caps = row.map { p ->
+                    val t = listOf(if (p.section == picsSection) p.category else "${p.section.substringAfter("— ")} · ${p.category}", p.caption).filter { it.isNotBlank() }.joinToString(" — ")
+                    layout(t, capP, colW - 18f)
+                }
+                val h = imgH + caps.maxOf { it.height } + 16f
+                row.forEachIndexed { i, p ->
+                    val x = PADX + i * (colW + 12f)
+                    val card = RectF(x, y, x + colW, y + h)
+                    cv.save(); cv.clipPath(Path().apply { addRoundRect(card, 8f, 8f, Path.Direction.CW) })
+                    val ir = RectF(x, y, x + colW, y + imgH)
+                    val bmp = loadBitmap(p, 700)
+                    if (bmp != null) { drawCover(bmp, ir); bmp.recycle() } else cv.drawRect(ir, fill(LINE))
+                    cv.restore()
+                    cv.drawRoundRect(card, 8f, 8f, stroke(LINE, 1f))
+                    if (p.flag > 0) {
+                        val tagP = tp(plex700, 10f, Color.WHITE); val tw = tagP.measureText("Deficiency") + 18f
+                        cv.drawRoundRect(RectF(x + 8f, y + 8f, x + 8f + tw, y + 26f), 9f, 9f, fill(C[1])); cv.drawText("Deficiency", x + 17f, y + 21f, tagP)
+                    }
+                    cv.drawLayout(caps[i], x + 9f, y + imgH + 8f)
+                }
+                y += h + 12f
+            }
+        }
+    }
+
+    private fun picTitle(t: String) {
+        val h = 44f
+        cv.drawRoundRect(RectF(PADX, y, PADX + CW, y + h), 9f, 9f, fill(BRAND))
+        val bx = RectF(PADX + 15f, y + 10f, PADX + 15f + 34f, y + h - 10f)
+        cv.drawRoundRect(bx, 7f, 7f, fill(Color.argb(51, 255, 255, 255)))
+        val w = stroke(Color.WHITE, 1.6f)
+        cv.drawRoundRect(RectF(bx.left + 8f, bx.top + 7f, bx.right - 8f, bx.bottom - 5f), 2.5f, 2.5f, w)
+        cv.drawCircle(bx.centerX(), bx.centerY() + 1f, 3.6f, w)
+        cv.drawText(t, bx.right + 10f, y + h / 2 + 6f, tp(archivo700, 16f, Color.WHITE))
+        y += h + 14f
+    }
+
+    // ---- 4-Point form
+
+    private class FpBox(val title: String?, val items: List<Pair<String, ItemDef>>) {
+        val sup get() = title?.startsWith("Supplemental", true) == true
+        val comments get() = title?.startsWith("Additional Comments", true) == true
+    }
+
+    private val FP_EDGE = Color.parseColor("#555555")
+    private val CERT_H = 7f + 16f + 2 * 44f + 10f
+
+    private fun fpItemText(key: String, it: ItemDef, a: SectionAnswers): CharSequence {
+        val sb = android.text.SpannableStringBuilder()
+        fun bold(t: String) { val st = sb.length; sb.append(t); sb.setSpan(android.text.style.StyleSpan(Typeface.BOLD), st, sb.length, 0) }
+        sb.append("${it.q}: ")
+        if (it.isChoice) {
+            val sel = a.values[key].orEmpty()
+            it.options.orEmpty().forEachIndexed { i, o -> if (i > 0) sb.append("   "); if (o in sel) { sb.append("☑ "); bold(o) } else sb.append("☐ $o") }
+        } else {
+            val v = answerText(key, it, a, false)
+            if (v.isNullOrBlank()) sb.append("__________") else bold(v)
+        }
+        return sb
+    }
+
+    /** Lays out one box (or two boxes side by side) and returns its height and a draw function. */
+    private fun fpMeasure(boxes: List<FpBox>, a: SectionAnswers): Pair<Float, (Float) -> Unit> {
+        val gap = 18f
+        val colW = (CW - 20f - gap * (boxes.size - 1)) / boxes.size
+        val cols = boxes.map { box ->
+            val ls = mutableListOf<StaticLayout>()
+            if (box.title != null && !box.comments) ls += layout(box.title, tp(plex700, 11f), colW)
+            box.items.forEach { (k, it) ->
+                ls += if (box.comments) layout(a.inputs[k].orEmpty().ifBlank { " " }, tp(plex400, 11f), colW)
+                else layout(fpItemText(k, it, a), tp(plex400, 11f), colW, spacing = 1.15f)
+            }
+            if (box.comments) ls.add(0, layout(box.title.orEmpty(), tp(plex700, 11f), colW))
+            ls
+        }
+        var h = cols.maxOf { c -> c.sumOf { it.height + 3 }.toFloat() } + 14f
+        if (boxes.first().comments) h = maxOf(h, 70f)
+        val draw: (Float) -> Unit = { top ->
+            val r = RectF(PADX, top, PADX + CW, top + h)
+            if (boxes.first().sup) cv.drawRect(r, fill(Color.parseColor("#ECECEC")))
+            cv.drawRect(r, stroke(FP_EDGE, 1f))
+            cols.forEachIndexed { i, c ->
+                var ty = top + 7f; val x = PADX + 10f + i * (colW + gap)
+                c.forEach { l -> cv.drawLayout(l, x, ty); ty += l.height + 3f }
+            }
+        }
+        return h to draw
+    }
+
+    private fun fpBand(title: String, note: String?) {
+        val t = layout(title, tp(archivo800, 14f, Color.parseColor("#111111")), CW - 20f)
+        val n = note?.let { layout(it, tp(plex400, 10f, Color.parseColor("#111111")), CW - 20f) }
+        val h = t.height + (n?.height ?: 0) + 12f
+        ensure(h + 60f)
+        val r = RectF(PADX, y, PADX + CW, y + h)
+        cv.drawRect(r, fill(Color.parseColor("#AAA5A1"))); cv.drawRect(r, stroke(FP_EDGE, 1f))
+        cv.drawLayout(t, PADX + 10f, y + 6f); n?.let { cv.drawLayout(it, PADX + 10f, y + 6f + t.height) }
+        y += h
+    }
+
+    private fun fourPointForm() {
+        pageHeader = { runningHeader() }
+        val secs = formSections()
+        secs.forEachIndexed { si, section ->
+            val def = b.defs[baseName(section)] ?: return@forEachIndexed
+            val a = b.answers[section] ?: SectionAnswers()
+            // group items into boxes at each header band
+            val boxes = mutableListOf<FpBox>()
+            var title: String? = null; var items = mutableListOf<Pair<String, ItemDef>>()
+            ChecklistEngine.keyed(def.items).forEach { (k, it) ->
+                if (k == null) { if (items.isNotEmpty() || title != null) boxes += FpBox(title, items); title = it.header; items = mutableListOf() }
+                else items += k to it
+            }
+            if (items.isNotEmpty() || title != null) boxes += FpBox(title, items)
+            // side-by-side pairs (Main / Second panel, Predominant / Secondary roof): identical question lists
+            val rows = mutableListOf<List<FpBox>>()
+            var i = 0
+            while (i < boxes.size) {
+                val nx = boxes.getOrNull(i + 1)
+                if (nx != null && boxes[i].items.isNotEmpty() && boxes[i].items.map { it.second.q } == nx.items.map { it.second.q }) { rows += listOf(boxes[i], nx); i += 2 }
+                else { rows += listOf(boxes[i]); i++ }
+            }
+            val measured = rows.map { fpMeasure(it, a) }
+            val bandTitle = section.substringAfter("— ")
+            // The paper form keeps the certification with the last system, and prints Plumbing under HVAC.
+            val total = measured.sumOf { it.first.toDouble() }.toFloat() + 40f + (if (si == secs.lastIndex) CERT_H + 12f else 0f)
+            val sharesPage = bandTitle.contains("Plumbing", true)
+            if (si == 0 || !sharesPage || y + total > BOTTOM) startPage() else y += 12f
+            fpBand(bandTitle, if (bandTitle.contains("Electrical", true)) "Separate documentation of any aluminum wiring remediation must be provided and certified by a licensed electrician." else null)
+            measured.forEach { (h, draw) ->
+                if (y + h > BOTTOM) { startPage(); fpBand("$bandTitle (continued)", null) }
+                draw(y); y += h
+            }
+        }
+        fpCertification()
+    }
+
+    private fun fpCertification() {
+        val sel = b.inspection.selections
+        val cells = listOf(
+            company.inspectorName to "Inspector Signature", "Home Inspector" to "Title", inspectorLicense() to "License Number",
+            Fmt.slash(sel.date) to "Date", company.name to "Company Name", "Home Inspector" to "License Type", company.phone to "Work Phone",
+        )
+        val cellW = (CW - 20f - 3 * 14f) / 4
+        val h = CERT_H
+        ensure(h + 12f)
+        y += 12f
+        val r = RectF(PADX, y, PADX + CW, y + h)
+        cv.drawRect(r, stroke(FP_EDGE, 1f))
+        cv.drawText("I certify that the above statements are true and correct.", PADX + 10f, y + 18f,
+            tp(Typeface.create(plex400, Typeface.ITALIC), 11f, INK))
+        cells.forEachIndexed { i, (v, l) ->
+            val cx = PADX + 10f + (i % 4) * (cellW + 14f); val cy = y + 30f + (i / 4) * 44f
+            var t = v; val vp = tp(plex600, 11.5f, INK)
+            while (t.isNotEmpty() && vp.measureText(t) > cellW) t = t.dropLast(1)
+            cv.drawText(t, cx, cy + 12f, vp)
+            cv.drawRect(cx, cy + 20f, cx + cellW, cy + 21f, fill(Color.parseColor("#333333")))
+            cv.drawText(l, cx, cy + 33f, tp(plex400, 10f, INK2))
+        }
+        y += h
+    }
 }
+
+/** TREC REI 7-6 (8/9/21) promulgated text for page 1 of the Texas report (verbatim from report.html). */
+private sealed interface TrecBlock {
+    data class Heading(val text: String) : TrecBlock
+    data class Para(val text: String, val lead: String? = null) : TrecBlock
+    data class Bullets(val items: List<String>) : TrecBlock
+}
+
+private val TREC_TEXT: List<TrecBlock> = listOf(
+    TrecBlock.Heading("PURPOSE OF INSPECTION"),
+    TrecBlock.Para("A real estate inspection is a visual survey of a structure and a basic performance evaluation of the systems and components of a building. It provides information regarding the general condition of a residence at the time the inspection was conducted. It is important that you carefully read ALL of this information. Ask the inspector to clarify any items or comments that are unclear."),
+    TrecBlock.Heading("RESPONSIBILITY OF THE INSPECTOR"),
+    TrecBlock.Para("This inspection is governed by the Texas Real Estate Commission (TREC) Standards of Practice (SOPs), which dictates the minimum requirements for a real estate inspection."),
+    TrecBlock.Para("The inspector IS required to:"),
+    TrecBlock.Bullets(listOf(
+        "use this Property Inspection Report form for the inspection;",
+        "inspect only those components and conditions that are present, visible, and accessible at the time of the inspection;",
+        "indicate whether each item was inspected, not inspected, or not present;",
+        "indicate an item as Deficient (D) if a condition exists that adversely and materially affects the performance of a system or component OR constitutes a hazard to life, limb or property as specified by the SOPs; and",
+        "explain the inspector’s findings in the corresponding section in the body of the report form.",
+    )),
+    TrecBlock.Para("The inspector IS NOT required to:"),
+    TrecBlock.Bullets(listOf(
+        "identify all potential hazards;",
+        "turn on decommissioned equipment, systems, utilities, or apply an open flame or light a pilot to operate any appliance;",
+        "climb over obstacles, move furnishings or stored items;",
+        "prioritize or emphasize the importance of one deficiency over another;",
+        "provide follow-up services to verify that proper repairs have been made; or",
+        "inspect system or component listed under the optional section of the SOPs (22 TAC 535.233).",
+    )),
+    TrecBlock.Heading("RESPONSIBILITY OF THE CLIENT"),
+    TrecBlock.Para("While items identified as Deficient (D) in an inspection report DO NOT obligate any party to make repairs or take other actions, in the event that any further evaluations are needed, it is the responsibility of the client to obtain further evaluations and/or cost estimates from qualified service professionals regarding any items reported as Deficient (D). It is recommended that any further evaluations and/or cost estimates take place prior to the expiration of any contractual time limitations, such as option periods."),
+    TrecBlock.Para("Evaluations performed by service professionals in response to items reported as Deficient (D) on the report may lead to the discovery of additional deficiencies that were not present, visible, or accessible at the time of the inspection. Any repairs made after the date of the inspection may render information contained in this report obsolete or invalid.", lead = "Please Note:"),
+    TrecBlock.Heading("REPORT LIMITATIONS"),
+    TrecBlock.Para("This report is provided for the benefit of the named client and is based on observations made by the named inspector on the date the inspection was performed (indicated above). ONLY those items specifically noted as being inspected on the report were inspected. This inspection IS NOT:"),
+    TrecBlock.Bullets(listOf(
+        "a technically exhaustive inspection of the structure, its systems, or its components and may not reveal all deficiencies;",
+        "an inspection to verify compliance with any building codes;",
+        "an inspection to verify compliance with manufacturer’s installation instructions for any system or component and DOES NOT imply insurability or warrantability of the structure or its components.",
+    )),
+)

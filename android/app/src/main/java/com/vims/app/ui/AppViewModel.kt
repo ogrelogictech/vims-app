@@ -148,7 +148,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             val mins = ((now.hour * 60 + now.minute + 29) / 30 * 30) % (24 * 60)
             val sel = engine.value.defaultSelections(settings.value.defaultDepth)
             val time = String.format(Locale.US, "%02d:%02d", mins / 60, mins % 60)
-            WizardState(1, sel.copy(fields = sel.fields + mapOf(WizardSelections.F_DATE to LocalDate.now().toString(), WizardSelections.F_TIME to time)), null)
+            // Inspector License # defaults to the lead inspector's license from the Company profile.
+            val license = company.value.license.trim()
+            val prefill = mapOf(WizardSelections.F_DATE to LocalDate.now().toString(), WizardSelections.F_TIME to time) +
+                (if (license.isNotEmpty()) mapOf(WizardSelections.F_LICENSE to license) else emptyMap())
+            WizardState(1, sel.copy(fields = sel.fields + prefill), null)
         }
         if (debugWizardStep > 1) { _wizard.update { it.copy(step = debugWizardStep) }; debugWizardStep = 1 }
     }

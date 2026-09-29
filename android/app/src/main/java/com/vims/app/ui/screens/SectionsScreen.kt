@@ -108,8 +108,8 @@ fun SectionsScreen(vm: AppViewModel, nav: NavHostController, inspId: String) {
             GroupCard(g, b, open[g.heading] == true, onToggle = { open[g.heading] = open[g.heading] != true },
                 onLink = { nav.openLink(it, inspId) }, onSection = { nav.openSection(inspId, it) })
         }
-        VBtn("Review summary", { nav.navigate(SummaryR(inspId)) }, Modifier.padding(top = 8.dp), BtnKind.Signal, icon = VIcons.reviewSummary)
-        VBtn("Generate report", { nav.navigate(ReportR(inspId)) }, Modifier.padding(top = 10.dp), icon = VIcons.file)
+        if (b.inspection.hasSummary) VBtn("Review summary", { nav.navigate(SummaryR(inspId)) }, Modifier.padding(top = 8.dp), BtnKind.Signal, icon = VIcons.reviewSummary)
+        VBtn("Generate report", { nav.navigate(ReportR(inspId)) }, Modifier.padding(top = if (b.inspection.hasSummary) 10.dp else 8.dp), icon = VIcons.file)
     }
 }
 

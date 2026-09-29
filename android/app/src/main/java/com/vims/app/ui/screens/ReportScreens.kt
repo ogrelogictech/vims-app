@@ -57,6 +57,7 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import androidx.navigation.NavHostController
+import com.vims.app.data.ChecklistConfig
 import com.vims.app.data.ChecklistEngine
 import com.vims.app.data.CoverChoice
 import com.vims.app.data.InspectionBundle
@@ -95,7 +96,11 @@ fun coverBrush(vm: AppViewModel, color: String): Brush {
 }
 
 /** Rough page estimate before the PDF exists (cover + info + notes + sections + photo pages + summary). */
-fun estimatePages(b: InspectionBundle): Int {
+fun estimatePages(b: InspectionBundle, layout: String = ChecklistConfig.LAYOUT_STANDARD): Int {
+    val forms = b.inspection.leafSections.count { b.defs[com.vims.app.data.baseName(it)]?.photosOnly != true }
+    val pics = maxOf(1, (b.photos.size + 5) / 6)
+    if (layout == ChecklistConfig.LAYOUT_TEXAS) return 3 + forms + pics
+    if (layout == ChecklistConfig.LAYOUT_FOUR_POINT) return 4 + pics
     val done = b.inspection.leafSections.filter { b.status(it) == SecStatus.DONE }
     val photoPages = done.sumOf { s -> val n = b.photos.count { it.section == s }; (n + 5) / 6 }
     return 4 + done.size + photoPages
@@ -124,16 +129,22 @@ fun ReportScreen(vm: AppViewModel, nav: NavHostController, inspId: String) {
             Text(s.street, style = T.display(20.sp, FontWeight.ExtraBold, Color.White), modifier = Modifier.padding(top = 9.dp, bottom = 3.dp))
             Text(listOf(s.cityLine, "${propertyLabel(s.structure)} dwelling").filter { it.isNotBlank() }.joinToString(" · "), style = T.ui(12.5.sp, color = Color(0xFFCFE2EB)))
             Row(Modifier.padding(top = 15.dp), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-                MetaStat(if (b.inspection.reportPages > 0) "${b.inspection.reportPages}" else "~${estimatePages(b)}", "PAGES")
+                MetaStat(if (b.inspection.reportPages > 0) "${b.inspection.reportPages}" else "~${estimatePages(b, vm.config.reportLayout(s.inspType))}", "PAGES")
                 MetaStat("${b.findings.size}", "FINDINGS")
                 MetaStat("${b.photos.size}", "PHOTOS")
             }
         }
         Lbl("Report cover")
         CoverPicker(vm, cover, step, { step = it }) { vm.setCover(inspId, it) }
+        Lbl("Report pages")
+        Text(reportPagesText(vm.config.reportLayout(s.inspType)), style = T.ui(13.sp, color = V.ink2, lineHeight = 19.5.sp),
+            modifier = Modifier.padding(bottom = 12.dp).fillMaxWidth().vCard().padding(horizontal = 14.dp, vertical = 12.dp))
         Lbl("Report contents · in checklist order")
         Text("Completed sections populate the report in the order they're numbered on your master checklist.", style = T.ui(12.sp, color = V.ink3, lineHeight = 16.sp), modifier = Modifier.padding(start = 2.dp, end = 2.dp, bottom = 10.dp))
-        val done = b.inspection.leafSections.filter { b.status(it) == SecStatus.DONE }.sortedWith(compareBy({ ChecklistEngine.number(b.defs, it) }, { it }))
+        // State forms print every system of the form; standard reports include completed sections.
+        val formLayout = vm.config.reportLayout(s.inspType) != ChecklistConfig.LAYOUT_STANDARD
+        val done = b.inspection.leafSections.filter { formLayout && b.defs[com.vims.app.data.baseName(it)]?.photosOnly != true || b.status(it) == SecStatus.DONE }
+            .sortedWith(compareBy({ ChecklistEngine.number(b.defs, it) }, { it }))
         Column(Modifier.padding(bottom = 12.dp).fillMaxWidth().vCard().padding(vertical = 6.dp)) {
             if (done.isEmpty()) BinfoRow({ Text("No sections completed yet", style = T.ui(14.sp, color = V.ink3)) }, {}, last = true)
             done.forEachIndexed { i, n ->
@@ -148,6 +159,12 @@ fun ReportScreen(vm: AppViewModel, nav: NavHostController, inspId: String) {
         Banner("You're **offline**. The report generates on the device now; it uploads on the next sync.", VIcons.offline, Modifier.padding(top = 16.dp))
         VBtn("Generate PDF report", { vm.generateReport(inspId, markDone = true) { nav.navigate(GeneratedR(inspId)) } }, icon = VIcons.download, enabled = !generating)
     }
+}
+
+fun reportPagesText(layout: String) = when (layout) {
+    ChecklistConfig.LAYOUT_TEXAS -> "Cover · Inspector & property information (TREC REI 7-6) · Checklist (I / NI / NP / D) · Pictures · Summary"
+    ChecklistConfig.LAYOUT_FOUR_POINT -> "Cover · 4-Point checklist (Electrical, HVAC, Plumbing, Roof) · Pictures"
+    else -> "Cover · Property information · Beginning notes · Checklist sections with their photos · Summary"
 }
 
 @Composable

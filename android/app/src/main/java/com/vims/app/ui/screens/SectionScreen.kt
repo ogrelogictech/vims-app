@@ -39,6 +39,7 @@ import com.vims.app.data.SectionAnswers
 import com.vims.app.ui.AppViewModel
 import com.vims.app.ui.PhotosR
 import com.vims.app.ui.SectionsR
+import com.vims.app.ui.ReportR
 import com.vims.app.ui.SummaryR
 import com.vims.app.ui.components.BtnKind
 import com.vims.app.ui.components.BtnRow
@@ -62,13 +63,19 @@ import com.vims.app.util.Fmt
 fun NavHostController.toSections(inspId: String) { if (!popBackStack<SectionsR>(inclusive = false)) navigate(SectionsR(inspId)) }
 
 @Composable
-fun ModeTile(depth: String) {
-    val (label, bg) = when (depth) {
-        "high" -> "High Detail checklist" to V.brand
-        "fast" -> "Fast Entry checklist" to V.signalDeep
+fun ModeTile(depth: String, form: String? = null, formLabel: String? = null) {
+    val (label, bg) = when {
+        form != null -> (formLabel ?: form) to V.brand
+        depth == "high" -> "High Detail checklist" to V.brand
+        depth == "fast" -> "Fast Entry checklist" to V.signalDeep
         else -> "Standard checklist" to V.ink3
     }
-    val hint = if (depth == "fast") "Overall condition and notes — no line-by-line. Change depth in Settings." else "Tap what applies, scroll to the next line — saves in one go."
+    val hint = when {
+        form == "texas" -> "Mark each item I / NI / NP / D and add comments. Same on every checklist depth."
+        form != null -> "Complete every line of the form. Same on every checklist depth."
+        depth == "fast" -> "Overall condition and notes — no line-by-line. Change depth in Settings."
+        else -> "Tap what applies, scroll to the next line — saves in one go."
+    }
     Row(Modifier.padding(bottom = 14.dp).fillMaxWidth().vCard(12.dp).padding(horizontal = 13.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(label, style = T.ui(12.sp, FontWeight.Bold, Color.White), modifier = Modifier.clip(RoundedCornerShape(20.dp)).background(bg).padding(horizontal = 11.dp, vertical = 5.dp))
         Text(hint, style = T.ui(11.5.sp, color = V.ink3, lineHeight = 15.sp), modifier = Modifier.weight(1f))
@@ -100,7 +107,9 @@ fun SectionScreen(vm: AppViewModel, nav: NavHostController, inspId: String, name
     val all by vm.inspections.collectAsState()
     val b = all[inspId] ?: run { MissingInspection(vm, nav); return }
     val def = vm.sectionDef(inspId, name)
-    val depth = b.inspection.selections.depth
+    // Picture pages (photosOnly) open straight to the photo screen.
+    if (def?.photosOnly == true) { PhotosScreen(vm, nav, inspId, name); return }
+    val depth = ChecklistEngine.effectiveDepth(def, b.inspection.selections.depth)
     val a = b.answers[name] ?: SectionAnswers()
     val ctx = LocalContext.current
     var drawer by rememberSaveable { mutableStateOf(false) }
@@ -118,7 +127,7 @@ fun SectionScreen(vm: AppViewModel, nav: NavHostController, inspId: String, name
         },
     ) {
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 34.dp)) {
-            item(key = "mode") { ModeTile(depth) }
+            item(key = "mode") { ModeTile(depth, def?.form, def?.form?.let { vm.config.formLabels[it] }) }
             if (depth == "fast") {
                 val quick = def?.items.orEmpty().filter { it.q != null }.map { it.q!! }.distinct()
                 if (quick.isNotEmpty()) item(key = "present") {
@@ -135,8 +144,10 @@ fun SectionScreen(vm: AppViewModel, nav: NavHostController, inspId: String, name
             }
             item(key = "overall") {
                 Column {
-                    Lbl("Overall condition", first = depth != "fast" && keyed.isEmpty())
-                    Seg(vm.config.overallCondition, a.overall ?: vm.config.overallConditionDefault, { v -> edit { it.copy(overall = v.orEmpty()) } })
+                    if (def?.form == null) {
+                        Lbl("Overall condition", first = depth != "fast" && keyed.isEmpty())
+                        Seg(vm.config.overallCondition, a.overall ?: vm.config.overallConditionDefault, { v -> edit { it.copy(overall = v.orEmpty()) } })
+                    }
                     Lbl("Comments")
                     VInput(a.comments, { v -> edit { it.copy(comments = v) } }, placeholder = "Notes for this section…", multiline = true)
                     BtnRow {
@@ -149,7 +160,7 @@ fun SectionScreen(vm: AppViewModel, nav: NavHostController, inspId: String, name
                         vm.saveSection(inspId, name)
                         val next = vm.nextSection(inspId, name)
                         if (next != null) { vm.toast("Saved — next: $next"); nav.openSection(inspId, next) }
-                        else { vm.toast("Saved — last section"); nav.navigate(SummaryR(inspId)) }
+                        else { vm.toast("Saved — last section"); if (b.inspection.hasSummary) nav.navigate(SummaryR(inspId)) else nav.navigate(ReportR(inspId)) }
                     }, Modifier.padding(top = 10.dp), icon = VIcons.checkNext)
                 }
             }

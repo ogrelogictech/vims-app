@@ -98,7 +98,9 @@ import com.vims.app.data.Photo
 import com.vims.app.ui.AppViewModel
 import com.vims.app.ui.CameraR
 import com.vims.app.ui.MarkupR
+import com.vims.app.ui.ReportR
 import com.vims.app.ui.SectionR
+import com.vims.app.ui.SummaryR
 import com.vims.app.ui.back
 import com.vims.app.ui.components.BtnKind
 import com.vims.app.ui.components.BtnRow
@@ -128,16 +130,19 @@ fun PhotosScreen(vm: AppViewModel, nav: NavHostController, inspId: String, name:
     val all by vm.inspections.collectAsState()
     val b = all[inspId] ?: run { MissingInspection(vm, nav); return }
     val version by vm.photoVersion.collectAsState()
-    val cats = ChecklistEngine.photoCategories(vm.sectionDef(inspId, name), b.inspection.selections.depth)
+    val def = vm.sectionDef(inspId, name)
+    val cats = ChecklistEngine.photoCategories(def, b.inspection.selections.depth)
+    val picturesPage = def?.photosOnly == true
     val photos = b.photos.filter { it.section == name }
     var drawer by rememberSaveable { mutableStateOf(false) }
 
     VScreen(
-        "$name photos", b.inspection.selections.street, net(vm), backAction(nav),
+        if (picturesPage) name else "$name photos", b.inspection.selections.street, net(vm), backAction(nav),
         listOf(HdrAction(VIcons.list, "Sections") { drawer = true }, homeAction(nav)),
         overlay = { SectionsDrawer(drawer, b, name, { drawer = false }, { drawer = false; nav.openLink(it, inspId) }, { drawer = false; nav.openSection(inspId, it) }) },
     ) {
-        Hint("Tap **Add** to capture a photo, tap a photo to mark it up or flag it, or tap **×** to delete one.", Modifier.padding(top = 2.dp, bottom = 14.dp))
+        Hint((if (picturesPage) "These pictures print on the picture pages after the checklist. " else "") +
+            "Tap **Add** to capture a photo, tap a photo to mark it up or flag it, or tap **×** to delete one.", Modifier.padding(top = 2.dp, bottom = 14.dp))
         (cats + photos.map { it.category }.filter { it !in cats }.distinct()).forEach { cat ->
             val list = photos.filter { it.category == cat }
             Column(Modifier.padding(bottom = 16.dp)) {
@@ -159,7 +164,15 @@ fun PhotosScreen(vm: AppViewModel, nav: NavHostController, inspId: String, name:
                 }
             }
         }
-        VBtn("Done", { if (!nav.popBackStack<SectionR>(inclusive = false)) nav.openSection(inspId, name) }, Modifier.padding(top = 6.dp))
+        if (picturesPage) {
+            val toSummary = b.inspection.hasSummary
+            VBtn("Save & continue to ${if (toSummary) "summary" else "report"}", {
+                vm.saveSection(inspId, name); vm.toast("Pictures saved")
+                if (toSummary) nav.navigate(SummaryR(inspId)) else nav.navigate(ReportR(inspId))
+            }, Modifier.padding(top = 6.dp), icon = VIcons.checkNext)
+        } else {
+            VBtn("Done", { if (!nav.popBackStack<SectionR>(inclusive = false)) nav.openSection(inspId, name) }, Modifier.padding(top = 6.dp))
+        }
     }
 }
 

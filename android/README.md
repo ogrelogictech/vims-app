@@ -67,6 +67,19 @@ Release builds ignore these extras (`BuildConfig.DEBUG`).
 `photos/*.jpg`, `report/VIMS-Report-*.pdf`. `checklist.json` is a snapshot of the section definitions taken when the
 checklist was built, so admin edits apply to *new* inspections only (as the prototype states).
 
+## State & insurance forms (Texas TREC, 4 Point) — data v1.1
+- Inspection types **Texas** and **4 Point Inspection** build their checklists from `checklistBuilder.phaseTypes`
+  (Texas: Inspection Info → 6 TREC systems → Pictures → Summary; 4 Point: Inspection Info → 4 form sections → Pictures, no Summary,
+  so "Review summary" is hidden and the flow goes straight to the report).
+- Sections with `form` ignore checklist depth (always `items`), show the `formLabels` badge, and have no Overall condition row.
+  Sections with `photosOnly` open straight to the photo screen ("Save & continue to summary / report" marks them done).
+- Wizard step 1 renders the new **Inspector License #** field (prefilled from Company profile → License #) and the per-type
+  `wizard.typeFields` (sponsor / insured + policy #), stored in `WizardSelections.fields` under their `key`.
+- The PDF layout comes from `reportLayouts.typeToLayout` (`ChecklistConfig.reportLayout()`): standard, Texas (TREC REI 7-6 page +
+  I/NI/NP/D checklist pages + pictures + summary, TREC footer with "Page X of Y") or 4-Point (form pages with gray bands and
+  checkboxes, certification block, 3-column picture pages). Every cover prints **License #** beside Name of Inspector.
+  Texas and 4-Point PDFs are laid out twice so the footer can print the total page count.
+
 ## Backend stubs — search for `TODO(backend)`
 - `LocalAuthService` — any non-empty credentials sign in; create account / join-by-code succeed locally (join → Inspector role).
 - `LocalSubscriptionService` — Square subscription is simulated (always succeeds, keeps last 4 digits only). Replace the
@@ -83,5 +96,5 @@ from `vims-checklists.json`. (The login email prefill reads the owner inspector,
 ## Scope notes
 - Excluded by agreement: client-payment screens (Collect payment / Payment received) and the report's invoice page;
   the prototype's yellow "jump to screen" review button (a debug-only intent jumper exists instead).
-- Screenshots of every screen/state are in `screenshots/` (numbering matches `../screens/`), plus rendered PDF pages and
-  a sample generated report.
+- Screenshots of every screen/state are in `screenshots/` (numbering matches `../screens/`; `31-texas-*`, `32-fourpoint-*`,
+  `33-admin-*` for the v1.1 change round), plus rendered PDF pages (`pdf-*`, `pdf-texas-*`, `pdf-fourpoint-*`) and sample reports.

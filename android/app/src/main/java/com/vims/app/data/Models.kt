@@ -143,6 +143,7 @@ data class WizardSelections(
     val agentEmail: String get() = field(F_AGENT_EMAIL)
     val date: String get() = field(F_DATE)
     val time: String get() = field(F_TIME)
+    val license: String get() = field(F_LICENSE)
 
     companion object {
         // Labels from wizard.step1 in vims-checklists.json (used as keys).
@@ -154,6 +155,7 @@ data class WizardSelections(
         const val F_AGENT_EMAIL = "Real estate agent email"
         const val F_DATE = "Date"
         const val F_TIME = "Time"
+        const val F_LICENSE = "Inspector License #"
     }
 }
 
@@ -196,6 +198,8 @@ data class Inspection(
     val reportGeneratedAt: Long? = null,
 ) {
     val leafSections: List<String> get() = groups.flatMap { it.leaves }
+    /** Layouts without a Summary link (4 Point) skip the summary everywhere. */
+    val hasSummary: Boolean get() = groups.any { it.link == "summary" }
 }
 
 @Serializable
