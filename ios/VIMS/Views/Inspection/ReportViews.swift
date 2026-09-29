@@ -1,5 +1,6 @@
 import SwiftUI
 import PDFKit
+import MessageUI
 
 // MARK: - 17 Summary
 
@@ -351,6 +352,12 @@ struct ReportReadyView: View {
     @Environment(AppStore.self) private var store
     let inspectionID: UUID
     @State private var preview: PreviewDoc?
+    @State private var mailDraft: MailDraftItem?
+    @State private var shareURL: ShareItem?
+    private let canSendMail = MFMailComposeViewController.canSendMail()
+
+    struct MailDraftItem: Identifiable { let id = UUID(); let draft: ReportMailDraft }
+    struct ShareItem: Identifiable { let id = UUID(); let url: URL }
 
     var body: some View {
         if let insp = store.inspection(inspectionID) {
@@ -364,13 +371,15 @@ struct ReportReadyView: View {
                             IconLabel("Preview PDF", icon: "preview-report-format")
                         }
                         .buttonStyle(.vPrimary)
-                        let recipients = [insp.field("Client email"), insp.field("Real estate agent email")].filter { !$0.isEmpty }
-                        ShareLink(item: url,
-                                  subject: Text("Inspection report — \(insp.addressLine1)"),
-                                  message: Text(recipients.isEmpty ? "Your inspection report is attached." : "Report for \(recipients.joined(separator: ", ")) — your inspection report is attached.")) {
-                            IconLabel("Email to client", icon: "email-to-client")
+                        Button { emailReport(insp, url) } label: { IconLabel("Email to client", icon: "email-to-client") }
+                            .buttonStyle(.vGhost)
+                        if !canSendMail {
+                            // Mail isn't set up on this device: the share sheet is used instead.
+                            Text("Mail isn't set up on this device, so the report opens in the share sheet. When reports are emailed through VIMS, a blind copy is added for report-quality review.")
+                                .font(VFont.ui(12)).foregroundStyle(VC.ink3).multilineTextAlignment(.center)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .padding(.horizontal, 6)
                         }
-                        .buttonStyle(.vGhost)
                     } else {
                         Text("The PDF file is missing — generate it again from the report screen.")
                             .font(VFont.ui(13)).foregroundStyle(VC.c1)
@@ -379,6 +388,30 @@ struct ReportReadyView: View {
                 }
             }
             .sheet(item: $preview) { doc in PDFPreviewSheet(doc: doc) }
+            .sheet(item: $mailDraft) { item in
+                MailComposeView(draft: item.draft) { result in
+                    mailDraft = nil
+                    if result == .sent { store.toast("Report emailed") } else if result == .saved { store.toast("Saved to Drafts") }
+                }
+                .ignoresSafeArea()
+            }
+            .sheet(item: $shareURL) { item in
+                ActivityView(items: [item.url]).presentationDetents([.medium, .large])
+            }
+        }
+    }
+
+    /// Mail composer with the report attached and the platform BCC; share sheet when Mail isn't available.
+    /// TODO(backend): the server-side send will always add the BCC so it can't be removed.
+    private func emailReport(_ insp: Inspection, _ url: URL) {
+        if canSendMail {
+            mailDraft = MailDraftItem(draft: ReportMailDraft.make(insp, company: store.company, platform: store.platform, pdf: url))
+        } else {
+            // Share a copy with a readable file name (the stored PDF is named by inspection id).
+            let named = FileManager.default.temporaryDirectory.appendingPathComponent("Inspection Report - \(insp.addressLine1).pdf")
+            try? FileManager.default.removeItem(at: named)
+            let shared = (try? FileManager.default.copyItem(at: url, to: named)) != nil ? named : url
+            shareURL = ShareItem(url: shared)
         }
     }
 }

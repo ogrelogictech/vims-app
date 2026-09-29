@@ -113,7 +113,18 @@ struct RootView: View {
         case .subscribe: SubscribeView()
         case .subscriptionStarted: SubscriptionStartedView()
         case .billing: BillingView()
-        case .feedbackAdmin: FeedbackAdminView()
+        // VIMS platform-owner screens: nobody else can open them (TODO(backend): enforced server-side too).
+        case .feedbackAdmin: if store.isPlatformOwner { FeedbackAdminView() } else { OwnerOnlyView() }
+        case .reportBcc: if store.isPlatformOwner { ReportBccView() } else { OwnerOnlyView() }
+        }
+    }
+}
+
+struct OwnerOnlyView: View {
+    @Environment(AppStore.self) private var store
+    var body: some View {
+        Screen(title: "Not available", actions: [store.homeAction()]) {
+            HintText(text: "This setting is managed by the VIMS platform owner.").padding(.top, 8)
         }
     }
 }

@@ -1,4 +1,7 @@
 import Foundation
+#if DEBUG
+import MessageUI
+#endif
 
 /// One-shot initial UI states requested by DEBUG launch arguments (never set in Release).
 enum DebugFlags {
@@ -20,6 +23,7 @@ enum DebugFlags {
 ///   -resetData                 wipe the SwiftData store + files and reseed the demo account
 ///   -video / -noVideo          force / skip the launch video (skipped by default with -screen)
 ///   -signInAs EMAIL            sign in as that local account
+///   -mailSelfTest              print the report email draft (to/BCC/subject/attachment) to the console
 ///   -validate                  submit the form once so its validation errors show
 ///   -skipLogin                 sign in as the demo owner
 ///   -noSplash                  don't show the free-look splash
@@ -45,6 +49,24 @@ enum DebugLaunch {
         if has("-resetData") { SwiftDataRepository.wipeStore(); FileStore().wipeAll() }
     }
 
+    /// Prints the report email draft (and checks a real MFMailComposeViewController accepts it) so the
+    /// BCC wiring can be verified on a simulator, which can't send mail.
+    @MainActor
+    static func mailSelfTest(_ store: AppStore) {
+        // Prefer an inspection with client + agent emails (1428 Ridgeline); any generated PDF works as the attachment.
+        let insp = store.inspections.first { !$0.field("Client email").isEmpty } ?? store.inspections.first
+        guard let insp, let url = store.reportURL(insp.id) ?? store.inspections.lazy.compactMap({ store.reportURL($0.id) }).first else {
+            print("MAILTEST no inspection with a report"); return
+        }
+        let d = ReportMailDraft.make(insp, company: store.company, platform: store.platform, pdf: url)
+        print("MAILTEST canSendMail=\(MFMailComposeViewController.canSendMail())")
+        print("MAILTEST to=\(d.to) bcc=\(d.bcc) subject=\(d.subject) attachment=\(d.attachmentName) bytes=\((try? Data(contentsOf: url))?.count ?? 0)")
+        print("MAILTEST platform bccOn=\(store.platform.reportBccOn) bccEmail=\(store.platform.reportBccEmail)")
+        if MFMailComposeViewController.canSendMail() {
+            let vc = MFMailComposeViewController(); d.configure(vc); print("MAILTEST composer configured")
+        }
+    }
+
     @MainActor
     static func apply(to store: AppStore) {
         let screen = value("-screen")
@@ -60,6 +82,7 @@ enum DebugLaunch {
             store.state.subscription.trialStart = Calendar.current.date(byAdding: .day, value: -(store.state.subscription.trialDays - n), to: Date()) ?? Date()
             store.state.subscription.active = false
         }
+        if has("-mailSelfTest") { mailSelfTest(store) }
         guard let screen else { return }
         if ["login", "signup", "forgot", "join"].contains(screen), store.session != nil {
             let v = DebugFlags.validate
@@ -74,7 +97,7 @@ enum DebugLaunch {
             "signup": [.signup], "forgot": [.forgot], "join": [.join], "wizard": [.wizard(editing: nil)],
             "settings": [.settings], "company": [.settings, .company], "instructions": [.settings, .instructions],
             "plans": [.settings, .plans], "subscribe": [.subscribe], "billing": [.settings, .billing],
-            "feedback": [.settings, .feedbackAdmin], "inspectors": [.settings, .inspectors], "manage": [.settings, .manageChecklist]
+            "feedback": [.settings, .feedbackAdmin], "reportBcc": [.settings, .reportBcc], "inspectors": [.settings, .inspectors], "manage": [.settings, .manageChecklist]
         ]
         if let r = general[screen] {
             if screen == "wizard" { DebugFlags.wizardStep = value("-step").flatMap(Int.init) }

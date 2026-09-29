@@ -68,6 +68,20 @@ final class InspectionRecord {
     }
 }
 
+/// Single row: VIMS platform settings (feedback email, report BCC). Not owned by any company.
+@Model
+final class PlatformRecord {
+    @Attribute(.unique) var key: String      // always "platform"
+    var settingsData: Data
+    var updatedAt: Date
+
+    init(settingsData: Data) {
+        self.key = "platform"
+        self.settingsData = settingsData
+        self.updatedAt = Date()
+    }
+}
+
 // MARK: - Local credential hashing (stub until the Laravel API)
 
 enum PasswordHasher {

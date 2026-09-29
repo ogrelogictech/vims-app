@@ -1,0 +1,3 @@
+MAILTEST canSendMail=false
+MAILTEST to=["tysen.gough@email.com", "cyndi@ogdenhomes.com"] bcc=["qualityreview@vimsapp.com"] subject=Inspection report — 1428 Ridgeline Dr attachment=Inspection Report - 1428 Ridgeline Dr.pdf bytes=245804
+MAILTEST platform bccOn=true bccEmail=qualityreview@vimsapp.com

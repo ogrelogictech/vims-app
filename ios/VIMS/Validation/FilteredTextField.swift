@@ -42,6 +42,7 @@ struct FilteredTextField: UIViewRepresentable {
         tf.smartDashesType = .no
         tf.smartQuotesType = .no
         tf.smartInsertDeleteType = .no
+        tf.clearButtonMode = secure ? .never : .whileEditing
         configure(tf)
         tf.text = text
         return tf

@@ -46,6 +46,9 @@ protocol Repository: AnyObject {
     func inspections(userID: UUID) -> [Inspection]
     func saveInspection(_ i: Inspection, userID: UUID, companyID: UUID)
     func deleteInspection(id: UUID, userID: UUID)
+    // Platform settings (VIMS-wide; only the platform owner may change them)
+    func platformSettings() -> PlatformSettings?
+    func savePlatformSettings(_ s: PlatformSettings)
     // Session pointer (which user is signed in on this device)
     var currentUserID: UUID? { get set }
     // Files
@@ -90,7 +93,8 @@ final class SwiftDataRepository: Repository {
     init(files: FileStore = FileStore()) throws {
         self.files = files
         let cfg = ModelConfiguration(url: Self.storeURL)
-        container = try ModelContainer(for: UserRecord.self, CompanyRecord.self, InspectionRecord.self, configurations: cfg)
+        container = try ModelContainer(for: UserRecord.self, CompanyRecord.self, InspectionRecord.self, PlatformRecord.self,
+                                       configurations: cfg)
     }
 
     func url(for relativePath: String) -> URL { files.url(for: relativePath) }
@@ -187,6 +191,24 @@ final class SwiftDataRepository: Repository {
             context.insert(CompanyRecord(id: c.id, joinCode: c.profile.joinCode.uppercased(), name: c.profile.name,
                                          profileData: p, subscriptionData: s, overridesData: o))
         }
+        save()
+    }
+
+    // MARK: Platform
+
+    private func platformRecord() -> PlatformRecord? {
+        var d = FetchDescriptor<PlatformRecord>()
+        d.fetchLimit = 1
+        return try? context.fetch(d).first
+    }
+
+    func platformSettings() -> PlatformSettings? {
+        platformRecord().flatMap { try? decoder.decode(PlatformSettings.self, from: $0.settingsData) }
+    }
+
+    func savePlatformSettings(_ s: PlatformSettings) {
+        guard let data = try? encoder.encode(s) else { return }
+        if let r = platformRecord() { r.settingsData = data; r.updatedAt = Date() } else { context.insert(PlatformRecord(settingsData: data)) }
         save()
     }
 

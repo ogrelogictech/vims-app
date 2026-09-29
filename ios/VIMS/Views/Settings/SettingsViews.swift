@@ -55,6 +55,11 @@ struct SettingsView: View {
                 SectionLabel(text: "Admin", top: 10)
                 NavRow(symbol: "manage-checklist-add", title: "Manage checklist", subtitle: "Add & edit sections and items") { store.push(.manageChecklist) }
                 NavRow(symbol: "plans-pricing-edit", title: "Plans & pricing", subtitle: "Edit subscription plans & prices") { store.push(.plans) }
+            }
+            if store.isPlatformOwner {
+                // VIMS platform-owner settings (not company settings): hidden from every other account.
+                SectionLabel(text: "VIMS owner", top: 10)
+                NavRow(symbol: "report-bcc", title: "Report quality copy (BCC)", subtitle: store.platform.bccSummary) { store.push(.reportBcc) }
                 NavRow(symbol: "email-to-client", title: "Feedback & support", subtitle: "Change the feedback contact email") { store.push(.feedbackAdmin) }
             }
 
@@ -66,7 +71,7 @@ struct SettingsView: View {
                     .padding(.top, 6).padding(.bottom, 12)
                     .fixedSize(horizontal: false, vertical: true)
                 Button {
-                    let email = store.company.feedbackEmail
+                    let email = store.platform.feedbackEmail
                     if let url = URL(string: "mailto:\(email)?subject=VIMS%20app%20feedback") { openURL(url) }
                 } label: { IconLabel("Send feedback", icon: "email-to-client") }
                     .buttonStyle(.vGhost)
@@ -307,14 +312,65 @@ struct FeedbackAdminView: View {
                 .buttonStyle(.vPrimary)
         }
         .onAppear {
-            email = store.company.feedbackEmail
+            email = store.platform.feedbackEmail
             if DebugFlags.validate { DebugFlags.validate = false; email = "support@vims"; save() }
         }
     }
 
     private func save() {
         guard errors.validate([("email", email, .req(.email, "Feedback email"))]) else { return }
-        store.state.company.feedbackEmail = Validator.trimmed(email)
+        var p = store.platform
+        p.feedbackEmail = Validator.trimmed(email)
+        store.savePlatform(p)
         store.toast("Feedback email saved")
+    }
+}
+
+// MARK: - Report quality copy (BCC) — VIMS platform owner only
+
+struct ReportBccView: View {
+    @Environment(AppStore.self) private var store
+    @State private var on = true
+    @State private var email = ""
+    @State private var errors = FormErrors()
+
+    var body: some View {
+        Screen(title: "Report quality copy", actions: [store.homeAction()], errors: errors) {
+            Text(md("Owner admin — every inspection report emailed from the app is also sent as a **blind carbon copy (BCC)** to this address, so report quality can be reviewed. Clients and agents don’t see this address. Disclosed in the VIMS EULA."))
+                .font(VFont.ui(13)).foregroundStyle(VC.ink3).lineSpacing(2)
+                .padding(.top, 2).padding(.bottom, 14)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 8) {
+                Text("BCC every emailed report").font(VFont.ui(14.5, .semibold)).foregroundStyle(VC.ink)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                ChipGroup(options: ["On", "Off"], selection: Binding(get: { [on ? "On" : "Off"] }, set: { if let f = $0.first { on = f == "On"; errors.clear() } }),
+                          single: true, required: true)
+                    .fixedSize()
+            }
+            .padding(.horizontal, 14).padding(.vertical, 8)
+            .background(VC.paper)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(VC.line, lineWidth: 1))
+            .padding(.bottom, 14)
+            VTextField(label: "BCC address", text: $email, placeholder: "you@company.com", keyboard: .emailAddress, contentType: .emailAddress,
+                       capitalization: .never, kind: .email, fieldID: "bcc", errors: errors)
+            Button { save() } label: { IconLabel("Save", icon: "link-my-account") }
+                .buttonStyle(.vPrimary)
+        }
+        .onAppear {
+            on = store.platform.reportBccOn
+            email = store.platform.reportBccEmail
+            if DebugFlags.validate { DebugFlags.validate = false; email = "quality@vims"; save() }
+        }
+    }
+
+    private func save() {
+        // The address is required while BCC is on; when off it may be blank but must still be valid if entered.
+        guard errors.validate([("bcc", email, on ? .req(.email, "BCC address") : .opt(.email, "BCC address"))]) else { return }
+        var p = store.platform
+        p.reportBccOn = on
+        p.reportBccEmail = Validator.trimmed(email).lowercased()
+        store.savePlatform(p)
+        store.toast(on ? "Reports will be blind-copied to \(p.reportBccEmail)" : "Report BCC turned off")
     }
 }

@@ -212,7 +212,13 @@ struct PlanDef: Codable, Hashable {
     var perReport: Bool?
 }
 
-struct SupportDef: Decodable { let feedbackEmail: String }
+struct SupportDef: Decodable {
+    let feedbackEmail: String
+    /// v1.2: default for the platform owner's report-quality BCC.
+    let reportBcc: ReportBccDef?
+}
+
+struct ReportBccDef: Decodable { let on: Bool; let email: String }
 
 struct SampleDef: Decodable {
     let company: SampleCompany

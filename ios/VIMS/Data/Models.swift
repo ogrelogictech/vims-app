@@ -261,11 +261,41 @@ struct AppSettings: Codable, Hashable {
     var autoSync: Bool = true
 }
 
+/// VIMS platform-level settings (owned by the platform owner, not by any company).
+struct PlatformSettings: Codable, Hashable {
+    /// Help & feedback messages go here.
+    var feedbackEmail: String
+    /// Blind carbon copy of every emailed report, for report-quality review (disclosed in the VIMS EULA).
+    var reportBccOn: Bool
+    var reportBccEmail: String
+
+    /// The address to BCC on an emailed report, or nil when the setting is off.
+    var activeReportBcc: String? {
+        let e = reportBccEmail.trimmingCharacters(in: .whitespaces)
+        return reportBccOn && !e.isEmpty ? e : nil
+    }
+    var bccSummary: String { activeReportBcc.map { "On · \($0)" } ?? "Off" }
+
+    static func defaults(_ config: ChecklistConfig) -> PlatformSettings {
+        PlatformSettings(feedbackEmail: config.support.feedbackEmail,
+                         reportBccOn: config.support.reportBcc?.on ?? false,
+                         reportBccEmail: config.support.reportBcc?.email ?? "")
+    }
+}
+
+/// Who owns the VIMS platform (Jeremy). TODO(backend): the server returns an isPlatformOwner flag / role.
+enum PlatformOwner {
+    static let email = "jeremy@visionpropertyinspections.com"
+    static func isOwner(email: String) -> Bool { email.caseInsensitiveCompare(Self.email) == .orderedSame }
+}
+
 struct Session: Codable, Hashable {
     var name: String
     var email: String
     var inspectorID: UUID?
     var isAdmin: Bool
+    /// VIMS platform owner — only this account sees platform settings (report BCC, feedback email).
+    var isPlatformOwner: Bool = false
 }
 
 /// Everything that is not an inspection, persisted as one JSON document.

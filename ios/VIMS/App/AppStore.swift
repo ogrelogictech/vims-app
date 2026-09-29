@@ -13,7 +13,7 @@ enum Route: Hashable {
     case settings, company, instructions
     case manageChecklist
     case editSection(String)
-    case plans, inspectors, subscribe, subscriptionStarted, billing, feedbackAdmin
+    case plans, inspectors, subscribe, subscriptionStarted, billing, feedbackAdmin, reportBcc
 }
 
 @MainActor
@@ -33,6 +33,8 @@ final class AppStore {
     /// Only the signed-in user's inspections are ever loaded.
     var inspections: [Inspection] = []
     var path: [Route] = []
+    /// VIMS platform settings — app-level, not per company. Editable only by the platform owner.
+    private(set) var platform: PlatformSettings
     private(set) var currentUser: UserAccount?
     private(set) var companyID: UUID?
 
@@ -56,9 +58,18 @@ final class AppStore {
         self.subscriptionService = subscriptionService
         self.syncService = syncService
         self.state = DemoSeed.emptyState(config: config)
+        self.platform = PlatformSettings.defaults(config)
 
         // First launch: migrate the old JSON files, or seed the demo account (see Store/Bootstrap.swift).
         Bootstrap.run(repo: repo, config: config)
+        if let saved = repo.platformSettings() {
+            platform = saved
+        } else {
+            // First run of v1.2: platform defaults from the shared JSON; keep a feedback email that was
+            // previously edited on the demo company (it used to be stored per company).
+            if let fb = repo.company(joinCode: config.sample.company.code)?.profile.feedbackEmail, !fb.isEmpty { platform.feedbackEmail = fb }
+            repo.savePlatformSettings(platform)
+        }
         if let uid = repo.currentUserID, let u = repo.user(id: uid) { loadSession(u) } else { repo.currentUserID = nil }
 
         connectivity.onChange = { [weak self] online in self?.isOnline = online }
@@ -70,6 +81,14 @@ final class AppStore {
     var subscription: SubscriptionState { state.subscription }
     var session: Session? { state.session }
     var isAdmin: Bool { state.session?.isAdmin ?? false }
+    var isPlatformOwner: Bool { state.session?.isPlatformOwner ?? false }
+
+    /// Platform-owner only (TODO(backend): enforced by the server as well).
+    func savePlatform(_ s: PlatformSettings) {
+        guard isPlatformOwner else { return }
+        platform = s
+        repo.savePlatformSettings(s)
+    }
     var pendingSyncCount: Int { inspections.filter(\.needsSync).count }
 
     /// Per-owner file folders (Documents/vims/…).
@@ -154,7 +173,8 @@ final class AppStore {
         companyID = c.id
         let me = c.profile.inspectors.first { $0.id == u.id || $0.email.caseInsensitiveCompare(u.email) == .orderedSame }
         let blank = DemoSeed.emptyState(config: config)
-        state = AppState(session: Session(name: u.name, email: u.email, inspectorID: me?.id ?? u.id, isAdmin: me?.isAdmin ?? false),
+        state = AppState(session: Session(name: u.name, email: u.email, inspectorID: me?.id ?? u.id, isAdmin: me?.isAdmin ?? false,
+                                         isPlatformOwner: PlatformOwner.isOwner(email: u.email)),
                          company: c.profile, subscription: c.subscription, overrides: c.overrides,
                          settings: u.settings ?? blank.settings, seededAt: nil)
         inspections = repo.inspections(userID: u.id)

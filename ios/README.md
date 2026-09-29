@@ -41,7 +41,7 @@ feedback phase1 phase2`. Extras: `-step N` (wizard 1–4 / cover picker 1–3), 
 `-section NAME`, `-inspection PREFIX|TYPE` (e.g. `Texas`, `"4 Point Inspection"`), `-generate` (with
 `-screen reportReady`: regenerate the PDF first), `-group NAME` (Manage checklist), `-overview` (phase screens),
 `-trialDaysLeft N`, `-resetData` (wipes the SwiftData store + files and recreates the demo account),
-`-skipLogin` (signs in as the demo account), `-signInAs EMAIL`, `-noSplash`, `-video` / `-noVideo` (the launch
+`-skipLogin` (signs in as the demo account), `-signInAs EMAIL`, `-mailSelfTest`, `-noSplash`, `-video` / `-noVideo` (the launch
 video is skipped by default whenever `-screen` is given), `-validate` (submits the screen's form once so its
 validation errors show).
 None of this is compiled into Release builds. The prototype's yellow review/jump button is intentionally not a
@@ -104,6 +104,21 @@ SwiftUI views ──► AppStore (@Observable, @MainActor)  ──► Repository
 - **Company identity.** `CompanyLogoBadge` shows the company's uploaded logo (or an initials badge) in Company
   profile, the Settings account card and the Home side menu; the PDF cover and page headers use the same logo
   (initials badge when none).
+- **VIMS platform-owner settings** (data v1.2). The feedback email and the **Report quality copy (BCC)**
+  (`support.reportBcc` default) are platform-level, not per company: stored once in SwiftData
+  (`PlatformRecord` → `PlatformSettings`) and editable only by the platform owner. `Session.isPlatformOwner` is
+  true only for `PlatformOwner.email` (jeremy@visionpropertyinspections.com — TODO(backend): the server sends this
+  flag/role). Only that account sees Settings → "VIMS owner" (Report quality copy (BCC) with subtitle
+  "On · address" / "Off", and Feedback & support); other companies' admins don't, and the routes show "Not
+  available" if reached. The BCC screen has the intro text, On/Off, the address (email rule; required while On)
+  and Save.
+- **Emailing a report** (Report ready → Email to client, `Report/ReportMail.swift`): when Mail is set up,
+  `MFMailComposeViewController` opens with To = client email (+ agent email), a subject/body, the PDF attached
+  and **BCC = the report-quality address when On** (`ReportMailDraft.make` / `configure`). The BCC address is
+  never shown elsewhere in the UI. Without Mail the share sheet opens instead, with a note that a blind copy is
+  added when reports are emailed through VIMS. TODO(backend): the server-side send always adds the BCC so it
+  can't be removed. The simulator has no Mail account, so the composer wiring is checked with the DEBUG
+  `-mailSelfTest` launch argument, which prints the draft (to / bcc / subject / attachment) to the console.
 - **Home side menu** (`Views/Home/SideMenu.swift`): hamburger opens a left drawer with the company logo, user,
   email and company; Inspections, New inspection, Settings, Company profile, How VIMS works, Help & feedback;
   admin-only Manage checklist, Plans & pricing, Inspectors; Sign out. Scrim tap or swipe left closes it.
