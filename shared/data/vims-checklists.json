@@ -1,6 +1,6 @@
 {
  "_about": "VIMS shared checklist + configuration data. Single source of truth for the native iOS (SwiftUI) and Android (Kotlin/Compose) apps. Extracted from the client-approved prototype (index.html, approved Sep 15, 2026). Edit here, not in app code.",
- "version": "1.1.0",
+ "version": "1.2.0",
  "generated": "2026-09-29",
  "depths": [
   {
@@ -30819,7 +30819,12 @@
   "note": "Company subscription billed through Square (Phase 1). Client inspection-fee payment is a separate add-on, NOT Phase 1."
  },
  "support": {
-  "feedbackEmail": "VIMSInspect@Gmail.com"
+  "feedbackEmail": "VIMSInspect@Gmail.com",
+  "reportBcc": {
+   "on": true,
+   "email": "jeremy@visionpropertyinspections.com",
+   "_about": "Owner-admin setting (VIMS platform owner only, not each company's admin): every inspection report emailed from the app is also sent as a blind carbon copy to this address for report-quality review. Disclosed in the VIMS EULA. Clients/agents never see it. Default address is a placeholder until the client confirms."
+  }
  },
  "sample": {
   "_about": "Demo data used by the prototype; for previews/tests only.",
