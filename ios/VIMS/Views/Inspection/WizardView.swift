@@ -274,6 +274,18 @@ private struct EntryList: View {
         }
     }
 
+    /// The JSON typeFields carry no placeholders; these match the prototype.
+    static let typeFieldPlaceholders = ["sponsorName": "Sponsor name", "sponsorLicense": "TREC license #",
+                                        "insuredName": "Name on the insurance application", "policyNumber": "Policy or application number"]
+
+    private func typeFormTitle(_ type: String) -> String {
+        switch store.catalog.reportLayout(for: type) {
+        case .texas: return "Texas TREC form"
+        case .fourPoint: return "4-Point form"
+        case .standard: return "\(type) form"
+        }
+    }
+
     private func selection(_ e: WizardEntry) -> Binding<[String]> {
         Binding(
             get: { (draft.fields[e.label] ?? "").split(separator: "|").map(String.init).filter { !$0.isEmpty } },
@@ -295,6 +307,15 @@ private struct EntryList: View {
                     get: { draft.components.isEmpty ? [] : draft.components },
                     set: { draft.components = $0 }), single: false)
                     .onAppear { if draft.components.isEmpty, let f = w.componentOptions.first { draft.components = [f] } }
+            }
+            // wizard.typeFields — Texas: sponsor + sponsor TREC license; 4 Point: insured/applicant + policy #
+            let tf = store.catalog.typeFields(for: draft.inspType)
+            if !tf.isEmpty {
+                SectionLabel(text: typeFormTitle(draft.inspType))
+                ForEach(tf, id: \.key) { f in
+                    VTextField(label: f.label, text: text(f.key), placeholder: f.placeholder ?? Self.typeFieldPlaceholders[f.key] ?? "",
+                               capitalization: f.key.lowercased().contains("license") || f.key.lowercased().contains("number") ? .characters : .words)
+                }
             }
         } else if e.id == "wstruct" {
             SectionLabel(text: e.label, top: 2)

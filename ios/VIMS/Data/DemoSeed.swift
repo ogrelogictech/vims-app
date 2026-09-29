@@ -25,6 +25,8 @@ enum DemoSeed {
         state.company.address = "2029 N Main St Suite 103, Sunset, UT 84015"
         state.company.inspectorName = "Jeremy K. Heath"
         state.company.email = "VisionPropertyInspections@Gmail.com"
+        state.company.license = "UT-12345"
+        state.company.phone = "(801) 555-0134"
         state.company.inspectors = sample.inspectors.map { Inspector(name: $0.name, email: $0.email, owner: $0.owner ?? false, admin: $0.owner ?? false) }
         // Trial: 10 days left, so the urgent free-look splash shows (prototype state).
         state.subscription.trialStart = Calendar.current.date(byAdding: .day, value: -(config.subscription.trialDays - 10), to: Date()) ?? Date()
@@ -45,6 +47,7 @@ enum DemoSeed {
             fields["Date"] = Fmt.date(date, "yyyy-MM-dd")
             fields["Time"] = time
             fields["Inspector"] = "Jeremy K. Heath"
+            fields[Inspection.licenseField] = "UT-12345"
             var i = Inspection(
                 fields: fields, inspType: d.inspType, structure: structure, depth: .standard,
                 exterior: w.exteriorOptions.filter { (d.exterior[$0] ?? 0) > 0 },

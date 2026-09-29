@@ -23,15 +23,41 @@ struct ChecklistCatalog {
 
     func number(_ name: String) -> Int { section(name)?.number ?? 99 }
 
+    func isForm(_ name: String) -> Bool { section(name)?.isForm ?? false }
+    func isPhotosOnly(_ name: String) -> Bool { section(name)?.isPhotosOnly ?? false }
+
+    /// Badge text for a form section (`formLabels[form]`).
+    func formLabel(_ name: String) -> String? {
+        guard let f = section(name)?.form else { return nil }
+        return config.formLabels?[f] ?? f
+    }
+
+    /// Report page structure for an inspection type (`reportLayouts.typeToLayout`).
+    func reportLayout(for inspType: String) -> ReportLayout {
+        let map = config.reportLayouts?.typeToLayout ?? [:]
+        let v = (map[inspType] ?? map["*"] ?? "standard").lowercased()
+        if v == "texas" { return .texas }
+        if v.contains("4 point") || v.contains("4point") || v.contains("fourpoint") { return .fourPoint }
+        return .standard
+    }
+
+    /// Extra step-1 fields for an inspection type (`wizard.typeFields`).
+    func typeFields(for inspType: String) -> [TypeFieldDef] {
+        config.wizard.typeFields?.byType[inspType] ?? []
+    }
+
     /// Items for a depth per `depthRules`: High uses itemsHigh when present, otherwise Standard.
+    /// State/insurance form sections ignore depth and always use `items` (`_formNotes`).
     func items(_ name: String, depth: Depth) -> (items: [ItemDef], usingHigh: Bool) {
         guard let s = section(name) else { return ([], false) }
+        if s.isForm { return (s.items, false) }
         if depth == .high, let hi = s.itemsHigh, !hi.isEmpty { return (hi, true) }
         return (s.items, false)
     }
 
     func photoCategories(_ name: String, depth: Depth) -> [String] {
         guard let s = section(name) else { return ["Overview", "Concerns"] }
+        if s.isForm { return s.photoCategories.isEmpty ? ["Overview", "Concerns"] : s.photoCategories }
         if depth == .high, let hi = s.photoCategoriesHigh, !hi.isEmpty { return hi }
         return s.photoCategories.isEmpty ? ["Overview", "Concerns"] : s.photoCategories
     }

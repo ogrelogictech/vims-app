@@ -51,6 +51,18 @@ struct ReportData {
     var categories: [FindingCategoryDef]
     var reviewURL: String
 
+    // Texas / 4 Point additions (reportLayouts)
+    var layout: ReportLayout = .standard
+    var license: String = ""
+    var sponsorName: String = ""
+    var sponsorLicense: String = ""
+    var insuredName: String = ""
+    var policyNumber: String = ""
+    var yearBuilt: String = ""
+    var companyPhone: String = ""
+    var formSections: [FormSectionData] = []
+    var pictures: [ReportPhoto] = []
+
     static func make(_ insp: Inspection, config cfg: ChecklistConfig, overrides: ChecklistOverrides,
                      company: CompanyProfile, repo: FileRepository, logo: UIImage) -> ReportData {
         let cat = ChecklistCatalog(config: cfg, overrides: overrides)
@@ -143,7 +155,7 @@ struct ReportData {
         var coverPhoto: URL?
         let preferred = ["Exterior Walls", "Landscaping"]
         outer: for s in preferred + insp.leafSections {
-            for (c, arr) in (insp.photos[s] ?? [:]).sorted(by: { $0.key < $1.key }) where c.lowercased().hasPrefix("front") {
+            for (c, arr) in (insp.photos[s] ?? [:]).sorted(by: { $0.key < $1.key }) where c.lowercased().contains("front") {
                 if let p = arr.first { coverPhoto = repo.url(for: p.originalFile ?? p.file); break outer }
             }
         }
@@ -156,7 +168,7 @@ struct ReportData {
         let addrParts = company.address.split(separator: ",", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespaces) }
         let inspectorName = insp.field("Inspector").isEmpty ? company.inspectorName : insp.field("Inspector")
 
-        return ReportData(
+        var data = ReportData(
             companyName: company.name,
             companyAddressLines: addrParts,
             companyEmail: company.email,
@@ -181,6 +193,79 @@ struct ReportData {
             categories: cfg.findings.categories,
             reviewURL: company.reviewURL
         )
+
+        // Per-type fields and form pages
+        data.layout = cat.reportLayout(for: insp.inspType)
+        data.license = insp.inspectorLicense
+        data.sponsorName = insp.field("sponsorName")
+        data.sponsorLicense = insp.field("sponsorLicense")
+        data.insuredName = insp.field("insuredName")
+        data.policyNumber = insp.field("policyNumber")
+        data.yearBuilt = insp.field("Year of construction")
+        data.companyPhone = company.phone
+        if data.layout != .standard {
+            let formNames = insp.leafSections.filter { cat.isForm($0) && !cat.isPhotosOnly($0) }
+            data.formSections = cat.sortedForReport(formNames).map { name in
+                FormSectionData.make(name: name, items: cat.items(name, depth: .standard).items, answers: insp.answers[name] ?? SectionAnswers())
+            }
+            // Pictures pages: the photos-only section first, then photos taken inside the form sections.
+            let picSecs = insp.leafSections.filter { cat.isPhotosOnly($0) } + formNames
+            for s in picSecs {
+                let secPhotos = insp.photos[s] ?? [:]
+                let cats = cat.photoCategories(s, depth: .standard)
+                let short = FormSectionData.shortTitle(s)
+                for c in cats + secPhotos.keys.filter({ !cats.contains($0) }).sorted() {
+                    for p in secPhotos[c] ?? [] {
+                        let cap = cat.isPhotosOnly(s) ? c : "\(short) — \(c)"
+                        data.pictures.append(ReportPhoto(url: repo.url(for: p.file), caption: cap, flag: p.flag, comment: p.comment))
+                    }
+                }
+            }
+        }
+        return data
+    }
+}
+
+/// A state/insurance form section resolved against its answers, for the Texas and 4-Point pages.
+struct FormSectionData {
+    struct Row {
+        let q: String
+        let kind: ItemKind
+        let options: [String]
+        let selected: [String]
+        let text: String
+    }
+    struct Group {
+        let title: String?
+        let rows: [Row]
+    }
+    let name: String
+    let title: String
+    let groups: [Group]
+
+    static func shortTitle(_ name: String) -> String {
+        for prefix in ["Texas — ", "4-Point — "] where name.hasPrefix(prefix) { return String(name.dropFirst(prefix.count)) }
+        return name
+    }
+
+    static func make(name: String, items: [ItemDef], answers a: SectionAnswers) -> FormSectionData {
+        var groups: [Group] = []
+        var title: String?
+        var rows: [Row] = []
+        for k in ItemKeys.keyed(items) {
+            if let h = k.item.header {
+                if title != nil || !rows.isEmpty { groups.append(Group(title: title, rows: rows)) }
+                title = h; rows = []
+                continue
+            }
+            var text = a.text[k.id] ?? ""
+            if k.item.kind == .date, let d = Fmt.parse(text, "yyyy-MM-dd") { text = Fmt.date(d, "MM/dd/yyyy") }
+            if k.item.kind == .time, let d = Fmt.parse(text, "HH:mm") { text = Fmt.date(d, "h:mm a") }
+            if let det = a.detail[k.id], !det.isEmpty { text = text.isEmpty ? det : "\(text) — \(det)" }
+            rows.append(Row(q: k.item.q ?? "", kind: k.item.kind, options: k.item.options ?? [], selected: a.choices[k.id] ?? [], text: text))
+        }
+        if title != nil || !rows.isEmpty { groups.append(Group(title: title, rows: rows)) }
+        return FormSectionData(name: name, title: shortTitle(name), groups: groups)
     }
 }
 
@@ -195,18 +280,35 @@ enum ReportRenderer {
         ]
         let fmt = UIGraphicsPDFRendererFormat()
         fmt.documentInfo = meta
-        let renderer = UIGraphicsPDFRenderer(bounds: CGRect(origin: .zero, size: pageSize), format: fmt)
         var pages = 0
-        let pdf = renderer.pdfData { ctx in
-            let w = Writer(ctx: ctx, data: data)
-            w.cover()
-            w.propertyInformation()
-            w.beginningNotes()
-            for s in data.sections { w.section(s) }
-            for s in data.sections where !s.photos.isEmpty { w.photos(s) }
-            w.summary()
-            pages = w.page
+        func draw(total: Int) -> Data {
+            // A fresh renderer per pass: a UIGraphicsPDFRenderer produced empty data when reused.
+            let renderer = UIGraphicsPDFRenderer(bounds: CGRect(origin: .zero, size: pageSize), format: fmt)
+            return renderer.pdfData { ctx in
+                let w = Writer(ctx: ctx, data: data)
+                w.totalPages = total
+                w.cover()
+                switch data.layout {
+                case .standard:
+                    w.propertyInformation()
+                    w.beginningNotes()
+                    for s in data.sections { w.section(s) }
+                    for s in data.sections where !s.photos.isEmpty { w.photos(s) }
+                    w.summary()
+                case .texas:
+                    w.trecInfoPage()
+                    for f in data.formSections { w.trecChecklist(f) }
+                    w.picturePages()
+                    w.summary(subtitle: "Findings grouped by category")
+                case .fourPoint:
+                    w.fourPointForm()
+                    w.picturePages()
+                }
+                pages = w.page
+            }
         }
+        var pdf = draw(total: 0)
+        if data.layout != .standard { pdf = draw(total: pages) }   // second pass knows "Page X of Y"
         return (pdf, pages)
     }
 
@@ -216,6 +318,9 @@ enum ReportRenderer {
         let ctx: UIGraphicsPDFRendererContext
         let d: ReportData
         var page = 0
+        var totalPages = 0
+        /// Texas checklist/TREC pages have no running header (they reproduce the TREC form).
+        var headerless = false
         var y: CGFloat = 0
         let m: CGFloat = 40
         var contentW: CGFloat { ReportRenderer.pageSize.width - m * 2 }
@@ -312,13 +417,15 @@ enum ReportRenderer {
         func newContentPage() {
             ctx.beginPage()
             page += 1
-            runningHeader()
+            if headerless { y = 40 } else { runningHeader(); y = 96 }
             footer()
-            y = 96
         }
 
+        /// Called after an automatic page break so form pages can repeat their column headers.
+        var onPageBreak: (() -> Void)?
+
         func ensure(_ h: CGFloat) {
-            if y + h > bottomLimit { newContentPage() }
+            if y + h > bottomLimit { newContentPage(); onPageBreak?() }
         }
 
         func runningHeader() {
@@ -335,8 +442,25 @@ enum ReportRenderer {
             fill(CGRect(x: m, y: 76, width: contentW, height: 1.5), brand)
         }
 
+        var pageOf: String { totalPages > 0 ? "Page \(page) of \(totalPages)" : "Page \(page)" }
+
         func footer() {
             let fy = ReportRenderer.pageSize.height - 44
+            switch d.layout {
+            case .texas:
+                hline(fy, x: m, w: contentW, ink, width: 0.8)
+                text("REI 7-6 (8/9/21)  ·  Promulgated by the Texas Real Estate Commission  ·  (512) 936-3000  ·  www.trec.texas.gov",
+                     VFont.uUI(7), ink2, x: m, y: fy + 7, w: contentW - 90)
+                text(pageOf, VFont.uUI(7), ink2, x: m + contentW - 90, y: fy + 7, w: 90, align: .right)
+                return
+            case .fourPoint:
+                hline(fy, x: m, w: contentW, line)
+                text("4-Point Inspection · \(d.addressLine1) · \(d.date)", VFont.uUI(7.5), ink3, x: m, y: fy + 8, w: 380)
+                text(pageOf, VFont.uUI(7.5), ink3, x: m + contentW - 120, y: fy + 8, w: 120, align: .right)
+                return
+            case .standard:
+                break
+            }
             hline(fy, x: m, w: contentW, line)
             text(d.clientName, VFont.uUI(7.8, .bold), ink, x: m, y: fy + 8, w: 360)
             text("\(d.addressLine1) · \(d.date)", VFont.uUI(7.5), ink3, x: m, y: fy + 19, w: 360)
@@ -401,19 +525,41 @@ enum ReportRenderer {
                 ay += text(l, VFont.uUI(8.4), ink2, x: W - 34 - 240, y: ay, w: 240, align: .right, lineSpacing: 1)
             }
             // title
-            text("Inspection Report", VFont.uDisplay(19, .heavy), ink, x: 0, y: 108, w: W, align: .center)
+            let title = d.layout == .texas ? "Property Inspection Report" : d.layout == .fourPoint ? "4-Point Inspection Report" : "Inspection Report"
+            text(title, VFont.uDisplay(19, .heavy), ink, x: 0, y: 108, w: W, align: .center)
             // fields
             var fy: CGFloat = 146
             let fx: CGFloat = 50, fw = W - 100
-            let rows: [(String, String)] = [
+            let rows: [(String, String)] = d.layout == .fourPoint ? [
+                ("Insured / Applicant", d.insuredName.isEmpty ? d.clientName : d.insuredName),
+                ("Application / Policy #", d.policyNumber.isEmpty ? "—" : d.policyNumber),
+                ("Address Inspected", d.addressLine1), ("", d.addressRest),
+                ("Actual Year Built", d.yearBuilt.isEmpty ? "—" : d.yearBuilt), ("Date Inspected", d.date)
+            ] : [
                 ("Client Name", d.clientName), ("Address of Inspection", d.addressLine1), ("", d.addressRest),
-                ("Date of Inspection", d.date), ("Real Estate Agent", d.agent), ("Name of Inspector", d.inspector)
+                ("Date of Inspection", d.date), ("Real Estate Agent", d.agent)
             ]
             for (l, v) in rows {
                 let lw: CGFloat = l.isEmpty ? 0 : (l as NSString).size(withAttributes: [.font: VFont.uUI(11, .bold)]).width + 9
                 if !l.isEmpty { text(l, VFont.uUI(11, .bold), ink, x: fx, y: fy + 4, w: lw) }
                 text(v, VFont.uUI(14), ink, x: fx + lw, y: fy, w: fw - lw)
                 hline(fy + 20, x: fx + lw, w: fw - lw, UIColor(hex: 0x9FB0C2), width: 0.8)
+                fy += 28
+            }
+            // Name of Inspector + License # (all report types)
+            do {
+                let lf = VFont.uUI(11, .bold)
+                let nl = ("Name of Inspector" as NSString).size(withAttributes: [.font: lf]).width + 9
+                let ll = ("License #" as NSString).size(withAttributes: [.font: lf]).width + 9
+                let licW: CGFloat = 108
+                let nameW = fw - nl - ll - licW - 10
+                text("Name of Inspector", lf, ink, x: fx, y: fy + 4, w: nl)
+                text(d.inspector, VFont.uUI(14), ink, x: fx + nl, y: fy, w: nameW)
+                hline(fy + 20, x: fx + nl, w: nameW, UIColor(hex: 0x9FB0C2), width: 0.8)
+                let lx = fx + nl + nameW + 10
+                text("License #", lf, ink, x: lx, y: fy + 4, w: ll)
+                text(d.license, VFont.uUI(14), ink, x: lx + ll, y: fy, w: licW)
+                hline(fy + 20, x: lx + ll, w: licW, UIColor(hex: 0x9FB0C2), width: 0.8)
                 fy += 28
             }
             // image area
@@ -600,9 +746,11 @@ enum ReportRenderer {
             }
         }
 
-        func summary() {
+        func summary(subtitle: String = "Findings grouped by category, in the order they appear in the report") {
+            headerless = false
+            onPageBreak = nil
             newContentPage()
-            pageTitle("Summary of Findings", "Findings grouped by category, in the order they appear in the report")
+            pageTitle("Summary of Findings", subtitle)
             let order = d.sections.map(\.name)
             for c in d.categories {
                 let items = d.findings.filter { $0.category == c.id }.sorted { a, b in

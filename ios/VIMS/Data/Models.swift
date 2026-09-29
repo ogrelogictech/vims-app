@@ -168,6 +168,12 @@ struct Inspection: Codable, Hashable, Identifiable {
 
     var leafSections: [String] { groups.flatMap { $0.leafSections } }
 
+    /// Layouts without a Summary entry (4 Point) hide "Review summary" and never route to Summary.
+    var hasSummary: Bool { groups.isEmpty || groups.contains { $0.link == "summary" } }
+
+    static let licenseField = "Inspector License #"
+    var inspectorLicense: String { field(Inspection.licenseField) }
+
     var photoCount: Int { photos.values.reduce(0) { $0 + $1.values.reduce(0) { $0 + $1.count } } }
 
     var structureShort: String {

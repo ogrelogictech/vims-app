@@ -20,6 +20,8 @@ struct ChecklistConfig: Decodable {
     let subscription: SubscriptionDef
     let support: SupportDef
     let sample: SampleDef
+    let formLabels: [String: String]?
+    let reportLayouts: ReportLayoutsDef?
 
     /// Keys of JSON objects whose order matters but that Swift dictionaries lose.
     var unitMixOrder: [String] = []
@@ -27,7 +29,7 @@ struct ChecklistConfig: Decodable {
 
     private enum CodingKeys: String, CodingKey {
         case version, depths, depthRules, overallCondition, overallConditionDefault, sectionGroups, sections,
-             checklistBuilder, wizard, findings, covers, subscription, support, sample
+             checklistBuilder, wizard, findings, covers, subscription, support, sample, formLabels, reportLayouts
     }
 }
 
@@ -43,6 +45,13 @@ struct SectionDef: Codable, Hashable {
     var photoCategoriesHigh: [String]?
     var items: [ItemDef]
     var itemsHigh: [ItemDef]?
+    /// "texas" | "fourPoint": client-supplied state/insurance form (ignores checklist depth, no overall condition)
+    var form: String? = nil
+    /// Section with no items: opening it goes straight to its photo screen (Pictures pages)
+    var photosOnly: Bool? = nil
+
+    var isForm: Bool { form != nil }
+    var isPhotosOnly: Bool { photosOnly == true }
 }
 
 struct ItemDef: Codable, Hashable {
@@ -110,7 +119,37 @@ struct WizardDef: Decodable {
     let testOptions: [String]
     let roomCounts: [RoomCountDef]
     let defaults: WizardDefaults
+    let typeFields: TypeFieldsDef?
 }
+
+struct TypeFieldDef: Decodable, Hashable { let label: String; let key: String; let placeholder: String? }
+
+/// `wizard.typeFields`: inspection type -> extra step-1 fields (the object also carries an "_about" string).
+struct TypeFieldsDef: Decodable {
+    let byType: [String: [TypeFieldDef]]
+
+    private struct Key: CodingKey {
+        var stringValue: String; var intValue: Int? { nil }
+        init?(stringValue: String) { self.stringValue = stringValue }
+        init?(intValue: Int) { nil }
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: Key.self)
+        var out: [String: [TypeFieldDef]] = [:]
+        for k in c.allKeys where !k.stringValue.hasPrefix("_") {
+            if let v = try? c.decode([TypeFieldDef].self, forKey: k) { out[k.stringValue] = v }
+        }
+        byType = out
+    }
+}
+
+/// `reportLayouts`: only the type -> layout map is needed at runtime (the page lists document report.html).
+struct ReportLayoutsDef: Decodable {
+    let typeToLayout: [String: String]?
+}
+
+enum ReportLayout: String { case standard, texas, fourPoint }
 
 struct WizardEntry: Decodable, Hashable {
     let kind: String          // field | chips | dynamic

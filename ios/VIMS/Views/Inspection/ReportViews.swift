@@ -97,6 +97,12 @@ struct ReportView: View {
                 SectionLabel(text: "Report cover")
                 CoverPicker(cover: Binding(get: { insp.cover }, set: { c in store.update(inspectionID) { $0.cover = c } }), step: $coverStep)
 
+                SectionLabel(text: "Report pages")
+                Text(Self.reportPages[store.catalog.reportLayout(for: insp.inspType)] ?? "")
+                    .font(VFont.ui(13)).foregroundStyle(VC.ink2).lineSpacing(3)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .vCard(EdgeInsets(top: 12, leading: 14, bottom: 12, trailing: 14))
+
                 SectionLabel(text: "Report contents · in checklist order")
                 Text("Completed sections populate the report in the order they're numbered on your master checklist.")
                     .font(VFont.ui(12)).foregroundStyle(VC.ink3).padding(.top, -4).padding(.bottom, 10).padding(.horizontal, 2)
@@ -146,9 +152,16 @@ struct ReportView: View {
         }
     }
 
+    /// Page structure per report layout (prototype copy for `reportLayouts`).
+    static let reportPages: [ReportLayout: String] = [
+        .standard: "Cover · Property information · Beginning notes · Checklist sections with their photos · Summary",
+        .texas: "Cover · Inspector & property information (TREC REI 7-6) · Checklist (I / NI / NP / D) · Pictures · Summary",
+        .fourPoint: "Cover · 4-Point checklist (Electrical, HVAC, Plumbing, Roof) · Pictures"
+    ]
+
     private func metaCard(_ insp: Inspection) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("PROPERTY INSPECTION REPORT").font(VFont.mono(10.5)).tracking(1.4).foregroundStyle(Color(hex: 0xF2C869))
+            Text(store.catalog.reportLayout(for: insp.inspType) == .fourPoint ? "4-POINT INSPECTION REPORT" : "PROPERTY INSPECTION REPORT").font(VFont.mono(10.5)).tracking(1.4).foregroundStyle(Color(hex: 0xF2C869))
             Text(insp.addressLine1).font(VFont.display(20, .heavy)).foregroundStyle(.white).padding(.top, 9).padding(.bottom, 3)
             Text([insp.addressRest, insp.structure].filter { !$0.isEmpty }.joined(separator: " · "))
                 .font(VFont.ui(12.5)).foregroundStyle(Color(hex: 0xCFE2EB))

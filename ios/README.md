@@ -35,7 +35,9 @@ xcrun simctl launch --terminate-running-process "iPhone 17" com.vims.app -resetD
 `-screen` accepts: `login signup forgot join home splash wizard sections section drawer photos markup flag summary
 report reportReady settings company instructions manage editSection plans inspectors subscribe subscribed billing
 feedback phase1 phase2`. Extras: `-step N` (wizard 1–4 / cover picker 1–3), `-depth high|standard|fast`,
-`-section NAME`, `-overview` (phase screens), `-trialDaysLeft N`, `-resetData`, `-skipLogin`, `-noSplash`.
+`-section NAME`, `-inspection PREFIX|TYPE` (e.g. `Texas`, `"4 Point Inspection"`), `-generate` (with
+`-screen reportReady`: regenerate the PDF first), `-group NAME` (Manage checklist), `-overview` (phase screens),
+`-trialDaysLeft N`, `-resetData`, `-skipLogin`, `-noSplash`.
 None of this is compiled into Release builds. The prototype's yellow review/jump button is intentionally not a
 user feature.
 
@@ -73,6 +75,14 @@ SwiftUI views ──► AppStore (@Observable, @MainActor)  ──► Repository
     Standard items with a "Detail / measurement" box; Fast Entry shows "Items present" chips. Answers are keyed
     by sub-header + question so they survive admin reordering.
   - Report order uses each section's `number` (then natural name order, so Bathroom 2 < Bathroom 10).
+- **Inspection types with their own forms (data v1.1).** `Texas` (TREC REI 7-6) and `4 Point Inspection` build
+  from `checklistBuilder.phaseTypes`. Sections with `"form"` ignore the checklist depth (always `items`), show the
+  `formLabels[form]` badge and no Overall condition row; `"photosOnly"` sections (Texas — Pictures, 4-Point —
+  Pictures) open straight on their photo screen, whose primary button marks them done and continues to Summary,
+  or to the report when the layout has no Summary (4 Point hides "Review summary" and "Flag a finding").
+  Step 1 of the wizard has the JSON `Inspector License #` field (prefilled from Company profile → License #) and
+  renders `wizard.typeFields` under the type chips (sponsor + sponsor TREC license # for Texas; insured /
+  applicant + application / policy # for 4 Point), stored in the inspection's `fields` by `key`.
 - **Admin edits** (Manage checklist) are stored as overrides of the JSON section definitions plus custom
   sections per group; they apply to inspections built afterward. Both Standard and High Detail item lists are
   editable.
@@ -81,7 +91,16 @@ SwiftUI views ──► AppStore (@Observable, @MainActor)  ──► Repository
   photo, chosen cover color/theme/style), Property Information, Beginning Notes, one data page per completed
   section (sub-section bands, answered lines, overall condition, comments, findings), photo pages (category
   captions, comments, concern/category tags), and the categorized Summary of Findings with taglines. Shared via
-  `ShareLink`, previewed with PDFKit.
+  `ShareLink`, previewed with PDFKit. Every cover prints "License #" beside the inspector's name. Page structure
+  follows `reportLayouts` (`Report/ReportForms.swift`, matching `report.html?type=texas|4point`):
+  - **Texas:** cover titled "Property Inspection Report" → TREC form page (client, date, address, inspector + TREC
+    license #, sponsor + TREC license #, promulgated text) → one checklist page per system with I / NI / NP / D
+    boxes, fields and "Comments:" → Pictures → Summary. Every page after the cover carries the REI 7-6 footer and
+    "Page X of Y" (the PDF is rendered twice to know the total).
+  - **4 Point:** cover titled "4-Point Inspection Report" (insured / applicant, application / policy #, address,
+    actual year built, date inspected, inspector + license #) → gray-banded form boxes with checkboxes for
+    Electrical, HVAC, Plumbing, Roof, additional comments and the certification block → Pictures, 6 per page in
+    3 columns. No summary.
 - **Fonts.** Archivo, IBM Plex Sans, IBM Plex Mono from `shared/fonts`, registered at launch with
   `CTFontManagerRegisterFontsForURL` (named instances of the variable fonts are addressed by PostScript name).
 - **Locale.** Money, numbers and dates use `Locale(identifier: "en_US")` explicitly (`Fmt` in `Theme.swift`),
@@ -98,13 +117,14 @@ ios/
     Data/       ChecklistConfig.swift (JSON models + loader), Models.swift (domain), Checklist.swift
                 (catalog + builder + answer keys), Repository.swift (file persistence, image cache), DemoSeed.swift
     Services/   Services.swift (Auth / Subscription / Sync stubs, connectivity)
-    Report/     ReportRenderer.swift (report data + PDF drawing)
+    Report/     ReportRenderer.swift (report data + standard PDF pages), ReportForms.swift (Texas TREC + 4-Point pages)
     Theme/      Theme.swift (tokens, fonts, formatting, icons), Components.swift (chips, buttons, cards, fields…)
     Views/      Shell (header/Screen), Auth, Home (list + trial splash), Inspection (wizard, sections,
                 section entry, photos + markup, summary, report), Settings (settings, company, help,
                 admin: checklist editor, plans, inspectors, subscribe, billing, feedback)
     Assets.xcassets  AppIcon (from vims-logo.png on white), VimsLogo, AccentColor (#2F5EC9)
-  screenshots/  NN-name.png matching ../screens numbering; pdf/ holds a generated sample report + page renders
+  screenshots/  NN-name.png matching ../screens numbering (31-texas-*, 32-fourpoint-* for the v1.1 types);
+                pdf/ holds generated sample reports + page renders (pdf-*, texas-*, fourpoint-*)
 ```
 
 ## Backend stubs — `TODO(backend)`

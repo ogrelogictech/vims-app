@@ -8,6 +8,7 @@ enum DebugFlags {
     static var openFlag = false
     static var coverStep: Int?
     static var suppressSplash = false
+    static var adminGroup: String?
 }
 
 #if DEBUG
@@ -24,6 +25,8 @@ enum DebugFlags {
 ///   -step N                    wizard step (1–4) / cover picker step (1–3)
 ///   -depth high|standard|fast  checklist depth for the demo inspection
 ///   -section NAME              section to open (default Roof / Outside Utilities for high)
+///   -generate                  with -screen reportReady: regenerate the PDF first
+///   -inspection PREFIX         inspection whose address starts with PREFIX, or whose type equals it (default 1428…)
 enum DebugLaunch {
     static var args: [String] { ProcessInfo.processInfo.arguments }
 
@@ -52,11 +55,13 @@ enum DebugLaunch {
         guard let screen else { return }
 
         let step = value("-step").flatMap(Int.init)
-        guard let ridge = store.inspections.first(where: { $0.address.hasPrefix("1428") }) ?? store.inspections.first else { return }
+        let pick = value("-inspection") ?? "1428"
+        guard let ridge = store.inspections.first(where: { $0.address.hasPrefix(pick) || $0.inspType == pick })
+                ?? store.inspections.first else { return }
         let id = ridge.id
         if let d = value("-depth"), let depth = Depth(rawValue: d) { store.update(id, markDirty: false) { $0.depth = depth } }
         let depth = store.inspection(id)?.depth ?? .standard
-        let section = value("-section") ?? (depth == .high ? "Outside Utilities" : "Roof")
+        let section = value("-section") ?? (ridge.leafSections.contains("Roof") ? (depth == .high ? "Outside Utilities" : "Roof") : (ridge.leafSections.first ?? "Roof"))
 
         switch screen {
         case "login": store.state.session = nil
@@ -69,17 +74,25 @@ enum DebugLaunch {
         case "sections": store.path = [.sections(id)]
         case "section": store.path = [.sections(id), .section(id, section)]
         case "drawer": DebugFlags.openDrawer = true; store.path = [.sections(id), .section(id, section)]
-        case "photos": store.path = [.sections(id), .section(id, section), .photos(id, section)]
+        case "photos": store.path = store.catalog.isPhotosOnly(section) ? [.sections(id), .photos(id, section)] : [.sections(id), .section(id, section), .photos(id, section)]
         case "markup": DebugFlags.openMarkup = true; store.path = [.sections(id), .section(id, section), .photos(id, section)]
         case "flag": DebugFlags.openMarkup = true; DebugFlags.openFlag = true; store.path = [.sections(id), .section(id, section), .photos(id, section)]
         case "summary": store.path = [.sections(id), .summary(id)]
         case "report": DebugFlags.coverStep = step; store.path = [.sections(id), .summary(id), .report(id)]
         case "reportReady":
-            if let other = store.inspections.first(where: { $0.report != nil }) { store.path = [.sections(other.id), .reportReady(other.id)] }
+            if has("-generate") {
+                Task { @MainActor in
+                    _ = await store.generateReport(id)
+                    store.path = [.sections(id), .reportReady(id)]
+                }
+            } else if value("-inspection") != nil { store.path = [.sections(id), .reportReady(id)] }
+            else if let other = store.inspections.first(where: { $0.report != nil }) { store.path = [.sections(other.id), .reportReady(other.id)] }
         case "settings": store.path = [.settings]
         case "company": store.path = [.settings, .company]
         case "instructions": store.path = [.settings, .instructions]
-        case "manage": store.path = [.settings, .manageChecklist]
+        case "manage":
+            if let g = value("-group") { DebugFlags.adminGroup = g }
+            store.path = [.settings, .manageChecklist]
         case "editSection": store.path = [.settings, .manageChecklist, .editSection(value("-section") ?? "Roof")]
         case "plans": store.path = [.settings, .plans]
         case "inspectors":

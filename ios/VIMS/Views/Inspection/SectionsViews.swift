@@ -45,13 +45,15 @@ struct SectionsOverviewView: View {
                     GroupAccordion(group: g, insp: insp, isOpen: open.contains(g.heading),
                                    toggle: { withAnimation(.easeInOut(duration: 0.2)) { toggle(g.heading) } },
                                    openLink: { link in openLink(link) },
-                                   openSection: { store.push(.section(inspectionID, $0)) })
+                                   openSection: { store.push(store.sectionRoute(inspectionID, $0)) })
                 }
 
-                Button { store.push(.summary(inspectionID)) } label: { Label("Review summary", systemImage: "checkmark.square") }
-                    .buttonStyle(.vSignal).padding(.top, 8)
+                if insp.hasSummary {
+                    Button { store.push(.summary(inspectionID)) } label: { Label("Review summary", systemImage: "checkmark.square") }
+                        .buttonStyle(.vSignal).padding(.top, 8)
+                }
                 Button { store.push(.report(inspectionID)) } label: { Label("Generate report", systemImage: "doc") }
-                    .buttonStyle(.vPrimary).padding(.top, 10)
+                    .buttonStyle(.vPrimary).padding(.top, insp.hasSummary ? 10 : 8)
             }
             .onAppear {
                 if !didInit {

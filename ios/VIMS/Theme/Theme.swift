@@ -220,6 +220,7 @@ enum VIcon {
         case "flask": return "flask"
         case "grid": return "square.grid.2x2"
         case "file": return "doc.text"
+        case "camera": return "camera"
         default: return "info.circle"
         }
     }

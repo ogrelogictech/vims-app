@@ -28,18 +28,27 @@ struct PhotosView: View {
             let cats = store.catalog.photoCategories(section, depth: insp.depth)
             let existing = insp.photos[section] ?? [:]
             let extra = existing.keys.filter { !cats.contains($0) && !(existing[$0]?.isEmpty ?? true) }.sorted()
-            Screen(title: "\(section) photos", subtitle: insp.addressLine1,
+            Screen(title: store.catalog.isPhotosOnly(section) ? section : "\(section) photos", subtitle: insp.addressLine1,
                    actions: [HeaderAction(symbol: "list.bullet", label: "Sections") { store.popToSections(inspectionID) }, store.homeAction()]) {
-                Text(md("Tap **Add** to capture a photo, tap a photo to mark it up or flag it, or tap **×** to delete one."))
+                let photosOnly = store.catalog.isPhotosOnly(section)
+                Text(md((photosOnly ? "These pictures print on the picture pages after the checklist. " : "") + "Tap **Add** to capture a photo, tap a photo to mark it up or flag it, or tap **×** to delete one."))
                     .font(VFont.ui(13)).foregroundStyle(VC.ink3)
                     .padding(.top, 2).padding(.bottom, 14)
                     .fixedSize(horizontal: false, vertical: true)
                 ForEach(cats + extra, id: \.self) { cat in
                     categoryBlock(cat, photos: existing[cat] ?? [])
                 }
-                Button("Done") { store.back() }
+                if photosOnly {
+                    Button { store.finishPictures(inspectionID, section) } label: {
+                        Label("Save & continue to \(insp.hasSummary ? "summary" : "report")", systemImage: "checkmark")
+                    }
                     .buttonStyle(.vPrimary)
                     .padding(.top, 6)
+                } else {
+                    Button("Done") { store.back() }
+                        .buttonStyle(.vPrimary)
+                        .padding(.top, 6)
+                }
             }
             .confirmationDialog("Add a photo", isPresented: $showSourceDialog, titleVisibility: .visible) {
                 Button("Take photo") { showCamera = true }
@@ -57,10 +66,12 @@ struct PhotosView: View {
             .fullScreenCover(item: $viewer) { t in
                 PhotoMarkupView(inspectionID: inspectionID, section: section, category: t.category, photoID: t.photoID,
                                 onReturnToSection: {
-                                    if case .photos = store.path.last { store.path.removeLast() }
+                                    // Pictures (photos-only) pages are their own "section": stay on them.
+                                    if !store.catalog.isPhotosOnly(section), case .photos = store.path.last { store.path.removeLast() }
                                 })
             }
             .onAppear {
+                endEditing()
                 if DebugFlags.openMarkup {
                     DebugFlags.openMarkup = false
                     if let (c, arr) = cats.map({ ($0, existing[$0] ?? []) }).first(where: { !$0.1.isEmpty }), let p = arr.first {
@@ -88,6 +99,7 @@ struct PhotosView: View {
                     })
                 }
                 Button {
+                    endEditing()
                     captureCategory = cat
                     if cameraAvailable { showSourceDialog = true } else { showLibrary = true }
                 } label: {
@@ -109,6 +121,12 @@ struct PhotosView: View {
             }
         }
         .padding(.bottom, 16)
+    }
+
+    /// Presenting a full-screen cover while the keyboard is still animating away can leave it with a
+    /// zero top safe area; make sure no text field is focused first.
+    private func endEditing() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
 
     private func handleCaptured(_ image: UIImage?) {
@@ -368,6 +386,7 @@ struct PhotoMarkupView: View {
             .background(Color(hex: 0x12181F).ignoresSafeArea(edges: .bottom))
         }
         .background(Color(hex: 0x0B0F15).ignoresSafeArea())
+        .ignoresSafeArea(.keyboard)
         .onAppear {
             if let ref = store.photo(inspectionID, section: section, category: category, photoID: photoID) {
                 image = UIImage(contentsOfFile: store.repo.url(for: ref.file).path)

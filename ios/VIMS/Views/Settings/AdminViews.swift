@@ -30,6 +30,7 @@ struct ManageChecklistView: View {
                 adminGroup(g.group, g.sections)
             }
         }
+        .onAppear { if let g = DebugFlags.adminGroup { open = [g]; DebugFlags.adminGroup = nil } }
     }
 
     private func icon(_ g: String) -> String {
@@ -38,6 +39,7 @@ struct ManageChecklistView: View {
         case "Utility": return "bolt"
         case "Interior": return "sofa"
         case "Phase Inspections": return "layers"
+        case "State & Insurance Forms": return "file"
         default: return "tree"
         }
     }
@@ -69,7 +71,7 @@ struct ManageChecklistView: View {
                         HStack(spacing: 12) {
                             Text(n).font(VFont.ui(14, .medium)).foregroundStyle(VC.ink).frame(maxWidth: .infinity, alignment: .leading)
                             if store.isCustomSection(n) { Pill(kind: .prog, text: "Custom", dot: false) }
-                            Text("\(count) items").font(VFont.mono(10.5, .semibold)).foregroundStyle(VC.ink2)
+                            Text(store.catalog.isPhotosOnly(n) ? "photos only" : "\(count) items").font(VFont.mono(10.5, .semibold)).foregroundStyle(VC.ink2)
                             Chevron()
                         }
                         .padding(.leading, 18).padding(.trailing, 15).padding(.vertical, 12).frame(minHeight: 44)

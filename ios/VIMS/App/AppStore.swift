@@ -211,6 +211,8 @@ final class AppStore {
         for e in w.step1 + w.step2 where e.kind == "chips" {
             if let def = e.default, e.id != "wdepth" { fields[e.label] = def }
         }
+        let lic = state.company.license.trimmingCharacters(in: .whitespaces)
+        if !lic.isEmpty { fields[Inspection.licenseField] = lic }
         fields["Date"] = Fmt.date(Date(), "yyyy-MM-dd")
         fields["Time"] = Fmt.date(Calendar.current.date(bySetting: .minute, value: 0, of: Date().addingTimeInterval(3600)) ?? Date(), "HH:mm")
         return Inspection(
@@ -249,8 +251,30 @@ final class AppStore {
         repo.deleteInspection(id: id)
     }
 
+    /// Default answers: forms have no Overall condition row, so no preselected overall.
+    func defaultAnswers(_ section: String) -> SectionAnswers {
+        SectionAnswers(overall: catalog.isForm(section) ? nil : config.overallConditionDefault)
+    }
+
     func answers(_ id: UUID, _ section: String) -> SectionAnswers {
-        inspection(id)?.answers[section] ?? SectionAnswers(overall: config.overallConditionDefault)
+        inspection(id)?.answers[section] ?? defaultAnswers(section)
+    }
+
+    /// Photos-only sections (Pictures) open straight on their photo screen.
+    func sectionRoute(_ id: UUID, _ section: String) -> Route {
+        catalog.isPhotosOnly(section) ? .photos(id, section) : .section(id, section)
+    }
+
+    /// Pictures page primary button: marks it done, then Summary (Texas) or Report (4 Point).
+    func finishPictures(_ id: UUID, _ section: String) {
+        markDone(id, section)
+        toast("Pictures saved")
+        let toSummary = inspection(id)?.hasSummary ?? true
+        Task {
+            try? await Task.sleep(nanoseconds: 450_000_000)
+            self.popToSections(id)
+            self.push(toSummary ? .summary(id) : .report(id))
+        }
     }
 
     func setAnswers(_ id: UUID, _ section: String, _ a: SectionAnswers) {
@@ -262,7 +286,7 @@ final class AppStore {
 
     func markDone(_ id: UUID, _ section: String) {
         update(id) { insp in
-            if insp.answers[section] == nil { insp.answers[section] = SectionAnswers(overall: config.overallConditionDefault) }
+            if insp.answers[section] == nil { insp.answers[section] = defaultAnswers(section) }
             insp.status[section] = .done
         }
     }

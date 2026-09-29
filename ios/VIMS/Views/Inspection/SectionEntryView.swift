@@ -50,9 +50,18 @@ struct SectionEntryView: View {
 
     @ViewBuilder
     private func content(_ insp: Inspection) -> some View {
-        let depth = insp.depth
+        let isForm = store.catalog.isForm(section)
+        // State/insurance forms ignore the checklist depth (always `items`, no detail box, no Fast Entry chips).
+        let depth: Depth = isForm ? .standard : insp.depth
         let resolved = store.catalog.items(section, depth: depth)
-        ModeTile(depth: depth)
+        if isForm {
+            ModeTile(depth: .high, customLabel: store.catalog.formLabel(section),
+                     customHint: store.catalog.section(section)?.form == "texas"
+                        ? "Mark each item I / NI / NP / D and add comments. Same on every checklist depth."
+                        : "Complete every line of the form. Same on every checklist depth.")
+        } else {
+            ModeTile(depth: depth)
+        }
 
         if depth == .fast {
             let questions = (store.catalog.section(section)?.items ?? []).compactMap(\.q)
@@ -78,16 +87,20 @@ struct SectionEntryView: View {
             }
         }
 
-        SectionLabel(text: "Overall condition")
-        SegGrid(options: store.config.overallCondition, value: $answers.overall)
+        if !isForm {
+            SectionLabel(text: "Overall condition")
+            SegGrid(options: store.config.overallCondition, value: $answers.overall)
+        }
         SectionLabel(text: "Comments")
         VTextArea(text: $answers.comments, placeholder: "Notes for this section…")
 
         let secFindings = insp.findings.filter { $0.section == section }
-        Button { showFinding = true } label: {
-            Label(secFindings.isEmpty ? "Flag a finding" : "Flag a finding · \(secFindings.count) flagged", systemImage: "flag")
+        if insp.hasSummary {
+            Button { showFinding = true } label: {
+                Label(secFindings.isEmpty ? "Flag a finding" : "Flag a finding · \(secFindings.count) flagged", systemImage: "flag")
+            }
+            .buttonStyle(VButtonStyle(kind: .ghost, minHeight: 46))
         }
-        .buttonStyle(VButtonStyle(kind: .ghost, minHeight: 46))
 
         HStack(spacing: 10) {
             Button { store.push(.photos(inspectionID, section)) } label: { Label("Photos", systemImage: "camera") }
@@ -120,19 +133,21 @@ struct SectionEntryView: View {
         } else {
             store.toast("Saved — last section")
             store.popToSections(inspectionID)
-            store.push(.summary(inspectionID))
+            store.push(store.inspection(inspectionID)?.hasSummary == false ? .report(inspectionID) : .summary(inspectionID))
         }
     }
 
     private func replaceSection(_ next: String) {
         if case .section = store.path.last { store.path.removeLast() }
-        store.path.append(.section(inspectionID, next))
+        store.path.append(store.sectionRoute(inspectionID, next))
     }
 }
 
 /// .modetile — one badge per depth + hint.
 struct ModeTile: View {
     let depth: Depth
+    var customLabel: String? = nil
+    var customHint: String? = nil
     var body: some View {
         let (bg, hint): (Color, String) = {
             switch depth {
@@ -142,12 +157,12 @@ struct ModeTile: View {
             }
         }()
         HStack(spacing: 8) {
-            Text("\(depth.label) checklist")
+            Text(customLabel ?? "\(depth.label) checklist")
                 .font(VFont.ui(12, .bold)).foregroundStyle(.white)
                 .padding(.horizontal, 11).padding(.vertical, 5)
                 .background(bg).clipShape(Capsule())
                 .fixedSize()
-            Text(hint).font(VFont.ui(11.5)).foregroundStyle(VC.ink3)
+            Text(customHint ?? hint).font(VFont.ui(11.5)).foregroundStyle(VC.ink3)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)
         }
