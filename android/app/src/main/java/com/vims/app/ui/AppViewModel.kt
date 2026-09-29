@@ -91,37 +91,26 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     /* ------------------------------------------------------------------ auth */
 
-    fun signIn(email: String, password: String, onOk: () -> Unit) = viewModelScope.launch {
-        when (val r = container.auth.signIn(email, password)) {
-            is AuthResult.Error -> toast(r.message)
-            is AuthResult.Success -> { repo.setSession(r.session); onOk(); maybeShowSplash() }
+    /** Auth errors come back through `onError` so the form can show them inline under the right field. */
+    fun signIn(email: String, password: String, onError: (AuthResult.Error) -> Unit, onOk: () -> Unit) = viewModelScope.launch {
+        when (val r = container.auth.signIn(email.trim(), password)) {
+            is AuthResult.Error -> onError(r)
+            is AuthResult.Success -> { repo.activate(r.session); onOk(); maybeShowSplash() }
         }
     }
 
-    fun createAccount(name: String, companyName: String, email: String, password: String, onOk: () -> Unit) = viewModelScope.launch {
-        when (val r = container.auth.createAccount(name, companyName, email, password)) {
-            is AuthResult.Error -> toast(r.message)
-            is AuthResult.Success -> {
-                if (companyName.isNotBlank()) repo.updateCompany { it.copy(name = companyName.trim()) }
-                repo.updateCompany { if (it.inspectorName.isBlank()) it.copy(inspectorName = name.trim()) else it }
-                repo.updateAccount { a ->
-                    if (a.inspectors.any { it.email.equals(email.trim(), true) }) a
-                    else a.copy(inspectors = listOf(Inspector(UUID.randomUUID().toString(), name.trim(), email.trim(), owner = true, admin = true)) + a.inspectors.map { it.copy(owner = false) })
-                }
-                repo.setSession(r.session); onOk(); maybeShowSplash()
-            }
+    fun createAccount(name: String, companyName: String, email: String, password: String, onError: (AuthResult.Error) -> Unit, onOk: () -> Unit) = viewModelScope.launch {
+        when (val r = container.auth.createAccount(name.trim(), companyName.trim(), email.trim(), password)) {
+            is AuthResult.Error -> onError(r)
+            is AuthResult.Success -> { repo.activate(r.session); onOk(); maybeShowSplash() }
         }
     }
 
-    fun joinCompany(name: String, email: String, code: String, onOk: () -> Unit) = viewModelScope.launch {
-        when (val r = container.auth.joinCompany(name, email, code)) {
-            is AuthResult.Error -> toast(r.message)
+    fun joinCompany(name: String, email: String, code: String, password: String, onError: (AuthResult.Error) -> Unit, onOk: () -> Unit) = viewModelScope.launch {
+        when (val r = container.auth.joinCompany(name.trim(), email.trim(), code, password)) {
+            is AuthResult.Error -> onError(r)
             is AuthResult.Success -> {
-                repo.updateAccount { a ->
-                    if (a.inspectors.any { it.email.equals(email.trim(), true) && email.isNotBlank() }) a
-                    else a.copy(inspectors = a.inspectors + Inspector(UUID.randomUUID().toString(), r.session.name, email.trim()))
-                }
-                repo.setSession(r.session)
+                repo.activate(r.session)
                 toast("Linked to ${company.value.name.ifBlank { "your company" }}")
                 onOk()
             }
@@ -129,10 +118,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun sendReset(email: String, onOk: () -> Unit) = viewModelScope.launch {
-        if (container.auth.sendPasswordReset(email)) { toast("Reset link sent"); onOk() } else toast("Enter your email")
+        if (container.auth.sendPasswordReset(email)) { toast("Reset link sent"); onOk() }
     }
 
-    fun signOut(onOk: () -> Unit) = viewModelScope.launch { container.auth.signOut(); repo.setSession(null); onOk() }
+    /** Clears every user/company value from memory; the next user only ever loads their own data. */
+    fun signOut(onOk: () -> Unit) = viewModelScope.launch { container.auth.signOut(); repo.activate(null); _splash.value = false; onOk() }
 
     /* ------------------------------------------------------------------ wizard */
 
@@ -218,8 +208,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun newPhotoFile(id: String): Pair<String, File> {
         val pid = UUID.randomUUID().toString()
-        val rel = "vims/inspections/$id/photos/$pid.jpg"
-        return pid to File(getApplication<Application>().filesDir, rel).apply { parentFile?.mkdirs() }
+        return pid to File(repo.inspectionDir(id), "photos/$pid.jpg").apply { parentFile?.mkdirs() }
     }
 
     fun addPhoto(id: String, section: String, cat: String, pid: String, file: File): Photo {
@@ -320,12 +309,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 val bmp = getApplication<Application>().contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) } ?: return@withContext false
                 val scale = minOf(1f, 512f / maxOf(bmp.width, bmp.height))
                 val out = if (scale < 1f) Bitmap.createScaledBitmap(bmp, (bmp.width * scale).toInt(), (bmp.height * scale).toInt(), true) else bmp
-                val f = File(getApplication<Application>().filesDir, "vims/company/logo.png").apply { parentFile?.mkdirs() }
+                val f = File(repo.companyDir(), "logo.png")
                 FileOutputStream(f).use { out.compress(Bitmap.CompressFormat.PNG, 100, it) }
                 true
             } catch (_: Exception) { false }
         }
-        if (ok) { repo.updateCompany { it.copy(logoFile = "vims/company/logo.png") }; logoVersion.update { it + 1 }; toast("Logo updated") } else toast("Could not read that image")
+        val rel = File(repo.companyDir(), "logo.png").relativeTo(getApplication<Application>().filesDir).path
+        if (ok) { repo.updateCompany { it.copy(logoFile = rel) }; logoVersion.update { it + 1 }; toast("Logo updated") } else toast("Could not read that image")
     }
     val logoVersion = MutableStateFlow(0)
 
@@ -333,11 +323,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val ext = name.substringAfterLast('.', "pdf")
         val ok = withContext(Dispatchers.IO) {
             try {
-                val f = File(getApplication<Application>().filesDir, "vims/company/agreement.$ext").apply { parentFile?.mkdirs() }
+                val f = File(repo.companyDir(), "agreement.$ext")
                 getApplication<Application>().contentResolver.openInputStream(uri)?.use { input -> FileOutputStream(f).use { input.copyTo(it) } } != null
             } catch (_: Exception) { false }
         }
-        if (ok) { repo.updateCompany { it.copy(agreementName = name, agreementFile = "vims/company/agreement.$ext") }; toast("Agreement uploaded") } else toast("Could not read that file")
+        val rel = File(repo.companyDir(), "agreement.$ext").relativeTo(getApplication<Application>().filesDir).path
+        if (ok) { repo.updateCompany { it.copy(agreementName = name, agreementFile = rel) }; toast("Agreement uploaded") } else toast("Could not read that file")
     }
 
     fun saveFeedbackEmail(email: String): Boolean {
@@ -427,5 +418,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Debug-only helper (screenshots): force an inspection's depth. */
     fun debugSetDepth(id: String, depth: String) = repo.updateInspection(id) { it.copy(selections = it.selections.copy(depth = depth)) }
-    fun debugSignIn() { if (session.value == null) repo.setSession(Session(company.value.inspectorName.ifBlank { "Jeremy Heath" }.replace(" K.", ""), account.value.inspectors.firstOrNull()?.email ?: "demo@vims.app")) }
+    suspend fun debugSignIn() {
+        if (session.value != null) return
+        val r = container.auth.signIn(com.vims.app.demo.DemoSeed.DEMO_EMAIL, com.vims.app.demo.DemoSeed.DEMO_PASSWORD)
+        if (r is AuthResult.Success) repo.activate(r.session)
+    }
 }

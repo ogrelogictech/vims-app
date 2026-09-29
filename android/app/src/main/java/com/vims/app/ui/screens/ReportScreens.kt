@@ -193,7 +193,9 @@ fun CoverPicker(vm: AppViewModel, cover: CoverChoice, step: Int, onStep: (Int) -
     // preview
     Row(Modifier.padding(bottom = 14.dp).fillMaxWidth().vCard().clickable(role = Role.Button) { onStep(1) }.padding(13.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(13.dp)) {
         Box(Modifier.width(78.dp).height(104.dp).clip(RoundedCornerShape(9.dp)).background(coverBrush(vm, cover.color)).padding(8.dp), contentAlignment = Alignment.BottomStart) {
-            Text(cover.artLabel(), style = T.display(11.sp, FontWeight.Bold, Color.White, lineHeight = 12.7.sp))
+            // Fixed-size art tile: keep the label's size stable under large system font scales.
+            val fs = androidx.compose.ui.platform.LocalDensity.current.fontScale
+            Text(cover.artLabel(), style = T.display((11f / fs).sp, FontWeight.Bold, Color.White, lineHeight = (12.7f / fs).sp))
         }
         Column(Modifier.weight(1f)) {
             Text(cover.label(), style = T.ui(15.sp, FontWeight.Bold))

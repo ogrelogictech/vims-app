@@ -5,12 +5,15 @@ client-approved prototype (`../index.html`, `../report.html`, `../screens/`). Th
 
 - Kotlin + Jetpack Compose + Material3 (themed to `../docs/design-tokens.md`, light only)
 - Single activity, navigation-compose (type-safe routes), one `AppViewModel` exposing `StateFlow`s
-- Offline-first: every piece of data is a JSON file in the app's `filesDir`; no network, no `INTERNET` permission
+- Offline-first local database: **Room (SQLite)**, scoped per user / per company; no network, no `INTERNET` permission
+  (MySQL is the Phase 2 *server* database behind the Laravel API — it can't run on a phone; Room is the on-device store)
+- Splash video on cold launch, reusable input validation, the prototype's own icon set (`shared/icons`)
 - Checklist content/config is loaded at runtime from the shared `vims-checklists.json` — nothing is hardcoded
 
 ## Build & run
 
-Open the `android/` folder in Android Studio (it uses the Gradle wrapper; AGP 9.4.1, Kotlin 2.4.20, compileSdk 37, minSdk 26).
+Open the `android/` folder in Android Studio (it uses the Gradle wrapper; AGP 9.4.1, Kotlin 2.4.20, KSP 2.3.12, Room 2.8.5,
+Media3 1.11.1, compileSdk 37, minSdk 26).
 
 ```bash
 export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
@@ -20,7 +23,9 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 adb shell am start -n com.vims.app/.MainActivity
 ```
 
-Sign in with any non-empty email + password (auth is stubbed). The demo seed pre-fills Jeremy Heath's email.
+**Demo account:** `jeremy@visionpropertyinspections.com` / `inspect2026` (owns the sample inspections and the
+Vision Property Inspections company, join code `VIS-4827`). Create account makes a brand-new, empty user + company;
+Join a company with a code attaches a new user to an existing company. Auth is a local stub (`TODO(backend)`).
 
 ### Debug screen jumper (debug builds only)
 `MainActivity` accepts intent extras so any screen can be opened directly (also signs in):
@@ -31,29 +36,33 @@ adb shell am start -S -n com.vims.app/.MainActivity --es screen section --es sec
 #           generated pdf settings company instructions admin editsec plans inspectors subscribe substarted billing feedbackadmin
 #   --es insp demo-ridgeline   --es section "'Outside Utilities'"   --es photo demo-p0   --es cat "North Side"
 #   --es depth high|standard|fast (rewrites that inspection's depth)   --ei step 1-4 (wizard)   --ei coverStep 1-3
-#   --ez splash true (show the free-look splash)
+#   --ez splash true (show the free-look splash)   --ez video true (play the launch video too)
 ```
+Debug launches sign in as the demo account when nobody is signed in, and skip the splash video.
 Release builds ignore these extras (`BuildConfig.DEBUG`).
 
 ## Architecture / package map (`app/src/main/java/com/vims/app/`)
 
 | Package / file | What it holds |
 |---|---|
-| `VimsApplication.kt` | App start: loads fonts, builds `AppContainer` (config, repository, services), bootstraps the company account from JSON, runs the demo seed |
-| `MainActivity.kt` | Edge-to-edge setup, debug intent parsing, sets `VimsRoot` |
+| `VimsApplication.kt` | App start: fonts + icons, `AppContainer` (config, Room database, repository, services); one-time JSON → Room migration, demo account, restore last session |
+| `MainActivity.kt` | SplashScreen API, edge-to-edge, splash video on cold launch, debug intent parsing, sets `VimsRoot` |
+| `data/db/VimsDatabase.kt` | Room entities (`users`, `companies`, `inspections`, `section_answers`, `photos`, `findings`, `kv`), DAO, database |
+| `data/JsonMigration.kt` | One-time import of the pre-Room JSON store into Room (attached to the demo user/company; files moved to per-user folders) |
 | `data/ChecklistConfig.kt` | `@Serializable` model of `vims-checklists.json` + `ChecklistLoader` |
 | `data/ChecklistEngine.kt` | Effective section defs (JSON + admin edits), checklist generation from wizard selections (`checklistBuilder`: standard layout, Phase 1 Foundation / Phase 2 Pre-Dry Wall, numbered Bathroom/Bedroom/Hallway), depth rules, stable answer keys |
 | `data/Models.kt` | Inspection, WizardSelections, SectionAnswers, Photo, Finding, CompanyProfile, AccountState (plans, inspectors, trial), AppSettings, ChecklistEdits |
-| `data/Repository.kt` | `VimsRepository` interface + `FileRepository` (in-memory `StateFlow`s, write-through JSON files, ordered background writes, temp-file + rename) |
-| `services/Services.kt` | `AuthService`, `SubscriptionService`, `SyncService` interfaces + local stubs (`TODO(backend)`) |
+| `data/Repository.kt` | `VimsRepository` interface + `RoomRepository` (session-scoped in-memory `StateFlow`s, write-through to Room in order on one background thread) |
+| `services/Services.kt` | `AuthService` (local users/companies, salted PBKDF2 hash), `SubscriptionService`, `SyncService` + stubs (`TODO(backend)`) |
 | `report/ReportPdfGenerator.kt` | On-device PDF (`android.graphics.pdf.PdfDocument`) following `report.html` |
 | `demo/DemoSeed.kt` | **All demo data** (first launch only) |
 | `ui/AppViewModel.kt` | UI state + actions for every screen |
 | `ui/VimsNav.kt` | Routes, NavHost, toast host, debug jumper |
-| `ui/theme/` | Design tokens (`V`), fonts (`VimsFonts`, text styles `T`), the prototype's stroke icons rebuilt from its SVG paths (`VIcons`) |
+| `ui/SplashVideo.kt` | Launch video (Media3 ExoPlayer, muted, center-crop, once, tap to skip; last frame ~1 s when animations are off) |
+| `ui/theme/` | Design tokens (`V`), fonts (`VimsFonts`, text styles `T`), icons (`VIcons`: ImageVectors built at startup from `shared/icons/icons.json` — the prototype's own 24×24 stroke paths, stroke 2, round caps/joins, tinted — with the same paths embedded as fallback) |
 | `ui/components/Components.kt` | Header bar, buttons, cards, inputs, chips (single = tap again to deselect), segmented control, pills, rows, counters, banners, success block |
 | `ui/screens/` | `AuthScreens` (login, create account, forgot, join) · `HomeScreen` (+ trial splash) · `WizardScreen` · `SectionsScreen` (+ sections drawer) · `SectionScreen` · `PhotosScreens` (photos, CameraX capture, markup viewer, flag-a-finding sheet) · `SummaryScreen` · `ReportScreens` (cover picker, report ready, PDF preview, share) · `SettingsScreens` (settings, company profile, how VIMS works, feedback admin) · `AdminScreens` (manage checklist, edit section, plans & pricing) · `AccountScreens` (inspectors, subscribe, subscription started, billing) |
-| `util/` | `Fmt` (Locale.US money/dates/times), `Images` (downsampling, EXIF normalize, thumbnail cache) |
+| `util/` | `Validation` (filters, checks, on-screen formatters, `FormState`), `PasswordHasher`, `Fmt` (Locale.US money/dates/times), `Images` |
 
 ### Shared data & fonts
 `app/build.gradle.kts` adds `../../shared` as an assets folder, so the app reads
@@ -61,11 +70,42 @@ Release builds ignore these extras (`BuildConfig.DEBUG`).
 (Archivo / IBM Plex Sans variable fonts with `FontVariation` weights, IBM Plex Mono statics). Edit checklist content in
 `../shared/data/vims-checklists.json` only — both apps pick it up.
 
-### Local storage layout (`filesDir/vims/`)
-`session.json`, `account.json`, `company.json` (+ `company/logo.png`, `company/agreement.*`), `settings.json`,
-`checklist-edits.json`, and per inspection `inspections/<id>/{inspection,answers,photos,findings,checklist}.json`,
-`photos/*.jpg`, `report/VIMS-Report-*.pdf`. `checklist.json` is a snapshot of the section definitions taken when the
-checklist was built, so admin edits apply to *new* inspections only (as the prototype states).
+### Local database & per-user isolation (Room)
+- `vims.db` (schema exported to `app/schemas/`). Ownership:
+  - **user-owned** (`userId`): inspections, section answers, photos, findings, reports — files in `filesDir/vims/users/<userId>/inspections/<id>/` (`photos/`, `report/`)
+  - **company-owned** (`companyId`): company profile + logo (`filesDir/vims/companies/<companyId>/logo.png`), checklist customizations, plans, inspectors, subscription
+  - per-user settings (default depth, auto-sync) live on the `users` row
+- Payloads are the existing `@Serializable` models stored as JSON columns, indexed by owner; children cascade-delete with their inspection.
+- `RoomRepository.activate(session)` loads **only** that user's inspections and that user's company; `activate(null)` (sign-out)
+  clears everything from memory. Every query/update is filtered by the owner id, so a second user never sees the first user's data.
+- Each inspection keeps a snapshot of its checklist definitions, so admin edits apply to *new* inspections only.
+- Users table: UUID id, unique lowercased email, name, companyId, salted PBKDF2 hash (local stub only — `TODO(backend)`).
+- Existing JSON data from earlier builds is imported once into Room and attached to the demo account.
+
+### Validation (`util/Validation.kt`, rules from `../docs/validation-rules.md`)
+- `Filters` run while typing — every field: no leading space, never two spaces in a row; emails/passwords/URLs strip spaces;
+  person names, phone (digits, shown as `(801) 555-0134`), join code (`VIS-4827`), license, policy #, year, decimals,
+  temperature, prices (2 decimals), card number (grouped, Amex 4-6-5, brand shown), expiry `MM/YY`, CVC, ZIP.
+- `Checks` run on submit: required fields, email format, password rules (8+, confirm), phone 10 digits, join code format +
+  company exists, year 1800–now, positive numbers, temperature −60–140, review URL, price 0.01–9,999.99, section name
+  unique, questions/options (no duplicates), card Luhn/expiry/CVC/ZIP.
+- `FormState` (`rememberForm()`): shows every error inline (c1 red text + red border), scrolls to the first one, and clears
+  each error live once the value is valid. Covered: sign in, create account (with Confirm password + Company name), forgot
+  password, join, wizard (per step on Next), company profile, add inspector, subscribe card form, plans & pricing, add plan,
+  feedback email, admin section / question / option editor, checklist number items, finding description.
+
+### Launch splash
+`Theme.VIMS.Starting` (SplashScreen API, light gray `#D4D4D9` matching the video, no icon) → `SplashVideo` plays
+`shared/media/vims-splash.mp4` once, muted, center-crop, tap to skip, then Sign in (or Home with a saved session).
+With animator duration scale 0 the last frame shows for ~1 s. On emulators only, the platform software H.264 decoder is
+preferred (the emulator's "goldfish" decoder renders nothing under software GPU). Note: the source video's tagline reads
+"Vision Ins**j**ection…" — pending a corrected file from the client.
+
+### Home side menu
+The Home hamburger opens a left drawer (company logo or initials, user name, email, company; Inspections, New inspection,
+Settings, Company profile, How VIMS works, Help & feedback; admin-only Manage checklist, Plans & pricing, Inspectors;
+Sign out at the bottom). The company logo also shows in the Home header, Settings account card, Company profile, and the
+PDF cover + page headers; without a logo an initials badge is used everywhere.
 
 ## State & insurance forms (Texas TREC, 4 Point) — data v1.1
 - Inspection types **Texas** and **4 Point Inspection** build their checklists from `checklistBuilder.phaseTypes`
@@ -81,17 +121,18 @@ checklist was built, so admin edits apply to *new* inspections only (as the prot
   Texas and 4-Point PDFs are laid out twice so the footer can print the total page count.
 
 ## Backend stubs — search for `TODO(backend)`
-- `LocalAuthService` — any non-empty credentials sign in; create account / join-by-code succeed locally (join → Inspector role).
+- `LocalAuthService` — local users/companies tables with salted PBKDF2 hashes; create account = new user + company (owner);
+  join-by-code = new user in that company (Inspector role unless the admin already marked their email as admin).
 - `LocalSubscriptionService` — Square subscription is simulated (always succeeds, keeps last 4 digits only). Replace the
   card fields on the Subscribe screen with the Square In-App Payments SDK card entry; never send or store a card number.
 - `LocalSyncService` — "Sync now" just marks everything synced. Phase 2: upload inspections/photos/findings/reports and pull
   checklist/plan edits from the Laravel API.
 - Role enforcement is UI-only (Admin section hidden for the Inspector role); real enforcement is server-side.
 
-## Removing the demo seed
-Delete `app/src/main/java/com/vims/app/demo/DemoSeed.kt` and the single `DemoSeed.seedIfNeeded(...)` line in
-`VimsApplication.kt`. The app then starts empty; plans, per-inspector rate, trial length, and the feedback email still come
-from `vims-checklists.json`. (The login email prefill reads the owner inspector, so it will simply be blank.)
+## Removing the demo seed (demo account)
+Delete `app/src/main/java/com/vims/app/demo/DemoSeed.kt`, the two `DemoSeed.…` calls in `AppContainer.start()`
+(`VimsApplication.kt`) and the debug-only `debugSignIn()` in `AppViewModel`. New accounts already start empty; their plans,
+per-inspector rate, trial length, and feedback email come from `vims-checklists.json`.
 
 ## Scope notes
 - Excluded by agreement: client-payment screens (Collect payment / Payment received) and the report's invoice page;

@@ -34,3 +34,18 @@ fun pickTime(ctx: Context, hhmm: String, onPick: (String) -> Unit) {
     val t = Fmt.parseTime(hhmm) ?: LocalTime.of(9, 0)
     TimePickerDialog(ctx, { _, h, m -> onPick(String.format(java.util.Locale.US, "%02d:%02d", h, m)) }, t.hour, t.minute, false).show()
 }
+
+/** The company logo file for the signed-in company (null until one is uploaded). */
+@Composable
+fun companyLogo(vm: AppViewModel): java.io.File? {
+    val c = vm.company.collectAsState().value
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    return c.logoFile?.let { java.io.File(ctx.filesDir, it) }
+}
+
+/** Company logo (or initials) badge, refreshed when a new logo is uploaded. */
+@Composable
+fun CompanyMark(vm: AppViewModel, size: androidx.compose.ui.unit.Dp, bordered: Boolean = true) {
+    val version = vm.logoVersion.collectAsState().value
+    com.vims.app.ui.components.CompanyBadge(companyLogo(vm), companyName(vm), size, version, bordered = bordered)
+}

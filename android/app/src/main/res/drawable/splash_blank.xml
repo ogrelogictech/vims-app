@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Transparent splash icon: the system splash is a plain light-gray screen that hands off to the splash video. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@android:color/transparent" />
+    <size android:width="108dp" android:height="108dp" />
+</shape>

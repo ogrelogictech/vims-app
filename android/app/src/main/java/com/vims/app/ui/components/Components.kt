@@ -76,6 +76,7 @@ import androidx.compose.ui.unit.sp
 import com.vims.app.ui.theme.T
 import com.vims.app.ui.theme.V
 import com.vims.app.ui.theme.VIcons
+import com.vims.app.util.Filters
 
 /* ---------------------------------------------------------------- header / screen shell */
 
@@ -114,14 +115,17 @@ fun HdrButton(icon: ImageVector, label: String, onClick: () -> Unit) {
 }
 
 @Composable
-fun AppHeader(title: String, subtitle: String, net: NetState, left: HdrAction?, actions: List<HdrAction> = emptyList()) {
+fun AppHeader(title: String, subtitle: String, net: NetState, left: HdrAction?, actions: List<HdrAction> = emptyList(), subtitleLeading: (@Composable () -> Unit)? = null) {
     Column(Modifier.fillMaxWidth().background(V.hdr).statusBarsPadding()) {
         TopStrip(net)
         Row(Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 2.dp, bottom = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             if (left != null) HdrButton(left.icon, left.label, left.onClick)
             Column(Modifier.weight(1f)) {
                 Text(title, style = T.display(17.sp, FontWeight.Bold, Color.White), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(subtitle, style = T.ui(12.sp, color = V.hdrSub), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (subtitleLeading != null) { subtitleLeading(); Spacer(Modifier.width(6.dp)) }
+                    Text(subtitle, style = T.ui(12.sp, color = V.hdrSub), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) { actions.forEach { HdrButton(it.icon, it.label, it.onClick) } }
         }
@@ -133,12 +137,12 @@ fun AppHeader(title: String, subtitle: String, net: NetState, left: HdrAction?, 
 fun VScreen(
     title: String, subtitle: String, net: NetState, left: HdrAction?, actions: List<HdrAction> = emptyList(),
     scroll: Boolean = true, padding: PaddingValues = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 34.dp),
-    overlay: @Composable BoxScope.() -> Unit = {},
+    overlay: @Composable BoxScope.() -> Unit = {}, subtitleLeading: (@Composable () -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Box(Modifier.fillMaxWidth().background(V.paper2)) {
         Column(Modifier.fillMaxWidth()) {
-            AppHeader(title, subtitle, net, left, actions)
+            AppHeader(title, subtitle, net, left, actions, subtitleLeading)
             if (scroll) {
                 Column(
                     Modifier.fillMaxWidth().weight(1f).imePadding().verticalScroll(rememberScrollState()).navigationBarsPadding().padding(padding),
@@ -254,64 +258,89 @@ fun FieldLabel(text: String) {
     Text(text, style = T.ui(12.5.sp, FontWeight.SemiBold, V.ink2), modifier = Modifier.padding(bottom = 7.dp))
 }
 
+/** Inline error under a field (c1 red, 12.5sp). */
+@Composable
+fun FieldError(error: String?) {
+    if (error != null) Text(error, style = T.ui(12.5.sp, color = V.c1, lineHeight = 16.sp), modifier = Modifier.padding(start = 2.dp, top = 6.dp))
+}
+
+/**
+ * Text input. Every value goes through a while-typing filter (default: no leading space, never two spaces in a row;
+ * email/password strip spaces) — see util/Validation.kt. `error` turns the border red and shows the message below.
+ */
 @Composable
 fun VInput(
     value: String, onChange: (String) -> Unit, modifier: Modifier = Modifier, placeholder: String = "",
     keyboard: KeyboardType = KeyboardType.Text, multiline: Boolean = false, mono: Boolean = false,
     visual: VisualTransformation = VisualTransformation.None, trailing: (@Composable () -> Unit)? = null,
     minHeight: Dp = if (multiline) 84.dp else 48.dp, textSize: Float = 15f, caps: KeyboardCapitalization = KeyboardCapitalization.None,
+    error: String? = null, filter: ((String) -> String)? = null,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
     val shape = RoundedCornerShape(11.dp)
     val style: TextStyle = if (mono) T.mono(textSize.sp, FontWeight.Medium, V.ink, 0.14.em) else T.ui(textSize.sp, color = V.ink, lineHeight = if (multiline) (textSize * 1.5f).sp else androidx.compose.ui.unit.TextUnit.Unspecified)
-    BasicTextField(
-        value = value, onValueChange = onChange, singleLine = !multiline, textStyle = style, interactionSource = interaction,
-        keyboardOptions = KeyboardOptions(keyboardType = keyboard, capitalization = if (keyboard == KeyboardType.Text && caps == KeyboardCapitalization.None && !mono) KeyboardCapitalization.Sentences else caps),
-        visualTransformation = visual, cursorBrush = SolidColor(V.brand),
-        modifier = modifier.fillMaxWidth(),
-        decorationBox = { inner ->
-            Row(
-                Modifier.fillMaxWidth().heightIn(min = minHeight).clip(shape).background(V.paper)
-                    .border(if (focused) 2.dp else 1.dp, if (focused) V.brand else V.line, shape)
-                    .padding(start = 14.dp, end = if (trailing != null) 2.dp else 14.dp, top = if (trailing != null) 2.dp else 12.dp, bottom = if (trailing != null) 2.dp else 12.dp),
-                verticalAlignment = if (multiline) Alignment.Top else Alignment.CenterVertically,
-            ) {
-                Box(Modifier.weight(1f)) {
-                    if (value.isEmpty()) Text(placeholder, style = style.copy(color = V.placeholder, letterSpacing = style.letterSpacing))
-                    inner()
+    val noAuto = keyboard == KeyboardType.Email || keyboard == KeyboardType.Password || keyboard == KeyboardType.Uri
+    val apply: (String) -> String = filter ?: when (keyboard) {
+        KeyboardType.Email -> Filters::email
+        KeyboardType.Password -> Filters::password
+        KeyboardType.Uri -> Filters::url
+        else -> { v -> Filters.base(v, multiline = multiline) }
+    }
+    Column(modifier.fillMaxWidth()) {
+        BasicTextField(
+            value = value, onValueChange = { onChange(apply(it)) }, singleLine = !multiline, textStyle = style, interactionSource = interaction,
+            keyboardOptions = KeyboardOptions(
+                keyboardType = keyboard, autoCorrectEnabled = !noAuto,
+                capitalization = if (noAuto) KeyboardCapitalization.None else if (keyboard == KeyboardType.Text && caps == KeyboardCapitalization.None && !mono) KeyboardCapitalization.Sentences else caps,
+            ),
+            visualTransformation = visual, cursorBrush = SolidColor(V.brand),
+            modifier = Modifier.fillMaxWidth(),
+            decorationBox = { inner ->
+                Row(
+                    Modifier.fillMaxWidth().heightIn(min = minHeight).clip(shape).background(V.paper)
+                        .border(if (focused || error != null) (if (error != null && !focused) 1.5.dp else 2.dp) else 1.dp, if (error != null) V.c1 else if (focused) V.brand else V.line, shape)
+                        .padding(start = 14.dp, end = if (trailing != null) 2.dp else 14.dp, top = if (trailing != null) 2.dp else 12.dp, bottom = if (trailing != null) 2.dp else 12.dp),
+                    verticalAlignment = if (multiline) Alignment.Top else Alignment.CenterVertically,
+                ) {
+                    Box(Modifier.weight(1f)) {
+                        if (value.isEmpty()) Text(placeholder, style = style.copy(color = V.placeholder, letterSpacing = style.letterSpacing))
+                        inner()
+                    }
+                    trailing?.invoke()
                 }
-                trailing?.invoke()
-            }
-        },
-    )
+            },
+        )
+        FieldError(error)
+    }
 }
 
 @Composable
 fun VField(
     label: String?, value: String, onChange: (String) -> Unit, modifier: Modifier = Modifier, placeholder: String = "",
     keyboard: KeyboardType = KeyboardType.Text, multiline: Boolean = false, mono: Boolean = false, bottom: Dp = 13.dp,
-    caps: KeyboardCapitalization = KeyboardCapitalization.None,
+    caps: KeyboardCapitalization = KeyboardCapitalization.None, error: String? = null, filter: ((String) -> String)? = null,
+    visual: VisualTransformation = VisualTransformation.None,
 ) {
     Column(modifier.padding(bottom = bottom)) {
         if (label != null) FieldLabel(label)
-        VInput(value, onChange, placeholder = placeholder, keyboard = keyboard, multiline = multiline, mono = mono, caps = caps)
+        VInput(value, onChange, placeholder = placeholder, keyboard = keyboard, multiline = multiline, mono = mono, caps = caps, error = error, filter = filter, visual = visual)
     }
 }
 
 @Composable
-fun PasswordField(label: String, value: String, onChange: (String) -> Unit, placeholder: String = "") {
+fun PasswordField(label: String, value: String, onChange: (String) -> Unit, placeholder: String = "", error: String? = null, modifier: Modifier = Modifier) {
     var show by remember { mutableStateOf(false) }
-    Column(Modifier.padding(bottom = 13.dp)) {
+    Column(modifier.padding(bottom = 13.dp)) {
         FieldLabel(label)
         VInput(
-            value, onChange, placeholder = placeholder, keyboard = KeyboardType.Password,
+            value, onChange, placeholder = placeholder, keyboard = KeyboardType.Password, error = error,
             visual = if (show) VisualTransformation.None else PasswordVisualTransformation(),
             trailing = {
                 Box(
                     Modifier.size(44.dp).clip(RoundedCornerShape(9.dp)).clickable(onClickLabel = if (show) "Hide password" else "Show password") { show = !show },
                     contentAlignment = Alignment.Center,
-                ) { Icon(if (show) VIcons.eyeOff else VIcons.eye, if (show) "Hide password" else "Show password", tint = if (show) V.brand else V.ink3, modifier = Modifier.size(20.dp)) }
+                ) { Icon(VIcons.eye, if (show) "Hide password" else "Show password", tint = if (show) V.brand else V.ink3, modifier = Modifier.size(20.dp)) }
             },
         )
     }
@@ -319,15 +348,18 @@ fun PasswordField(label: String, value: String, onChange: (String) -> Unit, plac
 
 /** Read-only field that opens a picker (date / time). */
 @Composable
-fun PickerField(value: String, placeholder: String, icon: ImageVector, onClick: () -> Unit, modifier: Modifier = Modifier, minHeight: Dp = 48.dp) {
+fun PickerField(value: String, placeholder: String, icon: ImageVector, onClick: () -> Unit, modifier: Modifier = Modifier, minHeight: Dp = 48.dp, error: String? = null) {
     val shape = RoundedCornerShape(11.dp)
+    Column(modifier.fillMaxWidth()) {
     Row(
-        modifier.fillMaxWidth().heightIn(min = minHeight).clip(shape).background(V.paper).border(1.dp, V.line, shape)
+        Modifier.fillMaxWidth().heightIn(min = minHeight).clip(shape).background(V.paper).border(if (error != null) 1.5.dp else 1.dp, if (error != null) V.c1 else V.line, shape)
             .clickable(role = Role.Button, onClick = onClick).padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(value.ifEmpty { placeholder }, style = T.ui(15.sp, color = if (value.isEmpty()) V.placeholder else V.ink), modifier = Modifier.weight(1f))
         Icon(icon, null, tint = V.ink, modifier = Modifier.size(18.dp))
+    }
+    FieldError(error)
     }
 }
 
@@ -437,8 +469,9 @@ fun LeadIcon(icon: ImageVector, size: Dp = 44.dp, iconSize: Dp = 22.dp, bg: Colo
 
 @Composable
 fun LeadTime(time: String, ampm: String) {
-    Column(Modifier.size(44.dp).clip(RoundedCornerShape(11.dp)).background(V.paper3), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-        Text(time, style = T.mono(15.sp, FontWeight.ExtraBold, V.brandDeep), maxLines = 1)
+    // Grows with large font sizes instead of clipping ("12:30").
+    Column(Modifier.widthIn(min = 44.dp).heightIn(min = 44.dp).clip(RoundedCornerShape(11.dp)).background(V.paper3).padding(horizontal = 4.dp, vertical = 3.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+        Text(time, style = T.mono(15.sp, FontWeight.ExtraBold, V.brandDeep), maxLines = 1, softWrap = false)
         Text(ampm, style = T.mono(10.sp, FontWeight.Bold, V.ink2))
     }
 }
@@ -535,4 +568,26 @@ fun Modifier.dashedBorder(color: Color, radius: Dp, stroke: Dp = 1.dp): Modifier
         color = color, cornerRadius = CornerRadius(radius.toPx()), topLeft = Offset(s / 2, s / 2), size = Size(size.width - s, size.height - s),
         style = Stroke(width = s, pathEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 3.dp.toPx()))),
     )
+}
+
+/* ---------------------------------------------------------------- company identity */
+
+/** Company initials for the fallback badge ("Vision Property Inspections" → "VP"). */
+fun companyInitials(name: String): String =
+    name.split(" ").filter { it.isNotBlank() && it.first().isLetterOrDigit() }.take(2).joinToString("") { it.first().uppercase() }.ifEmpty { "V" }
+
+/** The company's uploaded logo on a white tile, or an initials badge when no logo has been uploaded. */
+@Composable
+fun CompanyBadge(logo: java.io.File?, name: String, size: Dp, version: Int = 0, radius: Dp = size * 0.22f, bordered: Boolean = true) {
+    val img = logo?.takeIf { it.exists() }?.let { com.vims.app.util.rememberThumb(it, version, 512).value }
+    if (logo?.exists() == true) {
+        Box(
+            Modifier.size(size).clip(RoundedCornerShape(radius)).background(Color.White).let { if (bordered) it.border(1.dp, V.line, RoundedCornerShape(radius)) else it },
+            contentAlignment = Alignment.Center,
+        ) { if (img != null) androidx.compose.foundation.Image(img, "Company logo", Modifier.size(size * 0.84f), contentScale = androidx.compose.ui.layout.ContentScale.Fit) }
+    } else {
+        Box(Modifier.size(size).clip(RoundedCornerShape(radius)).background(Brush.linearGradient(listOf(V.brandBright, V.brandDeep))), contentAlignment = Alignment.Center) {
+            Text(companyInitials(name), style = T.display((size.value * 0.36f).sp, FontWeight.Bold, Color.White))
+        }
+    }
 }

@@ -44,7 +44,29 @@ import com.vims.app.data.InspStatus
 import com.vims.app.data.InspectionBundle
 import com.vims.app.ui.AppViewModel
 import com.vims.app.ui.SectionsR
+import com.vims.app.ui.AdminR
+import com.vims.app.ui.CompanyR
+import com.vims.app.ui.InspectorsR
+import com.vims.app.ui.InstructionsR
+import com.vims.app.ui.LoginR
+import com.vims.app.ui.PlansR
 import com.vims.app.ui.SettingsR
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.rememberDrawerState
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.em
+import kotlinx.coroutines.launch
 import com.vims.app.ui.SubscribeR
 import com.vims.app.ui.WizardR
 import com.vims.app.ui.components.BtnKind
@@ -94,10 +116,19 @@ fun HomeScreen(vm: AppViewModel, nav: NavHostController) {
     val upcoming = list.filter { dateOf(it).isAfter(today) }
     val recent = list.filter { dateOf(it).isBefore(today) }.reversed()
 
+    val drawer = rememberDrawerState(DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+    BackHandler(enabled = drawer.isOpen) { scope.launch { drawer.close() } }
+    ModalNavigationDrawer(
+        drawerState = drawer,
+        scrimColor = V.scrim,
+        drawerContent = { HomeMenu(vm, nav) { scope.launch { drawer.close() } } },
+    ) {
     VScreen(
         "Inspections", companyName(vm), netState,
-        left = HdrAction(VIcons.settings, "Settings") { nav.navigate(SettingsR) },
+        left = HdrAction(VIcons.menu, "Menu") { scope.launch { drawer.open() } },
         actions = listOf(HdrAction(VIcons.plus, "New inspection") { nav.navigate(WizardR()) }),
+        subtitleLeading = { CompanyMark(vm, 18.dp, bordered = false) },
     ) {
         if (!account.active) {
             Row(
@@ -128,6 +159,65 @@ fun HomeScreen(vm: AppViewModel, nav: NavHostController) {
         }
         VBtn("New inspection", { nav.navigate(WizardR()) }, Modifier.padding(top = 14.dp), icon = VIcons.plus)
         VBtn("Settings", { nav.navigate(SettingsR) }, Modifier.padding(top = 10.dp), BtnKind.Ghost, icon = VIcons.settings)
+    }
+    }
+}
+
+/** Home side menu (hamburger): identity header, navigation, admin-only tools, Sign out at the bottom. */
+@Composable
+private fun HomeMenu(vm: AppViewModel, nav: NavHostController, close: () -> Unit) {
+    val session by vm.session.collectAsState()
+    val account by vm.account.collectAsState()
+    val ctx = LocalContext.current
+    val admin = session?.isAdmin != false
+    fun go(route: Any) { close(); nav.navigate(route) }
+    ModalDrawerSheet(
+        drawerContainerColor = V.paper2, drawerShape = RoundedCornerShape(topEnd = 18.dp, bottomEnd = 18.dp),
+        modifier = Modifier.widthIn(max = 320.dp).fillMaxWidth(0.84f), windowInsets = WindowInsets(0),
+    ) {
+        Column(Modifier.fillMaxWidth().background(V.hdr).statusBarsPadding().padding(start = 18.dp, end = 18.dp, top = 18.dp, bottom = 18.dp)) {
+            CompanyMark(vm, 56.dp)
+            Spacer(Modifier.height(12.dp))
+            Text(session?.name.orEmpty(), style = T.display(16.sp, FontWeight.Bold, Color.White), maxLines = 2)
+            Text(session?.email.orEmpty(), style = T.ui(12.sp, color = V.hdrSub), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(companyName(vm), style = T.ui(12.5.sp, FontWeight.SemiBold, V.hdrSub), maxLines = 2, modifier = Modifier.padding(top = 2.dp))
+        }
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 10.dp, vertical = 10.dp)) {
+            MenuRow(VIcons.home, "Inspections", selected = true) { close() }
+            MenuRow(VIcons.plus, "New inspection") { go(WizardR()) }
+            MenuRow(VIcons.settings, "Settings") { go(SettingsR) }
+            MenuRow(VIcons.building, "Company profile") { go(CompanyR) }
+            MenuRow(VIcons.help, "How VIMS works") { go(InstructionsR) }
+            MenuRow(VIcons.mail, "Help & feedback") {
+                close()
+                val i = android.content.Intent(android.content.Intent.ACTION_SENDTO, android.net.Uri.parse("mailto:${account.feedbackEmail}?subject=" + android.net.Uri.encode("VIMS app feedback")))
+                try { ctx.startActivity(i) } catch (_: Exception) { vm.toast("No email app — write to ${account.feedbackEmail}") }
+            }
+            if (admin) {
+                Text("ADMIN", style = T.mono(10.5.sp, color = V.ink3, letterSpacing = 0.12.em), modifier = Modifier.padding(start = 12.dp, top = 16.dp, bottom = 6.dp))
+                MenuRow(VIcons.pencil, "Manage checklist") { go(AdminR) }
+                MenuRow(VIcons.dollar, "Plans & pricing") { go(PlansR) }
+                MenuRow(VIcons.users, "Inspectors") { go(InspectorsR) }
+            }
+        }
+        Box(Modifier.fillMaxWidth().height(1.dp).background(V.line))
+        Box(Modifier.navigationBarsPadding().padding(10.dp)) {
+            MenuRow(VIcons.signOut, "Sign out") { close(); vm.signOut { nav.navigate(LoginR) { popUpTo(0) { inclusive = true } } } }
+        }
+    }
+}
+
+@Composable
+private fun MenuRow(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, selected: Boolean = false, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(11.dp)).background(if (selected) V.brand.copy(alpha = .1f) else Color.Transparent)
+            .clickable(role = Role.Button, onClick = onClick).padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Box(Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)).background(V.paper3), contentAlignment = Alignment.Center) {
+            Icon(icon, null, tint = V.brand, modifier = Modifier.size(18.dp))
+        }
+        Text(label, style = T.ui(14.5.sp, if (selected) FontWeight.SemiBold else FontWeight.Medium, if (selected) V.brandDeep else V.ink))
     }
 }
 

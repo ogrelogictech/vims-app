@@ -7,4 +7,11 @@
         <item name="android:colorPrimary">@color/vims_hdr</item>
         <item name="android:forceDarkAllowed" tools:targetApi="29">false</item>
     </style>
+
+    <!-- Android 12+ SplashScreen API (compat on 8–11): light gray, no icon, then the in-app splash video. -->
+    <style name="Theme.VIMS.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/vims_splash</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/splash_blank</item>
+        <item name="postSplashScreenTheme">@style/Theme.VIMS</item>
+    </style>
 </resources>

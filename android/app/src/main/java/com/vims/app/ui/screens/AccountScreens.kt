@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -62,6 +63,7 @@ import com.vims.app.ui.components.PillKind
 import com.vims.app.ui.components.SuccessBlock
 import com.vims.app.ui.components.VBtn
 import com.vims.app.ui.components.VCard
+import com.vims.app.ui.components.VField
 import com.vims.app.ui.components.VInput
 import com.vims.app.ui.components.VScreen
 import com.vims.app.ui.components.dashedBorder
@@ -71,7 +73,14 @@ import com.vims.app.ui.goHome
 import com.vims.app.ui.theme.T
 import com.vims.app.ui.theme.V
 import com.vims.app.ui.theme.VIcons
+import com.vims.app.util.CardBrand
+import com.vims.app.util.CardTransform
+import com.vims.app.util.Checks
+import com.vims.app.util.ExpiryTransform
+import com.vims.app.util.Filters
 import com.vims.app.util.Fmt
+import com.vims.app.util.formField
+import com.vims.app.util.rememberForm
 import java.time.LocalDate
 
 @Composable
@@ -83,6 +92,7 @@ fun InspectorsScreen(vm: AppViewModel, nav: NavHostController) {
     var email by rememberSaveable { mutableStateOf("") }
     val canManage = session?.isAdmin != false
     val focus = androidx.compose.ui.platform.LocalFocusManager.current
+    val form = rememberForm()
     VScreen("Inspectors", companyName(vm), net(vm), backAction(nav), listOf(homeAction(nav))) {
         Hint("Add inspector accounts under your company license. First inspector is included; each additional is **${Fmt.money(account.extraInspectorMonthly)}/mo**.", Modifier.padding(top = 2.dp, bottom = 12.dp))
         Column(Modifier.padding(bottom = 14.dp).fillMaxWidth().clip(RoundedCornerShape(13.dp)).background(V.paper).dashedBorder(V.brand, 13.dp).padding(horizontal = 16.dp, vertical = 15.dp)) {
@@ -122,22 +132,14 @@ fun InspectorsScreen(vm: AppViewModel, nav: NavHostController) {
             append(" · monthly total ${Fmt.money(vm.monthlyTotal(account.copy(seats = account.inspectors.size)))}")
         }, style = T.ui(12.5.sp, color = V.ink3), modifier = Modifier.padding(start = 2.dp, top = 4.dp, bottom = 14.dp))
         if (canManage) AddBox {
-            VInput(name, { name = it }, placeholder = "Inspector name", textSize = 14f, caps = KeyboardCapitalization.Words)
-            VInput(email, { email = it }, placeholder = "inspector@email.com", keyboard = KeyboardType.Email, textSize = 14f)
-            VBtn("Add inspector", { if (vm.addInspector(name, email)) { name = ""; email = ""; focus.clearFocus() } }, icon = VIcons.plus, minHeight = 48.dp)
+            val nameErr = form.check("name", name) { Checks.required(name, "Enter the inspector's name") }
+            val emailErr = form.check("email", email) {
+                Checks.email(email) ?: if (account.inspectors.any { it.email.equals(email.trim(), true) }) "That email is already on your team" else null
+            }
+            VInput(name, { name = it }, Modifier.formField(form, "name"), placeholder = "Inspector name", textSize = 14f, caps = KeyboardCapitalization.Words, filter = Filters::personName, error = nameErr)
+            VInput(email, { email = it }, Modifier.formField(form, "email"), placeholder = "inspector@email.com", keyboard = KeyboardType.Email, textSize = 14f, error = emailErr)
+            VBtn("Add inspector", { if (form.submit() && vm.addInspector(name, email)) { name = ""; email = ""; form.reset(); focus.clearFocus() } }, icon = VIcons.plus, minHeight = 48.dp)
         }
-    }
-}
-
-/** Groups card digits "4242424242424242" → "4242 4242 4242 4242". */
-private object CardNumberTransform : VisualTransformation {
-    override fun filter(text: AnnotatedString): TransformedText {
-        val raw = text.text
-        val out = raw.chunked(4).joinToString(" ")
-        return TransformedText(AnnotatedString(out), object : OffsetMapping {
-            override fun originalToTransformed(offset: Int) = offset + (offset - 1).coerceAtLeast(0) / 4
-            override fun transformedToOriginal(offset: Int) = (offset - offset / 5).coerceIn(0, raw.length)
-        })
     }
 }
 
@@ -147,6 +149,9 @@ fun SubscribeScreen(vm: AppViewModel, nav: NavHostController) {
     var card by rememberSaveable { mutableStateOf("") }
     var exp by rememberSaveable { mutableStateOf("") }
     var cvc by rememberSaveable { mutableStateOf("") }
+    var holder by rememberSaveable { mutableStateOf("") }
+    var zip by rememberSaveable { mutableStateOf("") }
+    val form = rememberForm()
     VScreen("Subscription", companyName(vm), net(vm), backAction(nav), listOf(homeAction(nav))) {
         Row(Modifier.padding(bottom = 14.dp).fillMaxWidth().clip(RoundedCornerShape(12.dp)).border(1.dp, Color(0xFFC9DEE6), RoundedCornerShape(12.dp)).padding(horizontal = 14.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(11.dp)) {
             Icon(VIcons.clock, null, tint = V.brandDeep, modifier = Modifier.padding(top = 1.dp).size(19.dp))
@@ -190,19 +195,32 @@ fun SubscribeScreen(vm: AppViewModel, nav: NavHostController) {
         }
         Lbl("Payment — via Square")
         // TODO(backend): replace with the Square In-App Payments SDK card entry (tokenized); raw card data is never stored.
-        Column(Modifier.padding(bottom = 13.dp)) {
-            FieldLabel("Card number")
-            VInput(card, { v -> card = v.filter { it.isDigit() }.take(19) }, placeholder = "1234 5678 9012 3456", keyboard = KeyboardType.Number, visual = CardNumberTransform)
+        val brand = CardBrand.of(card)
+        val amex = brand == CardBrand.AMEX
+        val cardErr = form.check("card", card) { Checks.cardNumber(card) }
+        val expErr = form.check("exp", exp) { Checks.expiry(exp) }
+        val cvcErr = form.check("cvc", cvc) { Checks.cvc(cvc, amex) }
+        val holderErr = form.check("holder", holder) { Checks.required(holder, "Enter the name on the card") }
+        val zipErr = form.check("zip", zip) { Checks.zip(zip) }
+        Column(Modifier.padding(bottom = 13.dp).formField(form, "card")) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                FieldLabel("Card number")
+                Spacer(Modifier.weight(1f))
+                if (brand != CardBrand.UNKNOWN) Text(brand.label, style = T.ui(12.sp, FontWeight.SemiBold, V.brandDeep), modifier = Modifier.padding(bottom = 7.dp))
+            }
+            VInput(card, { card = it }, placeholder = "1234 5678 9012 3456", keyboard = KeyboardType.Number, visual = CardTransform, filter = Filters::cardNumber, error = cardErr)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Column(Modifier.weight(1f)) { FieldLabel("Expiry"); VInput(exp, { v -> exp = v.filter { it.isDigit() || it == '/' }.take(7) }, placeholder = "MM / YY", keyboard = KeyboardType.Number) }
-            Column(Modifier.weight(1f)) { FieldLabel("CVC"); VInput(cvc, { v -> cvc = v.filter { it.isDigit() }.take(4) }, placeholder = "123", keyboard = KeyboardType.NumberPassword) }
+            Column(Modifier.weight(1f).formField(form, "exp")) { FieldLabel("Expiry"); VInput(exp, { exp = it }, placeholder = "MM/YY", keyboard = KeyboardType.Number, visual = ExpiryTransform, filter = Filters::expiry, error = expErr) }
+            Column(Modifier.weight(1f).formField(form, "cvc")) { FieldLabel("CVC"); VInput(cvc, { cvc = it }, placeholder = if (amex) "1234" else "123", keyboard = KeyboardType.NumberPassword, filter = { Filters.cvc(it, amex) }, error = cvcErr) }
         }
+        VField("Cardholder name", holder, { holder = it }, Modifier.padding(top = 13.dp).formField(form, "holder"), placeholder = "Name on card", caps = KeyboardCapitalization.Words, filter = Filters::personName, error = holderErr)
+        VField("Billing ZIP", zip, { zip = it }, Modifier.formField(form, "zip"), placeholder = "84015", keyboard = KeyboardType.Number, filter = Filters::zip, error = zipErr, bottom = 0.dp)
         Row(Modifier.padding(start = 2.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Icon(VIcons.lock, null, tint = V.ink3, modifier = Modifier.size(14.dp))
             Text("Secured by Square · auto-renews monthly · cancel anytime", style = T.ui(12.sp, color = V.ink3))
         }
-        VBtn(if (account.active) "Update subscription" else "Start subscription", { vm.startSubscription(card) { card = ""; exp = ""; cvc = ""; nav.navigate(SubStartedR) { popUpTo<SubscribeR> { inclusive = true } } } }, Modifier.padding(top = 16.dp), icon = VIcons.check)
+        VBtn(if (account.active) "Update subscription" else "Start subscription", { if (form.submit()) vm.startSubscription(card) { card = ""; exp = ""; cvc = ""; nav.navigate(SubStartedR) { popUpTo<SubscribeR> { inclusive = true } } } }, Modifier.padding(top = 16.dp), icon = VIcons.check)
     }
 }
 

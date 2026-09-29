@@ -46,6 +46,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -458,7 +459,7 @@ private fun flatten(src: ImageBitmap, marks: List<Mark>, strokePx: Float, stampP
 private fun ImageBitmap.asAndroidBitmapCopy(): Bitmap = this.asAndroidBitmap().copy(Bitmap.Config.ARGB_8888, true)
 
 @Composable
-private fun ToolLabel(t: String) { Text(t, style = T.mono(12.sp, color = Color(0xFF9AA8BA)), modifier = Modifier.width(56.dp)) }
+private fun ToolLabel(t: String) { Text(t, style = T.mono(12.sp, color = Color(0xFF9AA8BA)), softWrap = false, maxLines = 1, modifier = Modifier.widthIn(min = 56.dp)) }
 
 @Composable
 private fun ToolBtn(onClick: () -> Unit, label: String, on: Boolean = false, content: @Composable () -> Unit) {
@@ -472,7 +473,7 @@ private fun ToolBtn(onClick: () -> Unit, label: String, on: Boolean = false, con
 @Composable
 private fun DarkInput(value: String, onChange: (String) -> Unit, placeholder: String) {
     BasicTextField(
-        value, onChange, singleLine = true, textStyle = T.ui(13.sp, color = Color.White), cursorBrush = SolidColor(Color.White),
+        value, { onChange(com.vims.app.util.Filters.base(it, 200)) }, singleLine = true, textStyle = T.ui(13.sp, color = Color.White), cursorBrush = SolidColor(Color.White),
         modifier = Modifier.fillMaxWidth(),
         decorationBox = { inner ->
             Box(Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(RoundedCornerShape(9.dp)).background(Color.White.copy(alpha = .1f)).border(1.dp, Color.White.copy(alpha = .18f), RoundedCornerShape(9.dp)).padding(horizontal = 11.dp, vertical = 10.dp), contentAlignment = Alignment.CenterStart) {
@@ -494,6 +495,7 @@ fun FindingSheet(visible: Boolean, vm: AppViewModel, initialText: String, onCanc
         AnimatedVisibility(visible, modifier = Modifier.align(Alignment.BottomCenter), enter = slideInVertically { it / 3 } + fadeIn(), exit = slideOutVertically { it / 3 } + fadeOut()) {
             var cat by rememberSaveable { mutableIntStateOf(2) }
             var text by rememberSaveable(initialText) { mutableStateOf(initialText) }
+            var descErr by remember { mutableStateOf(false) }
             Column(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp)).background(V.paper).imePadding().navigationBarsPadding()
                     .verticalScroll(rememberScrollState()).padding(start = 18.dp, end = 18.dp, top = 20.dp, bottom = 26.dp),
@@ -517,10 +519,11 @@ fun FindingSheet(visible: Boolean, vm: AppViewModel, initialText: String, onCanc
                 FieldLabel("Quick comment")
                 SelectBox("Pick a quick comment…", vm.config.findings.quickComments, { text = it }, Modifier.padding(bottom = 13.dp))
                 FieldLabel("Description")
-                VInput(text, { text = it }, placeholder = "Describe the concern…", multiline = true)
+                VInput(text, { text = it; descErr = false }, placeholder = "Describe the concern…", multiline = true, filter = { com.vims.app.util.Filters.base(it, 1000, multiline = true) },
+                    error = if (descErr) "Describe the concern or pick a quick comment" else null)
                 BtnRow(Modifier.padding(top = 4.dp)) {
                     VBtn("Cancel", onCancel, Modifier.weight(1f), BtnKind.Ghost)
-                    VBtn("Add finding", { onAdd(cat, text) }, Modifier.weight(1f))
+                    VBtn("Add finding", { if (text.isBlank()) descErr = true else onAdd(cat, text) }, Modifier.weight(1f))
                 }
             }
         }

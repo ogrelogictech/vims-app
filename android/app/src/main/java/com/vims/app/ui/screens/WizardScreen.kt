@@ -56,7 +56,13 @@ import com.vims.app.ui.components.vCard
 import com.vims.app.ui.theme.T
 import com.vims.app.ui.theme.V
 import com.vims.app.ui.theme.VIcons
+import com.vims.app.util.Checks
+import com.vims.app.util.Filters
+import com.vims.app.util.FormState
 import com.vims.app.util.Fmt
+import com.vims.app.util.PhoneTransform
+import com.vims.app.util.formField
+import com.vims.app.util.rememberForm
 
 @Composable
 fun WizardScreen(vm: AppViewModel, nav: NavHostController, inspId: String?) {
@@ -68,7 +74,10 @@ fun WizardScreen(vm: AppViewModel, nav: NavHostController, inspId: String?) {
 
     BackHandler(enabled = w.step > 1) { vm.wizardStep(w.step - 1) }
 
+    var form = rememberForm()
     fun next() {
+        // Validate the current step (docs/validation-rules.md) before moving on.
+        if (!form.submit()) return
         if (w.step < 4) { vm.wizardStep(w.step + 1); return }
         val id = vm.buildChecklist() ?: return
         if (editing) nav.back()
@@ -76,6 +85,7 @@ fun WizardScreen(vm: AppViewModel, nav: NavHostController, inspId: String?) {
     }
 
     key(w.step) {
+        form = rememberForm()
         VScreen(
             if (editing) "Inspection info" else "New inspection",
             if (editing) w.sel.street.ifBlank { companyName(vm) } else companyName(vm), net(vm), backAction(nav), listOf(homeAction(nav)),
@@ -84,9 +94,9 @@ fun WizardScreen(vm: AppViewModel, nav: NavHostController, inspId: String?) {
             when (w.step) {
                 1 -> {
                     Lbl(cfg.steps.getOrElse(0) { "Client & inspection" }, first = true)
-                    WizardFields(vm, cfg.step1, w.sel)
+                    WizardFields(vm, cfg.step1, w.sel, form = form)
                 }
-                2 -> WizardFields(vm, cfg.step2, w.sel, step2 = true)
+                2 -> WizardFields(vm, cfg.step2, w.sel, step2 = true, form = form)
                 3 -> {
                     Hint("Choose every area to inspect — add or remove anything. This builds the checklist.", Modifier.padding(top = 2.dp, bottom = 12.dp))
                     Lbl("Exterior areas", first = true)
@@ -136,7 +146,7 @@ private fun keyboardFor(f: WizardFieldDef, step2: Boolean): KeyboardType = when 
 
 /** Renders a wizard step from `wizard.step1` / `wizard.step2` in vims-checklists.json. */
 @Composable
-private fun WizardFields(vm: AppViewModel, defs: List<WizardFieldDef>, sel: WizardSelections, step2: Boolean = false) {
+private fun WizardFields(vm: AppViewModel, defs: List<WizardFieldDef>, sel: WizardSelections, step2: Boolean = false, form: FormState) {
     val cfg = vm.config.wizard
     var i = 0
     var shownDetailsLbl = false
@@ -149,8 +159,8 @@ private fun WizardFields(vm: AppViewModel, defs: List<WizardFieldDef>, sel: Wiza
                 if (step2 && !shownDetailsLbl) { Lbl("Property details"); shownDetailsLbl = true }
                 if (pair != null) {
                     Row(Modifier.padding(bottom = 11.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        FieldCell(vm, f, sel, Modifier.weight(1f), step2)
-                        FieldCell(vm, pair, sel, Modifier.weight(1f), step2)
+                        FieldCell(vm, f, sel, Modifier.weight(1f), step2, form)
+                        FieldCell(vm, pair, sel, Modifier.weight(1f), step2, form)
                     }
                     i += 2; continue
                 }
@@ -159,13 +169,16 @@ private fun WizardFields(vm: AppViewModel, defs: List<WizardFieldDef>, sel: Wiza
                     Lbl(nextDef.label)
                     Column(Modifier.padding(bottom = 11.dp)) {
                         FieldLabel(f.label)
-                        VInput(sel.fields[f.label].orEmpty(), { v -> vm.updateSel { it.copy(fields = it.fields + (f.label to v)) } }, Modifier.width(120.dp), placeholder = f.placeholder.orEmpty(), keyboard = KeyboardType.Number)
+                        val tv = sel.fields[f.label].orEmpty()
+                        val terr = form.check(f.label, tv) { Checks.temperature(tv) }
+                        VInput(tv, { v -> vm.updateSel { it.copy(fields = it.fields + (f.label to v)) } }, Modifier.width(if (terr != null) 300.dp else 120.dp).formField(form, f.label),
+                            placeholder = f.placeholder.orEmpty(), keyboard = KeyboardType.Number, filter = Filters::temperature, error = terr)
                     }
                     SingleChips(nextDef.options.orEmpty(), sel.chip(nextDef.label), { v -> vm.updateSel { it.copy(chips = it.chips + (nextDef.label to v.orEmpty())) } }, modifier = Modifier.padding(bottom = 14.dp))
                     i += 2; continue
                 }
                 Column(Modifier.padding(bottom = 13.dp)) {
-                    FieldCell(vm, f, sel, Modifier, step2)
+                    FieldCell(vm, f, sel, Modifier, step2, form)
                 }
                 if (f.label == WizardSelections.F_AGENT_EMAIL) {
                     Text("Client & agent emails are used to send the finished report.", style = T.ui(12.sp, color = V.ink3), modifier = Modifier.padding(start = 2.dp, end = 2.dp, top = 0.dp, bottom = 12.dp))
@@ -193,7 +206,7 @@ private fun WizardFields(vm: AppViewModel, defs: List<WizardFieldDef>, sel: Wiza
                         Lbl(f.label)
                         SingleChips(f.options.orEmpty(), selected, { v -> vm.updateSel { it.copy(chips = it.chips + (f.label to v.orEmpty())) } })
                         if (f.id == "wstories" && selected == "Other") {
-                            VInput(sel.storiesOther, { v -> vm.updateSel { it.copy(storiesOther = v) } }, Modifier.padding(top = 10.dp),
+                            VInput(sel.storiesOther, { v -> vm.updateSel { it.copy(storiesOther = v) } }, Modifier.padding(top = 10.dp), filter = { Filters.base(it, 300, multiline = true) },
                                 placeholder = "Describe what 'other' consists of (e.g. split-level, loft, partial third story)…", multiline = true)
                         }
                     }
@@ -217,6 +230,7 @@ private fun WizardFields(vm: AppViewModel, defs: List<WizardFieldDef>, sel: Wiza
                                 Column(Modifier.padding(bottom = 13.dp)) {
                                     FieldLabel(tf.label)
                                     VInput(sel.fields[tf.key].orEmpty(), { v -> vm.updateSel { it.copy(fields = it.fields + (tf.key to v)) } },
+                                        filter = wizardFilter(tf.key),
                                         placeholder = typeFieldPlaceholder(tf.key, tf.label),
                                         caps = if (tf.key.contains("name", true)) KeyboardCapitalization.Words else KeyboardCapitalization.None)
                                 }
@@ -249,20 +263,50 @@ private fun WizardFields(vm: AppViewModel, defs: List<WizardFieldDef>, sel: Wiza
 }
 
 @Composable
-private fun FieldCell(vm: AppViewModel, f: WizardFieldDef, sel: WizardSelections, modifier: Modifier, step2: Boolean) {
+private fun FieldCell(vm: AppViewModel, f: WizardFieldDef, sel: WizardSelections, modifier: Modifier, step2: Boolean, form: FormState) {
     val ctx = LocalContext.current
     val v = sel.fields[f.label].orEmpty()
     val set: (String) -> Unit = { nv -> vm.updateSel { it.copy(fields = it.fields + (f.label to nv)) } }
-    Column(modifier) {
+    val err = form.check(f.label, v) { wizardCheck(f.label, v) }
+    Column(modifier.formField(form, f.label)) {
         FieldLabel(f.label)
         when (f.type) {
-            "date" -> PickerField(if (v.isBlank()) "" else Fmt.date(v), "Select date", VIcons.calendar, { pickDate(ctx, v, set) })
-            "time" -> PickerField(if (v.isBlank()) "" else Fmt.time(v), "Select time", VIcons.clock, { pickTime(ctx, v, set) })
-            "textarea" -> VInput(v, set, placeholder = f.placeholder.orEmpty(), multiline = true)
-            else -> VInput(v, set, placeholder = f.placeholder.orEmpty(), keyboard = keyboardFor(f, step2),
+            "date" -> PickerField(if (v.isBlank()) "" else Fmt.date(v), "Select date", VIcons.calendar, { pickDate(ctx, v, set) }, error = err)
+            "time" -> PickerField(if (v.isBlank()) "" else Fmt.time(v), "Select time", VIcons.clock, { pickTime(ctx, v, set) }, error = err)
+            "textarea" -> VInput(v, set, placeholder = f.placeholder.orEmpty(), multiline = true, filter = { Filters.base(it, 1000, multiline = true) }, error = err)
+            else -> VInput(v, set, placeholder = f.placeholder.orEmpty(), keyboard = keyboardFor(f, step2), error = err, filter = wizardFilter(f.label),
+                visual = if (f.type == "tel") PhoneTransform else androidx.compose.ui.text.input.VisualTransformation.None,
                 caps = if (f.label.contains("name", true) || f.label.contains("address", true)) KeyboardCapitalization.Words else KeyboardCapitalization.None)
         }
     }
+}
+
+/** While-typing filters for wizard fields (by JSON label / typeField key) — docs/validation-rules.md. */
+private fun wizardFilter(key: String): ((String) -> String)? = when (key) {
+    WizardSelections.F_CLIENT, WizardSelections.F_AGENT, "sponsorName", "insuredName" -> Filters::personName
+    WizardSelections.F_CLIENT_PHONE -> Filters::phone
+    WizardSelections.F_ADDRESS -> Filters::address
+    WizardSelections.F_LICENSE, "sponsorLicense" -> Filters::license
+    "policyNumber" -> Filters::policy
+    "Year of construction" -> Filters::year
+    "Valuation ($)" -> Filters::money
+    "Total sq ft", "Lot size (acres)" -> { v -> Filters.decimal(v) }
+    "Temperature (°F)" -> Filters::temperature
+    else -> null
+}
+
+/** On-submit checks for wizard fields. */
+private fun wizardCheck(label: String, v: String): String? = when (label) {
+    WizardSelections.F_CLIENT -> Checks.required(v, "Enter the client's name")
+    WizardSelections.F_ADDRESS -> Checks.required(v, "Enter the inspection address")
+    WizardSelections.F_DATE -> Checks.required(v, "Choose the inspection date")
+    WizardSelections.F_CLIENT_PHONE -> Checks.phone(v)
+    WizardSelections.F_CLIENT_EMAIL, WizardSelections.F_AGENT_EMAIL -> Checks.email(v, required = false)
+    "Year of construction" -> Checks.year(v)
+    "Total sq ft" -> Checks.positive(v, "a square footage")
+    "Valuation ($)" -> Checks.positive(v, "a valuation")
+    "Lot size (acres)" -> Checks.positive(v, "a lot size")
+    else -> null
 }
 
 private fun typeFieldsTitle(type: String) = when (type) { "Texas" -> "Texas TREC form"; "4 Point Inspection" -> "4-Point form"; else -> type }

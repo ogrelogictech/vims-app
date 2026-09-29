@@ -154,7 +154,7 @@ fun VimsRoot(vm: AppViewModel, debug: DebugLaunch?) {
     LaunchedEffect(debug) { if (debug != null) applyDebug(vm, nav, debug) }
 }
 
-private fun applyDebug(vm: AppViewModel, nav: NavHostController, d: DebugLaunch) {
+private suspend fun applyDebug(vm: AppViewModel, nav: NavHostController, d: DebugLaunch) {
     val id = d.insp ?: "demo-ridgeline"
     if (d.screen != "login") vm.debugSignIn()
     d.depth?.let { vm.debugSetDepth(id, it) }

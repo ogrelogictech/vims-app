@@ -6,7 +6,13 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
 import com.vims.app.data.AccountState
-import com.vims.app.data.AppSettings
+import com.vims.app.data.ChecklistEdits
+import com.vims.app.data.ChecklistLoader
+import com.vims.app.data.Role
+import com.vims.app.data.Session
+import com.vims.app.data.db.CompanyEntity
+import com.vims.app.data.db.VimsDao
+import com.vims.app.services.LocalAuthService
 import com.vims.app.data.ChecklistEngine
 import com.vims.app.data.CompanyProfile
 import com.vims.app.data.Finding
@@ -32,42 +38,51 @@ import java.io.FileOutputStream
 import java.time.LocalDate
 
 /**
- * DEMO DATA — first-launch seed equivalent to the prototype's sample data so the client can review the app.
- * Everything demo-specific lives in this one file. To ship without demo data, delete this file and the single
- * `DemoSeed.seedIfNeeded(...)` call in VimsApplication (the app then starts empty; the account/plans still
- * initialize from vims-checklists.json).
+ * DEMO DATA — belongs ONLY to the demo account (jeremy@visionpropertyinspections.com / Vision Property Inspections);
+ * new accounts start empty. The demo account's sample inspections (equivalent to the prototype's sample data) so the client can review
+ * the app. Everything demo-specific lives in this one file. To ship without demo data, delete this file and the two
+ * `DemoSeed.…` calls in AppContainer.start() (VimsApplication.kt), plus the debug-only `debugSignIn()` in AppViewModel.
  */
 object DemoSeed {
 
-    fun seedIfNeeded(repo: VimsRepository, engine: ChecklistEngine) {
-        if (repo.settings.value.seeded) return
+    const val DEMO_EMAIL = "jeremy@visionpropertyinspections.com"
+    /** Demo sign-in password (same as the approved prototype's prefill). Local stub only — TODO(backend). */
+    const val DEMO_PASSWORD = "inspect2026"
+    const val DEMO_USER_ID = "demo-user-jeremy"
+    const val DEMO_COMPANY_ID = "demo-company-vpi"
+
+    /** Creates the demo account (user + company) and its sample inspections — only if it doesn't exist yet. */
+    suspend fun ensureDemoAccount(dao: VimsDao, repo: VimsRepository, engine: ChecklistEngine) {
+        if (dao.userByEmail(DEMO_EMAIL) != null) return
         val cfg = engine.config
         val sample = cfg.sample
         val today = LocalDate.now()
+        val json = ChecklistLoader.json
+        val account = AccountState(
+            companyCode = sample?.company?.code ?: "VIS-4827",
+            plans = cfg.subscription.plans,
+            extraInspectorMonthly = cfg.subscription.extraInspectorMonthly,
+            planId = cfg.subscription.plans.firstOrNull()?.id ?: "app",
+            trialDays = cfg.subscription.trialDays,
+            // 20 days into the 30-day free look → "10 days left", as in the approved screens.
+            trialStartEpochDay = today.toEpochDay() - 20,
+            inspectors = sample?.inspectors.orEmpty().mapIndexed { i, s -> Inspector("insp-$i", s.name, s.email, owner = s.owner, admin = s.owner) },
+            seats = maxOf(1, sample?.inspectors?.size ?: 1),
+            feedbackEmail = cfg.support.feedbackEmail,
+        )
+        val profile = CompanyProfile(
+            name = sample?.company?.name ?: "Vision Property Inspections",
+            address = "2029 N Main St Suite 103, Sunset, UT 84015",
+            inspectorName = "Jeremy K. Heath",
+            email = "VisionPropertyInspections@Gmail.com",
+        )
+        dao.insertCompany(CompanyEntity(DEMO_COMPANY_ID, account.companyCode, json.encodeToString(CompanyProfile.serializer(), profile),
+            json.encodeToString(AccountState.serializer(), account), json.encodeToString(ChecklistEdits.serializer(), ChecklistEdits()), System.currentTimeMillis()))
+        val user = LocalAuthService.newUser("Jeremy Heath", DEMO_EMAIL, DEMO_PASSWORD, DEMO_COMPANY_ID, cfg).copy(id = DEMO_USER_ID)
+        dao.insertUser(user)
 
-        repo.updateAccount {
-            AccountState(
-                companyCode = sample?.company?.code ?: "VIS-4827",
-                plans = cfg.subscription.plans,
-                extraInspectorMonthly = cfg.subscription.extraInspectorMonthly,
-                planId = cfg.subscription.plans.firstOrNull()?.id ?: "app",
-                trialDays = cfg.subscription.trialDays,
-                // 20 days into the 30-day free look → "10 days left", as in the approved screens.
-                trialStartEpochDay = today.toEpochDay() - 20,
-                inspectors = sample?.inspectors.orEmpty().mapIndexed { i, s -> Inspector("insp-$i", s.name, s.email, owner = s.owner, admin = s.owner) },
-                seats = maxOf(1, sample?.inspectors?.size ?: 1),
-                feedbackEmail = cfg.support.feedbackEmail,
-            )
-        }
-        repo.updateCompany {
-            CompanyProfile(
-                name = sample?.company?.name ?: "Vision Property Inspections",
-                address = "2029 N Main St Suite 103, Sunset, UT 84015",
-                inspectorName = "Jeremy K. Heath",
-                email = "VisionPropertyInspections@Gmail.com",
-            )
-        }
-
+        // Write the sample inspections as the demo user, then drop the scope again.
+        repo.activate(Session("Jeremy Heath", DEMO_EMAIL, Role.OWNER, userId = DEMO_USER_ID, companyId = DEMO_COMPANY_ID), persist = false)
         val base = engine.defaultSelections(cfg.wizard.defaults.depth)
         fun sel(address: String, client: String, time: String, date: LocalDate, structure: String, extra: List<String> = emptyList(), chips: Map<String, String> = emptyMap(), fields: Map<String, String> = emptyMap()) =
             base.copy(
@@ -98,8 +113,9 @@ object DemoSeed {
         val photos = mutableListOf<Photo>()
         fun addPhoto(section: String, cat: String, seed: Int, flag: Int = 0, comment: String = "") {
             val id = "demo-p${photos.size}"
-            val rel = "vims/inspections/${ridge.id}/photos/$id.jpg"
-            writePlaceholderPhoto(File(repo.root.parentFile, rel), seed)
+            val file = File(repo.inspectionDir(ridge.id), "photos/$id.jpg")
+            val rel = file.relativeTo(repo.root.parentFile!!).path
+            writePlaceholderPhoto(file, seed)
             photos += Photo(id, section, cat, rel, flag, quickComment = comment)
         }
         addPhoto("Roof", "North Side", 0)
@@ -119,7 +135,8 @@ object DemoSeed {
             answers = harrison.inspection.leafSections.associateWith { demoAnswers(harrison, it, SecStatus.DONE) },
         ))
 
-        repo.updateSettings { AppSettings(seeded = true, defaultDepth = cfg.wizard.defaults.depth, defaultCover = cfg.covers.defaultCover) }
+        repo.flush()
+        repo.activate(null, persist = false)
     }
 
     private fun newBundle(engine: ChecklistEngine, id: String, sel: WizardSelections, status: String, pending: Boolean): InspectionBundle {
@@ -142,6 +159,18 @@ object DemoSeed {
             overall = "Good",
             comments = if (status == SecStatus.DONE) "No significant concerns noted at the time of inspection." else "",
         )
+    }
+
+    /** The demo company uses the VIMS mark as its uploaded logo (new companies show an initials badge until they upload one). */
+    suspend fun ensureDemoLogo(dao: VimsDao, filesDir: File, res: android.content.res.Resources) {
+        val c = dao.company(DEMO_COMPANY_ID) ?: return
+        val json = ChecklistLoader.json
+        val profile = json.decodeFromString(CompanyProfile.serializer(), c.profileJson)
+        if (profile.logoFile != null && File(filesDir, profile.logoFile).exists()) return
+        val f = File(filesDir, "vims/companies/$DEMO_COMPANY_ID/logo.png").apply { parentFile?.mkdirs() }
+        val bmp = android.graphics.BitmapFactory.decodeResource(res, com.vims.app.R.drawable.vims_logo) ?: return
+        FileOutputStream(f).use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        dao.updateCompanyProfile(DEMO_COMPANY_ID, json.encodeToString(CompanyProfile.serializer(), profile.copy(logoFile = f.relativeTo(filesDir).path)))
     }
 
     /** Neutral placeholder "photo" (landscape silhouette), like the prototype's sample thumbnails. */

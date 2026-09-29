@@ -57,6 +57,8 @@ import com.vims.app.ui.openSection
 import com.vims.app.ui.theme.T
 import com.vims.app.ui.theme.V
 import com.vims.app.ui.theme.VIcons
+import com.vims.app.util.Checks
+import com.vims.app.util.Filters
 import com.vims.app.util.Fmt
 
 /** Returns to the Sections overview if it is on the back stack, otherwise opens it. */
@@ -149,7 +151,7 @@ fun SectionScreen(vm: AppViewModel, nav: NavHostController, inspId: String, name
                         Seg(vm.config.overallCondition, a.overall ?: vm.config.overallConditionDefault, { v -> edit { it.copy(overall = v.orEmpty()) } })
                     }
                     Lbl("Comments")
-                    VInput(a.comments, { v -> edit { it.copy(comments = v) } }, placeholder = "Notes for this section…", multiline = true)
+                    VInput(a.comments, { v -> edit { it.copy(comments = v) } }, placeholder = "Notes for this section…", multiline = true, filter = { Filters.base(it, 4000, multiline = true) })
                     BtnRow {
                         VBtn("Photos", { nav.navigate(PhotosR(inspId, name)) }, Modifier.weight(1f), BtnKind.Ghost, VIcons.camera)
                         VBtn("Save", {
@@ -181,7 +183,11 @@ private fun ItemCard(key: String, it: ItemDef, a: SectionAnswers, detail: Boolea
             })
             "date" -> PickerField(if (input.isBlank()) "" else Fmt.date(input), "Select date", VIcons.calendar, { pickDate(ctx, input, setInput) })
             "time" -> PickerField(if (input.isBlank()) "" else Fmt.time(input), "Select time", VIcons.clock, { pickTime(ctx, input, setInput) })
-            else -> VInput(input, setInput, placeholder = it.placeholder ?: "Enter a value", keyboard = if (it.type == "num") KeyboardType.Decimal else KeyboardType.Text)
+            else -> {
+                val numErr = if (it.type == "num") Checks.positive(input) else null
+                VInput(input, setInput, placeholder = it.placeholder ?: "Enter a value", keyboard = if (it.type == "num") KeyboardType.Decimal else KeyboardType.Text,
+                    filter = if (it.type == "num") { v -> Filters.decimal(v) } else { v -> Filters.base(v, 500) }, error = numErr)
+            }
         }
         if (detail && it.isChoice) {
             VInput(input, setInput, Modifier.padding(top = 9.dp), placeholder = "Detail / measurement (optional)", minHeight = 44.dp, textSize = 13f)

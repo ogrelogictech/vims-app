@@ -36,6 +36,10 @@ data class Session(
     val email: String,
     val role: Role = Role.OWNER,
     val signedInAt: Long = System.currentTimeMillis(),
+    /** Owner of inspections / answers / photos / findings / reports. */
+    val userId: String = "",
+    /** Owner of the company profile, logo, checklist customizations, plans, inspectors, subscription. */
+    val companyId: String = "",
 ) {
     val isAdmin: Boolean get() = role != Role.INSPECTOR
     val initials: String get() = name.split(" ").filter { it.isNotBlank() }.take(2).joinToString("") { it.first().uppercase() }.ifEmpty { "?" }

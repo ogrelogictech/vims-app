@@ -56,13 +56,25 @@ import com.vims.app.ui.components.VScreen
 import com.vims.app.ui.theme.T
 import com.vims.app.ui.theme.V
 import com.vims.app.ui.theme.VIcons
+import com.vims.app.util.Checks
+import com.vims.app.util.Filters
+import com.vims.app.util.JoinCodeTransform
+import com.vims.app.util.formField
+import com.vims.app.util.rememberForm
 
 private fun NavHostController.toHomeFromAuth() = navigate(HomeR) { popUpTo(0) { inclusive = true } }
 
 @Composable
 fun LoginScreen(vm: AppViewModel, nav: NavHostController) {
-    var email by rememberSaveable { mutableStateOf(vm.account.value.inspectors.firstOrNull { it.owner }?.email.orEmpty()) }
+    var email by rememberSaveable { mutableStateOf("") }
     var pw by rememberSaveable { mutableStateOf("") }
+    val form = rememberForm()
+    val emailErr = form.check("email", email) { Checks.email(email) }
+    val pwErr = form.check("password", pw) { Checks.passwordSignIn(pw) }
+    fun submit() {
+        if (!form.submit()) return
+        vm.signIn(email, pw, onError = { e -> form.fail(e.field ?: "email", e.message, if (e.field == "password") pw else email) }) { nav.toHomeFromAuth() }
+    }
     Column(Modifier.fillMaxSize().background(V.paper2).imePadding().verticalScroll(rememberScrollState())) {
         Column(Modifier.fillMaxWidth().background(V.hdr).statusBarsPadding(), horizontalAlignment = Alignment.CenterHorizontally) {
             TopStrip(net(vm))
@@ -74,14 +86,14 @@ fun LoginScreen(vm: AppViewModel, nav: NavHostController) {
                 Spacer(Modifier.height(16.dp))
                 Text("VIMS", style = T.display(30.sp, FontWeight.ExtraBold, Color.White).copy(letterSpacing = 0.02.em))
                 Spacer(Modifier.height(4.dp))
-                Text("Vision Inspection Management Solutions", style = T.ui(13.sp, color = V.hdrSub), textAlign = TextAlign.Center)
+                Text("Vision Inspection Management Solutions", style = T.ui(13.sp, color = V.hdrSub, lineHeight = 17.sp), textAlign = TextAlign.Center)
             }
         }
         ContentWidth {
             Column(Modifier.padding(horizontal = 18.dp, vertical = 24.dp).navigationBarsPadding()) {
-                VField("Email", email, { email = it }, placeholder = "you@company.com", keyboard = KeyboardType.Email)
-                PasswordField("Password", pw, { pw = it }, placeholder = "Password")
-                VBtn("Sign in", { vm.signIn(email, pw) { nav.toHomeFromAuth() } })
+                VField("Email", email, { email = it }, Modifier.formField(form, "email"), placeholder = "you@company.com", keyboard = KeyboardType.Email, error = emailErr)
+                PasswordField("Password", pw, { pw = it }, placeholder = "Password", error = pwErr, modifier = Modifier.formField(form, "password"))
+                VBtn("Sign in", { submit() })
                 VBtn("Create account", { nav.navigate(SignupR) }, Modifier.padding(top = 10.dp), BtnKind.Ghost)
                 VBtn("Join a company with a code", { nav.navigate(JoinR) }, Modifier.padding(top = 10.dp), BtnKind.Ghost, icon = VIcons.userPlus)
                 TextLink("Forgot password?", { nav.navigate(ForgotR) }, Modifier.padding(top = 4.dp))
@@ -96,23 +108,35 @@ fun SignupScreen(vm: AppViewModel, nav: NavHostController) {
     var company by rememberSaveable { mutableStateOf("") }
     var email by rememberSaveable { mutableStateOf("") }
     var pw by rememberSaveable { mutableStateOf("") }
-    VScreen("Create account", companyName(vm), net(vm), backAction(nav), listOf(homeActionIfSignedIn(vm, nav)).filterNotNull()) {
+    var pw2 by rememberSaveable { mutableStateOf("") }
+    val form = rememberForm()
+    val nameErr = form.check("name", name) { Checks.required(name, "Enter your full name") }
+    val companyErr = form.check("company", company) { Checks.required(company, "Enter your company name") }
+    val emailErr = form.check("email", email) { Checks.email(email) }
+    val pwErr = form.check("password", pw) { Checks.passwordNew(pw) }
+    val pw2Err = form.check("confirm", pw2) { Checks.confirm(pw, pw2) }
+    VScreen("Create account", "VIMS", net(vm), backAction(nav)) {
         Lbl("Your details", first = true)
-        VField("Full name", name, { name = it }, placeholder = "Jeremy Heath", caps = KeyboardCapitalization.Words)
-        VField("Company", company, { company = it }, placeholder = "Vision Property Inspections", caps = KeyboardCapitalization.Words)
-        VField("Email", email, { email = it }, placeholder = "you@company.com", keyboard = KeyboardType.Email)
-        PasswordField("Password", pw, { pw = it }, placeholder = "Create a password")
-        VBtn("Create account & continue", { vm.createAccount(name, company, email, pw) { nav.toHomeFromAuth() } })
+        VField("Full name", name, { name = it }, Modifier.formField(form, "name"), placeholder = "Jeremy Heath", caps = KeyboardCapitalization.Words, error = nameErr, filter = Filters::personName)
+        VField("Company name", company, { company = it }, Modifier.formField(form, "company"), placeholder = "Vision Property Inspections", caps = KeyboardCapitalization.Words, error = companyErr, filter = Filters::companyName)
+        VField("Email", email, { email = it }, Modifier.formField(form, "email"), placeholder = "you@company.com", keyboard = KeyboardType.Email, error = emailErr)
+        PasswordField("Password", pw, { pw = it }, placeholder = "At least 8 characters", error = pwErr, modifier = Modifier.formField(form, "password"))
+        PasswordField("Confirm password", pw2, { pw2 = it }, placeholder = "Re-enter your password", error = pw2Err, modifier = Modifier.formField(form, "confirm"))
+        VBtn("Create account & continue", {
+            if (form.submit()) vm.createAccount(name, company, email, pw, onError = { e -> form.fail(e.field ?: "email", e.message, email) }) { nav.toHomeFromAuth() }
+        })
     }
 }
 
 @Composable
 fun ForgotScreen(vm: AppViewModel, nav: NavHostController) {
     var email by rememberSaveable { mutableStateOf("") }
-    VScreen("Reset password", companyName(vm), net(vm), backAction(nav)) {
+    val form = rememberForm()
+    val emailErr = form.check("email", email) { Checks.email(email) }
+    VScreen("Reset password", "VIMS", net(vm), backAction(nav)) {
         Text("Enter your email and we'll send a reset link.", style = T.ui(14.sp, color = V.ink2, lineHeight = 21.sp), modifier = Modifier.padding(top = 4.dp, bottom = 16.dp))
-        VField("Email", email, { email = it }, placeholder = "you@company.com", keyboard = KeyboardType.Email)
-        VBtn("Send reset link", { vm.sendReset(email) { nav.navigate(LoginR) { popUpTo(0) { inclusive = true } } } })
+        VField("Email", email, { email = it }, Modifier.formField(form, "email"), placeholder = "you@company.com", keyboard = KeyboardType.Email, error = emailErr)
+        VBtn("Send reset link", { if (form.submit()) vm.sendReset(email) { nav.navigate(LoginR) { popUpTo(0) { inclusive = true } } } })
     }
 }
 
@@ -120,17 +144,24 @@ fun ForgotScreen(vm: AppViewModel, nav: NavHostController) {
 fun JoinScreen(vm: AppViewModel, nav: NavHostController) {
     var name by rememberSaveable { mutableStateOf("") }
     var email by rememberSaveable { mutableStateOf("") }
+    var pw by rememberSaveable { mutableStateOf("") }
     var code by rememberSaveable { mutableStateOf("") }
-    VScreen("Join a company", companyName(vm), net(vm), backAction(nav)) {
+    val form = rememberForm()
+    val nameErr = form.check("name", name) { Checks.required(name, "Enter your full name") }
+    val emailErr = form.check("email", email) { Checks.email(email) }
+    val pwErr = form.check("password", pw) { Checks.passwordNew(pw) }
+    val codeErr = form.check("code", code) { Checks.joinCode(code) }
+    VScreen("Join a company", "VIMS", net(vm), backAction(nav)) {
         Text("Enter the company code your inspection company shared with you. Your account will be linked to their license and billing.",
             style = T.ui(14.sp, color = V.ink2, lineHeight = 21.sp), modifier = Modifier.padding(top = 4.dp, bottom = 16.dp))
-        VField("Full name", name, { name = it }, placeholder = "Your name", caps = KeyboardCapitalization.Words)
-        VField("Email", email, { email = it }, placeholder = "you@email.com", keyboard = KeyboardType.Email)
-        VField("Company code", code, { code = it.uppercase() }, placeholder = "VIS-4827", mono = true, caps = KeyboardCapitalization.Characters)
-        VBtn("Link my account", { vm.joinCompany(name, email, code) { nav.toHomeFromAuth() } }, icon = VIcons.check)
+        VField("Full name", name, { name = it }, Modifier.formField(form, "name"), placeholder = "Your name", caps = KeyboardCapitalization.Words, error = nameErr, filter = Filters::personName)
+        VField("Email", email, { email = it }, Modifier.formField(form, "email"), placeholder = "you@email.com", keyboard = KeyboardType.Email, error = emailErr)
+        PasswordField("Create a password", pw, { pw = it }, placeholder = "At least 8 characters", error = pwErr, modifier = Modifier.formField(form, "password"))
+        VField("Company code", code, { code = it }, Modifier.formField(form, "code"), placeholder = "VIS-4827", mono = true, caps = KeyboardCapitalization.Characters,
+            error = codeErr, filter = Filters::joinCode, visual = JoinCodeTransform)
+        VBtn("Link my account", {
+            if (form.submit()) vm.joinCompany(name, email, code, pw, onError = { e -> form.fail(e.field ?: "code", e.message, if (e.field == "email") email else code) }) { nav.toHomeFromAuth() }
+        }, icon = VIcons.check)
         TextLink("Back to sign in", { nav.back() }, Modifier.padding(top = 4.dp))
     }
 }
-
-@Composable
-private fun homeActionIfSignedIn(vm: AppViewModel, nav: NavHostController) = if (vm.session.value != null) homeAction(nav) else null

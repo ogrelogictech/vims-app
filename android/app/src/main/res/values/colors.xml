@@ -3,4 +3,6 @@
     <color name="ic_launcher_background">#FFFFFF</color>
     <color name="vims_paper2">#F4F7FA</color>
     <color name="vims_hdr">#2F5EC9</color>
+    <!-- Matches the splash video background so there is no white flash on launch. -->
+    <color name="vims_splash">#D4D4D9</color>
 </resources>

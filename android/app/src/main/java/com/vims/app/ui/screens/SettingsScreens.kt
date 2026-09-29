@@ -73,7 +73,12 @@ import com.vims.app.ui.components.vCard
 import com.vims.app.ui.theme.T
 import com.vims.app.ui.theme.V
 import com.vims.app.ui.theme.VIcons
+import com.vims.app.util.Checks
+import com.vims.app.util.Filters
 import com.vims.app.util.Fmt
+import com.vims.app.util.PhoneTransform
+import com.vims.app.util.formField
+import com.vims.app.util.rememberForm
 import com.vims.app.util.rememberThumb
 import java.io.File
 
@@ -96,9 +101,13 @@ fun SettingsScreen(vm: AppViewModel, nav: NavHostController) {
         VCard {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(13.dp)) {
                 LeadInitials(session?.initials ?: "?", 48.dp, circle = true)
-                Column {
+                Column(Modifier.weight(1f)) {
                     Text(session?.name ?: "Signed out", style = T.ui(15.sp, FontWeight.Bold))
-                    Text(listOfNotNull(company.name.ifBlank { null }, if (session?.isAdmin == false) "Inspector" else null).joinToString(" · "), style = T.ui(12.5.sp, color = V.ink3))
+                    Text(session?.email.orEmpty(), style = T.ui(12.5.sp, color = V.ink3), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                        CompanyMark(vm, 22.dp)
+                        Text(listOfNotNull(company.name.ifBlank { null }, if (session?.isAdmin == false) "Inspector" else null).joinToString(" · "), style = T.ui(12.5.sp, FontWeight.SemiBold, V.ink2))
+                    }
                 }
             }
         }
@@ -184,18 +193,14 @@ fun CompanyScreen(vm: AppViewModel, nav: NavHostController) {
         }
     }
     fun set(f: (CompanyProfile) -> CompanyProfile) { p = f(p) }
+    val form = rememberForm()
 
     VScreen("Company profile", companyName(vm), net(vm), backAction(nav), listOf(homeAction(nav))) {
         Lbl("Company logo", first = true)
         Text("This logo appears on your report covers.", style = T.ui(12.sp, color = V.ink3), modifier = Modifier.padding(start = 2.dp, bottom = 10.dp))
         VCard {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                Box(Modifier.size(76.dp).clip(RoundedCornerShape(16.dp)).background(Color.White).border(1.dp, V.line, RoundedCornerShape(16.dp)), contentAlignment = Alignment.Center) {
-                    val logoFile = saved.logoFile?.let { File(ctx.filesDir, it) }
-                    val thumb = logoFile?.let { rememberThumb(it, logoVersion, 256).value }
-                    if (thumb != null) Image(thumb, "Company logo", Modifier.size(64.dp), contentScale = ContentScale.Fit)
-                    else Image(painterResource(R.drawable.vims_logo), "Company logo", Modifier.size(64.dp))
-                }
+                CompanyMark(vm, 76.dp)
                 Column(Modifier.weight(1f)) {
                     VBtn("Upload logo", { logoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }, kind = BtnKind.Ghost, icon = VIcons.upload, minHeight = 48.dp)
                     Text("PNG or JPG, square works best.", style = T.ui(11.5.sp, color = V.ink3), modifier = Modifier.padding(start = 2.dp, top = 8.dp))
@@ -203,18 +208,23 @@ fun CompanyScreen(vm: AppViewModel, nav: NavHostController) {
             }
         }
         Lbl("Company details")
-        VField("Company name", p.name, { v -> set { it.copy(name = v) } }, caps = KeyboardCapitalization.Words)
-        VField("Address", p.address, { v -> set { it.copy(address = v) } }, placeholder = "Street, City, State ZIP", caps = KeyboardCapitalization.Words)
+        val nameErr = form.check("name", p.name) { Checks.required(p.name, "Enter the company name") }
+        val phoneErr = form.check("phone", p.phone) { Checks.phone(p.phone.filter { it.isDigit() }) }
+        val emailErr = form.check("email", p.email) { Checks.email(p.email, required = false) }
+        val urlErr = form.check("url", p.reviewUrl) { Checks.url(p.reviewUrl) }
+        VField("Company name", p.name, { v -> set { it.copy(name = v) } }, Modifier.formField(form, "name"), caps = KeyboardCapitalization.Words, error = nameErr, filter = Filters::companyName)
+        VField("Address", p.address, { v -> set { it.copy(address = v) } }, placeholder = "Street, City, State ZIP", caps = KeyboardCapitalization.Words, filter = Filters::address)
         Lbl("Lead inspector")
-        VField("Inspector name", p.inspectorName, { v -> set { it.copy(inspectorName = v) } }, caps = KeyboardCapitalization.Words)
+        VField("Inspector name", p.inspectorName, { v -> set { it.copy(inspectorName = v) } }, caps = KeyboardCapitalization.Words, filter = Filters::personName)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            VField("License #", p.license, { v -> set { it.copy(license = v) } }, Modifier.weight(1f), placeholder = "e.g. UT-12345", caps = KeyboardCapitalization.Characters, bottom = 0.dp)
-            VField("Phone", p.phone, { v -> set { it.copy(phone = v) } }, Modifier.weight(1f), placeholder = "(801) 555-0134", keyboard = KeyboardType.Phone, bottom = 0.dp)
+            VField("License #", p.license, { v -> set { it.copy(license = v) } }, Modifier.weight(1f), placeholder = "e.g. UT-12345", caps = KeyboardCapitalization.Characters, bottom = 0.dp, filter = Filters::license)
+            VField("Phone", p.phone, { v -> set { it.copy(phone = v) } }, Modifier.weight(1f).formField(form, "phone"), placeholder = "(801) 555-0134", keyboard = KeyboardType.Phone, bottom = 0.dp,
+                filter = Filters::phone, visual = PhoneTransform, error = phoneErr)
         }
-        VField("Email", p.email, { v -> set { it.copy(email = v) } }, Modifier.padding(top = 11.dp), placeholder = "you@company.com", keyboard = KeyboardType.Email)
+        VField("Email", p.email, { v -> set { it.copy(email = v) } }, Modifier.padding(top = 11.dp).formField(form, "email"), placeholder = "you@company.com", keyboard = KeyboardType.Email, error = emailErr)
         Lbl("Online review link")
         Text("Add the URL where clients can leave a review of the inspection. It's included with the report so clients can rate you.", style = T.ui(12.sp, color = V.ink3, lineHeight = 16.sp), modifier = Modifier.padding(start = 2.dp, bottom = 9.dp))
-        VField("Review URL", p.reviewUrl, { v -> set { it.copy(reviewUrl = v) } }, placeholder = "https://g.page/r/your-review-link", keyboard = KeyboardType.Uri)
+        VField("Review URL", p.reviewUrl, { v -> set { it.copy(reviewUrl = v) } }, Modifier.formField(form, "url"), placeholder = "https://g.page/r/your-review-link", keyboard = KeyboardType.Uri, error = urlErr)
         Lbl("Inspection agreement")
         Text("Legal requirements vary by state, so use your own agreement. Upload it here and clients sign it before each inspection.", style = T.ui(12.sp, color = V.ink3, lineHeight = 16.sp), modifier = Modifier.padding(start = 2.dp, bottom = 10.dp))
         VCard {
@@ -228,7 +238,7 @@ fun CompanyScreen(vm: AppViewModel, nav: NavHostController) {
                     Modifier.width(104.dp), BtnKind.Ghost, minHeight = 48.dp)
             }
         }
-        VBtn("Save profile", { vm.saveCompany(p.copy(logoFile = saved.logoFile, agreementName = saved.agreementName, agreementFile = saved.agreementFile)) }, icon = VIcons.check)
+        VBtn("Save profile", { if (form.submit()) vm.saveCompany(p.copy(logoFile = saved.logoFile, agreementName = saved.agreementName, agreementFile = saved.agreementFile)) }, icon = VIcons.check)
     }
 }
 
@@ -271,7 +281,9 @@ fun FeedbackAdminScreen(vm: AppViewModel, nav: NavHostController) {
     var email by rememberSaveable(account.feedbackEmail) { mutableStateOf(account.feedbackEmail) }
     VScreen("Feedback & support", companyName(vm), net(vm), backAction(nav), listOf(homeAction(nav))) {
         Hint("Owner admin — set the email address that receives help & feedback messages sent from the app.", Modifier.padding(top = 2.dp, bottom = 14.dp))
-        VField("Feedback contact email", email, { email = it }, keyboard = KeyboardType.Email)
-        VBtn("Save", { vm.saveFeedbackEmail(email) }, icon = VIcons.check)
+        val form = rememberForm()
+        val err = form.check("email", email) { Checks.email(email) }
+        VField("Feedback contact email", email, { email = it }, Modifier.formField(form, "email"), keyboard = KeyboardType.Email, error = err)
+        VBtn("Save", { if (form.submit()) vm.saveFeedbackEmail(email) }, icon = VIcons.check)
     }
 }

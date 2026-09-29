@@ -15,7 +15,6 @@ import android.graphics.pdf.PdfDocument
 import android.text.Layout
 import android.text.StaticLayout
 import android.text.TextPaint
-import com.vims.app.R
 import com.vims.app.data.ChecklistConfig
 import com.vims.app.data.ChecklistEngine
 import com.vims.app.data.CompanyProfile
@@ -120,7 +119,13 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
     }
 
     private fun drawLogo(x: Float, top: Float, size: Float) {
-        val l = logo ?: return
+        val l = logo ?: run {
+            val r = RectF(x, top, x + size, top + size)
+            cv.drawRoundRect(r, size * .22f, size * .22f, Paint(Paint.ANTI_ALIAS_FLAG).apply { shader = LinearGradient(r.left, r.top, r.right, r.bottom, Color.parseColor("#5580E6"), BRAND_DEEP, Shader.TileMode.CLAMP) })
+            val initials = company.name.split(" ").filter { it.isNotBlank() && it.first().isLetterOrDigit() }.take(2).joinToString("") { it.first().uppercase() }.ifEmpty { "V" }
+            cv.drawText(initials, r.centerX(), r.centerY() + size * .13f, tp(archivo700, size * .36f, Color.WHITE).apply { textAlign = Paint.Align.CENTER })
+            return
+        }
         val s = minOf(size / l.width, size / l.height)
         val w = l.width * s; val h = l.height * s
         cv.drawBitmap(l, null, RectF(x + (size - w) / 2, top + (size - h) / 2, x + (size + w) / 2, top + (size + h) / 2), Paint(Paint.FILTER_BITMAP_FLAG))
@@ -234,7 +239,8 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
     fun generate(bundle: InspectionBundle, company: CompanyProfile): ReportOutput {
         b = bundle; this.company = company
         layoutKind = config.reportLayout(bundle.inspection.selections.inspType)
-        logo = company.logoFile?.let { BitmapFactory.decodeFile(File(context.filesDir, it).path) } ?: BitmapFactory.decodeResource(context.resources, R.drawable.vims_logo)
+        // Company logo from Company profile; without one, an initials badge is drawn (same fallback as in the app).
+        logo = company.logoFile?.let { BitmapFactory.decodeFile(File(context.filesDir, it).path) }
         if (layoutKind != ChecklistConfig.LAYOUT_STANDARD) { render(); totalPages = pageNo; doc.close() }
         render()
 
