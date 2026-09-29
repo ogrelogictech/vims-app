@@ -191,37 +191,3 @@ enum Fmt {
         name.split(separator: " ").prefix(2).compactMap { $0.first.map(String.init) }.joined().uppercased()
     }
 }
-
-// MARK: - Icons (SF Symbols mapped to the prototype's line icons)
-
-enum VIcon {
-    static func symbol(_ key: String?) -> String {
-        switch key ?? "info" {
-        case "info": return "info.circle"
-        case "tree": return "tree"
-        case "wall": return "square.split.2x2"
-        case "home": return "house"
-        case "deck": return "rectangle.split.3x1"
-        case "pool": return "figure.pool.swim"
-        case "shed": return "house.lodge"
-        case "layers": return "square.3.layers.3d"
-        case "box": return "shippingbox"
-        case "car": return "car"
-        case "sofa": return "sofa"
-        case "chef": return "fork.knife"
-        case "bed": return "bed.double"
-        case "drop", "water": return "drop"
-        case "bolt": return "bolt"
-        case "wind": return "wind"
-        case "flame": return "flame"
-        case "list": return "list.bullet"
-        case "hall": return "door.left.hand.open"
-        case "plug": return "powerplug"
-        case "flask": return "flask"
-        case "grid": return "square.grid.2x2"
-        case "file": return "doc.text"
-        case "camera": return "camera"
-        default: return "info.circle"
-        }
-    }
-}

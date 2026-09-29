@@ -11,16 +11,17 @@ struct SectionEntryView: View {
     @State private var loaded = false
     @State private var drawerOpen = false
     @State private var showFinding = false
+    @State private var errors = FormErrors()
 
     var body: some View {
         if let insp = store.inspection(inspectionID) {
             ZStack {
                 Screen(title: section, subtitle: insp.addressLine1,
                        actions: [
-                        HeaderAction(symbol: "camera", label: "Photos") { store.push(.photos(inspectionID, section)) },
-                        HeaderAction(symbol: "list.bullet", label: "Sections") { withAnimation(.easeOut(duration: 0.24)) { drawerOpen = true } },
+                        HeaderAction(symbol: "hdr-photos", label: "Photos") { store.push(.photos(inspectionID, section)) },
+                        HeaderAction(symbol: "hdr-sections", label: "Sections") { withAnimation(.easeOut(duration: 0.24)) { drawerOpen = true } },
                         store.homeAction()
-                       ]) {
+                       ], errors: errors) {
                     content(insp)
                 }
                 if drawerOpen {
@@ -76,7 +77,7 @@ struct SectionEntryView: View {
                     if let h = k.item.header {
                         HeaderBand(text: h, first: idx == 0)
                     } else {
-                        ItemCard(item: k.item, key: k.id, answers: $answers,
+                        ItemCard(item: k.item, key: k.id, answers: $answers, errors: errors,
                                  showDetail: depth == .high && !resolved.usingHigh)
                     }
                 }
@@ -97,24 +98,37 @@ struct SectionEntryView: View {
         let secFindings = insp.findings.filter { $0.section == section }
         if insp.hasSummary {
             Button { showFinding = true } label: {
-                Label(secFindings.isEmpty ? "Flag a finding" : "Flag a finding · \(secFindings.count) flagged", systemImage: "flag")
+                IconLabel(secFindings.isEmpty ? "Flag a finding" : "Flag a finding · \(secFindings.count) flagged", icon: "flag")
             }
             .buttonStyle(VButtonStyle(kind: .ghost, minHeight: 46))
         }
 
         HStack(spacing: 10) {
-            Button { store.push(.photos(inspectionID, section)) } label: { Label("Photos", systemImage: "camera") }
+            Button { store.push(.photos(inspectionID, section)) } label: { IconLabel("Photos", icon: "camera") }
                 .buttonStyle(.vGhost)
-            Button { save() } label: { Label("Save", systemImage: "checkmark") }
+            Button { save() } label: { IconLabel("Save", icon: "link-my-account") }
                 .buttonStyle(.vGhost)
         }
         .padding(.top, 12)
-        Button { saveNext() } label: { Label("Save & next section", systemImage: "arrow.right") }
+        Button { saveNext() } label: { IconLabel("Save & next section", icon: "save-return-svg") }
             .buttonStyle(.vPrimary)
             .padding(.top, 10)
     }
 
+    /// `num` items: digits + one "." while typing, > 0 when entered (docs/validation-rules.md).
+    private func valid() -> Bool {
+        guard let insp = store.inspection(inspectionID) else { return true }
+        let isForm = store.catalog.isForm(section)
+        let depth: Depth = isForm ? .standard : insp.depth
+        guard depth != .fast else { return true }
+        let keyed = ItemKeys.keyed(store.catalog.items(section, depth: depth).items)
+        let fields: [(id: String, value: String, rule: FieldRule)] = keyed.filter { $0.item.kind == .num }
+            .map { ($0.id, answers.text[$0.id] ?? "", .opt(.decimal, $0.item.q ?? "Value")) }
+        return errors.validate(fields)
+    }
+
     private func save() {
+        guard valid() else { return }
         store.setAnswers(inspectionID, section, answers)
         store.markDone(inspectionID, section)
         store.toast("Section saved")
@@ -125,6 +139,7 @@ struct SectionEntryView: View {
     }
 
     private func saveNext() {
+        guard valid() else { return }
         store.setAnswers(inspectionID, section, answers)
         store.markDone(inspectionID, section)
         if let next = store.nextSection(inspectionID, after: section) {
@@ -180,7 +195,7 @@ struct HeaderBand: View {
     var first = false
     var body: some View {
         HStack(spacing: 9) {
-            Image(systemName: "list.bullet").font(.system(size: 13, weight: .semibold)).opacity(0.9)
+            ProtoIcon("list", size: 17).opacity(0.9)
             Text(text).font(VFont.display(14, .bold))
             Spacer(minLength: 0)
         }
@@ -200,6 +215,7 @@ struct ItemCard: View {
     let item: ItemDef
     let key: String
     @Binding var answers: SectionAnswers
+    var errors: FormErrors? = nil
     var showDetail = false
 
     var body: some View {
@@ -218,9 +234,10 @@ struct ItemCard: View {
                         .padding(.top, 9)
                 }
             case .num:
-                VTextField(text: textBinding(\.text), placeholder: item.placeholder ?? "Enter a value", keyboard: .decimalPad, bottom: 0)
+                VTextField(text: textBinding(\.text), placeholder: item.placeholder ?? "Enter a value", keyboard: .decimalPad, bottom: 0,
+                           kind: .decimal, fieldID: key, errors: errors)
             case .text:
-                VTextField(text: textBinding(\.text), placeholder: item.placeholder ?? "Enter a value", bottom: 0)
+                VTextField(text: textBinding(\.text), placeholder: item.placeholder ?? "Enter a value", bottom: 0, kind: .plain(max: 500))
             case .date:
                 OptionalDateField(value: textBinding(\.text), format: "yyyy-MM-dd", components: .date, prompt: "Select date")
             case .time:
@@ -256,7 +273,7 @@ struct OptionalDateField: View {
                 Button {
                     value = Fmt.date(Date(), format)
                 } label: {
-                    Label(prompt, systemImage: components == .date ? "calendar" : "clock")
+                    IconLabel(prompt, icon: components == .date ? "calendar" : "free-trial-days", iconSize: 18)
                         .font(VFont.ui(15)).foregroundStyle(VC.brand)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -269,7 +286,7 @@ struct OptionalDateField: View {
                         .environment(\.locale, Fmt.locale)
                     Spacer()
                     Button { value = "" } label: {
-                        Image(systemName: "xmark.circle.fill").foregroundStyle(VC.ink3).frame(width: 44, height: 44)
+                        ProtoIcon("close", size: 16).foregroundStyle(VC.ink3).frame(width: 44, height: 44)
                     }
                     .buttonStyle(.plain)
                     .padding(.vertical, -10)
@@ -370,7 +387,7 @@ struct QuickCommentMenu: View {
                     .foregroundStyle(dark ? .white : (selection == nil ? VC.ink3 : VC.ink))
                     .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                Image(systemName: "chevron.up.chevron.down").font(.system(size: 12, weight: .semibold))
+                ProtoIcon("chevron-down", size: 16)
                     .foregroundStyle(dark ? .white.opacity(0.8) : VC.ink3)
             }
             .padding(.horizontal, dark ? 11 : 14)

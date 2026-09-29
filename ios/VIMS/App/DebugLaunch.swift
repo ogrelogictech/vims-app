@@ -9,13 +9,18 @@ enum DebugFlags {
     static var coverStep: Int?
     static var suppressSplash = false
     static var adminGroup: String?
+    static var openMenu = false
+    static var validate = false
 }
 
 #if DEBUG
 /// DEBUG-only screen jumper for review screenshots, e.g.
 ///   xcrun simctl launch "iPhone 17" com.vims.app -skipLogin -screen summary
 /// Arguments:
-///   -resetData                 wipe local data and reseed the demo
+///   -resetData                 wipe the SwiftData store + files and reseed the demo account
+///   -video / -noVideo          force / skip the launch video (skipped by default with -screen)
+///   -signInAs EMAIL            sign in as that local account
+///   -validate                  submit the form once so its validation errors show
 ///   -skipLogin                 sign in as the demo owner
 ///   -noSplash                  don't show the free-look splash
 ///   -trialDaysLeft N           override the free-look days left
@@ -37,22 +42,45 @@ enum DebugLaunch {
     static func has(_ key: String) -> Bool { args.contains(key) }
 
     static func prepareStorage() {
-        if has("-resetData") { FileRepository().wipeAll() }
+        if has("-resetData") { SwiftDataRepository.wipeStore(); FileStore().wipeAll() }
     }
 
     @MainActor
     static func apply(to store: AppStore) {
+        let screen = value("-screen")
+        // The launch video only plays on a plain launch (or with -video).
+        if (screen != nil || has("-skipLogin") || has("-noVideo")) && !has("-video") { store.showVideoSplash = false }
+        if let email = value("-signInAs"), let u = store.repo.user(email: email) { store.loadSession(u) }
+        if has("-noSplash") || (screen != nil && screen != "splash" && screen != "home") { DebugFlags.suppressSplash = true }
+        if (has("-skipLogin") || (screen != nil && screen != "login" && !["signup", "forgot", "join"].contains(screen!))), store.session == nil,
+           let demo = store.repo.user(email: DemoSeed.loginEmail) {
+            store.loadSession(demo)
+        }
         if let d = value("-trialDaysLeft"), let n = Int(d) {
             store.state.subscription.trialStart = Calendar.current.date(byAdding: .day, value: -(store.state.subscription.trialDays - n), to: Date()) ?? Date()
             store.state.subscription.active = false
         }
-        let screen = value("-screen")
-        if has("-noSplash") || (screen != nil && screen != "splash" && screen != "home") { DebugFlags.suppressSplash = true }
-        if has("-skipLogin") || (screen != nil && screen != "login"), store.session == nil {
-            let owner = store.state.company.inspectors.first { $0.owner }
-            store.state.session = Session(name: owner?.name ?? "Jeremy Heath", email: owner?.email ?? "", inspectorID: owner?.id, isAdmin: true)
-        }
         guard let screen else { return }
+        if ["login", "signup", "forgot", "join"].contains(screen), store.session != nil {
+            let v = DebugFlags.validate
+            store.signOut()
+            DebugFlags.validate = v
+        }
+        if screen == "menu" { DebugFlags.openMenu = true }
+        if has("-validate") { DebugFlags.validate = true }
+        if let g = value("-group") { DebugFlags.adminGroup = g }
+        // Screens that don't need an inspection.
+        let general: [String: [Route]] = [
+            "signup": [.signup], "forgot": [.forgot], "join": [.join], "wizard": [.wizard(editing: nil)],
+            "settings": [.settings], "company": [.settings, .company], "instructions": [.settings, .instructions],
+            "plans": [.settings, .plans], "subscribe": [.subscribe], "billing": [.settings, .billing],
+            "feedback": [.settings, .feedbackAdmin], "inspectors": [.settings, .inspectors], "manage": [.settings, .manageChecklist]
+        ]
+        if let r = general[screen] {
+            if screen == "wizard" { DebugFlags.wizardStep = value("-step").flatMap(Int.init) }
+            store.path = r
+            return
+        }
 
         let step = value("-step").flatMap(Int.init)
         let pick = value("-inspection") ?? "1428"
@@ -64,10 +92,11 @@ enum DebugLaunch {
         let section = value("-section") ?? (ridge.leafSections.contains("Roof") ? (depth == .high ? "Outside Utilities" : "Roof") : (ridge.leafSections.first ?? "Roof"))
 
         switch screen {
-        case "login": store.state.session = nil
-        case "signup": store.state.session = nil; store.path = [.signup]
-        case "forgot": store.state.session = nil; store.path = [.forgot]
-        case "join": store.state.session = nil; store.path = [.join]
+        case "login": break
+        case "signup": store.path = [.signup]
+        case "forgot": store.path = [.forgot]
+        case "join": store.path = [.join]
+        case "menu": break
         case "home": break
         case "splash": DebugFlags.suppressSplash = false; store.showSplash = true
         case "wizard": DebugFlags.wizardStep = step; store.path = [.wizard(editing: nil)]

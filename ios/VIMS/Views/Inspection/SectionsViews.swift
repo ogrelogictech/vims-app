@@ -49,10 +49,10 @@ struct SectionsOverviewView: View {
                 }
 
                 if insp.hasSummary {
-                    Button { store.push(.summary(inspectionID)) } label: { Label("Review summary", systemImage: "checkmark.square") }
+                    Button { store.push(.summary(inspectionID)) } label: { IconLabel("Review summary", icon: "review-summary-svg") }
                         .buttonStyle(.vSignal).padding(.top, 8)
                 }
-                Button { store.push(.report(inspectionID)) } label: { Label("Generate report", systemImage: "doc") }
+                Button { store.push(.report(inspectionID)) } label: { IconLabel("Generate report", icon: "file") }
                     .buttonStyle(.vPrimary).padding(.top, insp.hasSummary ? 10 : 8)
             }
             .onAppear {
@@ -89,7 +89,7 @@ struct GroupAccordion: View {
         VStack(spacing: 0) {
             if let link = group.link {
                 Button { openLink(link) } label: {
-                    header(trailing: AnyView(Image(systemName: "chevron.right").font(.system(size: 14, weight: .semibold)).foregroundStyle(VC.ink3)))
+                    header(trailing: AnyView(ProtoIcon("chevron-right", size: 18).foregroundStyle(VC.ink3)))
                 }
                 .buttonStyle(PressableStyle())
             } else {
@@ -98,7 +98,7 @@ struct GroupAccordion: View {
                 Button(action: toggle) {
                     header(trailing: AnyView(HStack(spacing: 8) {
                         Text("\(done)/\(leafs.count)").font(VFont.mono(11)).foregroundStyle(VC.ink3)
-                        Image(systemName: "chevron.down").font(.system(size: 14, weight: .semibold)).foregroundStyle(VC.ink3)
+                        ProtoIcon("chevron-down", size: 18).foregroundStyle(VC.ink3)
                             .rotationEffect(.degrees(isOpen ? 180 : 0))
                     }))
                 }
@@ -128,8 +128,7 @@ struct GroupAccordion: View {
 
     private func header(trailing: AnyView) -> some View {
         HStack(spacing: 11) {
-            Image(systemName: VIcon.symbol(group.icon))
-                .font(.system(size: 15, weight: .medium)).foregroundStyle(VC.brand)
+            ProtoIcon(group.icon ?? "info", size: 17).foregroundStyle(VC.brand)
                 .frame(width: 30, height: 30).background(VC.paper3)
                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             Text(group.heading).font(VFont.ui(14.5, .bold)).foregroundStyle(VC.ink)
@@ -236,7 +235,7 @@ struct SectionsDrawer: View {
                     close()
                     store.push(link == "summary" ? .summary(insp.id) : .wizard(editing: insp.id))
                 } label: {
-                    dgh(g, trailing: AnyView(Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold)).foregroundStyle(VC.ink3)))
+                    dgh(g, trailing: AnyView(ProtoIcon("chevron-right", size: 16).foregroundStyle(VC.ink3)))
                 }
                 .buttonStyle(PressableStyle())
             } else {
@@ -246,7 +245,7 @@ struct SectionsDrawer: View {
                 } label: {
                     dgh(g, trailing: AnyView(HStack(spacing: 6) {
                         Text("\(g.leafSections.count)").font(VFont.mono(10)).foregroundStyle(VC.ink3)
-                        Image(systemName: "chevron.down").font(.system(size: 13, weight: .semibold)).foregroundStyle(VC.ink3)
+                        ProtoIcon("chevron-down", size: 16).foregroundStyle(VC.ink3)
                             .rotationEffect(.degrees(isOpen ? 180 : 0))
                     }))
                 }
@@ -268,7 +267,7 @@ struct SectionsDrawer: View {
 
     private func dgh(_ g: ChecklistGroup, trailing: AnyView) -> some View {
         HStack(spacing: 10) {
-            Image(systemName: VIcon.symbol(g.icon)).font(.system(size: 13, weight: .medium)).foregroundStyle(VC.brand)
+            ProtoIcon(g.icon ?? "info", size: 16).foregroundStyle(VC.brand)
                 .frame(width: 26, height: 26).background(VC.paper3)
                 .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
             Text(g.heading).font(VFont.ui(13.5, .semibold)).foregroundStyle(VC.ink).frame(maxWidth: .infinity, alignment: .leading)

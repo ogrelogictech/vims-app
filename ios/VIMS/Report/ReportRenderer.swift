@@ -30,7 +30,7 @@ struct ReportData {
     var companyName: String
     var companyAddressLines: [String]
     var companyEmail: String
-    var logo: UIImage
+    var logo: UIImage?          // nil -> initials badge
     var clientName: String
     var addressLine1: String
     var addressRest: String
@@ -64,7 +64,7 @@ struct ReportData {
     var pictures: [ReportPhoto] = []
 
     static func make(_ insp: Inspection, config cfg: ChecklistConfig, overrides: ChecklistOverrides,
-                     company: CompanyProfile, repo: FileRepository, logo: UIImage) -> ReportData {
+                     company: CompanyProfile, repo: FileStore, logo: UIImage?) -> ReportData {
         let cat = ChecklistCatalog(config: cfg, overrides: overrides)
         let colorDef = cfg.covers.colors.first { $0.name == insp.cover.color } ?? cfg.covers.colors[0]
 
@@ -404,6 +404,15 @@ enum ReportRenderer {
             ImageTools.downsample(url, maxPixel: maxPixel)
         }
 
+        /// Company logo, or an initials badge on the brand color when none was uploaded.
+        func logoMark(_ r: CGRect) {
+            if let logo = d.logo { image(logo, fit: r); return }
+            gradient(r, UIColor(hex: 0x5580E6), UIColor(hex: 0x1E3D94), radius: r.width * 0.22)
+            let initials = Fmt.initials(d.companyName)
+            let f = VFont.uDisplay(r.height * 0.4, .bold)
+            text(initials, f, .white, x: r.minX, y: r.midY - f.lineHeight / 2, w: r.width, align: .center, lineSpacing: 0)
+        }
+
         var brandParts: (String, String) {
             let words = d.companyName.split(separator: " ").map(String.init)
             if words.count >= 2, let last = words.last, ["Inspections", "Inspection", "Services", "LLC", "Inc."].contains(last) {
@@ -430,7 +439,7 @@ enum ReportRenderer {
 
         func runningHeader() {
             let logoR = CGRect(x: m, y: 30, width: 34, height: 34)
-            image(d.logo, fit: logoR)
+            logoMark(logoR)
             let (b1, b2) = brandParts
             text(b1, VFont.uDisplay(12.5, .heavy), brandDeep, x: m + 42, y: 33, w: 250)
             if !b2.isEmpty { text(b2, VFont.uUI(8.5), ink3, x: m + 42, y: 49, w: 250) }
@@ -515,7 +524,7 @@ enum ReportRenderer {
             page += 1
             let W = ReportRenderer.pageSize.width, H = ReportRenderer.pageSize.height
             // top brand
-            image(d.logo, fit: CGRect(x: 34, y: 30, width: 48, height: 48))
+            logoMark(CGRect(x: 34, y: 30, width: 48, height: 48))
             let (b1, b2) = brandParts
             text(b1, VFont.uDisplay(17, .heavy), brandDeep, x: 92, y: 34, w: 250)
             if !b2.isEmpty { text(b2, VFont.uUI(9.5, .semibold), UIColor(hex: 0x7C8A55), x: 92, y: 55, w: 250) }

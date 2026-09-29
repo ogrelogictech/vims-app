@@ -14,13 +14,13 @@ struct VIMSApp: App {
         #endif
         do {
             let config = try ChecklistLoader.load()
-            let store = AppStore(config: config, repo: FileRepository())
+            let store = AppStore(config: config, repo: try SwiftDataRepository())
             #if DEBUG
             DebugLaunch.apply(to: store)
             #endif
             _store = State(initialValue: store)
         } catch {
-            _loadError = State(initialValue: "Checklist data could not be loaded (\(error)).")
+            _loadError = State(initialValue: "VIMS could not start (\(error)).")
         }
     }
 
@@ -60,7 +60,7 @@ struct RootView: View {
                 }
             }
 
-            if store.showSplash, store.session != nil {
+            if store.showSplash, store.session != nil, !store.showVideoSplash {
                 TrialSplashView()
                     .transition(.opacity)
                     .zIndex(10)
@@ -76,12 +76,18 @@ struct RootView: View {
                 .allowsHitTesting(false)
                 .zIndex(20)
             }
+
+            if store.showVideoSplash {
+                VideoSplashView {
+                    withAnimation(.easeOut(duration: 0.35)) { store.showVideoSplash = false }
+                    // Every sign-in session during the free look starts with the countdown splash.
+                    store.presentSplashIfNeeded()
+                }
+                .transition(.opacity)
+                .zIndex(30)
+            }
         }
         .animation(.easeOut(duration: 0.25), value: store.toastMessage)
-        .onAppear {
-            // Every sign-in session during the free look starts with the countdown splash.
-            store.presentSplashIfNeeded()
-        }
     }
 
     @ViewBuilder
@@ -116,7 +122,7 @@ struct ToastView: View {
     let message: String
     var body: some View {
         HStack(spacing: 9) {
-            Image(systemName: "checkmark").font(.system(size: 14, weight: .bold)).foregroundStyle(Color(hex: 0x7CE0AF))
+            ProtoIcon("link-my-account", size: 17, lineWidth: 2.4).foregroundStyle(Color(hex: 0x7CE0AF))
             Text(message).font(VFont.ui(13.5, .medium)).foregroundStyle(.white).lineLimit(2)
         }
         .padding(.horizontal, 18).padding(.vertical, 12)

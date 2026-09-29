@@ -7,5 +7,11 @@
 	<false/>
 	<key>UIStatusBarStyle</key>
 	<string>UIStatusBarStyleLightContent</string>
+	<!-- Launch screen = the splash video's first-frame gray, so there is no white flash before it plays. -->
+	<key>UILaunchScreen</key>
+	<dict>
+		<key>UIColorName</key>
+		<string>LaunchBackground</string>
+	</dict>
 </dict>
 </plist>

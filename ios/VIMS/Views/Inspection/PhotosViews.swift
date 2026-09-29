@@ -29,7 +29,7 @@ struct PhotosView: View {
             let existing = insp.photos[section] ?? [:]
             let extra = existing.keys.filter { !cats.contains($0) && !(existing[$0]?.isEmpty ?? true) }.sorted()
             Screen(title: store.catalog.isPhotosOnly(section) ? section : "\(section) photos", subtitle: insp.addressLine1,
-                   actions: [HeaderAction(symbol: "list.bullet", label: "Sections") { store.popToSections(inspectionID) }, store.homeAction()]) {
+                   actions: [HeaderAction(symbol: "hdr-sections", label: "Sections") { store.popToSections(inspectionID) }, store.homeAction()]) {
                 let photosOnly = store.catalog.isPhotosOnly(section)
                 Text(md((photosOnly ? "These pictures print on the picture pages after the checklist. " : "") + "Tap **Add** to capture a photo, tap a photo to mark it up or flag it, or tap **×** to delete one."))
                     .font(VFont.ui(13)).foregroundStyle(VC.ink3)
@@ -40,7 +40,7 @@ struct PhotosView: View {
                 }
                 if photosOnly {
                     Button { store.finishPictures(inspectionID, section) } label: {
-                        Label("Save & continue to \(insp.hasSummary ? "summary" : "report")", systemImage: "checkmark")
+                        IconLabel("Save & continue to \(insp.hasSummary ? "summary" : "report")", icon: "link-my-account")
                     }
                     .buttonStyle(.vPrimary)
                     .padding(.top, 6)
@@ -107,7 +107,7 @@ struct PhotosView: View {
                     .aspectRatio(1, contentMode: .fit)
                     .overlay {
                         VStack(spacing: 3) {
-                            Image(systemName: "camera").font(.system(size: 20))
+                            ProtoIcon("camera", size: 22)
                             Text("Add").font(VFont.ui(10.5, .semibold))
                         }
                         .foregroundStyle(VC.brand)
@@ -295,7 +295,7 @@ struct PhotoMarkupView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 10) {
-                darkButton("xmark", label: "Close") { dismiss() }
+                darkButton("close", label: "Close") { dismiss() }
                 Text("\(section) — \(category)").font(VFont.ui(14, .semibold)).foregroundStyle(.white).lineLimit(1)
                 Spacer()
                 darkButton("flag", label: "Flag a finding") { showFinding = true }
@@ -344,8 +344,8 @@ struct PhotoMarkupView: View {
                     toolLabel("Comment")
                     QuickCommentMenu(placeholder: "Add a quick comment…", selection: $quick, dark: true) { _ in }
                 }
-                TextField("", text: $custom, prompt: Text("Custom comment…").foregroundStyle(Color(hex: 0x9AA8BA)))
-                    .font(VFont.ui(13)).foregroundStyle(.white).tint(.white)
+                FilteredTextField(text: $custom, kind: .plain(max: 200), placeholder: "Custom comment…", font: VFont.uUI(13),
+                                  textColor: .white, placeholderColor: UIColor(hex: 0x9AA8BA), tint: .white)
                     .padding(.horizontal, 11).frame(minHeight: 44)
                     .background(Color.white.opacity(0.1))
                     .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
@@ -366,7 +366,7 @@ struct PhotoMarkupView: View {
                         .accessibilityLabel("\(pen.2) pen")
                         .accessibilityAddTraits(on ? .isSelected : [])
                     }
-                    toolButton(systemImage: "arrow.uturn.backward", label: "Undo") { _ = strokes.popLast() }
+                    toolButton(systemImage: "clear-stamp-button", label: "Undo") { _ = strokes.popLast() }
                     toolButton(text: "Clear", label: "Clear") { strokes.removeAll() }
                 }
                 HStack(spacing: 9) {
@@ -376,9 +376,9 @@ struct PhotoMarkupView: View {
                     }
                 }
                 HStack(spacing: 10) {
-                    Button { save(); store.toast("Markup saved to photo"); dismiss() } label: { Label("Save markup", systemImage: "checkmark") }
+                    Button { save(); store.toast("Markup saved to photo"); dismiss() } label: { IconLabel("Save markup", icon: "link-my-account") }
                         .buttonStyle(.vSignal)
-                    Button { save(); dismiss(); onReturnToSection() } label: { Label("Save & return", systemImage: "arrow.uturn.left") }
+                    Button { save(); dismiss(); onReturnToSection() } label: { IconLabel("Save & return", icon: "save-return-svg") }
                         .buttonStyle(.vPrimary)
                 }
             }
@@ -474,7 +474,7 @@ struct PhotoMarkupView: View {
 
     private func darkButton(_ symbol: String, label: String, _ action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: symbol).font(.system(size: 17, weight: .semibold)).foregroundStyle(.white)
+            ProtoIcon(symbol, size: 19).foregroundStyle(.white)
                 .frame(width: 44, height: 44)
                 .background(Color.white.opacity(0.12))
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
@@ -486,7 +486,7 @@ struct PhotoMarkupView: View {
     private func toolButton(systemImage: String? = nil, text: String? = nil, label: String, selected: Bool = false, big: Bool = false, _ action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Group {
-                if let systemImage { Image(systemName: systemImage).font(.system(size: 15, weight: .semibold)) }
+                if let systemImage { ProtoIcon(systemImage, size: 17) }
                 else { Text(text ?? "").font(big ? .system(size: 17, weight: .semibold) : VFont.ui(13)) }
             }
             .foregroundStyle(selected ? VC.ink : .white)

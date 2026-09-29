@@ -13,44 +13,46 @@ enum ServiceError: LocalizedError {
 
 // MARK: - Auth
 
+@MainActor
 protocol AuthService {
-    func signIn(email: String, password: String, company: CompanyProfile) async throws -> Session
-    func createAccount(name: String, company: String, email: String, password: String) async throws -> Session
+    /// Verifies credentials against the account table.
+    func signIn(email: String, password: String) async throws -> UserAccount
+    /// Creates a user (password stored salted + hashed) attached to `companyID`.
+    func register(name: String, email: String, password: String, companyID: UUID) async throws -> UserAccount
     func requestPasswordReset(email: String) async throws
-    func joinCompany(code: String, name: String, email: String, company: CompanyProfile) async throws -> Session
 }
 
 // TODO(backend): Laravel API — POST /auth/login, /auth/register, /auth/forgot, /companies/join.
+// Local stub: a User table in SwiftData with salted PBKDF2 password hashes.
+@MainActor
 final class LocalAuthService: AuthService {
-    func signIn(email: String, password: String, company: CompanyProfile) async throws -> Session {
-        let e = email.trimmingCharacters(in: .whitespaces)
-        guard !e.isEmpty, !password.isEmpty else { throw ServiceError.invalid("Enter your email and password.") }
-        // Any non-empty credentials sign in. Match a known inspector by email; otherwise treat as the owner.
-        if let ins = company.inspectors.first(where: { $0.email.caseInsensitiveCompare(e) == .orderedSame }) {
-            return Session(name: ins.name, email: ins.email, inspectorID: ins.id, isAdmin: ins.isAdmin)
+    let repo: Repository
+    init(repo: Repository) { self.repo = repo }
+
+    func signIn(email: String, password: String) async throws -> UserAccount {
+        let e = email.trimmingCharacters(in: .whitespaces).lowercased()
+        guard let u = repo.user(email: e) else {
+            throw ServiceError.invalid("No account found for that email. Create an account or join with a company code.")
         }
-        let owner = company.inspectors.first(where: { $0.owner })
-        return Session(name: owner?.name ?? e, email: e, inspectorID: owner?.id, isAdmin: true)
+        guard PasswordHasher.verify(password, hash: u.passwordHash, salt: u.salt) else {
+            throw ServiceError.invalid("That password isn't right. Try again or reset it.")
+        }
+        return u
     }
 
-    func createAccount(name: String, company: String, email: String, password: String) async throws -> Session {
-        guard !name.trimmingCharacters(in: .whitespaces).isEmpty,
-              email.contains("@"), !password.isEmpty else {
-            throw ServiceError.invalid("Enter your name, a valid email, and a password.")
-        }
-        return Session(name: name, email: email, inspectorID: nil, isAdmin: true)
+    func register(name: String, email: String, password: String, companyID: UUID) async throws -> UserAccount {
+        let e = email.trimmingCharacters(in: .whitespaces).lowercased()
+        if repo.user(email: e) != nil { throw ServiceError.invalid("An account with that email already exists. Sign in instead.") }
+        let salt = PasswordHasher.newSalt()
+        let u = UserAccount(id: UUID(), email: e, name: name, companyID: companyID,
+                            passwordHash: PasswordHasher.hash(password, salt: salt), salt: salt, createdAt: Date(), settings: nil)
+        try repo.insertUser(u)
+        return u
     }
 
     func requestPasswordReset(email: String) async throws {
-        guard email.contains("@") else { throw ServiceError.invalid("Enter a valid email.") }
-    }
-
-    func joinCompany(code: String, name: String, email: String, company: CompanyProfile) async throws -> Session {
-        let c = code.trimmingCharacters(in: .whitespaces).uppercased()
-        guard !c.isEmpty else { throw ServiceError.invalid("Enter the company code") }
-        guard c == company.joinCode.uppercased() else { throw ServiceError.invalid("That company code wasn't found.") }
-        guard !name.trimmingCharacters(in: .whitespaces).isEmpty else { throw ServiceError.invalid("Enter your name") }
-        return Session(name: name, email: email, inspectorID: nil, isAdmin: false)
+        // TODO(backend): send the reset email. Locally we only check the format.
+        guard Validator.error(for: email, rule: .req(.email, "Email")) == nil else { throw ServiceError.invalid("Enter a valid email address") }
     }
 }
 
@@ -60,17 +62,14 @@ struct CardEntry {
     var number: String
     var expiry: String
     var cvc: String
+    var name: String = ""
+    var zip: String = ""
 
     var digits: String { number.filter(\.isNumber) }
     var last4: String { String(digits.suffix(4)) }
     var brand: String {
-        switch digits.first {
-        case "4": return "Visa"
-        case "5": return "Mastercard"
-        case "3": return "Amex"
-        case "6": return "Discover"
-        default: return "Card"
-        }
+        let b = CardBrand.detect(digits).rawValue
+        return b.isEmpty ? "Card" : b
     }
 }
 
@@ -84,9 +83,7 @@ protocol SubscriptionService {
 // backend creates the Square subscription. Phase 1 simulates success.
 final class LocalSubscriptionService: SubscriptionService {
     func startSubscription(planID: String, seats: Int, card: CardEntry) async throws -> String {
-        guard card.digits.count >= 12 else { throw ServiceError.invalid("Enter a valid card number.") }
-        guard card.expiry.filter(\.isNumber).count == 4 else { throw ServiceError.invalid("Enter the expiry as MM / YY.") }
-        guard (3...4).contains(card.cvc.filter(\.isNumber).count) else { throw ServiceError.invalid("Enter the CVC.") }
+        // Field validation happens in the form (docs/validation-rules.md); the real flow tokenizes with Square.
         try await Task.sleep(nanoseconds: 400_000_000)
         return "Square · \(card.brand) ····\(card.last4)"
     }

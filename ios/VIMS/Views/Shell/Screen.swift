@@ -32,9 +32,9 @@ struct AppHeader: View {
             HStack(spacing: 10) {
                 switch leading {
                 case .back:
-                    HeaderButton(symbol: "arrow.left", label: "Back") { (onLeading ?? { store.back() })() }
+                    HeaderButton(symbol: "hdr-back", label: "Back") { (onLeading ?? { store.back() })() }
                 case .menu:
-                    HeaderButton(symbol: "line.3.horizontal", label: "Menu") { onLeading?() }
+                    HeaderButton(symbol: "hdr-menu", label: "Menu") { onLeading?() }
                 case .none:
                     EmptyView()
                 }
@@ -68,8 +68,7 @@ struct HeaderButton: View {
     let action: () -> Void
     var body: some View {
         Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: 18, weight: .semibold))
+            ProtoIcon(symbol, size: 20)
                 .foregroundStyle(.white)
                 .frame(width: 44, height: 44)
                 .background(Color.white.opacity(0.12))
@@ -108,19 +107,28 @@ struct Screen<Content: View>: View {
     var onLeading: (() -> Void)? = nil
     var actions: [HeaderAction] = []
     var scroll = true
+    /// When set, the screen scrolls to the first field with an error after a submit.
+    var errors: FormErrors? = nil
     @ViewBuilder var content: () -> Content
 
     var body: some View {
         VStack(spacing: 0) {
-            AppHeader(title: title, subtitle: subtitle ?? store.company.name, leading: leading, onLeading: onLeading, actions: actions)
+            AppHeader(title: title, subtitle: subtitle ?? (store.session == nil ? "Vision Inspection Management Solutions" : store.company.name), leading: leading, onLeading: onLeading, actions: actions)
             if scroll {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 0) { content() }
-                        .padding(.horizontal, 16)
-                        .padding(.top, 16)
-                        .padding(.bottom, 34)
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 0) { content() }
+                            .padding(.horizontal, 16)
+                            .padding(.top, 16)
+                            .padding(.bottom, 34)
+                    }
+                    .scrollDismissesKeyboard(.interactively)
+                    .onChange(of: errors?.scrollTarget) { _, target in
+                        guard let target else { return }
+                        withAnimation(.easeOut(duration: 0.25)) { proxy.scrollTo(target, anchor: .center) }
+                        errors?.scrollTarget = nil
+                    }
                 }
-                .scrollDismissesKeyboard(.interactively)
             } else {
                 content()
             }
@@ -133,5 +141,5 @@ struct Screen<Content: View>: View {
 
 extension AppStore {
     /// Standard contextual header actions (prototype setHeader()).
-    func homeAction() -> HeaderAction { HeaderAction(symbol: "house", label: "Home") { [weak self] in self?.goHome() } }
+    func homeAction() -> HeaderAction { HeaderAction(symbol: "hdr-home", label: "Home") { [weak self] in self?.goHome() } }
 }

@@ -5,16 +5,28 @@ import SwiftUI
 struct HomeView: View {
     @Environment(AppStore.self) private var store
     @State private var pendingDelete: Inspection?
+    @State private var menuOpen = false
 
     var body: some View {
+        ZStack {
+            content
+            if menuOpen {
+                HomeSideMenu(isOpen: $menuOpen)
+                    .zIndex(5)
+            }
+        }
+        .onAppear { if DebugFlags.openMenu { DebugFlags.openMenu = false; menuOpen = true } }
+    }
+
+    @ViewBuilder private var content: some View {
         let cal = Calendar.current
         let today = store.inspections.filter { cal.isDateInToday($0.scheduled) }.sorted { $0.scheduled < $1.scheduled }
         let recent = store.inspections.filter { !cal.isDateInToday($0.scheduled) }.sorted { $0.scheduled > $1.scheduled }
 
         Screen(title: "Inspections",
                leading: .menu,
-               onLeading: { store.push(.settings) },
-               actions: [HeaderAction(symbol: "plus", label: "New inspection") { store.push(.wizard(editing: nil)) }]) {
+               onLeading: { withAnimation(.easeOut(duration: 0.24)) { menuOpen = true } },
+               actions: [HeaderAction(symbol: "hdr-add", label: "New inspection") { store.push(.wizard(editing: nil)) }]) {
             if !store.subscription.active {
                 Button { store.push(.subscribe) } label: {
                     HStack {
@@ -22,7 +34,7 @@ struct HomeView: View {
                         Spacer()
                         HStack(spacing: 3) {
                             Text("Subscribe").font(VFont.ui(13.5, .semibold))
-                            Image(systemName: "chevron.right").font(.system(size: 12, weight: .bold))
+                            ProtoIcon("inspections-today", size: 16)
                         }
                     }
                     .foregroundStyle(.white)
@@ -42,7 +54,18 @@ struct HomeView: View {
             .padding(.bottom, 6)
 
             SectionLabel(text: "Today · \(Fmt.date(Date(), "EEE, MMM d"))")
-            if today.isEmpty {
+            if store.inspections.isEmpty {
+                VStack(spacing: 8) {
+                    ProtoIcon("harrison-blvd-aug", size: 28).foregroundStyle(VC.brand)
+                    Text("No inspections yet").font(VFont.ui(15, .bold)).foregroundStyle(VC.ink)
+                    Text("Tap New inspection to set up your first one. Everything you add is saved on this device.")
+                        .font(VFont.ui(13)).foregroundStyle(VC.ink3).multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity)
+                .vCard(all: 20)
+                .padding(.bottom, 4)
+            } else if today.isEmpty {
                 Text("No inspections scheduled today.").font(VFont.ui(13)).foregroundStyle(VC.ink3).padding(.bottom, 10)
             }
             ForEach(today) { insp in
@@ -58,13 +81,13 @@ struct HomeView: View {
             }
 
             Button { store.push(.wizard(editing: nil)) } label: {
-                Label("New inspection", systemImage: "plus")
+                IconLabel("New inspection", icon: "hdr-add")
             }
             .buttonStyle(.vPrimary)
             .padding(.top, 14)
 
             Button { store.push(.settings) } label: {
-                Label("Settings", systemImage: "gearshape")
+                IconLabel("Settings", icon: "settings-structure-rooms")
             }
             .buttonStyle(.vGhost)
             .padding(.top, 10)
@@ -86,7 +109,7 @@ struct HomeView: View {
 
     @ViewBuilder
     private func deleteButton(_ insp: Inspection) -> some View {
-        Button(role: .destructive) { pendingDelete = insp } label: { Label("Delete inspection", systemImage: "trash") }
+        Button(role: .destructive) { pendingDelete = insp } label: { IconLabel("Delete inspection", icon: "trash") }
     }
 }
 
@@ -125,7 +148,7 @@ struct InspectionRow: View {
                     .background(VC.paper3)
                     .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
                 } else {
-                    LeadIcon(symbol: "doc.text")
+                    LeadIcon(symbol: "harrison-blvd-aug")
                 }
             } trailing: {
                 switch st {

@@ -10,7 +10,7 @@ struct SummaryView: View {
     var body: some View {
         if let insp = store.inspection(inspectionID) {
             Screen(title: "Summary", subtitle: insp.addressLine1,
-                   actions: [HeaderAction(symbol: "list.bullet", label: "Sections") { store.popToSections(inspectionID) }, store.homeAction()]) {
+                   actions: [HeaderAction(symbol: "hdr-sections", label: "Sections") { store.popToSections(inspectionID) }, store.homeAction()]) {
                 HintText(text: "Every finding you flag lands here automatically, grouped by category. This drives the summary pages of the report.")
                     .padding(.top, 2).padding(.bottom, 14)
                 ForEach(store.config.findings.categories, id: \.id) { c in
@@ -19,7 +19,7 @@ struct SummaryView: View {
                         store.toast("Finding removed")
                     }
                 }
-                Button { store.push(.report(inspectionID)) } label: { Label("Save and generate report", systemImage: "doc.badge.checkmark") }
+                Button { store.push(.report(inspectionID)) } label: { IconLabel("Save and generate report", icon: "save-and-generate") }
                     .buttonStyle(.vPrimary)
                     .padding(.top, 14)
             }
@@ -66,7 +66,7 @@ struct SummaryCategoryCard: View {
                 .overlay(alignment: .top) { Rectangle().fill(VC.line2).frame(height: 1) }
                 .contentShape(Rectangle())
                 .contextMenu {
-                    Button(role: .destructive) { onDelete(f) } label: { Label("Remove finding", systemImage: "trash") }
+                    Button(role: .destructive) { onDelete(f) } label: { IconLabel("Remove finding", icon: "trash") }
                 }
             }
         }
@@ -92,7 +92,7 @@ struct ReportView: View {
             let cat = store.catalog
             let done = cat.sortedForReport(insp.leafSections.filter { insp.status[$0] == .done })
             Screen(title: "Generate report", subtitle: insp.addressLine1,
-                   actions: [HeaderAction(symbol: "list.bullet", label: "Sections") { store.popToSections(inspectionID) }, store.homeAction()]) {
+                   actions: [HeaderAction(symbol: "hdr-sections", label: "Sections") { store.popToSections(inspectionID) }, store.homeAction()]) {
                 metaCard(insp)
                 SectionLabel(text: "Report cover")
                 CoverPicker(cover: Binding(get: { insp.cover }, set: { c in store.update(inspectionID) { $0.cover = c } }), step: $coverStep)
@@ -130,7 +130,7 @@ struct ReportView: View {
                 .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(VC.line, lineWidth: 1))
                 .padding(.bottom, 12)
 
-                Button { Task { await previewFormat() } } label: { Label("Preview report format", systemImage: "eye") }
+                Button { Task { await previewFormat() } } label: { IconLabel("Preview report format", icon: "preview-report-format") }
                     .buttonStyle(.vGhost).padding(.top, -2)
 
                 if !store.isOnline {
@@ -138,7 +138,7 @@ struct ReportView: View {
                         .padding(.top, 16)
                 }
                 Button { Task { await generate() } } label: {
-                    if generating { ProgressView().tint(.white) } else { Label("Generate PDF report", systemImage: "arrow.down.to.line") }
+                    if generating { ProgressView().tint(.white) } else { IconLabel("Generate PDF report", icon: "generate-pdf-report") }
                 }
                 .buttonStyle(.vPrimary)
                 .disabled(generating)
@@ -306,7 +306,7 @@ struct CoverPicker: View {
                         Text(o).font(VFont.ui(13.5, .semibold)).foregroundStyle(on ? VC.brandDeep : VC.ink2)
                             .multilineTextAlignment(.leading)
                         Spacer(minLength: 4)
-                        if on { Image(systemName: "checkmark").font(.system(size: 13, weight: .bold)).foregroundStyle(VC.brand) }
+                        if on { ProtoIcon("link-my-account", size: 16).foregroundStyle(VC.brand) }
                     }
                     .padding(.horizontal, 12).frame(minHeight: 46)
                     .background(on ? VC.brand.opacity(0.06) : VC.paper)
@@ -356,19 +356,19 @@ struct ReportReadyView: View {
         if let insp = store.inspection(inspectionID) {
             let pages = insp.report?.pageCount ?? 0
             Screen(title: "Report ready", subtitle: insp.addressLine1,
-                   actions: [HeaderAction(symbol: "list.bullet", label: "Sections") { store.popToSections(inspectionID) }, store.homeAction()]) {
+                   actions: [HeaderAction(symbol: "hdr-sections", label: "Sections") { store.popToSections(inspectionID) }, store.homeAction()]) {
                 SuccessBlock(title: "Report generated",
                              message: AttributedString("\(pages)-page report for \(insp.addressLine1) is saved on this device " + (insp.needsSync ? "and queued to sync to the portal." : "and synced to the portal."))) {
                     if let url = store.reportURL(inspectionID) {
                         Button { preview = PreviewDoc(url: url, title: "\(insp.addressLine1) report") } label: {
-                            Label("Preview PDF", systemImage: "eye")
+                            IconLabel("Preview PDF", icon: "preview-report-format")
                         }
                         .buttonStyle(.vPrimary)
                         let recipients = [insp.field("Client email"), insp.field("Real estate agent email")].filter { !$0.isEmpty }
                         ShareLink(item: url,
                                   subject: Text("Inspection report — \(insp.addressLine1)"),
                                   message: Text(recipients.isEmpty ? "Your inspection report is attached." : "Report for \(recipients.joined(separator: ", ")) — your inspection report is attached.")) {
-                            Label("Email to client", systemImage: "envelope")
+                            IconLabel("Email to client", icon: "email-to-client")
                         }
                         .buttonStyle(.vGhost)
                     } else {
@@ -399,7 +399,7 @@ struct PDFPreviewSheet: View {
         VStack(spacing: 0) {
             HStack(spacing: 10) {
                 Button { dismiss() } label: {
-                    Image(systemName: "xmark").font(.system(size: 17, weight: .semibold)).foregroundStyle(.white)
+                    ProtoIcon("close", size: 19).foregroundStyle(.white)
                         .frame(width: 44, height: 44).background(Color.white.opacity(0.12))
                         .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
                 }
@@ -407,7 +407,7 @@ struct PDFPreviewSheet: View {
                 Text(doc.title).font(VFont.display(16, .bold)).foregroundStyle(.white).lineLimit(1)
                 Spacer()
                 ShareLink(item: doc.url) {
-                    Image(systemName: "square.and.arrow.up").font(.system(size: 17, weight: .semibold)).foregroundStyle(.white)
+                    ProtoIcon("upload-logo-png", size: 19).foregroundStyle(.white)
                         .frame(width: 44, height: 44).background(Color.white.opacity(0.12))
                         .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
                 }

@@ -7,7 +7,7 @@ struct WizardView: View {
     let editingID: UUID?
     @State private var draft: Inspection?
     @State private var step = 1
-    @State private var addressError: String?
+    @State private var errors = FormErrors()
 
     var body: some View {
         let w = store.config.wizard
@@ -22,8 +22,8 @@ struct WizardView: View {
                         StepsBar(count: w.steps.count, current: step)
                         if draft != nil {
                             switch step {
-                            case 1: EntryList(entries: w.step1, draft: draftBinding, addressError: $addressError, pairText: false)
-                            case 2: EntryList(entries: w.step2, draft: draftBinding, addressError: $addressError, pairText: true)
+                            case 1: EntryList(entries: w.step1, draft: draftBinding, errors: errors, pairText: false)
+                            case 2: EntryList(entries: w.step2, draft: draftBinding, errors: errors, pairText: true)
                             case 3: areas
                             default: tests
                             }
@@ -35,7 +35,7 @@ struct WizardView: View {
                                 .disabled(step == 1)
                             Button { next(proxy) } label: {
                                 if step == w.steps.count {
-                                    Label(editingID == nil ? "Build checklist" : "Update checklist", systemImage: "arrow.right")
+                                    IconLabel(editingID == nil ? "Build checklist" : "Update checklist", icon: "build-checklist-next")
                                 } else {
                                     Text("Next")
                                 }
@@ -53,6 +53,14 @@ struct WizardView: View {
             guard draft == nil else { return }
             if let id = editingID, let existing = store.inspection(id) { draft = existing } else { draft = store.newInspectionDraft() }
             if let s = DebugFlags.wizardStep { step = max(1, min(4, s)); DebugFlags.wizardStep = nil }
+            if DebugFlags.validate {
+                DebugFlags.validate = false
+                draft?.fields["Client phone"] = "(801) 555"
+                draft?.fields["Client email"] = "client@mail"
+                draft?.fields["Temperature (°F)"] = "150"
+                draft?.fields["Year of construction"] = "1700"
+                errors.validate(stepFields(step, draft!))
+            }
         }
     }
 
@@ -90,18 +98,34 @@ struct WizardView: View {
         withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo("top", anchor: .top) }
     }
 
+    /// docs/validation-rules.md checks for the fields on a wizard step (typeFields ride along with step 1).
+    private func stepFields(_ step: Int, _ d: Inspection) -> [(id: String, value: String, rule: FieldRule)] {
+        let w = store.config.wizard
+        let entries = step == 1 ? w.step1 : step == 2 ? w.step2 : []
+        var out: [(id: String, value: String, rule: FieldRule)] = []
+        for e in entries where e.kind == "field" {
+            if let r = WizardRules.rule(for: e.label, type: e.type) { out.append((e.label, d.field(e.label), r)) }
+        }
+        if step == 1 {
+            for f in store.catalog.typeFields(for: d.inspType) {
+                if let r = WizardRules.rule(for: f.key, type: nil) { out.append((f.key, d.field(f.key), r)) }
+            }
+        }
+        return out
+    }
+
     private func next(_ proxy: ScrollViewProxy) {
         guard var d = draft else { return }
-        if (step == 1 || step == store.config.wizard.steps.count) && d.address.trimmingCharacters(in: .whitespaces).isEmpty {
-            addressError = "Enter the inspection address"
-            if step != 1 { step = 1 }
-            Task {
-                try? await Task.sleep(nanoseconds: 150_000_000)
-                withAnimation { proxy.scrollTo("Inspection address", anchor: .center) }
-            }
+        // Validate the current step; on the last step re-check step 1 (the required fields live there).
+        let fields = stepFields(step, d)
+        guard errors.validate(fields) else { scrollToError(proxy); return }
+        if step == store.config.wizard.steps.count, !errors.validate(stepFields(1, d)) {
+            step = 1
+            scrollToError(proxy)
             return
         }
-        addressError = nil
+        for (id, value, _) in fields { d.fields[id] = Validator.trimmed(value) }
+        draft = d
         if step < store.config.wizard.steps.count { go(step + 1, proxy); return }
         if d.field("Inspector").isEmpty { d.fields["Inspector"] = store.session?.name ?? store.company.inspectorName }
         let id = store.buildChecklist(from: d)
@@ -112,6 +136,45 @@ struct WizardView: View {
             store.toast("Checklist built — \(d.structure)")
             store.path = [.sections(id)]
         }
+    }
+
+    private func scrollToError(_ proxy: ScrollViewProxy) {
+        guard let t = errors.scrollTarget else { return }
+        errors.scrollTarget = nil
+        Task {
+            try? await Task.sleep(nanoseconds: 150_000_000)
+            withAnimation { proxy.scrollTo(t, anchor: .center) }
+        }
+    }
+}
+
+/// Field rules for the JSON-driven wizard fields, keyed by label / typeFields key.
+enum WizardRules {
+    static func rule(for key: String, type: String?) -> FieldRule? {
+        switch key {
+        case "Client name": return .req(.personName, "Client name")
+        case "Client phone": return .opt(.phone, "Client phone")
+        case "Client email": return .opt(.email, "Client email")
+        case "Inspection address": return .req(.address, "Inspection address")
+        case "Real estate agent name": return .opt(.personName, "Agent name")
+        case "Real estate agent email": return .opt(.email, "Agent email")
+        case Inspection.licenseField: return .opt(.license, "License #")
+        case "Date": return .req(.plain(max: nil), "Date")
+        case "Temperature (°F)": return .opt(.temperature, "Temperature")
+        case "Year of construction": return .opt(.year, "Year of construction")
+        case "Total sq ft": return .opt(.decimal, "Total sq ft")
+        case "Valuation ($)": return .opt(.decimal, "Valuation")
+        case "Lot size (acres)": return .opt(.decimal, "Lot size")
+        case "sponsorName", "insuredName": return .opt(.personName, "Name")
+        case "sponsorLicense": return .opt(.license, "Sponsor TREC License #")
+        case "policyNumber": return .opt(.policy, "Application / Policy #")
+        default: return nil
+        }
+    }
+
+    static func kind(for key: String, type: String?) -> FieldKind? {
+        if let r = rule(for: key, type: type), r.kind != .plain(max: nil) { return r.kind }
+        return type == "email" ? .email : type == "tel" ? .phone : nil
     }
 }
 
@@ -137,7 +200,7 @@ private struct EntryList: View {
     @Environment(AppStore.self) private var store
     let entries: [WizardEntry]
     @Binding var draft: Inspection
-    @Binding var addressError: String?
+    let errors: FormErrors
     let pairText: Bool
 
     var body: some View {
@@ -210,20 +273,22 @@ private struct EntryList: View {
     private func field(_ e: WizardEntry, bottom: CGFloat) -> some View {
         switch e.type ?? "text" {
         case "date":
-            DateFieldBox(label: e.label, value: text(e.label), format: "yyyy-MM-dd", components: .date).padding(.bottom, bottom)
+            DateFieldBox(label: e.label, value: text(e.label), format: "yyyy-MM-dd", components: .date, error: errors[e.label]).padding(.bottom, bottom)
+                .id(e.label)
         case "time":
             DateFieldBox(label: e.label, value: text(e.label), format: "HH:mm", components: .hourAndMinute).padding(.bottom, bottom)
         case "textarea":
             VTextArea(label: e.label, text: text(e.label), placeholder: e.placeholder ?? "")
         default:
+            let kind = WizardRules.kind(for: e.label, type: e.type)
             let kb: UIKeyboardType = e.type == "email" ? .emailAddress : e.type == "tel" ? .phonePad :
-                (["Year of construction", "Total sq ft", "Lot size (acres)", "Valuation ($)", "Temperature (°F)"].contains(e.label) ? .decimalPad : .default)
+                e.label.hasPrefix("Temperature") ? .numbersAndPunctuation :
+                (["Year of construction", "Total sq ft", "Lot size (acres)", "Valuation ($)"].contains(e.label) ? .decimalPad : .default)
             let isAddress = e.label == "Inspection address"
             VTextField(label: e.label, text: text(e.label), placeholder: e.placeholder ?? "", keyboard: kb,
                        contentType: e.type == "email" ? .emailAddress : e.type == "tel" ? .telephoneNumber : (isAddress ? .fullStreetAddress : nil),
-                       capitalization: e.type == "email" ? .never : .words,
-                       error: isAddress ? addressError : nil, bottom: bottom)
-                .id(e.label)
+                       capitalization: e.type == "email" ? .never : (kind == .license ? .characters : .words),
+                       bottom: bottom, kind: kind ?? .plain(max: isAddress ? 120 : nil), fieldID: e.label, errors: errors)
             if e.label == "Real estate agent email" {
                 Text("Client & agent emails are used to send the finished report.")
                     .font(VFont.ui(12)).foregroundStyle(VC.ink3)
@@ -314,7 +379,8 @@ private struct EntryList: View {
                 SectionLabel(text: typeFormTitle(draft.inspType))
                 ForEach(tf, id: \.key) { f in
                     VTextField(label: f.label, text: text(f.key), placeholder: f.placeholder ?? Self.typeFieldPlaceholders[f.key] ?? "",
-                               capitalization: f.key.lowercased().contains("license") || f.key.lowercased().contains("number") ? .characters : .words)
+                               capitalization: f.key.lowercased().contains("license") || f.key.lowercased().contains("number") ? .characters : .words,
+                               kind: WizardRules.kind(for: f.key, type: nil), fieldID: f.key, errors: errors)
                 }
             }
         } else if e.id == "wstruct" {
@@ -341,11 +407,12 @@ struct DateFieldBox: View {
     @Binding var value: String
     let format: String
     let components: DatePickerComponents
+    var error: String? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
             FieldLabel(text: label)
-            FieldBox(focused: false) {
+            FieldBox(focused: false, error: error != nil) {
                 DatePicker(label, selection: Binding(
                     get: { Fmt.parse(value, format) ?? Date() },
                     set: { value = Fmt.date($0, format) }), displayedComponents: components)
@@ -353,6 +420,7 @@ struct DateFieldBox: View {
                     .datePickerStyle(.compact)
                     .environment(\.locale, Fmt.locale)
             }
+            if let error { FieldError(text: error) }
         }
     }
 }

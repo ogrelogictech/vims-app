@@ -127,7 +127,7 @@ struct VButtonStyle: ButtonStyle {
 struct VLabelStyle: LabelStyle {
     func makeBody(configuration: Configuration) -> some View {
         HStack(spacing: 9) {
-            configuration.icon.font(.system(size: 17, weight: .semibold))
+            configuration.icon
             configuration.title
         }
     }
@@ -300,10 +300,9 @@ struct Pill: View {
 // MARK: - List row (.row)
 
 struct LeadIcon: View {
-    let symbol: String
+    let symbol: String      // prototype icon name
     var body: some View {
-        Image(systemName: symbol)
-            .font(.system(size: 19, weight: .medium))
+        ProtoIcon(symbol, size: 22)
             .foregroundStyle(VC.brand)
             .frame(width: 44, height: 44)
             .background(VC.paper3)
@@ -313,7 +312,7 @@ struct LeadIcon: View {
 
 struct Chevron: View {
     var body: some View {
-        Image(systemName: "chevron.right").font(.system(size: 14, weight: .semibold)).foregroundStyle(VC.chevron)
+        ProtoIcon("chevron-right", size: 18).foregroundStyle(VC.chevron)
     }
 }
 
@@ -322,16 +321,20 @@ struct RowView<Lead: View, Trailing: View>: View {
     var subtitle: String? = nil
     @ViewBuilder var lead: () -> Lead
     @ViewBuilder var trailing: () -> Trailing
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
+        // At large text sizes the status pill moves under the text so titles aren't truncated.
+        let stacked = typeSize >= .xxLarge
         HStack(spacing: 13) {
             lead()
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(VFont.ui(15, .semibold)).foregroundStyle(VC.ink).lineLimit(1)
-                if let subtitle { Text(subtitle).font(VFont.ui(12.5, .medium)).foregroundStyle(VC.ink2).lineLimit(2) }
+                Text(title).font(VFont.ui(15, .semibold)).foregroundStyle(VC.ink).lineLimit(stacked ? 3 : 1)
+                if let subtitle { Text(subtitle).font(VFont.ui(12.5, .medium)).foregroundStyle(VC.ink2).lineLimit(stacked ? 4 : 2) }
+                if stacked { trailing().padding(.top, 4) }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            trailing()
+            if !stacked { trailing() }
         }
         .padding(.horizontal, 15)
         .padding(.vertical, 14)
@@ -385,7 +388,7 @@ struct CounterRow: View {
 
     private func stepButton(_ sym: String, enabled: Bool, _ act: @escaping () -> Void) -> some View {
         Button(action: { if enabled { act() } }) {
-            Image(systemName: sym).font(.system(size: 16, weight: .semibold))
+            Text(sym == "minus" ? "−" : "+").font(.system(size: 22, weight: .regular))
                 .foregroundStyle(VC.brand)
                 .frame(width: 44, height: 44)
                 .background(VC.paper2)
@@ -398,6 +401,8 @@ struct CounterRow: View {
 }
 
 // MARK: - Text fields (.field / input.txt)
+// Every field: no leading space and never two spaces in a row (docs/validation-rules.md), plus the
+// field-kind filter/formatter while typing. Errors come from a FormErrors (keyed by fieldID) or `error`.
 
 struct FieldBox<Content: View>: View {
     var focused: Bool
@@ -419,33 +424,100 @@ struct FieldBox<Content: View>: View {
     }
 }
 
+struct FieldError: View {
+    let text: String
+    var body: some View {
+        Text(text).font(VFont.ui(12.5)).foregroundStyle(VC.c1)
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityLabel("Error: \(text)")
+    }
+}
+
+/// Binding that applies the always-on space rule + the kind filter (for non-TextField uses).
+func filteredBinding(_ text: Binding<String>, kind: FieldKind?, fieldID: String?, errors: FormErrors?) -> Binding<String> {
+    Binding(get: { text.wrappedValue }, set: { new in
+        let v = kind?.filter(new) ?? Validator.collapseSpaces(new)
+        text.wrappedValue = v
+        if let fieldID, let errors { errors.revalidate(fieldID, v) }
+    })
+}
+
+/// Text input that filters/formats while typing. It edits a local copy so a rejected keystroke is
+/// removed from the field too (a transforming Binding alone leaves it on screen when the value
+/// doesn't change), then publishes the filtered value and re-validates the field.
+struct FilteredField: View {
+    @Binding var text: String
+    var kind: FieldKind? = nil
+    var fieldID: String? = nil
+    var errors: FormErrors? = nil
+    var prompt: Text? = nil
+    var secure = false
+    var axis: Axis = .horizontal
+    @State private var raw = ""
+    @State private var loaded = false
+
+    var body: some View {
+        Group {
+            if secure {
+                SecureField("", text: $raw, prompt: prompt)
+            } else {
+                TextField("", text: $raw, prompt: prompt, axis: axis)
+            }
+        }
+        .onAppear { if !loaded { raw = text; loaded = true } }
+        .onChange(of: raw) { _, new in
+            let f = kind?.filter(new) ?? Validator.collapseSpaces(new)
+            if f != new { raw = f; return }
+            if text != f { text = f }
+            if let fieldID, let errors { errors.revalidate(fieldID, f) }
+        }
+        .onChange(of: text) { _, new in if new != raw { raw = new } }
+    }
+}
+
 struct VTextField: View {
     var label: String? = nil
     @Binding var text: String
     var placeholder: String = ""
     var keyboard: UIKeyboardType = .default
     var contentType: UITextContentType? = nil
-    var capitalization: TextInputAutocapitalization = .sentences
+    var capitalization: Caps = .sentences
     var mono = false
     var error: String? = nil
     var bottom: CGFloat = 13
-    @FocusState private var focused: Bool
+    var kind: FieldKind? = nil
+    var fieldID: String? = nil
+    var errors: FormErrors? = nil
+    var trailing: String? = nil
+    @State private var focused = false
+
+    private var shownError: String? { error ?? fieldID.flatMap { errors?[$0] } }
+    private var noAutocorrect: Bool {
+        keyboard == .emailAddress || mono || keyboard == .URL || kind == .email || kind == .url || kind == .joinCode
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
             if let label { FieldLabel(text: label) }
-            FieldBox(focused: focused, error: error != nil) {
-                TextField("", text: $text, prompt: Text(placeholder).foregroundStyle(VC.placeholder))
-                    .keyboardType(keyboard)
-                    .textContentType(contentType)
-                    .textInputAutocapitalization(capitalization)
-                    .autocorrectionDisabled(keyboard == .emailAddress || mono || keyboard == .URL)
-                    .font(mono ? VFont.mono(15, .medium) : VFont.ui(15))
-                    .focused($focused)
+            FieldBox(focused: focused, error: shownError != nil) {
+                HStack(spacing: 8) {
+                    FilteredTextField(text: $text, kind: kind, fieldID: fieldID, errors: errors, placeholder: placeholder,
+                                      font: mono ? VFont.uMono(15, .medium) : VFont.uUI(15),
+                                      keyboard: keyboard, contentType: contentType,
+                                      caps: kind == .email || kind == .url ? .never : capitalization,
+                                      autocorrect: !noAutocorrect, accessibilityLabel: label ?? placeholder,
+                                      onFocus: { focused = $0 })
+                    if let trailing, !trailing.isEmpty {
+                        Text(trailing).font(VFont.mono(11, .semibold)).foregroundStyle(VC.brandDeep)
+                            .padding(.horizontal, 7).padding(.vertical, 3)
+                            .background(VC.brand.opacity(0.1)).clipShape(Capsule())
+                    }
+                }
             }
-            if let error { Text(error).font(VFont.ui(12)).foregroundStyle(VC.c1) }
+            if let shownError { FieldError(text: shownError) }
         }
         .padding(.bottom, bottom)
+        .id(fieldID ?? label ?? placeholder)
     }
 }
 
@@ -453,6 +525,7 @@ struct FieldLabel: View {
     let text: String
     var body: some View {
         Text(text).font(VFont.ui(12.5, .semibold)).foregroundStyle(VC.ink2)
+            .fixedSize(horizontal: false, vertical: true)
     }
 }
 
@@ -463,29 +536,24 @@ struct VSecureField: View {
     var allowReveal = true
     var contentType: UITextContentType = .password
     var error: String? = nil
+    var fieldID: String? = nil
+    var errors: FormErrors? = nil
     @State private var reveal = false
-    @FocusState private var focused: Bool
+    @State private var focused = false
+
+    private var shownError: String? { error ?? fieldID.flatMap { errors?[$0] } }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
             FieldLabel(text: label)
-            FieldBox(focused: focused, error: error != nil) {
+            FieldBox(focused: focused, error: shownError != nil) {
                 HStack(spacing: 6) {
-                    Group {
-                        if reveal {
-                            TextField("", text: $text, prompt: Text(placeholder).foregroundStyle(VC.placeholder))
-                        } else {
-                            SecureField("", text: $text, prompt: Text(placeholder).foregroundStyle(VC.placeholder))
-                        }
-                    }
-                    .textContentType(contentType)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .focused($focused)
+                    FilteredTextField(text: $text, kind: .password, fieldID: fieldID, errors: errors, placeholder: placeholder,
+                                      secure: !reveal, contentType: contentType, caps: .never, autocorrect: false,
+                                      accessibilityLabel: label, onFocus: { focused = $0 })
                     if allowReveal {
                         Button { reveal.toggle() } label: {
-                            Image(systemName: reveal ? "eye.slash" : "eye")
-                                .font(.system(size: 17))
+                            ProtoIcon("show-password", size: 20)
                                 .foregroundStyle(reveal ? VC.brand : VC.ink3)
                                 .frame(width: 44, height: 44)
                         }
@@ -496,9 +564,10 @@ struct VSecureField: View {
                     }
                 }
             }
-            if let error { Text(error).font(VFont.ui(12)).foregroundStyle(VC.c1) }
+            if let shownError { FieldError(text: shownError) }
         }
         .padding(.bottom, 13)
+        .id(fieldID ?? label)
     }
 }
 
@@ -507,12 +576,14 @@ struct VTextArea: View {
     @Binding var text: String
     var placeholder: String = ""
     var minHeight: CGFloat = 84
+    var maxLength: Int? = nil
     @FocusState private var focused: Bool
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
             if let label { FieldLabel(text: label) }
             FieldBox(focused: focused, minHeight: minHeight) {
-                TextField("", text: $text, prompt: Text(placeholder).foregroundStyle(VC.placeholder), axis: .vertical)
+                FilteredField(text: $text, kind: maxLength.map { .plain(max: $0) },
+                              prompt: Text(placeholder).foregroundStyle(VC.placeholder), axis: .vertical)
                     .lineLimit(3...12)
                     .lineSpacing(3)
                     .focused($focused)
@@ -526,7 +597,7 @@ struct VTextArea: View {
 // MARK: - Banner (.banner)
 
 struct Banner: View {
-    var symbol: String = "arrow.triangle.2.circlepath"
+    var symbol: String = "you-re-offline"
     var tint: Color = VC.signalDeep
     var background: Color = VC.c2bg
     var border: Color = Color(hex: 0xF0DCAE)
@@ -534,7 +605,7 @@ struct Banner: View {
     let text: AttributedString
     var body: some View {
         HStack(alignment: .top, spacing: 11) {
-            Image(systemName: symbol).font(.system(size: 16, weight: .semibold)).foregroundStyle(tint).padding(.top, 1)
+            ProtoIcon(symbol, size: 19).foregroundStyle(tint).padding(.top, 1)
             Text(text).font(VFont.ui(12.5)).foregroundStyle(textColor).lineSpacing(2)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)
@@ -560,7 +631,7 @@ struct SuccessBlock<Buttons: View>: View {
     var body: some View {
         VStack(spacing: 0) {
             Circle().fill(VC.c3bg).frame(width: 96, height: 96)
-                .overlay(Image(systemName: "checkmark").font(.system(size: 40, weight: .semibold)).foregroundStyle(VC.pass))
+                .overlay(ProtoIcon("link-my-account", size: 46, lineWidth: 2.2).foregroundStyle(VC.pass))
                 .padding(.bottom, 20)
             Text(title).font(VFont.display(22, .bold)).foregroundStyle(VC.ink).padding(.bottom, 8)
             Text(message).font(VFont.ui(14)).foregroundStyle(VC.ink3).multilineTextAlignment(.center)
@@ -590,18 +661,25 @@ struct SmallField: View {
     @Binding var text: String
     var placeholder: String
     var keyboard: UIKeyboardType = .default
+    var kind: FieldKind? = nil
+    var fieldID: String? = nil
+    var errors: FormErrors? = nil
+    var onSubmit: (() -> Void)? = nil
     var body: some View {
-        TextField("", text: $text, prompt: Text(placeholder).foregroundStyle(VC.placeholder))
-            .keyboardType(keyboard)
-            .textInputAutocapitalization(keyboard == .emailAddress ? .never : .sentences)
-            .autocorrectionDisabled(keyboard == .emailAddress)
-            .font(VFont.ui(14))
-            .foregroundStyle(VC.ink)
-            .padding(.horizontal, 12)
-            .frame(minHeight: 44)
-            .background(VC.paper)
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(VC.line, lineWidth: 1))
+        let err = fieldID.flatMap { errors?[$0] }
+        VStack(alignment: .leading, spacing: 5) {
+            FilteredTextField(text: $text, kind: kind, fieldID: fieldID, errors: errors, placeholder: placeholder,
+                              font: VFont.uUI(14), keyboard: keyboard,
+                              caps: keyboard == .emailAddress || kind == .email ? .never : .sentences,
+                              autocorrect: !(keyboard == .emailAddress || kind == .email), onSubmit: onSubmit)
+                .padding(.horizontal, 12)
+                .frame(minHeight: 44)
+                .background(VC.paper)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(err != nil ? VC.c1 : VC.line, lineWidth: err != nil ? 2 : 1))
+            if let err { FieldError(text: err) }
+        }
+        .id(fieldID ?? placeholder)
     }
 }
 

@@ -4,9 +4,11 @@ import UIKit
 // DEMO SEED — sample data equivalent to the approved prototype, created on first
 // launch so the client can review the app with realistic content.
 //
-// To ship without demo data: make `DemoSeed.enabled` false (a clean company
-// profile is created instead), or delete this file and replace the call in
-// AppStore.init with `DemoSeed.emptyState(config:)`.
+// The demo data belongs ONLY to the demo account (jeremy@visionpropertyinspections.com,
+// password inspect2026) and its company "Vision Property Inspections" (VIS-4827).
+// Brand-new accounts start empty. To ship without it set `DemoSeed.enabled = false`
+// (no demo account is created), or delete this file and the `seedDemoAccount` call in
+// Store/Bootstrap.swift.
 // ============================================================================
 
 enum DemoSeed {
@@ -16,8 +18,12 @@ enum DemoSeed {
     static let loginEmail = enabled ? "jeremy@visionpropertyinspections.com" : ""
     static let loginPassword = enabled ? "inspect2026" : ""
 
-    static func make(config: ChecklistConfig, repo: FileRepository) -> (state: AppState, inspections: [Inspection]) {
-        guard enabled else { return (emptyState(config: config), []) }
+    static let ownerName = "Jeremy Heath"
+
+    /// Builds the demo company state + the demo user's inspections, writing photos/reports into the
+    /// owners' folders (`userFolder` = users/<id>, `companyFolder` = companies/<id>).
+    static func make(config: ChecklistConfig, files repo: FileStore, userFolder: String, companyFolder: String,
+                     ownerID: UUID) -> (state: AppState, inspections: [Inspection]) {
         var state = emptyState(config: config)
         let sample = config.sample
         state.company.name = sample.company.name
@@ -28,6 +34,11 @@ enum DemoSeed {
         state.company.license = "UT-12345"
         state.company.phone = "(801) 555-0134"
         state.company.inspectors = sample.inspectors.map { Inspector(name: $0.name, email: $0.email, owner: $0.owner ?? false, admin: $0.owner ?? false) }
+        if let i = state.company.inspectors.firstIndex(where: { $0.owner }) { state.company.inspectors[i].id = ownerID }
+        // Company logo (the VIMS mark) stored per company, like an uploaded one.
+        if let png = UIImage(named: "VimsLogo")?.pngData() {
+            state.company.logoFile = repo.saveImage(png, folder: companyFolder, name: "logo.png")
+        }
         // Trial: 10 days left, so the urgent free-look splash shows (prototype state).
         state.subscription.trialStart = Calendar.current.date(byAdding: .day, value: -(config.subscription.trialDays - 10), to: Date()) ?? Date()
         state.seededAt = Date()
@@ -87,7 +98,7 @@ enum DemoSeed {
                     let img = placeholder(label: category, seed: category.count + n + section.count)
                     guard let data = img.jpegData(compressionQuality: 0.82) else { continue }
                     let pid = UUID()
-                    if let path = repo.saveImage(data, folder: "photos/\(i.id.uuidString)", name: "\(pid.uuidString).jpg") {
+                    if let path = repo.saveImage(data, folder: "\(userFolder)/photos/\(i.id.uuidString)", name: "\(pid.uuidString).jpg") {
                         i.photos[section, default: [:]][category, default: []]
                             .append(PhotoRef(id: pid, file: path, flag: n == count - 1 ? flag : nil))
                     }
@@ -147,9 +158,9 @@ enum DemoSeed {
         for idx in [1, 3] {
             var insp = idx == 1 ? canyon : harrison
             let data = ReportData.make(insp, config: config, overrides: state.overrides, company: state.company,
-                                       repo: repo, logo: UIImage(named: "VimsLogo") ?? UIImage())
+                                       repo: repo, logo: UIImage(named: "VimsLogo"))
             let r = ReportRenderer.render(data)
-            if let path = repo.saveFile(r.pdf, folder: "reports", name: "\(insp.id.uuidString).pdf") {
+            if let path = repo.saveFile(r.pdf, folder: "\(userFolder)/reports", name: "\(insp.id.uuidString).pdf") {
                 insp.report = ReportInfo(generatedAt: idx == 1 ? today : yesterday, pageCount: r.pageCount, file: path)
             }
             if idx == 1 { canyon = insp } else { harrison = insp }

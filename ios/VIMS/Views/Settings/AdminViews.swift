@@ -7,30 +7,42 @@ struct ManageChecklistView: View {
     @State private var newName = ""
     @State private var newGroup: String? = ChecklistCatalog.customGroups.first
     @State private var open: Set<String> = ["Exterior"]
+    @State private var errors = FormErrors()
 
     var body: some View {
-        Screen(title: "Manage checklist", actions: [store.homeAction()]) {
+        Screen(title: "Manage checklist", actions: [store.homeAction()], errors: errors) {
             HintText(text: "Add and edit checklist sections and items yourself — changes apply to new inspections.")
                 .padding(.top, 2).padding(.bottom, 12)
             DashedBox {
-                SmallField(text: $newName, placeholder: "New section name (e.g. Solar Panels)")
+                SmallField(text: $newName, placeholder: "New section name (e.g. Solar Panels)", kind: .sectionName, fieldID: "section", errors: errors)
                 SingleChipGroup(options: ChecklistCatalog.customGroups, value: $newGroup, required: true)
                     .padding(.bottom, 2)
                 Button {
-                    let name = newName.trimmingCharacters(in: .whitespaces)
+                    let name = Validator.trimmed(newName)
+                    let taken = Set(store.catalog.adminGroups().flatMap(\.sections).map { $0.lowercased() })
+                    guard errors.validate([("section", newName, .req(.sectionName, "Section name",
+                        custom: { taken.contains($0.lowercased()) ? "A section with that name already exists" : nil }))]) else { return }
                     if store.addCustomSection(name: name, group: newGroup ?? "Exterior") {
                         newName = ""
                         open.insert(newGroup ?? "Exterior")
                         store.push(.editSection(name))
                     }
-                } label: { Label("Add section", systemImage: "plus") }
+                } label: { IconLabel("Add section", icon: "hdr-add") }
                     .buttonStyle(VButtonStyle(kind: .primary, minHeight: 46))
             }
             ForEach(store.catalog.adminGroups(), id: \.group) { g in
                 adminGroup(g.group, g.sections)
             }
         }
-        .onAppear { if let g = DebugFlags.adminGroup { open = [g]; DebugFlags.adminGroup = nil } }
+        .onAppear {
+            if let g = DebugFlags.adminGroup { open = [g]; DebugFlags.adminGroup = nil }
+            if DebugFlags.validate {
+                DebugFlags.validate = false; newName = "Roof"
+                let taken = Set(store.catalog.adminGroups().flatMap(\.sections).map { $0.lowercased() })
+                errors.validate([("section", newName, .req(.sectionName, "Section name",
+                    custom: { taken.contains($0.lowercased()) ? "A section with that name already exists" : nil }))])
+            }
+        }
     }
 
     private func icon(_ g: String) -> String {
@@ -51,12 +63,12 @@ struct ManageChecklistView: View {
                 withAnimation(.easeInOut(duration: 0.2)) { if isOpen { open.remove(g) } else { open.insert(g) } }
             } label: {
                 HStack(spacing: 11) {
-                    Image(systemName: VIcon.symbol(icon(g))).font(.system(size: 15, weight: .medium)).foregroundStyle(VC.brand)
+                    ProtoIcon(icon(g), size: 17).foregroundStyle(VC.brand)
                         .frame(width: 30, height: 30).background(VC.paper3)
                         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                     Text(g).font(VFont.ui(14.5, .bold)).foregroundStyle(VC.ink).frame(maxWidth: .infinity, alignment: .leading)
                     Text("\(names.count)").font(VFont.mono(11)).foregroundStyle(VC.ink3)
-                    Image(systemName: "chevron.down").font(.system(size: 14, weight: .semibold)).foregroundStyle(VC.ink3)
+                    ProtoIcon("chevron-down", size: 18).foregroundStyle(VC.ink3)
                         .rotationEffect(.degrees(isOpen ? 180 : 0))
                 }
                 .padding(.horizontal, 15).padding(.vertical, 13).frame(minHeight: 56)
@@ -103,9 +115,10 @@ struct EditSectionView: View {
     @State private var tier: Depth = .standard
     @State private var items: [EditItem] = []
     @State private var confirmRemove = false
+    @State private var errors = FormErrors()
 
     var body: some View {
-        Screen(title: sectionName, subtitle: "Edit section", actions: [store.homeAction()]) {
+        Screen(title: sectionName, subtitle: "Edit section", actions: [store.homeAction()], errors: errors) {
             if let def {
                 if def.itemsHigh?.isEmpty == false {
                     Picker("Checklist tier", selection: Binding(get: { tier }, set: { switchTier($0) })) {
@@ -117,20 +130,20 @@ struct EditSectionView: View {
                 }
                 SectionLabel(text: "Checklist items · \(sectionName)", top: 10)
                 ForEach($items) { $e in
-                    EditItemCard(edit: $e,
+                    EditItemCard(edit: $e, errors: errors,
                                  canUp: e.id != items.first?.id, canDown: e.id != items.last?.id,
                                  move: { move(e.id, by: $0) },
                                  delete: { items.removeAll { $0.id == e.id } })
                 }
                 Button {
                     items.append(EditItem(item: .question("New item", options: ["Yes", "No", "N/A"])))
-                } label: { Label("Add item", systemImage: "plus") }
+                } label: { IconLabel("Add item", icon: "hdr-add") }
                     .buttonStyle(.vGhost)
-                Button { save() } label: { Label("Save & done", systemImage: "checkmark") }
+                Button { save() } label: { IconLabel("Save & done", icon: "link-my-account") }
                     .buttonStyle(.vPrimary).padding(.top, 10)
                 if store.isCustomSection(sectionName) {
                     Button(role: .destructive) { confirmRemove = true } label: {
-                        Label("Remove this section", systemImage: "trash").foregroundStyle(VC.c1)
+                        IconLabel("Remove this section", icon: "trash").foregroundStyle(VC.c1)
                     }
                     .buttonStyle(.vGhost).padding(.top, 10)
                 }
@@ -141,6 +154,7 @@ struct EditSectionView: View {
             def = store.catalog.section(sectionName) ?? SectionDef(name: sectionName, number: 99, icon: nil, photoCategories: ["Overview", "Concerns"],
                                                                     photoCategoriesHigh: nil, items: [], itemsHigh: nil)
             items = (def?.items ?? []).map { EditItem(item: $0) }
+            if DebugFlags.validate, !items.isEmpty { DebugFlags.validate = false; items[0].item.q = ""; save() }
         }
         .confirmationDialog("Remove “\(sectionName)”?", isPresented: $confirmRemove, titleVisibility: .visible) {
             Button("Remove section", role: .destructive) {
@@ -169,6 +183,15 @@ struct EditSectionView: View {
     }
 
     private func save() {
+        // Every question needs text (max 120); headers too.
+        let fields: [(id: String, value: String, rule: FieldRule)] = items.map { e in
+            ("q-\(e.id)", e.item.header ?? e.item.q ?? "", .req(.question, e.item.isHeader ? "Header" : "Question"))
+        }
+        guard errors.validate(fields) else { return }
+        for i in items.indices {
+            if items[i].item.isHeader { items[i].item.header = Validator.trimmed(items[i].item.header ?? "") }
+            else { items[i].item.q = Validator.trimmed(items[i].item.q ?? "") }
+        }
         commitTier()
         guard let def else { return }
         store.saveSectionOverride(def)
@@ -178,12 +201,13 @@ struct EditSectionView: View {
 
 struct EditItemCard: View {
     @Binding var edit: EditItem
+    let errors: FormErrors
     let canUp: Bool
     let canDown: Bool
     let move: (Int) -> Void
     let delete: () -> Void
     @State private var newOption = ""
-    @FocusState private var focused: Bool
+    @State private var focused = false
 
     private let types: [(String, String)] = [("single", "Pick one"), ("multi", "Pick several"), ("text", "Text"), ("num", "Number"), ("date", "Date"), ("time", "Time")]
 
@@ -194,20 +218,22 @@ struct EditItemCard: View {
                     Text("HEADER").font(VFont.mono(9.5, .semibold)).foregroundStyle(.white)
                         .padding(.horizontal, 6).padding(.vertical, 3).background(VC.hdr).clipShape(Capsule())
                 }
-                TextField("", text: Binding(
+                FilteredTextField(text: Binding(
                     get: { edit.item.header ?? edit.item.q ?? "" },
                     set: { if edit.item.isHeader { edit.item.header = $0 } else { edit.item.q = $0 } }),
-                          prompt: Text("Question").foregroundStyle(VC.placeholder))
-                    .font(VFont.ui(14.5, .semibold)).foregroundStyle(VC.ink)
-                    .focused($focused)
+                              kind: .question, fieldID: "q-\(edit.id)", errors: errors, placeholder: "Question",
+                              font: VFont.uUI(14.5, .semibold), onFocus: { focused = $0 })
                     .padding(.vertical, 5)
-                    .overlay(alignment: .bottom) { Rectangle().fill(focused ? VC.brand : VC.line).frame(height: 1.5) }
+                    .overlay(alignment: .bottom) {
+                        Rectangle().fill(errors["q-\(edit.id)"] != nil ? VC.c1 : (focused ? VC.brand : VC.line)).frame(height: 1.5)
+                    }
                 HStack(spacing: 6) {
-                    iconButton("chevron.up", "Move up", enabled: canUp) { move(-1) }
-                    iconButton("chevron.down", "Move down", enabled: canDown) { move(1) }
+                    iconButton("chevron-up", "Move up", enabled: canUp) { move(-1) }
+                    iconButton("chevron-down", "Move down", enabled: canDown) { move(1) }
                     iconButton("trash", "Delete item", enabled: true, action: delete)
                 }
             }
+            if let e = errors["q-\(edit.id)"] { FieldError(text: e) }
             if !edit.item.isHeader {
                 Menu {
                     ForEach(types, id: \.0) { t in
@@ -219,7 +245,7 @@ struct EditItemCard: View {
                 } label: {
                     HStack(spacing: 4) {
                         Text(types.first { $0.0 == (edit.item.type ?? "single") }?.1 ?? "Pick one").font(VFont.ui(12, .semibold))
-                        Image(systemName: "chevron.up.chevron.down").font(.system(size: 9, weight: .bold))
+                        ProtoIcon("chevron-down", size: 12)
                     }
                     .foregroundStyle(VC.brandDeep)
                     .padding(.horizontal, 10).padding(.vertical, 5)
@@ -231,7 +257,7 @@ struct EditItemCard: View {
                             HStack(spacing: 7) {
                                 Text(op).font(VFont.ui(12.5)).foregroundStyle(VC.ink2)
                                 Button { edit.item.options?.remove(at: i) } label: {
-                                    Image(systemName: "xmark").font(.system(size: 10, weight: .bold)).foregroundStyle(VC.ink3)
+                                    Text("×").font(.system(size: 16)).foregroundStyle(VC.ink3)
                                         .frame(width: 22, height: 22)
                                 }
                                 .buttonStyle(.plain)
@@ -242,8 +268,8 @@ struct EditItemCard: View {
                         }
                     }
                     HStack(spacing: 7) {
-                        SmallField(text: $newOption, placeholder: "Add option…")
-                            .onSubmit(addOption)
+                        SmallField(text: $newOption, placeholder: "Add option…", kind: .option, fieldID: "opt-\(edit.id)", errors: errors,
+                                   onSubmit: addOption)
                         Button("Add", action: addOption)
                             .font(VFont.ui(14, .semibold)).foregroundStyle(.white)
                             .padding(.horizontal, 15).frame(minHeight: 44)
@@ -260,15 +286,17 @@ struct EditItemCard: View {
     }
 
     private func addOption() {
-        let v = newOption.trimmingCharacters(in: .whitespaces)
-        guard !v.isEmpty else { return }
+        let existing = Set((edit.item.options ?? []).map { $0.lowercased() })
+        guard errors.validate([("opt-\(edit.id)", newOption, .req(.option, "Option",
+            custom: { existing.contains($0.lowercased()) ? "That option is already in this question" : nil }))]) else { return }
+        let v = Validator.trimmed(newOption)
         edit.item.options = (edit.item.options ?? []) + [v]
         newOption = ""
     }
 
     private func iconButton(_ symbol: String, _ label: String, enabled: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: symbol).font(.system(size: 13, weight: .semibold)).foregroundStyle(VC.ink3)
+            ProtoIcon(symbol, size: 15).foregroundStyle(VC.ink3)
                 .frame(width: 36, height: 36)
                 .background(VC.paper2)
                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -292,45 +320,53 @@ struct PlansAdminView: View {
     @State private var newName = ""
     @State private var newPrice = ""
     @State private var newDesc = ""
+    @State private var errors = FormErrors()
 
     var body: some View {
-        Screen(title: "Plans & pricing", actions: [store.homeAction()]) {
+        Screen(title: "Plans & pricing", actions: [store.homeAction()], errors: errors) {
             HintText(text: "Owner admin — edit plan prices, add a plan, or set the per-inspector rate. Changes apply to the subscribe screen.")
                 .padding(.top, 2).padding(.bottom, 12)
             ForEach(store.subscription.plans, id: \.id) { p in
-                priceCard(title: p.name, unit: p.unit ?? "/mo", desc: p.desc, text: Binding(get: { prices[p.id] ?? Fmt.price(p.price) }, set: { prices[p.id] = $0 })) {
+                priceCard(id: "price-\(p.id)", title: p.name, unit: p.unit ?? "/mo", desc: p.desc,
+                          text: Binding(get: { prices[p.id] ?? Fmt.price(p.price) }, set: { prices[p.id] = $0 })) {
                     commit(p.id)
                 }
             }
-            priceCard(title: "Additional inspector", unit: "/mo each", desc: nil, text: $extra) {
-                if let v = Double(extra), v >= 0 {
-                    store.state.subscription.extraInspectorMonthly = v
-                    store.toast("Extra inspector → \(Fmt.money(v))")
-                } else { extra = Fmt.price(store.subscription.extraInspectorMonthly) }
+            priceCard(id: "extra", title: "Additional inspector", unit: "/mo each", desc: nil, text: $extra) {
+                guard errors.validate([("extra", extra, .req(.price, "Rate"))]) else { return }
+                let v = Double(extra) ?? 0
+                store.state.subscription.extraInspectorMonthly = v
+                extra = Fmt.price(v)
+                store.toast("Extra inspector → \(Fmt.money(v))")
             }
             DashedBox {
-                SmallField(text: $newName, placeholder: "Plan name (e.g. Team)")
-                SmallField(text: $newPrice, placeholder: "Monthly price (e.g. 99.00)", keyboard: .decimalPad)
-                SmallField(text: $newDesc, placeholder: "Short description")
-                Button { addPlan() } label: { Label("Add plan", systemImage: "plus") }
+                SmallField(text: $newName, placeholder: "Plan name (e.g. Team)", kind: .plain(max: 40), fieldID: "newName", errors: errors)
+                SmallField(text: $newPrice, placeholder: "Monthly price (e.g. 99.00)", keyboard: .decimalPad, kind: .price, fieldID: "newPrice", errors: errors)
+                SmallField(text: $newDesc, placeholder: "Short description", kind: .plain(max: 80))
+                Button { addPlan() } label: { IconLabel("Add plan", icon: "hdr-add") }
                     .buttonStyle(VButtonStyle(kind: .primary, minHeight: 46))
             }
         }
-        .onAppear { extra = Fmt.price(store.subscription.extraInspectorMonthly) }
+        .onAppear {
+            extra = Fmt.price(store.subscription.extraInspectorMonthly)
+            if DebugFlags.validate { DebugFlags.validate = false; newPrice = "0"; extra = "12000"; addPlan()
+                errors.validate([("extra", extra, .req(.price, "Rate")), ("newName", newName, .req(.plain(max: 40), "Plan name")),
+                                 ("newPrice", newPrice, .req(.price, "Price"))]) }
+        }
     }
 
-    private func priceCard(title: String, unit: String, desc: String?, text: Binding<String>, commit: @escaping () -> Void) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+    private func priceCard(id: String, title: String, unit: String, desc: String?, text: Binding<String>, commit: @escaping () -> Void) -> some View {
+        let err = errors[id]
+        return VStack(alignment: .leading, spacing: 10) {
             Text(title).font(VFont.ui(14.5, .bold)).foregroundStyle(VC.ink)
             HStack(spacing: 10) {
                 Text("Price $").font(VFont.ui(13)).foregroundStyle(VC.ink2)
-                TextField("", text: text)
-                    .keyboardType(.decimalPad)
-                    .font(VFont.ui(15)).foregroundStyle(VC.ink)
+                FilteredTextField(text: text, kind: .price, fieldID: id, errors: errors, keyboard: .decimalPad,
+                                  accessibilityLabel: "\(title) price")
                     .padding(.horizontal, 12).frame(width: 130, height: 48)
                     .background(VC.paper)
                     .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 11, style: .continuous).stroke(VC.line, lineWidth: 1))
+                    .overlay(RoundedRectangle(cornerRadius: 11, style: .continuous).stroke(err != nil ? VC.c1 : VC.line, lineWidth: err != nil ? 2 : 1))
                     .onSubmit(commit)
                 Text(unit).font(VFont.ui(12.5)).foregroundStyle(VC.ink3)
                 Spacer()
@@ -339,6 +375,7 @@ struct PlansAdminView: View {
                     .padding(.horizontal, 12).frame(minHeight: 44)
                     .background(VC.paper3).clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
             }
+            if let err { FieldError(text: err) }
             if let desc { Text(desc).font(VFont.ui(12)).foregroundStyle(VC.ink3) }
         }
         .padding(.horizontal, 14).padding(.vertical, 13)
@@ -346,27 +383,30 @@ struct PlansAdminView: View {
         .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 13, style: .continuous).stroke(VC.line, lineWidth: 1))
         .padding(.bottom, 11)
+        .id(id)
     }
 
     private func commit(_ id: String) {
         guard let i = store.state.subscription.plans.firstIndex(where: { $0.id == id }) else { return }
-        let raw = prices[id] ?? ""
-        if let v = Double(raw.replacingOccurrences(of: ",", with: "")), v >= 0 {
-            store.state.subscription.plans[i].price = v
-            prices[id] = Fmt.price(v)
-            store.toast("\(store.state.subscription.plans[i].name) → \(Fmt.money(v))")
-        } else {
-            prices[id] = Fmt.price(store.state.subscription.plans[i].price)
-            store.toast("Enter a valid price")
-        }
+        let raw = prices[id] ?? Fmt.price(store.state.subscription.plans[i].price)
+        guard errors.validate([("price-\(id)", raw, .req(.price, "Price"))]) else { return }
+        let v = Double(raw) ?? 0
+        store.state.subscription.plans[i].price = v
+        prices[id] = Fmt.price(v)
+        store.toast("\(store.state.subscription.plans[i].name) → \(Fmt.money(v))")
     }
 
     private func addPlan() {
-        let n = newName.trimmingCharacters(in: .whitespaces)
-        guard !n.isEmpty else { store.toast("Enter a plan name"); return }
-        guard let pr = Double(newPrice), pr >= 0 else { store.toast("Enter a valid price"); return }
+        let names = Set(store.subscription.plans.map { $0.name.lowercased() })
+        guard errors.validate([
+            ("newName", newName, .req(.plain(max: 40), "Plan name", custom: { names.contains($0.lowercased()) ? "A plan with that name already exists" : nil })),
+            ("newPrice", newPrice, .req(.price, "Price"))
+        ]) else { return }
+        let n = Validator.trimmed(newName)
+        let pr = Double(newPrice) ?? 0
         let id = "plan\(store.state.subscription.plans.count + 1)-\(UUID().uuidString.prefix(4))"
-        store.state.subscription.plans.append(PlanDef(id: id, name: n, price: pr, desc: newDesc.isEmpty ? "Custom plan" : newDesc, unit: nil, perReport: nil))
+        let d = Validator.trimmed(newDesc)
+        store.state.subscription.plans.append(PlanDef(id: id, name: n, price: pr, desc: d.isEmpty ? "Custom plan" : d, unit: nil, perReport: nil))
         newName = ""; newPrice = ""; newDesc = ""
         store.toast("Added “\(n)”")
     }
@@ -378,11 +418,12 @@ struct InspectorsView: View {
     @Environment(AppStore.self) private var store
     @State private var name = ""
     @State private var email = ""
+    @State private var errors = FormErrors()
 
     var body: some View {
         let company = store.company
         let n = company.inspectors.count
-        Screen(title: "Inspectors", actions: [store.homeAction()]) {
+        Screen(title: "Inspectors", actions: [store.homeAction()], errors: errors) {
             Text(md("Add inspector accounts under your company license. First inspector is included; each additional is **\(Fmt.money(store.subscription.extraInspectorMonthly))/mo**."))
                 .font(VFont.ui(13)).foregroundStyle(VC.ink3).padding(.top, 2).padding(.bottom, 12)
                 .fixedSize(horizontal: false, vertical: true)
@@ -396,7 +437,7 @@ struct InspectorsView: View {
                         UIPasteboard.general.string = company.joinCode
                         store.toast("Code \(company.joinCode) copied")
                     } label: {
-                        Label("Copy", systemImage: "doc.on.doc").font(VFont.ui(12.5, .semibold)).foregroundStyle(VC.brandDeep)
+                        IconLabel("Copy", icon: "copy").font(VFont.ui(12.5, .semibold)).foregroundStyle(VC.brandDeep)
                             .padding(.horizontal, 12).frame(minHeight: 44)
                             .background(VC.paper3).clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
                     }
@@ -453,14 +494,26 @@ struct InspectorsView: View {
                 .padding(.horizontal, 2).padding(.top, 4).padding(.bottom, 14)
 
             DashedBox {
-                SmallField(text: $name, placeholder: "Inspector name")
-                SmallField(text: $email, placeholder: "inspector@email.com", keyboard: .emailAddress)
+                SmallField(text: $name, placeholder: "Inspector name", kind: .personName, fieldID: "name", errors: errors)
+                SmallField(text: $email, placeholder: "inspector@email.com", keyboard: .emailAddress, kind: .email, fieldID: "email", errors: errors)
                 Button {
-                    if store.addInspector(name: name, email: email) { name = ""; email = "" }
-                } label: { Label("Add inspector", systemImage: "plus") }
+                    addInspector()
+                } label: { IconLabel("Add inspector", icon: "hdr-add") }
                     .buttonStyle(VButtonStyle(kind: .primary, minHeight: 46))
             }
         }
+        .onAppear {
+            if DebugFlags.validate { DebugFlags.validate = false; name = ""; email = store.company.inspectors.first?.email ?? "x@y.com"; addInspector() }
+        }
+    }
+
+    private func addInspector() {
+        let team = Set(store.company.inspectors.map { $0.email.lowercased() })
+        guard errors.validate([
+            ("name", name, .req(.personName, "Inspector name")),
+            ("email", email, .req(.email, "Email", custom: { team.contains($0.lowercased()) ? "That email is already on the team" : nil }))
+        ]) else { return }
+        if store.addInspector(name: Validator.trimmed(name), email: Validator.trimmed(email).lowercased()) { name = ""; email = "" }
     }
 
     private var monthly: Double {
@@ -478,14 +531,18 @@ struct SubscribeView: View {
     @State private var card = ""
     @State private var expiry = ""
     @State private var cvc = ""
-    @State private var error: String?
+    @State private var holder = ""
+    @State private var zip = ""
+    @State private var errors = FormErrors()
     @State private var busy = false
+
+    private var brand: CardBrand { CardBrand.detect(card.filter(\.isNumber)) }
 
     var body: some View {
         let sub = store.subscription
-        Screen(title: "Subscription", actions: [store.homeAction()]) {
+        Screen(title: "Subscription", actions: [store.homeAction()], errors: errors) {
             if !sub.active {
-                Banner(symbol: "clock", tint: VC.brandDeep, background: VC.brand.opacity(0.08), border: Color(hex: 0xC9DEE6), textColor: VC.brandDeep,
+                Banner(symbol: "free-trial-days", tint: VC.brandDeep, background: VC.brand.opacity(0.08), border: Color(hex: 0xC9DEE6), textColor: VC.brandDeep,
                        text: md("**Free trial — \(sub.trialDaysLeft) days left.** Set up your subscription now so access continues automatically when the trial ends."))
                     .padding(.bottom, 14)
             }
@@ -540,54 +597,57 @@ struct SubscribeView: View {
             .padding(.top, 14)
 
             SectionLabel(text: "Payment — via Square")
-            VTextField(label: "Card number", text: Binding(get: { card }, set: { card = formatCard($0) }), placeholder: "1234 5678 9012 3456",
-                       keyboard: .numberPad, contentType: .creditCardNumber, capitalization: .never)
+            // Placeholder card form until Square's In-App Payments SDK card entry replaces it (TODO(backend)).
+            VTextField(label: "Card number", text: $card, placeholder: "1234 5678 9012 3456",
+                       keyboard: .numberPad, contentType: .creditCardNumber, capitalization: .never,
+                       kind: .cardNumber, fieldID: "card", errors: errors, trailing: brand.rawValue)
             HStack(alignment: .top, spacing: 10) {
-                VTextField(label: "Expiry", text: Binding(get: { expiry }, set: { expiry = formatExpiry($0) }), placeholder: "MM / YY",
-                           keyboard: .numberPad, contentType: .creditCardExpiration, capitalization: .never, bottom: 0)
-                VTextField(label: "CVC", text: Binding(get: { cvc }, set: { cvc = String($0.filter(\.isNumber).prefix(4)) }), placeholder: "123",
-                           keyboard: .numberPad, contentType: .creditCardSecurityCode, capitalization: .never, bottom: 0)
+                VTextField(label: "Expiry", text: $expiry, placeholder: "MM/YY",
+                           keyboard: .numberPad, contentType: .creditCardExpiration, capitalization: .never, bottom: 0,
+                           kind: .expiry, fieldID: "expiry", errors: errors)
+                VTextField(label: "CVC", text: $cvc, placeholder: brand == .amex ? "1234" : "123",
+                           keyboard: .numberPad, contentType: .creditCardSecurityCode, capitalization: .never, bottom: 0,
+                           kind: .cvc(amex: brand == .amex), fieldID: "cvc", errors: errors)
             }
-            if let error {
-                Text(error).font(VFont.ui(12)).foregroundStyle(VC.c1).padding(.top, 8)
-            }
+            .padding(.bottom, 13)
+            VTextField(label: "Cardholder name", text: $holder, placeholder: "Name on card", contentType: .name, capitalization: .words,
+                       kind: .personName, fieldID: "holder", errors: errors)
+            VTextField(label: "Billing ZIP", text: $zip, placeholder: "84015", keyboard: .numberPad, contentType: .postalCode,
+                       capitalization: .never, bottom: 0, kind: .zip, fieldID: "zip", errors: errors)
             HStack(spacing: 8) {
-                Image(systemName: "lock").font(.system(size: 12))
+                ProtoIcon("secured-by-square", size: 14)
                 Text("Secured by Square · auto-renews monthly · cancel anytime").font(VFont.ui(12))
             }
             .foregroundStyle(VC.ink3).padding(.horizontal, 2).padding(.top, 8)
             Button { start() } label: {
-                if busy { ProgressView().tint(.white) } else { Label(sub.active ? "Update subscription" : "Start subscription", systemImage: "checkmark") }
+                if busy { ProgressView().tint(.white) } else { IconLabel(sub.active ? "Update subscription" : "Start subscription", icon: "link-my-account") }
             }
             .buttonStyle(.vPrimary).padding(.top, 16)
             .disabled(busy)
         }
-    }
-
-    private func formatCard(_ s: String) -> String {
-        let d = String(s.filter(\.isNumber).prefix(19))
-        return stride(from: 0, to: d.count, by: 4).map { i -> String in
-            let a = d.index(d.startIndex, offsetBy: i)
-            let b = d.index(a, offsetBy: min(4, d.count - i))
-            return String(d[a..<b])
-        }.joined(separator: " ")
-    }
-
-    private func formatExpiry(_ s: String) -> String {
-        let d = String(s.filter(\.isNumber).prefix(4))
-        return d.count > 2 ? "\(d.prefix(2)) / \(d.dropFirst(2))" : d
+        .onAppear {
+            if DebugFlags.validate { DebugFlags.validate = false; card = FieldKind.cardNumber.filter("4242424242424241"); expiry = "01/24"; cvc = "12"; start() }
+        }
     }
 
     private func start() {
-        error = nil
+        let amex = brand == .amex
+        let fields: [(id: String, value: String, rule: FieldRule)] = [
+            ("card", card, .req(.cardNumber, "Card number")),
+            ("expiry", expiry, .req(.expiry, "Expiry")),
+            ("cvc", cvc, .req(.cvc(amex: amex), "CVC")),
+            ("holder", holder, .req(.personName, "Cardholder name")),
+            ("zip", zip, .req(.zip, "Billing ZIP"))
+        ]
+        guard errors.validate(fields) else { return }
         busy = true
         Task {
             do {
-                try await store.startSubscription(card: CardEntry(number: card, expiry: expiry, cvc: cvc))
-                card = ""; expiry = ""; cvc = ""
+                try await store.startSubscription(card: CardEntry(number: card, expiry: expiry, cvc: cvc, name: holder, zip: zip))
+                card = ""; expiry = ""; cvc = ""; holder = ""; zip = ""
                 store.push(.subscriptionStarted)
             } catch {
-                self.error = error.localizedDescription
+                errors.set("card", error.localizedDescription)
             }
             busy = false
         }
@@ -635,7 +695,7 @@ struct BillingView: View {
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(VC.line, lineWidth: 1))
             .padding(.bottom, 12)
-            Button { store.push(.inspectors) } label: { Label("Manage inspectors", systemImage: "person.2") }
+            Button { store.push(.inspectors) } label: { IconLabel("Manage inspectors", icon: "manage-inspectors-h") }
                 .buttonStyle(.vGhost)
             Button(sub.active ? "Change plan / payment" : "Set up subscription") { store.push(.subscribe) }
                 .buttonStyle(VButtonStyle(kind: sub.active ? .ghost : .primary))

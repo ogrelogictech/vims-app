@@ -10,10 +10,29 @@
 		A10000000000000000000001 /* VIMS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = VIMS.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		A10000000000000000000090 /* Exceptions for "SharedMedia" folder in "VIMS" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				README.md,
+			);
+			target = A10000000000000000000040 /* VIMS */;
+		};
+		A10000000000000000000091 /* Exceptions for "SharedIcons" folder in "VIMS" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				README.md,
+			);
+			target = A10000000000000000000040 /* VIMS */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		A10000000000000000000010 /* VIMS */ = {isa = PBXFileSystemSynchronizedRootGroup; path = VIMS; sourceTree = "<group>"; };
 		A10000000000000000000011 /* SharedData */ = {isa = PBXFileSystemSynchronizedRootGroup; name = SharedData; path = ../shared/data; sourceTree = "<group>"; };
 		A10000000000000000000012 /* SharedFonts */ = {isa = PBXFileSystemSynchronizedRootGroup; name = SharedFonts; path = ../shared/fonts; sourceTree = "<group>"; };
+		A10000000000000000000013 /* SharedMedia */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (A10000000000000000000090 /* Exceptions for "SharedMedia" folder in "VIMS" target */, ); name = SharedMedia; path = ../shared/media; sourceTree = "<group>"; };
+		A10000000000000000000014 /* SharedIcons */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (A10000000000000000000091 /* Exceptions for "SharedIcons" folder in "VIMS" target */, ); name = SharedIcons; path = ../shared/icons; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -33,6 +52,8 @@
 				A10000000000000000000010 /* VIMS */,
 				A10000000000000000000011 /* SharedData */,
 				A10000000000000000000012 /* SharedFonts */,
+				A10000000000000000000013 /* SharedMedia */,
+				A10000000000000000000014 /* SharedIcons */,
 				A10000000000000000000031 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -64,6 +85,8 @@
 				A10000000000000000000010 /* VIMS */,
 				A10000000000000000000011 /* SharedData */,
 				A10000000000000000000012 /* SharedFonts */,
+				A10000000000000000000013 /* SharedMedia */,
+				A10000000000000000000014 /* SharedIcons */,
 			);
 			name = VIMS;
 			packageProductDependencies = (

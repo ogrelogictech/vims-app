@@ -140,7 +140,7 @@ struct Inspection: Codable, Hashable, Identifiable {
         let parts = address.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
         guard var line = parts.first else { return ("", "") }
         var i = 1
-        while i < parts.count, parts[i].range(of: #"^(Lot|Unit|Apt|Suite|Ste|Space|Bldg|#)\b?"#, options: [.regularExpression, .caseInsensitive]) != nil {
+        while i < parts.count, parts[i].range(of: #"^((Lot|Unit|Apt|Suite|Ste|Space|Bldg)\b|#)"#, options: [.regularExpression, .caseInsensitive]) != nil {
             line += ", " + parts[i]; i += 1
         }
         return (line, parts.dropFirst(i).joined(separator: ", "))

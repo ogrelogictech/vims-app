@@ -20,49 +20,47 @@ enum Route: Hashable {
 @Observable
 final class AppStore {
     let config: ChecklistConfig
-    let repo: FileRepository
+    let repo: any Repository
     let auth: AuthService
     let subscriptionService: SubscriptionService
     let syncService: SyncService
     @ObservationIgnored private let connectivity = Connectivity()
 
+    /// Signed-in user's view of the data. When signed out this is an empty placeholder.
     var state: AppState {
         didSet { scheduleAppSave() }
     }
-    var inspections: [Inspection]
+    /// Only the signed-in user's inspections are ever loaded.
+    var inspections: [Inspection] = []
     var path: [Route] = []
+    private(set) var currentUser: UserAccount?
+    private(set) var companyID: UUID?
 
     var toastMessage: String?
     var toastID = UUID()
     var showSplash = false
+    var showVideoSplash = true
     var isOnline = true
     var syncing = false
 
     @ObservationIgnored private var inspectionSaveTasks: [UUID: Task<Void, Never>] = [:]
     @ObservationIgnored private var appSaveTask: Task<Void, Never>?
+    @ObservationIgnored private var loadingSession = false
 
-    init(config: ChecklistConfig, repo: FileRepository,
-         auth: AuthService = LocalAuthService(),
+    init(config: ChecklistConfig, repo: any Repository,
          subscriptionService: SubscriptionService = LocalSubscriptionService(),
          syncService: SyncService = LocalSyncService()) {
         self.config = config
         self.repo = repo
-        self.auth = auth
+        self.auth = LocalAuthService(repo: repo)
         self.subscriptionService = subscriptionService
         self.syncService = syncService
+        self.state = DemoSeed.emptyState(config: config)
 
-        if let saved = repo.loadAppState() {
-            state = saved
-            inspections = repo.loadInspections()
-        } else {
-            // First launch: seed demo data equivalent to the prototype (see DemoSeed.swift).
-            let seeded = DemoSeed.make(config: config, repo: repo)
-            state = seeded.state
-            inspections = seeded.inspections
-            repo.saveAppState(seeded.state)
-            seeded.inspections.forEach { repo.saveInspection($0) }
-        }
-        sortInspections()
+        // First launch: migrate the old JSON files, or seed the demo account (see Store/Bootstrap.swift).
+        Bootstrap.run(repo: repo, config: config)
+        if let uid = repo.currentUserID, let u = repo.user(id: uid) { loadSession(u) } else { repo.currentUserID = nil }
+
         connectivity.onChange = { [weak self] online in self?.isOnline = online }
         connectivity.start()
     }
@@ -74,22 +72,40 @@ final class AppStore {
     var isAdmin: Bool { state.session?.isAdmin ?? false }
     var pendingSyncCount: Int { inspections.filter(\.needsSync).count }
 
+    /// Per-owner file folders (Documents/vims/…).
+    var userFolder: String { "users/\(currentUser?.id.uuidString ?? "anonymous")" }
+    var companyFolder: String { "companies/\(companyID?.uuidString ?? "none")" }
+    var files: FileStore { repo.files }
+
     // MARK: Persistence
 
     private func scheduleAppSave() {
+        guard !loadingSession, currentUser != nil else { return }
         appSaveTask?.cancel()
-        let snapshot = state
-        appSaveTask = Task { [repo] in
+        appSaveTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: 300_000_000)
             if Task.isCancelled { return }
-            repo.saveAppState(snapshot)
+            self?.saveAppStateNow()
         }
     }
 
+    private func saveAppStateNow() {
+        guard let user = currentUser, let cid = companyID else { return }
+        repo.saveCompany(CompanyState(id: cid, profile: state.company, subscription: state.subscription, overrides: state.overrides))
+        var u = repo.user(id: user.id) ?? user
+        u.settings = state.settings
+        if let s = state.session { u.name = s.name }
+        repo.updateUser(u)
+        currentUser = u
+    }
+
     func flushNow() {
-        repo.saveAppState(state)
-        inspections.forEach { repo.saveInspection($0) }
-        repo.flush()
+        guard let user = currentUser, let cid = companyID else { return }
+        appSaveTask?.cancel()
+        saveAppStateNow()
+        for t in inspectionSaveTasks.values { t.cancel() }
+        inspectionSaveTasks = [:]
+        inspections.forEach { repo.saveInspection($0, userID: user.id, companyID: cid) }
     }
 
     private func sortInspections() {
@@ -127,50 +143,71 @@ final class AppStore {
         if let i = path.lastIndex(of: route) { path = Array(path.prefix(through: i)) } else { path.append(route) }
     }
 
-    // MARK: Session
+    // MARK: Session (per-user isolation)
+
+    /// Loads ONLY this user's inspections and their company's shared data.
+    func loadSession(_ u: UserAccount) {
+        guard let c = repo.company(id: u.companyID) else { return }
+        loadingSession = true
+        defer { loadingSession = false }
+        currentUser = u
+        companyID = c.id
+        let me = c.profile.inspectors.first { $0.id == u.id || $0.email.caseInsensitiveCompare(u.email) == .orderedSame }
+        let blank = DemoSeed.emptyState(config: config)
+        state = AppState(session: Session(name: u.name, email: u.email, inspectorID: me?.id ?? u.id, isAdmin: me?.isAdmin ?? false),
+                         company: c.profile, subscription: c.subscription, overrides: c.overrides,
+                         settings: u.settings ?? blank.settings, seededAt: nil)
+        inspections = repo.inspections(userID: u.id)
+        sortInspections()
+        repo.currentUserID = u.id
+        path = []
+    }
 
     func signIn(email: String, password: String) async throws {
-        let s = try await auth.signIn(email: email, password: password, company: state.company)
-        state.session = s
-        path = []
+        let u = try await auth.signIn(email: email, password: password)
+        loadSession(u)
         presentSplashIfNeeded()
     }
 
+    /// Create account = a new user + a new company (the user is its owner/admin). Starts empty.
     func createAccount(name: String, company: String, email: String, password: String) async throws {
-        let s = try await auth.createAccount(name: name, company: company, email: email, password: password)
-        // A new account starts its own company on a fresh free look.
-        let c = company.trimmingCharacters(in: .whitespaces)
-        if !c.isEmpty { state.company.name = c }
-        var owner = Inspector(name: s.name, email: s.email, owner: true, admin: true)
-        if let i = state.company.inspectors.firstIndex(where: { $0.owner }) {
-            owner.id = state.company.inspectors[i].id
-            state.company.inspectors[i] = owner
-        } else {
-            state.company.inspectors.insert(owner, at: 0)
-        }
-        state.company.inspectorName = s.name
-        state.subscription.trialStart = Date()
-        state.subscription.active = false
-        state.session = Session(name: s.name, email: s.email, inspectorID: owner.id, isAdmin: true)
-        path = []
+        let cid = UUID()
+        let u = try await auth.register(name: name, email: email, password: password, companyID: cid)
+        repo.saveCompany(Bootstrap.newCompany(name: company, owner: u, config: config, repo: repo))
+        loadSession(u)
         presentSplashIfNeeded()
     }
 
-    func joinCompany(code: String, name: String, email: String) async throws {
-        var s = try await auth.joinCompany(code: code, name: name, email: email, company: state.company)
-        let ins = Inspector(name: name, email: email)
-        if !state.company.inspectors.contains(where: { $0.email.caseInsensitiveCompare(email) == .orderedSame && !email.isEmpty }) {
-            state.company.inspectors.append(ins)
+    /// Join with code = attach the user (new, or an existing account after its password checks out) to that company.
+    func joinCompany(code: String, name: String, email: String, password: String) async throws {
+        guard var c = repo.company(joinCode: code) else { throw ServiceError.invalid("No company uses that code. Check it with your company admin.") }
+        var u: UserAccount
+        if let existing = repo.user(email: email) {
+            u = try await auth.signIn(email: email, password: password)
+            if existing.companyID != c.id { u.companyID = c.id; repo.updateUser(u) }
+        } else {
+            u = try await auth.register(name: name, email: email, password: password, companyID: c.id)
         }
-        s.inspectorID = ins.id
-        state.session = s
-        toast("Linked to \(state.company.name)")
-        path = []
+        if let i = c.profile.inspectors.firstIndex(where: { $0.email.caseInsensitiveCompare(u.email) == .orderedSame }) {
+            c.profile.inspectors[i].id = u.id            // an invited inspector signing up
+        } else if !c.profile.inspectors.contains(where: { $0.id == u.id }) {
+            c.profile.inspectors.append(Inspector(id: u.id, name: u.name, email: u.email))
+        }
+        repo.saveCompany(c)
+        loadSession(u)
+        toast("Linked to \(c.profile.name)")
     }
 
+    /// Clears everything in memory; the next user starts from a clean slate.
     func signOut() {
         flushNow()
-        state.session = nil
+        repo.currentUserID = nil
+        loadingSession = true
+        currentUser = nil
+        companyID = nil
+        inspections = []
+        state = DemoSeed.emptyState(config: config)
+        loadingSession = false
         path = []
         showSplash = false
     }
@@ -199,8 +236,8 @@ final class AppStore {
         inspectionSaveTasks[id] = Task { [weak self] in
             try? await Task.sleep(nanoseconds: 400_000_000)
             if Task.isCancelled { return }
-            guard let self, let insp = self.inspection(id) else { return }
-            self.repo.saveInspection(insp)
+            guard let self, let insp = self.inspection(id), let uid = self.currentUser?.id, let cid = self.companyID else { return }
+            self.repo.saveInspection(insp, userID: uid, companyID: cid)
         }
     }
 
@@ -242,13 +279,13 @@ final class AppStore {
             inspections.append(insp)
         }
         sortInspections()
-        repo.saveInspection(insp)
+        if let uid = currentUser?.id, let cid = companyID { repo.saveInspection(insp, userID: uid, companyID: cid) }
         return insp.id
     }
 
     func deleteInspection(_ id: UUID) {
         inspections.removeAll { $0.id == id }
-        repo.deleteInspection(id: id)
+        if let uid = currentUser?.id { repo.deleteInspection(id: id, userID: uid) }
     }
 
     /// Default answers: forms have no Overall condition row, so no preselected overall.
@@ -309,7 +346,7 @@ final class AppStore {
     func addPhoto(_ id: UUID, section: String, category: String, image: UIImage) -> PhotoRef? {
         guard let data = ImageTools.jpegData(image) else { return nil }
         let pid = UUID()
-        guard let path = repo.saveImage(data, folder: "photos/\(id.uuidString)", name: "\(pid.uuidString).jpg") else { return nil }
+        guard let path = files.saveImage(data, folder: "\(userFolder)/photos/\(id.uuidString)", name: "\(pid.uuidString).jpg") else { return nil }
         let ref = PhotoRef(id: pid, file: path)
         update(id) { insp in
             insp.photos[section, default: [:]][category, default: []].append(ref)
@@ -324,8 +361,8 @@ final class AppStore {
             insp.photos[section]?[category]?.removeAll { $0.id == photoID }
             for i in insp.findings.indices where insp.findings[i].photoID == photoID { insp.findings[i].photoID = nil }
         }
-        repo.deleteFile(ref.file)
-        if let o = ref.originalFile { repo.deleteFile(o) }
+        files.deleteFile(ref.file)
+        if let o = ref.originalFile { files.deleteFile(o) }
     }
 
     func photo(_ id: UUID, section: String, category: String, photoID: UUID) -> PhotoRef? {
@@ -339,10 +376,10 @@ final class AppStore {
             if ref.originalFile == nil {
                 let origName = "\(photoID.uuidString)-orig.jpg"
                 if let d = try? Data(contentsOf: repo.url(for: ref.file)) {
-                    ref.originalFile = repo.saveImage(d, folder: "photos/\(id.uuidString)", name: origName)
+                    ref.originalFile = files.saveImage(d, folder: "\(userFolder)/photos/\(id.uuidString)", name: origName)
                 }
             }
-            _ = repo.saveImage(data, folder: "photos/\(id.uuidString)", name: "\(photoID.uuidString).jpg")
+            _ = files.saveImage(data, folder: "\(userFolder)/photos/\(id.uuidString)", name: "\(photoID.uuidString).jpg")
         }
         let trimmed = comment?.trimmingCharacters(in: .whitespacesAndNewlines)
         ref.comment = (trimmed?.isEmpty ?? true) ? nil : trimmed
@@ -389,14 +426,14 @@ final class AppStore {
 
     func reportData(_ id: UUID) -> ReportData? {
         guard let insp = inspection(id) else { return nil }
-        return ReportData.make(insp, config: config, overrides: state.overrides, company: state.company, repo: repo, logo: companyLogo())
+        return ReportData.make(insp, config: config, overrides: state.overrides, company: state.company, repo: files, logo: companyLogoImage())
     }
 
     /// Renders the PDF on-device and saves it under reports/.
     func generateReport(_ id: UUID) async -> ReportInfo? {
         guard let data = reportData(id) else { return nil }
         let result = await Task.detached(priority: .userInitiated) { ReportRenderer.render(data) }.value
-        guard let path = repo.saveFile(result.pdf, folder: "reports", name: "\(id.uuidString).pdf") else { return nil }
+        guard let path = files.saveFile(result.pdf, folder: "\(userFolder)/reports", name: "\(id.uuidString).pdf") else { return nil }
         let info = ReportInfo(generatedAt: Date(), pageCount: result.pageCount, file: path)
         update(id) { $0.report = info }
         state.settings.defaultCover = inspection(id)?.cover ?? state.settings.defaultCover
@@ -483,27 +520,35 @@ final class AppStore {
         state.subscription.startedAt = Date()
     }
 
-    // MARK: Company files
+    // MARK: Company files (per company)
 
     func saveLogo(_ image: UIImage) {
-        guard let data = image.pngData() ?? ImageTools.jpegData(image, maxEdge: 1024) else { return }
+        // Normalize (orientation, max 1024 px) and keep transparency.
+        let side = min(1024, max(image.size.width, image.size.height))
+        let scale = side / max(image.size.width, image.size.height)
+        let size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+        let fmt = UIGraphicsImageRendererFormat(); fmt.scale = 1
+        let normalized = UIGraphicsImageRenderer(size: size, format: fmt).image { _ in image.draw(in: CGRect(origin: .zero, size: size)) }
+        guard let data = normalized.pngData() else { return }
         let name = "logo-\(UUID().uuidString.prefix(8)).png"
-        if let old = state.company.logoFile { repo.deleteFile(old) }
-        state.company.logoFile = repo.saveImage(data, folder: "company", name: name)
+        if let old = state.company.logoFile { files.deleteFile(old) }
+        state.company.logoFile = files.saveImage(data, folder: companyFolder, name: name)
+        saveAppStateNow()
         toast("Logo updated")
     }
 
-    func companyLogo() -> UIImage {
-        if let f = state.company.logoFile, let img = UIImage(contentsOfFile: repo.url(for: f).path) { return img }
-        return UIImage(named: "VimsLogo") ?? UIImage()
+    /// The company's uploaded logo, or nil (UI shows the initials badge).
+    func companyLogoImage() -> UIImage? {
+        guard let f = state.company.logoFile else { return nil }
+        return UIImage(contentsOfFile: files.url(for: f).path)
     }
 
     func saveAgreement(from url: URL) {
         let access = url.startAccessingSecurityScopedResource()
         defer { if access { url.stopAccessingSecurityScopedResource() } }
         guard let data = try? Data(contentsOf: url) else { toast("Couldn't read that file"); return }
-        if let old = state.company.agreementFile { repo.deleteFile(old) }
-        state.company.agreementFile = repo.saveFile(data, folder: "company", name: url.lastPathComponent)
+        if let old = state.company.agreementFile { files.deleteFile(old) }
+        state.company.agreementFile = files.saveFile(data, folder: companyFolder, name: url.lastPathComponent)
         state.company.agreementName = url.lastPathComponent
         toast("Agreement uploaded")
     }
