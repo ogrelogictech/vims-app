@@ -1,7 +1,7 @@
 {
  "_about": "VIMS shared checklist + configuration data. Single source of truth for the native iOS (SwiftUI) and Android (Kotlin/Compose) apps. Extracted from the client-approved prototype (index.html, approved Sep 15, 2026). Edit here, not in app code.",
- "version": "1.0.0",
- "generated": "2026-09-28",
+ "version": "1.1.0",
+ "generated": "2026-09-29",
  "depths": [
   {
    "id": "high",
@@ -105,6 +105,23 @@
     "Sewer Scope",
     "Asbestos",
     "Wind Mitigation"
+   ]
+  },
+  {
+   "group": "State & Insurance Forms",
+   "sections": [
+    "Texas — I. Structural Systems",
+    "Texas — II. Electrical Systems",
+    "Texas — III. Heating, Ventilation and Air Conditioning Systems",
+    "Texas — IV. Plumbing Systems",
+    "Texas — V. Appliances",
+    "Texas — VI. Optional Systems",
+    "Texas — Pictures",
+    "4-Point — Electrical System",
+    "4-Point — HVAC System",
+    "4-Point — Plumbing System",
+    "4-Point — Roof",
+    "4-Point — Pictures"
    ]
   },
   {
@@ -27858,6 +27875,1534 @@
    ]
   },
   {
+   "name": "Texas — I. Structural Systems",
+   "number": 1,
+   "icon": "file",
+   "photoCategories": [
+    "Overview",
+    "Deficiencies"
+   ],
+   "items": [
+    {
+     "header": "A. Foundations"
+    },
+    {
+     "q": "Status",
+     "type": "multi",
+     "options": [
+      "I · Inspected",
+      "NI · Not Inspected",
+      "NP · Not Present",
+      "D · Deficient"
+     ]
+    },
+    {
+     "q": "Type of Foundation(s)",
+     "type": "text"
+    },
+    {
+     "q": "Comments",
+     "type": "text",
+     "placeholder": "Comments for this item…"
+    },
+    {
+     "header": "B. Grading and Drainage"
+    },
+    {
+     "q": "Status",
+     "type": "multi",
+     "options": [
+      "I · Inspected",
+      "NI · Not Inspected",
+      "NP · Not Present",
+      "D · Deficient"
+     ]
+    },
+    {
+     "q": "Comments",
+     "type": "text",
+     "placeholder": "Comments for this item…"
+    },
+    {
+     "header": "C. Roof Covering Materials"
+    },
+    {
+     "q": "Status",
+     "type": "multi",
+     "options": [
+      "I · Inspected",
+      "NI · Not Inspected",
+      "NP · Not Present",
+      "D · Deficient"
+     ]
+    },
+    {
+     "q": "Types of Roof Covering",
+     "type": "text"
+    },
+    {
+     "q": "Viewed From",
+     "type": "text"
+    },
+    {
+     "q": "Comments",
+     "type": "text",
+     "placeholder": "Comments for this item…"
+    },
+    {
+     "header": "D. Roof Structures and Attics"
+    },
+    {
+     "q": "Status",
+     "type": "multi",
+     "options": [
+      "I · Inspected",
+      "NI · Not Inspected",
+      "NP · Not Present",
+      "D · Deficient"
+     ]
+    },
+    {
+     "q": "Viewed From",
+     "type": "text"
+    },
+    {
+     "q": "Approximate Average Depth of Insulation",
+     "type": "text"
+    },
+    {
+     "q": "Comments",
+     "type": "text",
+     "placeholder": "Comments for this item…"
+    },
+    {
+     "header": "E. Walls (Interior and Exterior)"
+    },
+    {
+     "q": "Status",
+     "type": "multi",
+     "options": [
+      "I · Inspected",
+      "NI · Not Inspected",
+      "NP · Not Present",
+      "D · Deficient"
+     ]
+    },
+    {
+     "q": "Comments",
+     "type": "text",
+     "placeholder": "Comments for this item…"
+    },
+    {
+     "header": "F. Ceilings and Floors"
+    },
+    {
+     "q": "Status",
+     "type": "multi",
+     "options": [
+      "I · Inspected",
+      "NI · Not Inspected",
+      "NP · Not Present",
+      "D · Deficient"
+     ]
+    },
+    {
+     "q": "Comments",
+     "type": "text",
+     "placeholder": "Comments for this item…"
+    },
+    {
+     "header": "G. Doors (Interior and Exterior)"
+    },
+    {
+     "q": "Status",
+     "type": "multi",
+     "options": [
+      "I · Inspected",
+      "NI · Not Inspected",
+      "NP · Not Present",
+      "D · Deficient"
+     ]
+    },
+    {
+     "q": "Comments",
+     "type": "text",
+     "placeholder": "Comments for this item…"
+    },
+    {
+     "header": "H. Windows"
+    },
+    {
+     "q": "Status",
+     "type": "multi",
+     "options": [
+      "I · Inspected",
+      "NI · Not Inspected",
+      "NP · Not Present",
+      "D · Deficient"
+     ]
+    },
+    {
+     "q": "Comments",
+     "type": "text",
+     "placeholder": "Comments for this item…"
+    },
+    {
+     "header": "I. Stairways (Interior and Exterior)"
+    },
+    {
+     "q": "Status",
+     "type": "multi",
+     "options": [
+      "I · Inspected",
+      "NI · Not Inspected",
+      "NP · Not Present",
+      "D · Deficient"
+     ]
+    },
+    {
+     "q": "Comments",
+     "type": "text",
+     "placeholder": "Comments for this item…"
+    },
+    {
+     "header": "J. Fireplaces and Chimneys"
+    },
+    {
+     "q": "Status",
+     "type": "multi",
+     "options": [
+      "I · Inspected",
+      "NI · Not Inspected",
+      "NP · Not Present",
+      "D · Deficient"
+     ]
+    },
+    {
+     "q": "Comments",
+     "type": "text",
+     "placeholder": "Comments for this item…"
+    },
+    {
+     "header": "K. Porches, Balconies, Decks, and Carports"
+    },
+    {
+     "q": "Status",
+     "type": "multi",
+     "options": [
+      "I · Inspected",
+      "NI · Not Inspected",
+      "NP · Not Present",
+      "D · Deficient"
+     ]
+    },
+    {
+     "q": "Comments",
+     "type": "text",
+     "placeholder": "Comments for this item…"
+    },
+    {
+     "header": "L. Other"
+    },
+    {
+     "q": "Status",
+     "type": "multi",
+     "options": [
+      "I · Inspected",
+      "NI · Not Inspected",
+      "NP · Not Present",
+      "D · Deficient"
+     ]
+    },
+    {
+     "q": "Comments",
+     "type": "text",
+     "placeholder": "Comments for this item…"
+    }
+   ],
+   "form": "texas"
+  },
+  {
+   "name": "Texas — II. Electrical Systems",
+   "number": 2,
+   "icon": "file",
+   "photoCategories": [
+    "Overview",
+    "Deficiencies"
+   ],
+   "items": [
+    {
+     "header": "A. Service Entrance and Panels"
+    },
+    {
+     "q": "Status",
+     "type": "multi",
+     "options": [
+      "I · Inspected",
+      "NI · Not Inspected",
+      "NP · Not Present",
+      "D · Deficient"
+     ]
+    },
+    {
+     "q": "Comments",
+     "type": "text",
+     "placeholder": "Comments for this item…"
+    },
+    {
+     "header": "B. Branch Circuits, Connected Devices, and Fixtures"
+    },
+    {
+     "q": "Status",
+     "type": "multi",
+     "options": [
+      "I · Inspected",
+      "NI · Not Inspected",
+      "NP · Not Present",
+      "D · Deficient"
+     ]
+    },
+    {
+     "q": "Type of Wiring",
+     "type": "text"
+    },
+    {
+     "q": "Comments",
+     "type": "text",
+     "placeholder": "Comments for this item…"
+    },
+    {
+     "header": "C. Other"
+    },
+    {
+     "q": "Status",
+     "type": "multi",
+     "options": [
+      "I · Inspected",
+      "NI · Not Inspected",
+      "NP · Not Present",
+      "D · Deficient"
+     ]
+    },
+    {
+     "q": "Comments",
+     "type": "text",
+     "placeholder": "Comments for this item…"
+    }
+   ],
+   "form": "texas"
+  },
+  {
+   "name": "Texas — III. Heating, Ventilation and Air Conditioning Systems",
+   "number": 3,
+   "icon": "file",
+   "photoCategories": [
+    "Overview",
+    "Deficiencies"
+   ],
+   "items": [
+    {
+     "header": "A. Heating Equipment"
+    },
+    {
+     "q": "Status",
+     "type": "multi",
+     "options": [
+      "I · Inspected",
+      "NI · Not Inspected",
+      "NP · Not Present",
+      "D · Deficient"
+     ]
+    },
+    {
+     "q": "Type of Systems",
+     "type": "text"
+    },
+    {
+     "q": "Energy Sources",
+     "type": "text"
+    },
+    {
+     "q": "Comments",
+     "type": "text",
+     "placeholder": "Comments for this item…"
+    },
+    {
+     "header": "B. Cooling Equipment"
+    },
+    {
+     "q": "Status",
+     "type": "multi",
+     "options": [
+      "I · Inspected",
+      "NI · Not Inspected",
+      "NP · Not Present",
+      "D · Deficient"
+     ]
+    },
+    {
+     "q": "Type of Systems",
+     "type": "text"
+    },
+    {
+     "q": "Comments",
+     "type": "text",
+     "placeholder": "Comments for this item…"
+    },
+    {
+     "header": "C. Duct Systems, Chases, and Vents"
+    },
+    {
+     "q": "Status",
+     "type": "multi",
+     "options": [
+      "I · Inspected",
+      "NI · Not Inspected",
+      "NP · Not Present",
+      "D · Deficient"
+     ]
+    },
+    {
+     "q": "Comments",
+     "type": "text",
+     "placeholder": "Comments for this item…"
+    },
+    {
+     "header": "D. Other"
+    },
+    {
+     "q": "Status",
+     "type": "multi",
+     "options": [
+      "I · Inspected",
+      "NI · Not Inspected",
+      "NP · Not Present",
+      "D · Deficient"
+     ]
+    },
+    {
+     "q": "Comments",
+     "type": "text",
+     "placeholder": "Comments for this item…"
+    }
+   ],
+   "form": "texas"
+  },
+  {
+   "name": "Texas — IV. Plumbing Systems",
+   "number": 4,
+   "icon": "file",
+   "photoCategories": [
+    "Overview",
+    "Deficiencies"
+   ],
+   "items": [
+    {
+     "header": "A. Plumbing Supply, Distribution Systems and Fixtures"
+    },
+    {
+     "q": "Status",
+     "type": "multi",
+     "options": [
+      "I · Inspected",
+      "NI · Not Inspected",
+      "NP · Not Present",
+      "D · Deficient"
+     ]
+    },
+    {
+     "q": "Location of water meter",
+     "type": "text"
+    },
+    {
+     "q": "Location of main water supply valve",
+     "type": "text"
+    },
+    {
+     "q": "Static water pressure reading",
+     "type": "text"
+    },
+    {
+     "q": "Type of supply piping material",
+     "type": "text"
+    },
+    {
+     "q": "Comments",
+     "type": "text",
+     "placeholder": "Comments for this item…"
+    },
+    {
+     "header": "B. Drains, Wastes, and Vents"
+    },
+    {
+     "q": "Status",
+     "type": "multi",
+     "options": [
+      "I · Inspected",
+      "NI · Not Inspected",
+      "NP · Not Present",
+      "D · Deficient"
+     ]
+    },
+    {
+     "q": "Type of drain piping material",
+     "type": "text"
+    },
+    {
+     "q": "Comments",
+     "type": "text",
+     "placeholder": "Comments for this item…"
+    },
+    {
+     "header": "C. Water Heating Equipment"
+    },
+    {
+     "q": "Status",
+     "type": "multi",
+     "options": [
+      "I · Inspected",
+      "NI · Not Inspected",
+      "NP · Not Present",
+      "D · Deficient"
+     ]
+    },
+    {
+     "q": "Energy Sources",
+     "type": "text"
+    },
+    {
+     "q": "Capacity",
+     "type": "text"
+    },
+    {
+     "q": "Comments",
+     "type": "text",
+     "placeholder": "Comments for this item…"
+    },
+    {
+     "header": "D. Hydro-Massage Therapy Equipment"
+    },
+    {
+     "q": "Status",
+     "type": "multi",
+     "options": [
+      "I · Inspected",
+      "NI · Not Inspected",
+      "NP · Not Present",
+      "D · Deficient"
+     ]
+    },
+    {
+     "q": "Comments",
+     "type": "text",
+     "placeholder": "Comments for this item…"
+    },
+    {
+     "header": "E. Gas Distribution Systems and Gas Appliances"
+    },
+    {
+     "q": "Status",
+     "type": "multi",
+     "options": [
+      "I · Inspected",
+      "NI · Not Inspected",
+      "NP · Not Present",
+      "D · Deficient"
+     ]
+    },
+    {
+     "q": "Location of gas meter",
+     "type": "text"
+    },
+    {
+     "q": "Type of gas distribution piping material",
+     "type": "text"
+    },
+    {
+     "q": "Comments",
+     "type": "text",
+     "placeholder": "Comments for this item…"
+    },
+    {
+     "header": "F. Other"
+    },
+    {
+     "q": "Status",
+     "type": "multi",
+     "options": [
+      "I · Inspected",
+      "NI · Not Inspected",
+      "NP · Not Present",
+      "D · Deficient"
+     ]
+    },
+    {
+     "q": "Comments",
+     "type": "text",
+     "placeholder": "Comments for this item…"
+    }
+   ],
+   "form": "texas"
+  },
+  {
+   "name": "Texas — V. Appliances",
+   "number": 5,
+   "icon": "file",
+   "photoCategories": [
+    "Overview",
+    "Deficiencies"
+   ],
+   "items": [
+    {
+     "header": "A. Dishwashers"
+    },
+    {
+     "q": "Status",
+     "type": "multi",
+     "options": [
+      "I · Inspected",
+      "NI · Not Inspected",
+      "NP · Not Present",
+      "D · Deficient"
+     ]
+    },
+    {
+     "q": "Comments",
+     "type": "text",
+     "placeholder": "Comments for this item…"
+    },
+    {
+     "header": "B. Food Waste Disposers"
+    },
+    {
+     "q": "Status",
+     "type": "multi",
+     "options": [
+      "I · Inspected",
+      "NI · Not Inspected",
+      "NP · Not Present",
+      "D · Deficient"
+     ]
+    },
+    {
+     "q": "Comments",
+     "type": "text",
+     "placeholder": "Comments for this item…"
+    },
+    {
+     "header": "C. Range Hood and Exhaust Systems"
+    },
+    {
+     "q": "Status",
+     "type": "multi",
+     "options": [
+      "I · Inspected",
+      "NI · Not Inspected",
+      "NP · Not Present",
+      "D · Deficient"
+     ]
+    },
+    {
+     "q": "Comments",
+     "type": "text",
+     "placeholder": "Comments for this item…"
+    },
+    {
+     "header": "D. Ranges, Cooktops, and Ovens"
+    },
+    {
+     "q": "Status",
+     "type": "multi",
+     "options": [
+      "I · Inspected",
+      "NI · Not Inspected",
+      "NP · Not Present",
+      "D · Deficient"
+     ]
+    },
+    {
+     "q": "Comments",
+     "type": "text",
+     "placeholder": "Comments for this item…"
+    },
+    {
+     "header": "E. Microwave Ovens"
+    },
+    {
+     "q": "Status",
+     "type": "multi",
+     "options": [
+      "I · Inspected",
+      "NI · Not Inspected",
+      "NP · Not Present",
+      "D · Deficient"
+     ]
+    },
+    {
+     "q": "Comments",
+     "type": "text",
+     "placeholder": "Comments for this item…"
+    },
+    {
+     "header": "F. Mechanical Exhaust Vents and Bathroom Heaters"
+    },
+    {
+     "q": "Status",
+     "type": "multi",
+     "options": [
+      "I · Inspected",
+      "NI · Not Inspected",
+      "NP · Not Present",
+      "D · Deficient"
+     ]
+    },
+    {
+     "q": "Comments",
+     "type": "text",
+     "placeholder": "Comments for this item…"
+    },
+    {
+     "header": "G. Garage Door Operators"
+    },
+    {
+     "q": "Status",
+     "type": "multi",
+     "options": [
+      "I · Inspected",
+      "NI · Not Inspected",
+      "NP · Not Present",
+      "D · Deficient"
+     ]
+    },
+    {
+     "q": "Comments",
+     "type": "text",
+     "placeholder": "Comments for this item…"
+    },
+    {
+     "header": "H. Dryer Exhaust Systems"
+    },
+    {
+     "q": "Status",
+     "type": "multi",
+     "options": [
+      "I · Inspected",
+      "NI · Not Inspected",
+      "NP · Not Present",
+      "D · Deficient"
+     ]
+    },
+    {
+     "q": "Comments",
+     "type": "text",
+     "placeholder": "Comments for this item…"
+    },
+    {
+     "header": "I. Other"
+    },
+    {
+     "q": "Status",
+     "type": "multi",
+     "options": [
+      "I · Inspected",
+      "NI · Not Inspected",
+      "NP · Not Present",
+      "D · Deficient"
+     ]
+    },
+    {
+     "q": "Comments",
+     "type": "text",
+     "placeholder": "Comments for this item…"
+    }
+   ],
+   "form": "texas"
+  },
+  {
+   "name": "Texas — VI. Optional Systems",
+   "number": 6,
+   "icon": "file",
+   "photoCategories": [
+    "Overview",
+    "Deficiencies"
+   ],
+   "items": [
+    {
+     "header": "A. Landscape Irrigation (Sprinkler) Systems"
+    },
+    {
+     "q": "Status",
+     "type": "multi",
+     "options": [
+      "I · Inspected",
+      "NI · Not Inspected",
+      "NP · Not Present",
+      "D · Deficient"
+     ]
+    },
+    {
+     "q": "Comments",
+     "type": "text",
+     "placeholder": "Comments for this item…"
+    },
+    {
+     "header": "B. Swimming Pools, Spas, Hot Tubs, and Equipment"
+    },
+    {
+     "q": "Status",
+     "type": "multi",
+     "options": [
+      "I · Inspected",
+      "NI · Not Inspected",
+      "NP · Not Present",
+      "D · Deficient"
+     ]
+    },
+    {
+     "q": "Type of Construction",
+     "type": "text"
+    },
+    {
+     "q": "Comments",
+     "type": "text",
+     "placeholder": "Comments for this item…"
+    },
+    {
+     "header": "C. Outbuildings"
+    },
+    {
+     "q": "Status",
+     "type": "multi",
+     "options": [
+      "I · Inspected",
+      "NI · Not Inspected",
+      "NP · Not Present",
+      "D · Deficient"
+     ]
+    },
+    {
+     "q": "Comments",
+     "type": "text",
+     "placeholder": "Comments for this item…"
+    },
+    {
+     "header": "D. Private Water Wells (A coliform analysis is recommended.)"
+    },
+    {
+     "q": "Status",
+     "type": "multi",
+     "options": [
+      "I · Inspected",
+      "NI · Not Inspected",
+      "NP · Not Present",
+      "D · Deficient"
+     ]
+    },
+    {
+     "q": "Type of Pump",
+     "type": "text"
+    },
+    {
+     "q": "Type of Storage Equipment",
+     "type": "text"
+    },
+    {
+     "q": "Comments",
+     "type": "text",
+     "placeholder": "Comments for this item…"
+    },
+    {
+     "header": "E. Private Sewage Disposal Systems"
+    },
+    {
+     "q": "Status",
+     "type": "multi",
+     "options": [
+      "I · Inspected",
+      "NI · Not Inspected",
+      "NP · Not Present",
+      "D · Deficient"
+     ]
+    },
+    {
+     "q": "Type of System",
+     "type": "text"
+    },
+    {
+     "q": "Location of Drain Field",
+     "type": "text"
+    },
+    {
+     "q": "Comments",
+     "type": "text",
+     "placeholder": "Comments for this item…"
+    },
+    {
+     "header": "F. Other Built-in Appliances"
+    },
+    {
+     "q": "Status",
+     "type": "multi",
+     "options": [
+      "I · Inspected",
+      "NI · Not Inspected",
+      "NP · Not Present",
+      "D · Deficient"
+     ]
+    },
+    {
+     "q": "Comments",
+     "type": "text",
+     "placeholder": "Comments for this item…"
+    },
+    {
+     "header": "G. Other"
+    },
+    {
+     "q": "Status",
+     "type": "multi",
+     "options": [
+      "I · Inspected",
+      "NI · Not Inspected",
+      "NP · Not Present",
+      "D · Deficient"
+     ]
+    },
+    {
+     "q": "Comments",
+     "type": "text",
+     "placeholder": "Comments for this item…"
+    }
+   ],
+   "form": "texas"
+  },
+  {
+   "name": "Texas — Pictures",
+   "number": 7,
+   "icon": "camera",
+   "photoCategories": [
+    "Front of home",
+    "Left side",
+    "Right side",
+    "Back of home",
+    "Roof",
+    "Deficiencies",
+    "Other"
+   ],
+   "items": [],
+   "form": "texas",
+   "photosOnly": true
+  },
+  {
+   "name": "4-Point — Electrical System",
+   "number": 1,
+   "icon": "box",
+   "photoCategories": [
+    "Main panel with interior door label",
+    "Electrical box with panel off",
+    "Hazards / deficiencies"
+   ],
+   "items": [
+    {
+     "header": "Main Panel"
+    },
+    {
+     "q": "Type",
+     "type": "single",
+     "options": [
+      "Circuit breaker",
+      "Fuse"
+     ]
+    },
+    {
+     "q": "Total amps",
+     "type": "num"
+    },
+    {
+     "q": "Is amperage sufficient for current usage?",
+     "type": "single",
+     "options": [
+      "Yes",
+      "No (explain)"
+     ]
+    },
+    {
+     "header": "Second Panel"
+    },
+    {
+     "q": "Type",
+     "type": "single",
+     "options": [
+      "Circuit breaker",
+      "Fuse"
+     ]
+    },
+    {
+     "q": "Total amps",
+     "type": "num"
+    },
+    {
+     "q": "Is amperage sufficient for current usage?",
+     "type": "single",
+     "options": [
+      "Yes",
+      "No (explain)"
+     ]
+    },
+    {
+     "header": "Indicate presence of any of the following"
+    },
+    {
+     "q": "Present",
+     "type": "multi",
+     "options": [
+      "Cloth wiring",
+      "Active knob and tube",
+      "Branch circuit aluminum wiring"
+     ]
+    },
+    {
+     "q": "If aluminum wiring is present, describe the usage of all aluminum wiring",
+     "type": "text"
+    },
+    {
+     "q": "Single strand (aluminum branch) wiring remediation",
+     "type": "multi",
+     "options": [
+      "Connections repaired via COPALUM crimp",
+      "Connections repaired via AlumiConn"
+     ]
+    },
+    {
+     "header": "Hazards Present"
+    },
+    {
+     "q": "Hazards",
+     "type": "multi",
+     "options": [
+      "Blowing fuses",
+      "Tripping breakers",
+      "Empty sockets",
+      "Loose wiring",
+      "Improper grounding",
+      "Corrosion",
+      "Over fusing",
+      "Double taps",
+      "Exposed wiring",
+      "Unsafe wiring",
+      "Improper breaker size",
+      "Scorching",
+      "Other (explain)"
+     ]
+    },
+    {
+     "q": "General condition of the electrical system",
+     "type": "single",
+     "options": [
+      "Satisfactory",
+      "Unsatisfactory (explain)"
+     ]
+    },
+    {
+     "header": "Supplemental Information"
+    },
+    {
+     "q": "Main panel — panel age",
+     "type": "text"
+    },
+    {
+     "q": "Main panel — year last updated",
+     "type": "text"
+    },
+    {
+     "q": "Main panel — brand / model",
+     "type": "text"
+    },
+    {
+     "q": "Second panel — panel age",
+     "type": "text"
+    },
+    {
+     "q": "Second panel — year last updated",
+     "type": "text"
+    },
+    {
+     "q": "Second panel — brand / model",
+     "type": "text"
+    },
+    {
+     "q": "Wiring type",
+     "type": "multi",
+     "options": [
+      "Copper",
+      "NM, BX or Conduit"
+     ]
+    }
+   ],
+   "form": "fourPoint"
+  },
+  {
+   "name": "4-Point — HVAC System",
+   "number": 2,
+   "icon": "box",
+   "photoCategories": [
+    "HVAC equipment & dated manufacturer’s plate",
+    "Hazards / deficiencies"
+   ],
+   "items": [
+    {
+     "q": "Central AC",
+     "type": "single",
+     "options": [
+      "Yes",
+      "No"
+     ]
+    },
+    {
+     "q": "Central heat",
+     "type": "single",
+     "options": [
+      "Yes",
+      "No"
+     ]
+    },
+    {
+     "q": "If not central heat, indicate primary heat source and fuel type",
+     "type": "text"
+    },
+    {
+     "q": "Are the heating, ventilation and air conditioning systems in good working order?",
+     "type": "single",
+     "options": [
+      "Yes",
+      "No (explain)"
+     ]
+    },
+    {
+     "q": "Date of last HVAC servicing / inspection",
+     "type": "date"
+    },
+    {
+     "header": "Hazards Present"
+    },
+    {
+     "q": "Wood-burning stove or central gas fireplace not professionally installed?",
+     "type": "single",
+     "options": [
+      "Yes",
+      "No"
+     ]
+    },
+    {
+     "q": "Space heater used as primary heat source?",
+     "type": "single",
+     "options": [
+      "Yes",
+      "No"
+     ]
+    },
+    {
+     "q": "Is the source portable?",
+     "type": "single",
+     "options": [
+      "Yes",
+      "No"
+     ]
+    },
+    {
+     "q": "Does the air handler / condensate line or drain pan show any signs of blockage or leakage, including water damage to the surrounding area?",
+     "type": "single",
+     "options": [
+      "Yes",
+      "No"
+     ]
+    },
+    {
+     "header": "Supplemental Information"
+    },
+    {
+     "q": "Age of system",
+     "type": "text"
+    },
+    {
+     "q": "Year last updated",
+     "type": "text"
+    }
+   ],
+   "form": "fourPoint"
+  },
+  {
+   "name": "4-Point — Plumbing System",
+   "number": 3,
+   "icon": "box",
+   "photoCategories": [
+    "Water heater",
+    "Under-cabinet plumbing / drains",
+    "Exposed valves",
+    "Hazards / deficiencies"
+   ],
+   "items": [
+    {
+     "q": "Is there a temperature pressure relief valve on the water heater?",
+     "type": "single",
+     "options": [
+      "Yes",
+      "No"
+     ]
+    },
+    {
+     "q": "Is there any indication of an active leak?",
+     "type": "single",
+     "options": [
+      "Yes",
+      "No"
+     ]
+    },
+    {
+     "q": "Is there any indication of a prior leak?",
+     "type": "single",
+     "options": [
+      "Yes",
+      "No"
+     ]
+    },
+    {
+     "q": "Water heater location",
+     "type": "text"
+    },
+    {
+     "header": "General condition of plumbing fixtures and connections to appliances"
+    },
+    {
+     "q": "Dishwasher",
+     "type": "single",
+     "options": [
+      "Satisfactory",
+      "Unsatisfactory",
+      "N/A"
+     ]
+    },
+    {
+     "q": "Refrigerator",
+     "type": "single",
+     "options": [
+      "Satisfactory",
+      "Unsatisfactory",
+      "N/A"
+     ]
+    },
+    {
+     "q": "Washing machine",
+     "type": "single",
+     "options": [
+      "Satisfactory",
+      "Unsatisfactory",
+      "N/A"
+     ]
+    },
+    {
+     "q": "Water heater",
+     "type": "single",
+     "options": [
+      "Satisfactory",
+      "Unsatisfactory",
+      "N/A"
+     ]
+    },
+    {
+     "q": "Showers / Tubs",
+     "type": "single",
+     "options": [
+      "Satisfactory",
+      "Unsatisfactory",
+      "N/A"
+     ]
+    },
+    {
+     "q": "Toilets",
+     "type": "single",
+     "options": [
+      "Satisfactory",
+      "Unsatisfactory",
+      "N/A"
+     ]
+    },
+    {
+     "q": "Sinks",
+     "type": "single",
+     "options": [
+      "Satisfactory",
+      "Unsatisfactory",
+      "N/A"
+     ]
+    },
+    {
+     "q": "Sump pump",
+     "type": "single",
+     "options": [
+      "Satisfactory",
+      "Unsatisfactory",
+      "N/A"
+     ]
+    },
+    {
+     "q": "Main shut off valve",
+     "type": "single",
+     "options": [
+      "Satisfactory",
+      "Unsatisfactory",
+      "N/A"
+     ]
+    },
+    {
+     "q": "All other visible",
+     "type": "single",
+     "options": [
+      "Satisfactory",
+      "Unsatisfactory",
+      "N/A"
+     ]
+    },
+    {
+     "q": "If unsatisfactory, provide comments / details (leaks, wet/soft spots, mold, corrosion, grout/caulk, etc.)",
+     "type": "text"
+    },
+    {
+     "header": "Supplemental Information"
+    },
+    {
+     "q": "Age of piping system",
+     "type": "single",
+     "options": [
+      "Original to home",
+      "Completely re-piped",
+      "Partially re-piped"
+     ]
+    },
+    {
+     "q": "Year and extent of renovation",
+     "type": "text"
+    },
+    {
+     "q": "Type of pipes (check all that apply)",
+     "type": "multi",
+     "options": [
+      "Copper",
+      "PVC/CPVC",
+      "Galvanized",
+      "PEX",
+      "Polybutylene",
+      "Other (specify)"
+     ]
+    }
+   ],
+   "form": "fourPoint"
+  },
+  {
+   "name": "4-Point — Roof",
+   "number": 4,
+   "icon": "box",
+   "photoCategories": [
+    "Roof — each slope",
+    "Hazards / deficiencies"
+   ],
+   "items": [
+    {
+     "header": "Predominant Roof"
+    },
+    {
+     "q": "Covering material",
+     "type": "text"
+    },
+    {
+     "q": "Roof age (years)",
+     "type": "num"
+    },
+    {
+     "q": "Remaining useful life (years)",
+     "type": "num"
+    },
+    {
+     "q": "Date of last roofing permit",
+     "type": "text"
+    },
+    {
+     "q": "Date of last update",
+     "type": "text"
+    },
+    {
+     "q": "If updated",
+     "type": "single",
+     "options": [
+      "Full replacement",
+      "Partial replacement"
+     ]
+    },
+    {
+     "q": "% of replacement",
+     "type": "num"
+    },
+    {
+     "q": "Overall condition",
+     "type": "single",
+     "options": [
+      "Satisfactory",
+      "Unsatisfactory (explain below)"
+     ]
+    },
+    {
+     "q": "Any visible signs of damage / deterioration?",
+     "type": "multi",
+     "options": [
+      "Cracking",
+      "Cupping/curling",
+      "Excessive granule loss",
+      "Exposed asphalt",
+      "Exposed felt",
+      "Missing/loose/cracked tabs or tiles",
+      "Soft spots in decking",
+      "Visible hail damage"
+     ]
+    },
+    {
+     "q": "Any visible signs of leaks?",
+     "type": "single",
+     "options": [
+      "Yes",
+      "No"
+     ]
+    },
+    {
+     "q": "Attic / underside of decking",
+     "type": "single",
+     "options": [
+      "Yes",
+      "No"
+     ]
+    },
+    {
+     "q": "Interior ceilings",
+     "type": "single",
+     "options": [
+      "Yes",
+      "No"
+     ]
+    },
+    {
+     "header": "Secondary Roof"
+    },
+    {
+     "q": "Covering material",
+     "type": "text"
+    },
+    {
+     "q": "Roof age (years)",
+     "type": "num"
+    },
+    {
+     "q": "Remaining useful life (years)",
+     "type": "num"
+    },
+    {
+     "q": "Date of last roofing permit",
+     "type": "text"
+    },
+    {
+     "q": "Date of last update",
+     "type": "text"
+    },
+    {
+     "q": "If updated",
+     "type": "single",
+     "options": [
+      "Full replacement",
+      "Partial replacement"
+     ]
+    },
+    {
+     "q": "% of replacement",
+     "type": "num"
+    },
+    {
+     "q": "Overall condition",
+     "type": "single",
+     "options": [
+      "Satisfactory",
+      "Unsatisfactory (explain below)"
+     ]
+    },
+    {
+     "q": "Any visible signs of damage / deterioration?",
+     "type": "multi",
+     "options": [
+      "Cracking",
+      "Cupping/curling",
+      "Excessive granule loss",
+      "Exposed asphalt",
+      "Exposed felt",
+      "Missing/loose/cracked tabs or tiles",
+      "Soft spots in decking",
+      "Visible hail damage"
+     ]
+    },
+    {
+     "q": "Any visible signs of leaks?",
+     "type": "single",
+     "options": [
+      "Yes",
+      "No"
+     ]
+    },
+    {
+     "q": "Attic / underside of decking",
+     "type": "single",
+     "options": [
+      "Yes",
+      "No"
+     ]
+    },
+    {
+     "q": "Interior ceilings",
+     "type": "single",
+     "options": [
+      "Yes",
+      "No"
+     ]
+    },
+    {
+     "header": "Additional Comments / Observations"
+    },
+    {
+     "q": "Additional comments / observations",
+     "type": "text",
+     "placeholder": "Updates (type, date, by whom), visible hazards or deficiencies, systems not in good working order…"
+    }
+   ],
+   "form": "fourPoint"
+  },
+  {
+   "name": "4-Point — Pictures",
+   "number": 5,
+   "icon": "camera",
+   "photoCategories": [
+    "Dwelling — front",
+    "Dwelling — left side",
+    "Dwelling — right side",
+    "Dwelling — back",
+    "Roof — each slope",
+    "Water heater",
+    "Under-cabinet plumbing / drains",
+    "Exposed valves",
+    "Main electrical panel & interior door label",
+    "Electrical box with panel off",
+    "HVAC equipment & dated manufacturer’s plate",
+    "Hazards / deficiencies"
+   ],
+   "items": [],
+   "form": "fourPoint",
+   "photosOnly": true
+  },
+  {
    "name": "Phase 1 — Foundation",
    "number": 99,
    "icon": "layers",
@@ -28572,6 +30117,58 @@
      "heading": "Summary",
      "link": "summary"
     }
+   ],
+   "Texas": [
+    {
+     "heading": "Inspection Info",
+     "link": "inspectionInfo"
+    },
+    {
+     "heading": "Texas TREC Inspection (REI 7-6)",
+     "icon": "file",
+     "sections": [
+      "Texas — I. Structural Systems",
+      "Texas — II. Electrical Systems",
+      "Texas — III. Heating, Ventilation and Air Conditioning Systems",
+      "Texas — IV. Plumbing Systems",
+      "Texas — V. Appliances",
+      "Texas — VI. Optional Systems"
+     ]
+    },
+    {
+     "heading": "Pictures",
+     "icon": "camera",
+     "sections": [
+      "Texas — Pictures"
+     ]
+    },
+    {
+     "heading": "Summary",
+     "link": "summary"
+    }
+   ],
+   "4 Point Inspection": [
+    {
+     "heading": "Inspection Info",
+     "link": "inspectionInfo"
+    },
+    {
+     "heading": "4-Point Inspection",
+     "icon": "box",
+     "sections": [
+      "4-Point — Electrical System",
+      "4-Point — HVAC System",
+      "4-Point — Plumbing System",
+      "4-Point — Roof"
+     ]
+    },
+    {
+     "heading": "Pictures",
+     "icon": "camera",
+     "sections": [
+      "4-Point — Pictures"
+     ]
+    }
    ]
   },
   "standardLayout": [
@@ -28636,7 +30233,8 @@
     "icon": "list"
    }
   ],
-  "_notes": "'?' = included when selected in wizard step 3 rooms; '×n' = repeated per count. Admin-added custom sections are appended to the end of their group (Exterior, Interior, Utility, Testing)."
+  "_notes": "'?' = included when selected in wizard step 3 rooms; '×n' = repeated per count. Admin-added custom sections are appended to the end of their group (Exterior, Interior, Utility, Testing).",
+  "_formNotes": "Sections with 'form' (texas | fourPoint) are client-supplied state/insurance forms: ignore checklist depth (always show 'items'), no Overall condition row, badge = formLabels[form]. 'photosOnly' sections have no items: opening one goes straight to the photo screen, whose primary button is 'Save & continue to summary' (or '… to report' when the layout has no Summary). Layouts without a Summary entry (4 Point) hide 'Review summary'."
  },
  "wizard": {
   "steps": [
@@ -28654,7 +30252,9 @@
    "Tests Only",
    "Phase 1 Foundation",
    "Phase 2 Pre-Dry Wall",
-   "New Build Final"
+   "New Build Final",
+   "Texas",
+   "4 Point Inspection"
   ],
   "componentOptions": [
    "Roof",
@@ -28723,6 +30323,12 @@
     "label": "Real estate agent email",
     "type": "email",
     "placeholder": "agent@email.com"
+   },
+   {
+    "kind": "field",
+    "label": "Inspector License #",
+    "type": "text",
+    "placeholder": "e.g. TREC 12345"
    },
    {
     "kind": "field",
@@ -29071,7 +30677,31 @@
     "Wind Mitigation": 0
    }
   },
-  "storiesOtherNote": "Stories = 'Other' reveals a free-text box describing it."
+  "storiesOtherNote": "Stories = 'Other' reveals a free-text box describing it.",
+  "typeFields": {
+   "_about": "Extra fields shown in wizard step 1 only for these inspection types (appear right under the type chips).",
+   "Texas": [
+    {
+     "label": "Name of sponsor (if applicable)",
+     "key": "sponsorName"
+    },
+    {
+     "label": "Sponsor TREC License #",
+     "key": "sponsorLicense"
+    }
+   ],
+   "4 Point Inspection": [
+    {
+     "label": "Insured / applicant name",
+     "key": "insuredName"
+    },
+    {
+     "label": "Application / Policy #",
+     "key": "policyNumber"
+    }
+   ]
+  },
+  "inspectorLicenseNote": "'Inspector License #' (step 1) prints on every report cover to the right of the inspector's name. Prefill from Company profile → License # if set."
  },
  "findings": {
   "categories": [
@@ -29236,5 +30866,36 @@
     "sec": "Exterior Walls"
    }
   ]
+ },
+ "formLabels": {
+  "texas": "Texas TREC form · REI 7-6",
+  "fourPoint": "4-Point Inspection form"
+ },
+ "reportLayouts": {
+  "_about": "Page order of the generated PDF per inspection type (see report.html?type=standard|texas|4point).",
+  "standard": [
+   "cover",
+   "propertyInformation",
+   "beginningNotes",
+   "sections(with their photos)",
+   "summary"
+  ],
+  "texas": [
+   "cover",
+   "trecInspectorPropertyInfo (TREC REI 7-6 page 1: client, date, address, inspector + TREC license #, sponsor + TREC license #, promulgated text)",
+   "trecChecklist (per system: I/NI/NP/D boxes + fields + comments; footer 'REI 7-6 (8/9/21) Promulgated by the Texas Real Estate Commission · (512) 936-3000 · www.trec.texas.gov' and 'Page X of Y')",
+   "pictures (Texas — Pictures)",
+   "summary"
+  ],
+  "4 Point Inspection": [
+   "cover (Insured/Applicant, Application/Policy #, Address, Actual Year Built, Date Inspected, Inspector + License #)",
+   "fourPointForm (Electrical, HVAC, Plumbing, Roof as the form's gray-banded boxes with checkboxes; certification block: inspector signature, title, license number, date, company name, license type, work phone)",
+   "pictures (4-Point — Pictures, 6 per page)"
+  ],
+  "typeToLayout": {
+   "Texas": "texas",
+   "4 Point Inspection": "4 Point Inspection",
+   "*": "standard"
+  }
  }
 }
