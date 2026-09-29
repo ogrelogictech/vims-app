@@ -1,0 +1,2 @@
+Every icon from the approved prototype (`../../index.html`: the `ICONS` / `HSVG` sets plus each inline `<svg>`), converted to plain stroke paths on a 24×24 grid — stroke width 2, round caps and joins, no fill. Tint with the current text color.
+Names come from the prototype key (e.g. `camera`, `hdr-menu`) or from the label beside the icon; search `index.html` for the path data to see exactly where each is used. `icons.json` has the same paths for code generation.
