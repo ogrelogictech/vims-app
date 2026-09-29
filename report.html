@@ -116,6 +116,48 @@
   .inv-tot .row{display:flex;justify-content:space-between;padding:7px 0;font-size:13px;color:var(--ink-2)}
   .inv-tot .row.grand{border-top:2px solid var(--brand);margin-top:6px;padding-top:10px;font-family:var(--fd);font-weight:800;font-size:17px;color:var(--brand-deep)}
 
+  /* license # beside the inspector's name on the cover */
+  .cover .frow .fl.lic{margin-left:10px}
+  .cover .frow .fv.lic{flex:0 0 150px}
+
+  /* Texas TREC REI 7-6 layout */
+  .trec-h{display:flex;justify-content:space-between;align-items:baseline;font-size:11px;color:var(--ink-2);border-bottom:1px solid var(--ink);padding-bottom:6px;margin-bottom:6px}
+  .trec-h b{color:var(--ink)}
+  .trec-legend{font-size:10.5px;font-weight:700;color:var(--ink);margin:0 0 8px}
+  .trec-sys{font-family:var(--fd);font-weight:800;font-size:13px;margin:10px 0 4px;padding:4px 0;border-bottom:1px solid var(--line)}
+  table.trec{width:100%;border-collapse:collapse;font-size:11px}
+  table.trec th{font-size:10px;width:26px;text-align:center;border:1px solid #9aa5b1;padding:2px 0;background:var(--paper-2)}
+  table.trec th.item{width:auto;text-align:left;padding-left:8px;background:#fff;border:0}
+  table.trec td{border:1px solid #9aa5b1;vertical-align:top;padding:5px 6px}
+  table.trec td.bx{width:26px;text-align:center;font-weight:700;font-size:12px;padding:5px 0}
+  table.trec td.it{border:0;border-bottom:1px solid var(--line-2);padding-left:10px}
+  table.trec td.it b{font-size:11.5px}
+  table.trec .fld{color:var(--ink-2);margin-top:2px}
+  table.trec .cm{color:var(--ink);margin-top:3px}
+  table.trec .cm i{color:var(--ink-3);font-style:normal}
+  .trec-foot{margin-top:auto;padding-top:10px;border-top:1px solid var(--ink);display:flex;justify-content:space-between;font-size:9.5px;color:var(--ink-2)}
+  .trec-p{font-size:10.2px;line-height:1.42;color:var(--ink);margin:0 0 6px}
+  .trec-p b{font-size:10.6px}
+  .trec-p ul{margin:2px 0 4px 16px;padding:0}
+  .pgrid.three{grid-template-columns:1fr 1fr 1fr;gap:12px}
+  .trec-info{display:grid;grid-template-columns:1.6fr 1fr;gap:7px 16px;font-size:11px;margin-bottom:10px}
+  .trec-info div{border-bottom:1px solid var(--ink);padding:3px 0 2px}
+  .trec-info span{display:block;font-size:9.5px;color:var(--ink-3)}
+  .trec-title{text-align:center;font-family:var(--fd);font-weight:800;font-size:16px;margin:0 0 10px}
+
+  /* 4-Point form layout */
+  .fp-band{background:#aaa5a1;color:#111;font-family:var(--fd);font-weight:800;font-size:14px;padding:6px 10px;border:1px solid #555}
+  .fp-band small{display:block;font-family:var(--fu);font-weight:400;font-size:10px}
+  .fp-box{border:1px solid #555;border-top:0;padding:7px 10px;font-size:11px;line-height:1.55}
+  .fp-box.sup{background:#ececec}
+  .fp-cols{display:grid;grid-template-columns:1fr 1fr;gap:0 18px}
+  .fp-box b{font-size:11px}
+  .ck{display:inline-block;width:11px;height:11px;border:1px solid #333;margin:0 4px -1px 0;font-size:10px;line-height:10px;text-align:center;font-weight:800}
+  .fp-line{display:inline-block;min-width:90px;border-bottom:1px solid #333;padding:0 4px;font-weight:600}
+  .fp-cert{display:grid;grid-template-columns:repeat(4,1fr);gap:14px 14px;margin-top:10px;font-size:10px;color:var(--ink-2)}
+  .fp-cert div{border-top:1px solid #333;padding-top:3px}
+  .fp-cert b{display:block;font-size:11.5px;color:var(--ink);margin-bottom:12px;font-weight:600;border:0}
+
   .pagenote{max-width:850px;margin:0 auto 8px;color:#8aa0b4;font-size:11.5px;font-family:var(--fu)}
   @media print{
     body{background:#fff;padding:0}
@@ -140,11 +182,15 @@
 <script>
   var LOGO='vims-logo.png';
   var COMPANY={name:'Vision Property Inspections',addr:['2029 N Main St Suite 103','Sunset, UT 84015','VisionPropertyInspections@Gmail.com']};
-  var INSP={client:'Tysen and Chantel Gough',address:'1428 Ridgeline Dr',city:'Ogden, UT 84403',date:'08/30/2026',agent:'Cyndi Farrais',inspector:'Jeremy K. Heath'};
+  var Q=new URLSearchParams(location.search);
+  var TYPE=({texas:'texas','4point':'4point'})[Q.get('type')]||'standard';
+  var INSP={client:'Tysen and Chantel Gough',address:'1428 Ridgeline Dr',city:'Ogden, UT 84403',date:'08/30/2026',agent:'Cyndi Farrais',inspector:'Jeremy K. Heath',
+    license:Q.get('lic')||(TYPE==='texas'?'TREC 12345':'UT-12345'),sponsor:'N/A',sponsorLicense:'',policy:'HO3-4481207',yearBuilt:'1998'};
 
   // sample photo placeholder
   function photo(seed,label){
     var cols=['4a6572','5b6b78','7a6a55','8a5a4a','5a6b52','6a5a7a'];var c=cols[seed%cols.length];
+    label=String(label).replace(/&/g,'+').replace(/[’']/g,'');
     return "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='320' height='240'><rect width='320' height='240' fill='%23"+c+"'/><path d='M0 165 L120 96 L200 140 L320 88 L320 240 L0 240Z' fill='rgba(0,0,0,0.22)'/><circle cx='250' cy='60' r='26' fill='rgba(255,255,255,0.5)'/><text x='12' y='228' fill='rgba(255,255,255,0.85)' font-family='sans-serif' font-size='13'>"+label+"</text></svg>";
   }
 
@@ -155,19 +201,19 @@
   function pfoot(n){ return '<div class="pfoot"><span><b style="color:var(--ink);font-weight:700">'+INSP.client+'</b><br>'+INSP.address+' &middot; '+INSP.date+'</span><span>Page '+n+'</span></div>'; }
 
   var pages=[];
+  var CATMETA={1:['Category 1','Safety'],2:['Category 2','Functional'],3:['Category 3','Items to monitor']};
+  var CATNOTE={1:'Address before closing',2:'Address in the first few months after closing',3:'Monitor and address over time'};
 
   // 1. COVER
   pages.push('<div class="page cover">'
     +'<div class="ctop"><div class="brand"><img src="'+LOGO+'" alt=""><div class="bn"><b>Vision Property</b><span>Inspections</span></div></div>'
     +'<div class="addr"><b>'+COMPANY.name+'</b><br>'+COMPANY.addr.join('<br>')+'</div></div>'
-    +'<h1>Inspection Report</h1>'
+    +'<h1>'+(TYPE==='texas'?'Property Inspection Report':TYPE==='4point'?'4-Point Inspection Report':'Inspection Report')+'</h1>'
     +'<div class="fields">'
-    +frow('Client Name',INSP.client)
-    +frow('Address of Inspection',INSP.address)
-    +frow('',INSP.city)
-    +frow('Date of Inspection',INSP.date)
-    +frow('Real Estate Agent',INSP.agent)
-    +frow('Name of Inspector',INSP.inspector)
+    +(TYPE==='4point'
+      ? frow('Insured / Applicant',INSP.client)+frow('Application / Policy #',INSP.policy)+frow('Address Inspected',INSP.address)+frow('',INSP.city)+frow('Actual Year Built',INSP.yearBuilt)+frow('Date Inspected',INSP.date)
+      : frow('Client Name',INSP.client)+frow('Address of Inspection',INSP.address)+frow('',INSP.city)+frow('Date of Inspection',INSP.date)+frow('Real Estate Agent',INSP.agent))
+    +'<div class="frow"><div class="fl">Name of Inspector</div><div class="fv">'+INSP.inspector+'</div><div class="fl lic">License #</div><div class="fv lic">'+INSP.license+'</div></div>'
     +'</div>'
     +'<div class="cimgwrap"><img src="'+photo(0,'Front of property')+'" alt="Property"></div>'
     +'<div class="cart"><div class="notice">This inspection report is the property of Vision Property Inspections. Any reproduction or distribution without written consent is prohibited.</div>'
@@ -175,6 +221,7 @@
     +'</div>');
   function frow(l,v){ return '<div class="frow"><div class="fl">'+l+'</div><div class="fv">'+v+'</div></div>'; }
 
+  if(TYPE==='standard'){
   // 2. PROPERTY INFORMATION
   pages.push('<div class="page">'+rhead()
     +'<div class="ptitle">Property Information</div><div class="psub">Inspection details &amp; property description</div>'
@@ -278,8 +325,146 @@
     +'<div class="inv-tot"><div class="box"><div class="row"><span>Subtotal</span><span>$685.00</span></div><div class="row"><span>Discount</span><span>&minus;$0.00</span></div><div class="row grand"><span>Total due</span><span>$685.00</span></div></div></div>'
     +'<div class="note" style="margin-top:20px">Thank you for choosing Vision Property Inspections. Payment accepted by card, check, or Square.</div>'
     +pfoot(7)+'</div>');
+  }
 
+  if(TYPE==='texas') buildTexas();
+  if(TYPE==='4point') build4Point();
+  var label={standard:'VIMS report format',texas:'Texas TREC report format',"4point":'4-Point report format'}[TYPE];
+  document.querySelector('.toolbar .t-l').innerHTML='<b>'+label+'</b> — sample layout · 1428 Ridgeline Dr';
+  document.querySelector('.pagenote').textContent=TYPE==='standard'
+    ?'This is a format preview with sample data — it shows how the finished PDF is laid out. Cover artwork, photos, and content populate automatically from the inspection. Full report is ~75–80 pages.'
+    :TYPE==='texas'
+      ?'Texas format preview with sample data: cover → inspector & property information (TREC REI 7-6) → checklist (I / NI / NP / D) → pictures → summary.'
+      :'4-Point format preview with sample data: cover → 4-Point checklist (Electrical, HVAC, Plumbing, Roof) → pictures.';
   document.getElementById('wrap').innerHTML=pages.join('');
+
+  // shared picture page (used by the Texas and 4-Point reports)
+  function picturePage(title,list,footer){
+    var h='<div class="page">'+rhead()+'<div class="sectitle"><span class="num">&#128247;</span><b>'+title+'</b></div><div class="pgrid three">';
+    list.forEach(function(p,i){ var flag=p[1]?'<span class="concern-tag">Deficiency</span>':''; h+='<div class="pcard"><div class="pimg">'+flag+'<img src="'+photo(i,p[0])+'" alt=""></div><div class="pcap"><span>'+p[0]+'</span></div></div>'; });
+    return h+'</div>'+footer+'</div>';
+  }
+
+  // ---------- TEXAS: TREC Property Inspection Report form REI 7-6 ----------
+  function buildTexas(){
+    var total=0, tp=[];
+    function tfoot(n){ return '<div class="trec-foot"><span>REI 7-6 (8/9/21) &nbsp;·&nbsp; Promulgated by the Texas Real Estate Commission &nbsp;·&nbsp; (512) 936-3000 &nbsp;·&nbsp; www.trec.texas.gov</span><span>Page '+n+' of @T</span></div>'; }
+    // page 2: inspector & property information (TREC form page 1)
+    tp.push(function(n){ return '<div class="page">'
+      +'<div class="trec-title">PROPERTY INSPECTION REPORT FORM</div>'
+      +'<div class="trec-info"><div><span>Name of Client</span>'+INSP.client+'</div><div><span>Date of Inspection</span>'+INSP.date+'</div>'
+      +'<div style="grid-column:1/-1"><span>Address of Inspected Property</span>'+INSP.address+', '+INSP.city+'</div>'
+      +'<div><span>Name of Inspector</span>'+INSP.inspector+'</div><div><span>TREC License #</span>'+INSP.license+'</div>'
+      +'<div><span>Name of Sponsor (if applicable)</span>'+INSP.sponsor+'</div><div><span>TREC License #</span>'+(INSP.sponsorLicense||'&nbsp;')+'</div></div>'
+      +'<div class="trec-p"><b>PURPOSE OF INSPECTION</b><br>A real estate inspection is a visual survey of a structure and a basic performance evaluation of the systems and components of a building. It provides information regarding the general condition of a residence at the time the inspection was conducted. It is important that you carefully read ALL of this information. Ask the inspector to clarify any items or comments that are unclear.</div>'
+      +'<div class="trec-p"><b>RESPONSIBILITY OF THE INSPECTOR</b><br>This inspection is governed by the Texas Real Estate Commission (TREC) Standards of Practice (SOPs), which dictates the minimum requirements for a real estate inspection.</div>'
+      +'<div class="trec-p">The inspector IS required to:<ul><li>use this Property Inspection Report form for the inspection;</li><li>inspect only those components and conditions that are present, visible, and accessible at the time of the inspection;</li><li>indicate whether each item was inspected, not inspected, or not present;</li><li>indicate an item as Deficient (D) if a condition exists that adversely and materially affects the performance of a system or component OR constitutes a hazard to life, limb or property as specified by the SOPs; and</li><li>explain the inspector’s findings in the corresponding section in the body of the report form.</li></ul></div>'
+      +'<div class="trec-p">The inspector IS NOT required to:<ul><li>identify all potential hazards;</li><li>turn on decommissioned equipment, systems, utilities, or apply an open flame or light a pilot to operate any appliance;</li><li>climb over obstacles, move furnishings or stored items;</li><li>prioritize or emphasize the importance of one deficiency over another;</li><li>provide follow-up services to verify that proper repairs have been made; or</li><li>inspect system or component listed under the optional section of the SOPs (22 TAC 535.233).</li></ul></div>'
+      +'<div class="trec-p"><b>RESPONSIBILITY OF THE CLIENT</b><br>While items identified as Deficient (D) in an inspection report DO NOT obligate any party to make repairs or take other actions, in the event that any further evaluations are needed, it is the responsibility of the client to obtain further evaluations and/or cost estimates from qualified service professionals regarding any items reported as Deficient (D). It is recommended that any further evaluations and/or cost estimates take place prior to the expiration of any contractual time limitations, such as option periods.</div>'
+      +'<div class="trec-p"><b>Please Note:</b> Evaluations performed by service professionals in response to items reported as Deficient (D) on the report may lead to the discovery of additional deficiencies that were not present, visible, or accessible at the time of the inspection. Any repairs made after the date of the inspection may render information contained in this report obsolete or invalid.</div>'
+      +'<div class="trec-p"><b>REPORT LIMITATIONS</b><br>This report is provided for the benefit of the named client and is based on observations made by the named inspector on the date the inspection was performed (indicated above). ONLY those items specifically noted as being inspected on the report were inspected. This inspection IS NOT:<ul><li>a technically exhaustive inspection of the structure, its systems, or its components and may not reveal all deficiencies;</li><li>an inspection to verify compliance with any building codes;</li><li>an inspection to verify compliance with manufacturer’s installation instructions for any system or component and DOES NOT imply insurability or warrantability of the structure or its components.</li></ul></div>'
+      +tfoot(n)+'</div>'; });
+    // checklist pages — [system, [component, [fields], mark(0 I,1 NI,2 NP), deficient, comment]]
+    var S=[
+      ['I. STRUCTURAL SYSTEMS',[
+        ['A. Foundations',['Type of Foundation(s): Slab on grade'],0,1,'Minor settlement cracks at the northeast corner of the slab. Recommend evaluation by a structural engineer.'],
+        ['B. Grading and Drainage',[],0,1,'Soil is sloped toward the foundation on the north side; no downspout extensions.'],
+        ['C. Roof Covering Materials',['Types of Roof Covering: Composition shingles','Viewed From: Roof surface'],0,0,'Shingles in serviceable condition for age.'],
+        ['D. Roof Structures and Attics',['Viewed From: Attic interior','Approximate Average Depth of Insulation: 10 inches'],0,0,''],
+        ['E. Walls (Interior and Exterior)',[],0,0,''],
+        ['F. Ceilings and Floors',[],0,0,'']]],
+      ['I. STRUCTURAL SYSTEMS (continued)',[
+        ['G. Doors (Interior and Exterior)',[],0,1,'Front storm door does not latch.'],
+        ['H. Windows',[],0,0,''],
+        ['I. Stairways (Interior and Exterior)',[],0,1,'Handrail missing at the basement stairs.'],
+        ['J. Fireplaces and Chimneys',[],0,0,''],
+        ['K. Porches, Balconies, Decks, and Carports',[],0,0,''],
+        ['L. Other',[],2,0,'']]],
+      ['II. ELECTRICAL SYSTEMS',[
+        ['A. Service Entrance and Panels',[],0,0,'200-amp panel; breakers labeled.'],
+        ['B. Branch Circuits, Connected Devices, and Fixtures',['Type of Wiring: Copper'],0,1,'No GFCI protection at the exterior receptacles.'],
+        ['C. Other',[],2,0,'']]],
+      ['III. HEATING, VENTILATION AND AIR CONDITIONING SYSTEMS',[
+        ['A. Heating Equipment',['Type of Systems: Forced air furnace','Energy Sources: Natural gas'],0,0,''],
+        ['B. Cooling Equipment',['Type of Systems: Central air'],0,0,'Temperature differential within normal range.'],
+        ['C. Duct Systems, Chases, and Vents',[],0,0,''],
+        ['D. Other',[],2,0,'']]],
+      ['IV. PLUMBING SYSTEMS',[
+        ['A. Plumbing Supply, Distribution Systems and Fixtures',['Location of water meter: Front yard','Location of main water supply valve: Garage','Static water pressure reading: 62 psi','Type of supply piping material: PEX'],0,0,''],
+        ['B. Drains, Wastes, and Vents',['Type of drain piping material: PVC'],0,0,''],
+        ['C. Water Heating Equipment',['Energy Sources: Gas','Capacity: 50 gallons'],0,0,''],
+        ['D. Hydro-Massage Therapy Equipment',[],2,0,''],
+        ['E. Gas Distribution Systems and Gas Appliances',['Location of gas meter: North side','Type of gas distribution piping material: Black iron'],0,0,''],
+        ['F. Other',[],2,0,'']]],
+      ['V. APPLIANCES',[
+        ['A. Dishwashers',[],0,0,''],['B. Food Waste Disposers',[],0,0,''],['C. Range Hood and Exhaust Systems',[],0,0,''],
+        ['D. Ranges, Cooktops, and Ovens',[],0,0,''],['E. Microwave Ovens',[],0,0,''],['F. Mechanical Exhaust Vents and Bathroom Heaters',[],0,0,''],
+        ['G. Garage Door Operators',[],0,1,'Auto-reverse did not activate when tested.'],['H. Dryer Exhaust Systems',[],0,0,''],['I. Other',[],2,0,'']]],
+      ['VI. OPTIONAL SYSTEMS',[
+        ['A. Landscape Irrigation (Sprinkler) Systems',[],1,0,''],['B. Swimming Pools, Spas, Hot Tubs, and Equipment',['Type of Construction: N/A'],2,0,''],
+        ['C. Outbuildings',[],2,0,''],['D. Private Water Wells (A coliform analysis is recommended.)',['Type of Pump: N/A','Type of Storage Equipment: N/A'],2,0,''],
+        ['E. Private Sewage Disposal Systems',['Type of System: N/A','Location of Drain Field: N/A'],2,0,''],['F. Other Built-in Appliances',[],2,0,''],['G. Other',[],2,0,'']]]
+    ];
+    S.forEach(function(sys){ tp.push(function(n){
+      var h='<div class="page"><div class="trec-h"><span><b>Report Identification:</b> '+INSP.address+', '+INSP.city+'</span></div>'
+        +'<div class="trec-legend">I=Inspected &nbsp; NI=Not Inspected &nbsp; NP=Not Present &nbsp; D=Deficient</div>'
+        +'<table class="trec"><tr><th>I</th><th>NI</th><th>NP</th><th>D</th><th class="item"></th></tr></table>'
+        +'<div class="trec-sys">'+sys[0]+'</div><table class="trec">';
+      sys[1].forEach(function(c){
+        var m=['','','',''];m[c[2]]='&#10003;'; if(c[3]) m[3]='&#10003;';
+        h+='<tr><td class="bx">'+m[0]+'</td><td class="bx">'+m[1]+'</td><td class="bx">'+m[2]+'</td><td class="bx">'+m[3]+'</td><td class="it"><b>'+c[0]+'</b>'
+          +c[1].map(function(f){return '<div class="fld">'+f+'</div>';}).join('')
+          +'<div class="cm"><i>Comments:</i> '+(c[4]||'')+'</div></td></tr>';
+      });
+      return h+'</table>'+tfoot(n)+'</div>'; }); });
+    // pictures + summary
+    tp.push(function(n){ return picturePage('Pictures',[['Front of home',0],['Left side',0],['Back of home',0],['Roof',0],['Foundation crack — NE corner',1],['Basement stairs — no handrail',1]],tfoot(n)); });
+    tp.push(function(n){
+      var sm='<div class="page">'+rhead()+'<div class="ptitle">Summary of Findings</div><div class="psub">Findings grouped by category</div>';
+      var F={1:[['Handrail missing at the basement stairs.','I. Structural — I. Stairways'],['No GFCI protection at the exterior receptacles.','II. Electrical — B. Branch Circuits'],['Garage door auto-reverse did not activate.','V. Appliances — G. Garage Door Operators']],2:[['Minor settlement cracks at the NE corner of the slab.','I. Structural — A. Foundations'],['Soil sloped toward the foundation on the north side.','I. Structural — B. Grading and Drainage']],3:[['Front storm door does not latch.','I. Structural — G. Doors']]};
+      [1,2,3].forEach(function(cat){ sm+='<div class="sumcat c'+cat+'"><div class="sh"><div class="cn">'+cat+'</div><div><b>'+CATMETA[cat][0]+'</b> <span>&middot; '+CATMETA[cat][1]+'</span><div class="sh-note">'+CATNOTE[cat]+'</div></div><div class="ct">'+F[cat].length+'</div></div>';
+        F[cat].forEach(function(f,i){ sm+='<div class="sfind"><span class="n">'+(i+1)+'</span><span>'+f[0]+' <span class="sec">('+f[1]+')</span></span></div>'; }); sm+='</div>'; });
+      return sm+tfoot(n)+'</div>'; });
+    total=tp.length+1;
+    tp.forEach(function(fn,i){ pages.push(fn(i+2).replace('@T',total)); });
+  }
+
+  // ---------- 4-POINT INSPECTION FORM ----------
+  function build4Point(){
+    function ck(on){ return '<span class="ck">'+(on?'&#10003;':'')+'</span>'; }
+    function yn(v){ return ck(v==='Yes')+'Yes &nbsp; '+ck(v==='No')+'No'; }
+    function ln(v){ return '<span class="fp-line">'+(v||'&nbsp;')+'</span>'; }
+    function pf(n){ return '<div class="pfoot"><span>4-Point Inspection &middot; '+INSP.address+' &middot; '+INSP.date+'</span><span>Page '+n+' of 6</span></div>'; }
+    pages.push('<div class="page">'+rhead()
+      +'<div class="fp-band">Electrical System<small>Separate documentation of any aluminum wiring remediation must be provided and certified by a licensed electrician.</small></div>'
+      +'<div class="fp-box fp-cols"><div><b>Main Panel</b><br>Type: '+ck(1)+'Circuit breaker '+ck(0)+'Fuse<br>Total Amps: '+ln('200')+'<br>Is amperage sufficient for current usage? '+ck(1)+'Yes '+ck(0)+'No (explain)</div>'
+      +'<div><b>Second Panel</b><br>Type: '+ck(0)+'Circuit breaker '+ck(0)+'Fuse<br>Total Amps: '+ln('')+'<br>Is amperage sufficient for current usage? '+ck(0)+'Yes '+ck(0)+'No (explain)</div></div>'
+      +'<div class="fp-box"><b>Indicate presence of any of the following:</b><br>'+ck(0)+'Cloth wiring<br>'+ck(0)+'Active knob and tube<br>'+ck(0)+'Branch circuit aluminum wiring (If present, describe the usage of all aluminum wiring)<br>'+ck(0)+'Connections repaired via COPALUM crimp &nbsp; '+ck(0)+'Connections repaired via AlumiConn</div>'
+      +'<div class="fp-box fp-cols"><div><b>Hazards Present</b><br>'+['Blowing fuses','Tripping breakers','Empty sockets','Loose wiring','Improper grounding','Corrosion','Over fusing'].map(function(x){return ck(0)+x;}).join('<br>')+'</div><div><br>'+['Double taps','Exposed wiring','Unsafe wiring','Improper breaker size','Scorching','Other (explain)'].map(function(x){return ck(x==='Double taps')+x;}).join('<br>')+'</div></div>'
+      +'<div class="fp-box"><b>General condition of the electrical system:</b> '+ck(0)+'Satisfactory '+ck(1)+'Unsatisfactory (explain) &mdash; double-tapped breaker at slot 14.</div>'
+      +'<div class="fp-box sup fp-cols"><div><b>Main Panel</b><br>Panel age: '+ln('12 yrs')+'<br>Year last updated: '+ln('2014')+'<br>Brand/Model: '+ln('Square D QO')+'</div><div><b>Wiring Type</b><br>'+ck(1)+'Copper<br>'+ck(1)+'NM, BX or Conduit</div></div>'
+      +pf(2)+'</div>');
+    pages.push('<div class="page">'+rhead()
+      +'<div class="fp-band">HVAC System</div>'
+      +'<div class="fp-box">Central AC: '+yn('Yes')+'<br>Central heat: '+yn('Yes')+'<br>If not central heat, indicate primary heat source and fuel type: '+ln('')+'<br>Are the heating, ventilation and air conditioning systems in good working order? '+ck(1)+'Yes '+ck(0)+'No (explain)<br>Date of last HVAC servicing/inspection: '+ln('04/12/2026')+'</div>'
+      +'<div class="fp-box"><b>Hazards Present</b><br>Wood-burning stove or central gas fireplace not professionally installed? '+yn('No')+'<br>Space heater used as primary heat source? '+yn('No')+' &nbsp; Is the source portable? '+yn('No')+'<br>Does the air handler/condensate line or drain pan show any signs of blockage or leakage, including water damage to the surrounding area? '+yn('No')+'</div>'
+      +'<div class="fp-box sup">Age of system: '+ln('9 yrs')+' &nbsp; Year last updated: '+ln('2017')+'</div>'
+      +'<div class="fp-band" style="margin-top:12px">Plumbing System</div>'
+      +'<div class="fp-box">Is there a temperature pressure relief valve on the water heater? '+yn('Yes')+'<br>Is there any indication of an active leak? '+yn('No')+'<br>Is there any indication of a prior leak? '+yn('No')+'<br>Water heater location: '+ln('Garage')+'</div>'
+      +'<div class="fp-box fp-cols"><div>'+['Dishwasher','Refrigerator','Washing machine','Water heater','Showers/Tubs'].map(function(x){return '<b>'+x+'</b>: '+ck(1)+'Satisfactory '+ck(0)+'Unsatisfactory '+ck(0)+'N/A';}).join('<br>')+'</div><div>'+['Toilets','Sinks','Sump pump','Main shut off valve','All other visible'].map(function(x){var na=x==='Sump pump';return '<b>'+x+'</b>: '+ck(!na)+'Satisfactory '+ck(0)+'Unsatisfactory '+ck(na)+'N/A';}).join('<br>')+'</div></div>'
+      +'<div class="fp-box sup fp-cols"><div><b>Age of Piping System</b><br>'+ck(0)+'Original to home<br>'+ck(1)+'Completely re-piped (2015)<br>'+ck(0)+'Partially re-piped</div><div><b>Type of pipes</b><br>'+ck(0)+'Copper '+ck(0)+'PVC/CPVC '+ck(0)+'Galvanized<br>'+ck(1)+'PEX '+ck(0)+'Polybutylene '+ck(0)+'Other</div></div>'
+      +pf(3)+'</div>');
+    function roofCol(t,d){ return '<div><b>'+t+'</b><br>Covering material: '+ln(d[0])+'<br>Roof age (years): '+ln(d[1])+'<br>Remaining useful life (years): '+ln(d[2])+'<br>Date of last roofing permit: '+ln(d[3])+'<br>Date of last update: '+ln(d[4])+'<br>If updated: '+ck(d[5]==='F')+'Full replacement '+ck(d[5]==='P')+'Partial replacement<br>Overall condition: '+ck(d[0]!=='')+'Satisfactory '+ck(0)+'Unsatisfactory<br><b>Any visible signs of damage / deterioration?</b><br>'+['Cracking','Cupping/curling','Excessive granule loss','Exposed asphalt','Exposed felt','Missing/loose/cracked tabs or tiles','Soft spots in decking','Visible hail damage'].map(function(x){return ck(0)+x;}).join('<br>')+'<br><b>Any visible signs of leaks?</b> '+yn(d[0]?'No':'')+'<br>Attic/underside of decking '+yn(d[0]?'No':'')+'<br>Interior ceilings '+yn(d[0]?'No':'')+'</div>'; }
+    pages.push('<div class="page">'+rhead()
+      +'<div class="fp-band">Roof</div>'
+      +'<div class="fp-box fp-cols">'+roofCol('Predominant Roof',['Asphalt shingle','8','14','06/2018','06/2018','F'])+roofCol('Secondary Roof',['','','','','',''])+'</div>'
+      +'<div class="fp-box" style="margin-top:12px;min-height:60px"><b>Additional Comments/Observations</b><br>Double-tapped breaker at slot 14 should be corrected by a licensed electrician. Water heater replaced 2021.</div>'
+      +'<div class="fp-box"><i>I certify that the above statements are true and correct.</i><div class="fp-cert"><div><b>Jeremy K. Heath</b>Inspector Signature</div><div><b>Home Inspector</b>Title</div><div><b>'+INSP.license+'</b>License Number</div><div><b>'+INSP.date+'</b>Date</div><div><b>'+COMPANY.name+'</b>Company Name</div><div><b>Home Inspector</b>License Type</div><div><b>(801) 555-0134</b>Work Phone</div></div></div>'
+      +pf(4)+'</div>');
+    var P=[['Dwelling — front',0],['Dwelling — left side',0],['Dwelling — right side',0],['Dwelling — back',0],['Roof — each slope',0],['Water heater',0],['Under-cabinet plumbing / drains',0],['Exposed valves',0],['Main electrical panel & interior door label',0],['Electrical box with panel off',0],['HVAC equipment & dated manufacturer’s plate',0],['Double-tapped breaker (slot 14)',1]];
+    pages.push(picturePage('Pictures',P.slice(0,6),pf(5)));
+    pages.push(picturePage('Pictures (continued)',P.slice(6),pf(6)));
+  }
 </script>
 </body>
 </html>
