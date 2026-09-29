@@ -167,7 +167,6 @@ fun HomeScreen(vm: AppViewModel, nav: NavHostController) {
 @Composable
 private fun HomeMenu(vm: AppViewModel, nav: NavHostController, close: () -> Unit) {
     val session by vm.session.collectAsState()
-    val account by vm.account.collectAsState()
     val ctx = LocalContext.current
     val admin = session?.isAdmin != false
     fun go(route: Any) { close(); nav.navigate(route) }
@@ -190,8 +189,9 @@ private fun HomeMenu(vm: AppViewModel, nav: NavHostController, close: () -> Unit
             MenuRow(VIcons.help, "How VIMS works") { go(InstructionsR) }
             MenuRow(VIcons.mail, "Help & feedback") {
                 close()
-                val i = android.content.Intent(android.content.Intent.ACTION_SENDTO, android.net.Uri.parse("mailto:${account.feedbackEmail}?subject=" + android.net.Uri.encode("VIMS app feedback")))
-                try { ctx.startActivity(i) } catch (_: Exception) { vm.toast("No email app — write to ${account.feedbackEmail}") }
+                val fb = vm.platform.value.feedbackEmail
+                val i = android.content.Intent(android.content.Intent.ACTION_SENDTO, android.net.Uri.parse("mailto:$fb?subject=" + android.net.Uri.encode("VIMS app feedback")))
+                try { ctx.startActivity(i) } catch (_: Exception) { vm.toast("No email app — write to $fb") }
             }
             if (admin) {
                 Text("ADMIN", style = T.mono(10.5.sp, color = V.ink3, letterSpacing = 0.12.em), modifier = Modifier.padding(start = 12.dp, top = 16.dp, bottom = 6.dp))

@@ -40,6 +40,8 @@ data class Session(
     val userId: String = "",
     /** Owner of the company profile, logo, checklist customizations, plans, inspectors, subscription. */
     val companyId: String = "",
+    /** The VIMS platform owner (not a company role): may edit platform settings — feedback email, report BCC. */
+    val platformOwner: Boolean = false,
 ) {
     val isAdmin: Boolean get() = role != Role.INSPECTOR
     val initials: String get() = name.split(" ").filter { it.isNotBlank() }.take(2).joinToString("") { it.first().uppercase() }.ifEmpty { "?" }
@@ -75,6 +77,21 @@ data class AccountState(
 ) {
     val plan: Plan get() = plans.firstOrNull { it.id == planId } ?: plans.firstOrNull() ?: Plan("app", "App", 0.0)
     val seatCount: Int get() = maxOf(seats, inspectors.size, 1)
+}
+
+/**
+ * VIMS platform-level settings — owned by the platform owner, shared by every company on this install and NOT per
+ * company. TODO(backend): served by the Laravel API; the server always adds the report BCC when sending.
+ */
+@Serializable
+data class PlatformSettings(
+    val feedbackEmail: String = "",
+    /** "Report quality copy (BCC)": blind-copy every emailed report (disclosed in the VIMS EULA). */
+    val reportBccOn: Boolean = false,
+    val reportBccEmail: String = "",
+) {
+    /** The BCC address to add to a report email, or null when the setting is off. */
+    val activeBcc: String? get() = reportBccEmail.trim().takeIf { reportBccOn && it.isNotEmpty() }
 }
 
 @Serializable

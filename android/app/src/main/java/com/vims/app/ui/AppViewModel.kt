@@ -67,6 +67,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val settings: StateFlow<AppSettings> = repo.settings
     val edits: StateFlow<ChecklistEdits> = repo.edits
     val inspections: StateFlow<Map<String, InspectionBundle>> = repo.inspections
+    val platform: StateFlow<com.vims.app.data.PlatformSettings> = repo.platform
+    val isPlatformOwner: Boolean get() = session.value?.platformOwner == true
+
+    /** Owner-only: Report quality copy (BCC). The address is validated by the screen. */
+    fun saveReportBcc(on: Boolean, email: String) {
+        repo.updatePlatform { it.copy(reportBccOn = on, reportBccEmail = email.trim()) }
+        toast(if (on) "Reports will be blind-copied to ${email.trim()}" else "Report BCC turned off")
+    }
 
     val engine: StateFlow<ChecklistEngine> = repo.edits.map { ChecklistEngine(config, it) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, ChecklistEngine(config, repo.edits.value))
@@ -334,7 +342,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun saveFeedbackEmail(email: String): Boolean {
         val v = email.trim()
         if (v.isEmpty() || !v.contains("@")) { toast("Enter a valid email"); return false }
-        repo.updateAccount { it.copy(feedbackEmail = v) }; toast("Feedback email saved"); return true
+        repo.updatePlatform { it.copy(feedbackEmail = v) }; toast("Feedback email saved"); return true
     }
 
     // Checklist admin -------------------------------------------------------

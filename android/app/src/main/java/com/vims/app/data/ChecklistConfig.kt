@@ -201,7 +201,11 @@ data class SubscriptionDef(
 )
 
 @Serializable
-data class SupportDef(val feedbackEmail: String = "")
+data class SupportDef(val feedbackEmail: String = "", val reportBcc: ReportBccDef = ReportBccDef())
+
+/** Default for the platform owner's "Report quality copy (BCC)" setting (data v1.2). */
+@Serializable
+data class ReportBccDef(val on: Boolean = false, val email: String = "")
 
 @Serializable
 data class SampleDef(

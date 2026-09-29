@@ -56,6 +56,7 @@ import com.vims.app.ui.InspectorsR
 import com.vims.app.ui.InstructionsR
 import com.vims.app.ui.LoginR
 import com.vims.app.ui.PlansR
+import com.vims.app.ui.ReportBccR
 import com.vims.app.ui.components.BtnKind
 import com.vims.app.ui.components.FieldLabel
 import com.vims.app.ui.components.Hint
@@ -133,7 +134,13 @@ fun SettingsScreen(vm: AppViewModel, nav: NavHostController) {
             Lbl("Admin")
             NavRow(VIcons.pencil, "Manage checklist", "Add & edit sections and items") { nav.navigate(AdminR) }
             NavRow(VIcons.dollar, "Plans & pricing", "Edit subscription plans & prices") { nav.navigate(PlansR) }
+        }
+        // VIMS platform-owner settings (not per company): only the platform owner sees these.
+        if (vm.isPlatformOwner) {
+            if (!admin) Lbl("Admin")
             NavRow(VIcons.mail, "Feedback & support", "Change the feedback contact email") { nav.navigate(FeedbackAdminR) }
+            val p = vm.platform.collectAsState().value
+            NavRow(VIcons.mailPlus, "Report quality copy (BCC)", p.activeBcc?.let { "On · $it" } ?: "Off") { nav.navigate(ReportBccR) }
         }
 
         Lbl("Help & feedback")
@@ -141,8 +148,9 @@ fun SettingsScreen(vm: AppViewModel, nav: NavHostController) {
             Text("Questions or feedback?", style = T.ui(14.sp, FontWeight.Bold))
             Text("We'd love to hear from you — send us a note and the VIMS team will get back to you.", style = T.ui(12.5.sp, color = V.ink3, lineHeight = 18.sp), modifier = Modifier.padding(top = 6.dp, bottom = 12.dp))
             VBtn("Send feedback", {
-                val i = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:${account.feedbackEmail}?subject=" + Uri.encode("VIMS app feedback")))
-                try { ctx.startActivity(i) } catch (_: Exception) { vm.toast("No email app — write to ${account.feedbackEmail}") }
+                val fb = vm.platform.value.feedbackEmail
+                val i = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:$fb?subject=" + Uri.encode("VIMS app feedback")))
+                try { ctx.startActivity(i) } catch (_: Exception) { vm.toast("No email app — write to $fb") }
             }, kind = BtnKind.Ghost, icon = VIcons.mail)
         }
 
@@ -277,13 +285,46 @@ private fun HowCard(icon: ImageVector, title: String, body: String) {
 
 @Composable
 fun FeedbackAdminScreen(vm: AppViewModel, nav: NavHostController) {
-    val account by vm.account.collectAsState()
-    var email by rememberSaveable(account.feedbackEmail) { mutableStateOf(account.feedbackEmail) }
+    if (!vm.isPlatformOwner) { OwnerOnly(vm, nav, "Feedback & support"); return }
+    val platform by vm.platform.collectAsState()
+    var email by rememberSaveable(platform.feedbackEmail) { mutableStateOf(platform.feedbackEmail) }
     VScreen("Feedback & support", companyName(vm), net(vm), backAction(nav), listOf(homeAction(nav))) {
         Hint("Owner admin — set the email address that receives help & feedback messages sent from the app.", Modifier.padding(top = 2.dp, bottom = 14.dp))
         val form = rememberForm()
         val err = form.check("email", email) { Checks.email(email) }
         VField("Feedback contact email", email, { email = it }, Modifier.formField(form, "email"), keyboard = KeyboardType.Email, error = err)
         VBtn("Save", { if (form.submit()) vm.saveFeedbackEmail(email) }, icon = VIcons.check)
+    }
+}
+
+/** Shown instead of a platform-owner screen to anyone else (company admins included). */
+@Composable
+fun OwnerOnly(vm: AppViewModel, nav: NavHostController, title: String) {
+    VScreen(title, companyName(vm), net(vm), backAction(nav), listOf(homeAction(nav))) {
+        Hint("Only the VIMS platform owner can view or change this setting.", Modifier.padding(top = 2.dp))
+    }
+}
+
+/**
+ * VIMS platform-owner setting "Report quality copy (BCC)": every report emailed from the app is also blind-copied to this
+ * address for report-quality review (disclosed in the VIMS EULA). Stored app-level, not per company.
+ */
+@Composable
+fun ReportBccScreen(vm: AppViewModel, nav: NavHostController) {
+    if (!vm.isPlatformOwner) { OwnerOnly(vm, nav, "Report quality copy"); return }
+    val platform by vm.platform.collectAsState()
+    var on by rememberSaveable(platform.reportBccOn) { mutableStateOf(platform.reportBccOn) }
+    var email by rememberSaveable(platform.reportBccEmail) { mutableStateOf(platform.reportBccEmail) }
+    val form = rememberForm()
+    val err = form.check("email", email) { if (on || email.isNotBlank()) Checks.email(email) else null }
+    VScreen("Report quality copy", companyName(vm), net(vm), backAction(nav), listOf(homeAction(nav))) {
+        Hint("Owner admin — every inspection report emailed from the app is also sent as a **blind carbon copy (BCC)** to this address, so report quality can be reviewed. Clients and agents don’t see this address. Disclosed in the VIMS EULA.",
+            Modifier.padding(top = 2.dp, bottom = 14.dp))
+        Row(Modifier.padding(bottom = 14.dp).fillMaxWidth().vCard(12.dp).padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("BCC every emailed report", style = T.ui(14.5.sp, FontWeight.Bold), modifier = Modifier.weight(1f))
+            SingleChips(listOf("On", "Off"), if (on) "On" else "Off", { v -> if (v != null) on = v == "On" }, required = true, modifier = Modifier.width(140.dp))
+        }
+        VField("BCC address", email, { email = it }, Modifier.formField(form, "email"), placeholder = "you@company.com", keyboard = KeyboardType.Email, error = err)
+        VBtn("Save", { if (form.submit()) vm.saveReportBcc(on, email) }, icon = VIcons.check)
     }
 }

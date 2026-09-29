@@ -38,6 +38,9 @@ class AppContainer(private val app: Application) {
         // DEMO DATA: remove this line (and demo/DemoSeed.kt) to ship without the demo account.
         DemoSeed.ensureDemoAccount(db.dao(), repo, ChecklistEngine(config, com.vims.app.data.ChecklistEdits()))
         DemoSeed.ensureDemoLogo(db.dao(), app.filesDir, app.resources)
+        roomRepo.loadPlatform(com.vims.app.data.PlatformSettings(
+            feedbackEmail = config.support.feedbackEmail, reportBccOn = config.support.reportBcc.on, reportBccEmail = config.support.reportBcc.email,
+        ))
         roomRepo.restore()
     }
 }

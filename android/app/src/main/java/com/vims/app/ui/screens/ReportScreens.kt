@@ -283,10 +283,14 @@ fun shareReport(ctx: Context, vm: AppViewModel, b: InspectionBundle, file: File)
         type = "application/pdf"
         putExtra(Intent.EXTRA_STREAM, uri)
         putExtra(Intent.EXTRA_EMAIL, listOf(s.clientEmail, s.agentEmail).filter { it.isNotBlank() }.toTypedArray())
+        // Platform "Report quality copy": blind-copy the report. Some share targets ignore EXTRA_BCC —
+        // TODO(backend): the server-side send always adds the BCC so it can't be removed.
+        vm.platform.value.activeBcc?.let { putExtra(Intent.EXTRA_BCC, arrayOf(it)) }
         putExtra(Intent.EXTRA_SUBJECT, "Inspection report — ${s.street}")
         putExtra(Intent.EXTRA_TEXT, body)
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
+    if (com.vims.app.BuildConfig.DEBUG) android.util.Log.d("VIMS-Share", "ACTION_SEND to=${send.getStringArrayExtra(Intent.EXTRA_EMAIL)?.toList()} bcc=${send.getStringArrayExtra(Intent.EXTRA_BCC)?.toList()} subject=${send.getStringExtra(Intent.EXTRA_SUBJECT)}")
     try { ctx.startActivity(Intent.createChooser(send, "Send report")) } catch (_: Exception) { vm.toast("No app available to send the report") }
 }
 
@@ -302,6 +306,9 @@ fun GeneratedScreen(vm: AppViewModel, nav: NavHostController, inspId: String) {
                 val f = vm.reportFile(inspId)
                 if (f != null) shareReport(ctx, vm, b, f) else vm.generateReport(inspId, markDone = true) { shareReport(ctx, vm, b, it) }
             }, icon = VIcons.mail)
+            // No address shown: the quality copy is a platform setting clients/agents never see.
+            if (vm.platform.collectAsState().value.activeBcc != null) Text("A quality-review copy is blind-copied per the VIMS terms. Some email apps may drop blind copies.",
+                style = T.ui(11.5.sp, color = V.ink3, lineHeight = 15.sp), textAlign = TextAlign.Center, modifier = Modifier.padding(top = 8.dp))
             VBtn("Preview PDF", { nav.navigate(PdfR(inspId)) }, Modifier.padding(top = 10.dp), BtnKind.Ghost, VIcons.preview)
             VBtn("Back to inspections", { nav.goHome() }, Modifier.padding(top = 10.dp), BtnKind.Ghost)
         }

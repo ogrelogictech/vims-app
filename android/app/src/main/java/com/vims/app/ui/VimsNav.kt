@@ -97,6 +97,7 @@ import kotlinx.serialization.Serializable
 @Serializable object SubStartedR
 @Serializable object BillingR
 @Serializable object FeedbackAdminR
+@Serializable object ReportBccR
 
 /** Debug-only launch options (adb `--es screen …`), used to open any screen directly for screenshots. */
 data class DebugLaunch(val screen: String, val insp: String?, val section: String?, val cat: String?, val photo: String?, val depth: String?, val splash: Boolean, val step: Int = 1, val coverStep: Int = 1)
@@ -145,6 +146,7 @@ fun VimsRoot(vm: AppViewModel, debug: DebugLaunch?) {
             composable<SubStartedR> { SubStartedScreen(vm, nav) }
             composable<BillingR> { BillingScreen(vm, nav) }
             composable<FeedbackAdminR> { FeedbackAdminScreen(vm, nav) }
+            composable<ReportBccR> { com.vims.app.ui.screens.ReportBccScreen(vm, nav) }
         }
 
         TrialSplash(vm, nav)
@@ -188,6 +190,7 @@ private suspend fun applyDebug(vm: AppViewModel, nav: NavHostController, d: Debu
         "substarted" -> SubStartedR
         "billing" -> BillingR
         "feedbackadmin" -> FeedbackAdminR
+        "reportbcc" -> ReportBccR
         else -> HomeR
     }
     if (route != null) {

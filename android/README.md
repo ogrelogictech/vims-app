@@ -101,6 +101,20 @@ With animator duration scale 0 the last frame shows for ~1 s. On emulators only,
 preferred (the emulator's "goldfish" decoder renders nothing under software GPU). Note: the source video's tagline reads
 "Vision Ins**j**ection…" — pending a corrected file from the client.
 
+### Platform-owner settings (Feedback & support, Report quality copy / BCC)
+- These are **VIMS platform** settings (Jeremy Heath owns VIMS; disclosed in the VIMS EULA), not per-company settings.
+  They are stored app-level (`PlatformSettings` in the Room `kv` table, defaults from `support.feedbackEmail` and
+  `support.reportBcc` in `vims-checklists.json` v1.2) and shared by every company on the install.
+- Only the platform owner sees or edits them: `Session.platformOwner` is set on sign-in for `PlatformOwner.EMAIL`
+  (jeremy@visionpropertyinspections.com) — `TODO(backend)`: the flag comes from the server. Company admins of other
+  companies don't get the Settings rows, the screens show "Only the VIMS platform owner…", and `updatePlatform` ignores
+  non-owner writes.
+- "Report quality copy (BCC)": On/Off + BCC address (email validation). Settings row subtitle "On · <address>" / "Off".
+- "Email to client" (Report ready) sends `ACTION_SEND` with the PDF (FileProvider), `EXTRA_EMAIL` = client (+ agent),
+  subject/body, and `EXTRA_BCC` = the BCC address when On (debug builds log the extras under tag `VIMS-Share`).
+  The address is never shown in the app; a short note says a quality copy is blind-copied and some email apps may drop
+  it. `TODO(backend)`: the server-side send always adds the BCC so it can't be removed.
+
 ### Home side menu
 The Home hamburger opens a left drawer (company logo or initials, user name, email, company; Inspections, New inspection,
 Settings, Company profile, How VIMS works, Help & feedback; admin-only Manage checklist, Plans & pricing, Inspectors;

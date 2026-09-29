@@ -34,6 +34,9 @@ interface VimsRepository {
     val settings: StateFlow<AppSettings>
     val edits: StateFlow<ChecklistEdits>
     val inspections: StateFlow<Map<String, InspectionBundle>>
+    /** Platform-level settings (not scoped to a user or company). */
+    val platform: StateFlow<PlatformSettings>
+    fun updatePlatform(f: (PlatformSettings) -> PlatformSettings)
 
     /** Loads the user's + company's data (or clears everything for null). `persist` remembers it for the next launch. */
     suspend fun activate(session: Session?, persist: Boolean = true)
@@ -72,6 +75,7 @@ class RoomRepository(filesDir: File, private val dao: VimsDao) : VimsRepository 
     private val _settings = MutableStateFlow(AppSettings())
     private val _edits = MutableStateFlow(ChecklistEdits())
     private val _inspections = MutableStateFlow<Map<String, InspectionBundle>>(emptyMap())
+    private val _platform = MutableStateFlow(PlatformSettings())
 
     override val session = _session.asStateFlow()
     override val account = _account.asStateFlow()
@@ -79,6 +83,18 @@ class RoomRepository(filesDir: File, private val dao: VimsDao) : VimsRepository 
     override val settings = _settings.asStateFlow()
     override val edits = _edits.asStateFlow()
     override val inspections = _inspections.asStateFlow()
+    override val platform = _platform.asStateFlow()
+
+    /** Loads platform settings from the kv table, seeding them from the shared JSON defaults the first time. */
+    suspend fun loadPlatform(defaults: PlatformSettings) = withContext(writer) {
+        val raw = dao.kv(KEY_PLATFORM)
+        _platform.value = raw?.let { dec(PlatformSettings.serializer(), it, defaults) } ?: defaults.also { dao.putKv(KvEntity(KEY_PLATFORM, enc(PlatformSettings.serializer(), it))) }
+    }
+
+    override fun updatePlatform(f: (PlatformSettings) -> PlatformSettings) {
+        if (_session.value?.platformOwner != true) return // only the VIMS platform owner may change these
+        _platform.update(f); val v = enc(PlatformSettings.serializer(), _platform.value); write { dao.putKv(KvEntity(KEY_PLATFORM, v)) }
+    }
 
     private val defsSer = MapSerializer(String.serializer(), SectionDef.serializer())
     private fun <T> enc(ser: KSerializer<T>, v: T) = json.encodeToString(ser, v)
@@ -96,6 +112,8 @@ class RoomRepository(filesDir: File, private val dao: VimsDao) : VimsRepository 
         val user = dao.user(session.userId)
         val co = dao.company(session.companyId)
         if (user == null || co == null) { clearMemory(); return@withContext }
+        // TODO(backend): the platform-owner flag comes from the server; locally it is the VIMS owner's account.
+        @Suppress("NAME_SHADOWING") val session = session.copy(platformOwner = PlatformOwner.isOwner(user.email))
         val ins = dao.inspectionsFor(user.id)
         val answers = dao.answersFor(user.id).groupBy { it.inspectionId }
         val photos = dao.photosFor(user.id).groupBy { it.inspectionId }
@@ -205,5 +223,11 @@ class RoomRepository(filesDir: File, private val dao: VimsDao) : VimsRepository 
         mutate(id) { it.copy(defs = defs) }?.let { b -> val v = enc(defsSer, b.defs); write { dao.updateDefs(id, u, v) } }
     }
 
-    companion object { const val KEY_SESSION = "session" }
+    companion object { const val KEY_SESSION = "session"; const val KEY_PLATFORM = "platformSettings" }
+}
+
+/** The VIMS platform owner (Jeremy Heath owns VIMS). TODO(backend): replace with a server-provided flag. */
+object PlatformOwner {
+    const val EMAIL = "jeremy@visionpropertyinspections.com"
+    fun isOwner(email: String): Boolean = email.trim().equals(EMAIL, ignoreCase = true)
 }
