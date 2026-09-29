@@ -425,10 +425,12 @@
         <div class="field"><label>Real estate agent name</label><input class="txt" placeholder="Agent name (optional)"></div>
         <div class="field"><label>Real estate agent email</label><input class="txt" type="email" placeholder="agent@email.com"></div>
         <p style="font-size:12px;color:var(--ink-3);margin:-2px 2px 12px">Client &amp; agent emails are used to send the finished report.</p>
+        <div class="field"><label>Inspector License #</label><input class="txt" id="winsplic" placeholder="e.g. TREC 12345" oninput="setInspLicense(this.value)"></div>
         <div class="stat2" style="gap:10px"><div class="field" style="margin:0"><label>Date</label><input class="txt" type="date"></div><div class="field" style="margin:0"><label>Time</label><input class="txt" type="time"></div></div>
         <p class="lbl">Type of loan</p><div class="chips" data-single><button class="chip">FHA</button><button class="chip">VA</button><button class="chip on">Conventional</button></div>
         <p class="lbl">Type of inspection</p><div class="chips" data-manual id="wtype"></div>
         <div id="wcomponent"></div>
+        <div id="wtypefields"></div>
         <p class="lbl">Property status</p><div class="chips" data-single><button class="chip on">Owner Occupied</button><button class="chip">Second Residence</button><button class="chip">Tenant Occupied</button><button class="chip">Currently Vacant</button><button class="chip">Flipper</button><button class="chip">Bank Owned</button></div>
         <p class="lbl">Weather &amp; site conditions</p>
         <div class="field" style="margin-bottom:11px"><label>Temperature (&deg;F)</label><input class="txt" placeholder="72" style="max-width:120px"></div>
@@ -487,7 +489,7 @@
       </div>
       <p class="lbl">Checklist · tap a group</p>
       <div id="overviewgroups"></div>
-      <button class="btn signal" style="margin-top:8px" onclick="go('s-summary')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3 8-8M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg>Review summary</button>
+      <button class="btn signal" id="ovsummary" style="margin-top:8px" onclick="go('s-summary')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3 8-8M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg>Review summary</button>
       <button class="btn primary" style="margin-top:10px" onclick="go('s-report')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>Generate report</button>
     </section>
 
@@ -518,10 +520,12 @@
       </div>
       <p class="lbl">Report cover</p>
       <div id="coverpicker"></div>
+      <p class="lbl">Report pages</p>
+      <div class="card" style="padding:12px 14px;font-size:13px;color:var(--ink-2);line-height:1.5" id="reportpages"></div>
       <p class="lbl">Report contents · in checklist order</p>
       <p style="font-size:12px;color:var(--ink-3);margin:-4px 2px 10px">Completed sections populate the report in the order they're numbered on your master checklist.</p>
       <div class="card" style="padding:6px 0" id="reportcontents"></div>
-      <a class="btn ghost" href="report.html" style="margin-top:10px;text-decoration:none" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>Preview report format</a>
+      <a class="btn ghost" id="previewlink" href="report.html" style="margin-top:10px;text-decoration:none" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>Preview report format</a>
       <div class="banner" style="margin-top:16px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-9 9 9 9 0 0 1-6.7-3L3 16M3 12a9 9 0 0 1 9-9 9 9 0 0 1 6.7 3L21 8"/></svg><div>You're <b>offline</b>. The report generates on the device now; it uploads on the next sync.</div></div>
       <button class="btn primary" onclick="go('s-generated')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>Generate PDF report</button>
       <button class="btn ghost" style="margin-top:10px" onclick="go('s-payment')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>Collect payment</button>
@@ -738,6 +742,7 @@
 <script>
 (function(){
   var ICONS={
+    camera:'<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"/><circle cx="12" cy="13" r="3"/>',
     info:'<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>',tree:'<path d="M12 22v-7M9 9l3-6 3 6M7 14l5-8 5 8M5 19h14"/>',
     wall:'<rect x="3" y="4" width="18" height="16" rx="1"/><path d="M3 10h18M9 4v6M15 10v10"/>',home:'<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20h14V9.5"/>',
     deck:'<path d="M2 20h20M4 20V8M20 20V8M4 8h16M12 8v12"/>',pool:'<path d="M2 20c2 0 2-2 4-2s2 2 4 2 2-2 4-2 2 2 4 2 2-2 4-2M6 16V6a2 2 0 0 1 4 0M14 16V6"/>',
@@ -4073,13 +4078,45 @@ SEC['Wind Mitigation'].itemsHigh=[
 
 
   // Catalogs (from Jeremy's App Flow Chart + Inspection Info checklist 01)
-  var INSPECTION_TYPES=['Real Estate Sale','New Construction','Pre-Sale / Maintenance','Component','Code','Tests Only','Phase 1 Foundation','Phase 2 Pre-Dry Wall','New Build Final'];
+  var INSPECTION_TYPES=['Real Estate Sale','New Construction','Pre-Sale / Maintenance','Component','Code','Tests Only','Phase 1 Foundation','Phase 2 Pre-Dry Wall','New Build Final','Texas','4 Point Inspection'];
   var COMPONENT_OPT=['Roof','HVAC','Electrical','Plumbing'];
   var STRUCTURE_TYPES=['Single Family','Duplex','Multi-Unit','Townhouse','Condo','Mobile / Manufactured'];
   var EXT_OPT=['Chimney','Pool House & Pool','Outbuilding – Shed','Outbuilding – Car Port','Deck','Patio','Balcony','Detached Garage','Condo','Mobile Home Undercarriage'];
   // master-checklist section numbers (drives report order — feedback item 13)
   var NUM={'Inspection Info':1,'Landscaping':2,'Condo':3,'Pool House & Pool':3,'Additional Living Space':4,'Outbuilding – Shed':5,'Outbuilding – Car Port':6,'Mobile Home Undercarriage':7,'Roof':8,'Exterior Walls':10,'Outside Utilities':11,'Deck':12,'Patio':12,'Balcony':13,'Garage':14,'Detached Garage':14,'Attic':15,'Bathroom':16,'Bedroom':17,'Hallway':18,'Living Room':19,'Reception':20,'Den / Home Office':21,'Family Room':22,'Kitchen':23,'Dining Room':24,'Laundry Room':25,'Storage Room':26,'Utility Room':26,'Electrical':27,'HVAC Mechanical':28,'Heating Oil Tank':29,'Boiler':30,'Water Heater':31,'Plumbing':32,'Foundation / Crawl Space':33,'Radon':34,'Meth Test':35,'Thermal Audit':36,'Termite':37,'Lead':38,'Indoor Air Quality':39,'Septic':40,'Wind Mitigation':41,'Chimney':42,'Sewer Scope':40,'Asbestos':37,'Summary':43};
   NUM['Propane Tank']=30;
+  // ---------- state & insurance forms (client-supplied templates) ----------
+  // Texas: TREC Property Inspection Report form REI 7-6 (8/9/21). Every item is marked I / NI / NP / D + comments.
+  var TREC_STATUS=['I · Inspected','NI · Not Inspected','NP · Not Present','D · Deficient'];
+  function trecItems(list){ var a=[]; list.forEach(function(c){ a.push({h:c[0]}); a.push({q:'Status',t:'multi',o:TREC_STATUS}); c[1].forEach(function(f){ a.push({q:f,t:'text'}); }); a.push({q:'Comments',t:'text',ph:'Comments for this item…'}); }); return a; }
+  var TEXAS_SECS=[];
+  SEC["Texas — I. Structural Systems"]={icon:'file',form:'texas',pics:['Overview','Deficiencies'],items:trecItems([["A. Foundations", ["Type of Foundation(s)"]], ["B. Grading and Drainage", []], ["C. Roof Covering Materials", ["Types of Roof Covering", "Viewed From"]], ["D. Roof Structures and Attics", ["Viewed From", "Approximate Average Depth of Insulation"]], ["E. Walls (Interior and Exterior)", []], ["F. Ceilings and Floors", []], ["G. Doors (Interior and Exterior)", []], ["H. Windows", []], ["I. Stairways (Interior and Exterior)", []], ["J. Fireplaces and Chimneys", []], ["K. Porches, Balconies, Decks, and Carports", []], ["L. Other", []]])}; TEXAS_SECS.push("Texas — I. Structural Systems");
+  SEC["Texas — II. Electrical Systems"]={icon:'file',form:'texas',pics:['Overview','Deficiencies'],items:trecItems([["A. Service Entrance and Panels", []], ["B. Branch Circuits, Connected Devices, and Fixtures", ["Type of Wiring"]], ["C. Other", []]])}; TEXAS_SECS.push("Texas — II. Electrical Systems");
+  SEC["Texas — III. Heating, Ventilation and Air Conditioning Systems"]={icon:'file',form:'texas',pics:['Overview','Deficiencies'],items:trecItems([["A. Heating Equipment", ["Type of Systems", "Energy Sources"]], ["B. Cooling Equipment", ["Type of Systems"]], ["C. Duct Systems, Chases, and Vents", []], ["D. Other", []]])}; TEXAS_SECS.push("Texas — III. Heating, Ventilation and Air Conditioning Systems");
+  SEC["Texas — IV. Plumbing Systems"]={icon:'file',form:'texas',pics:['Overview','Deficiencies'],items:trecItems([["A. Plumbing Supply, Distribution Systems and Fixtures", ["Location of water meter", "Location of main water supply valve", "Static water pressure reading", "Type of supply piping material"]], ["B. Drains, Wastes, and Vents", ["Type of drain piping material"]], ["C. Water Heating Equipment", ["Energy Sources", "Capacity"]], ["D. Hydro-Massage Therapy Equipment", []], ["E. Gas Distribution Systems and Gas Appliances", ["Location of gas meter", "Type of gas distribution piping material"]], ["F. Other", []]])}; TEXAS_SECS.push("Texas — IV. Plumbing Systems");
+  SEC["Texas — V. Appliances"]={icon:'file',form:'texas',pics:['Overview','Deficiencies'],items:trecItems([["A. Dishwashers", []], ["B. Food Waste Disposers", []], ["C. Range Hood and Exhaust Systems", []], ["D. Ranges, Cooktops, and Ovens", []], ["E. Microwave Ovens", []], ["F. Mechanical Exhaust Vents and Bathroom Heaters", []], ["G. Garage Door Operators", []], ["H. Dryer Exhaust Systems", []], ["I. Other", []]])}; TEXAS_SECS.push("Texas — V. Appliances");
+  SEC["Texas — VI. Optional Systems"]={icon:'file',form:'texas',pics:['Overview','Deficiencies'],items:trecItems([["A. Landscape Irrigation (Sprinkler) Systems", []], ["B. Swimming Pools, Spas, Hot Tubs, and Equipment", ["Type of Construction"]], ["C. Outbuildings", []], ["D. Private Water Wells (A coliform analysis is recommended.)", ["Type of Pump", "Type of Storage Equipment"]], ["E. Private Sewage Disposal Systems", ["Type of System", "Location of Drain Field"]], ["F. Other Built-in Appliances", []], ["G. Other", []]])}; TEXAS_SECS.push("Texas — VI. Optional Systems");
+  SEC['Texas — Pictures']={icon:'camera',form:'texas',photosOnly:true,pics:['Front of home','Left side','Right side','Back of home','Roof','Deficiencies','Other'],items:[]};
+  // 4-Point Inspection Form (sample form Insp4pt 01 18): Electrical, HVAC, Plumbing, Roof + picture page.
+  var FOURPT_SECS=[];
+  SEC["4-Point — Electrical System"]={icon:'box',form:'4point',pics:["Main panel with interior door label", "Electrical box with panel off", "Hazards / deficiencies"],items:[{"h": "Main Panel"}, {"q": "Type", "t": "single", "o": ["Circuit breaker", "Fuse"]}, {"q": "Total amps", "t": "num"}, {"q": "Is amperage sufficient for current usage?", "t": "single", "o": ["Yes", "No (explain)"]}, {"h": "Second Panel"}, {"q": "Type", "t": "single", "o": ["Circuit breaker", "Fuse"]}, {"q": "Total amps", "t": "num"}, {"q": "Is amperage sufficient for current usage?", "t": "single", "o": ["Yes", "No (explain)"]}, {"h": "Indicate presence of any of the following"}, {"q": "Present", "t": "multi", "o": ["Cloth wiring", "Active knob and tube", "Branch circuit aluminum wiring"]}, {"q": "If aluminum wiring is present, describe the usage of all aluminum wiring", "t": "text"}, {"q": "Single strand (aluminum branch) wiring remediation", "t": "multi", "o": ["Connections repaired via COPALUM crimp", "Connections repaired via AlumiConn"]}, {"h": "Hazards Present"}, {"q": "Hazards", "t": "multi", "o": ["Blowing fuses", "Tripping breakers", "Empty sockets", "Loose wiring", "Improper grounding", "Corrosion", "Over fusing", "Double taps", "Exposed wiring", "Unsafe wiring", "Improper breaker size", "Scorching", "Other (explain)"]}, {"q": "General condition of the electrical system", "t": "single", "o": ["Satisfactory", "Unsatisfactory (explain)"]}, {"h": "Supplemental Information"}, {"q": "Main panel — panel age", "t": "text"}, {"q": "Main panel — year last updated", "t": "text"}, {"q": "Main panel — brand / model", "t": "text"}, {"q": "Second panel — panel age", "t": "text"}, {"q": "Second panel — year last updated", "t": "text"}, {"q": "Second panel — brand / model", "t": "text"}, {"q": "Wiring type", "t": "multi", "o": ["Copper", "NM, BX or Conduit"]}]}; FOURPT_SECS.push("4-Point — Electrical System");
+  SEC["4-Point — HVAC System"]={icon:'box',form:'4point',pics:["HVAC equipment & dated manufacturer’s plate", "Hazards / deficiencies"],items:[{"q": "Central AC", "t": "single", "o": ["Yes", "No"]}, {"q": "Central heat", "t": "single", "o": ["Yes", "No"]}, {"q": "If not central heat, indicate primary heat source and fuel type", "t": "text"}, {"q": "Are the heating, ventilation and air conditioning systems in good working order?", "t": "single", "o": ["Yes", "No (explain)"]}, {"q": "Date of last HVAC servicing / inspection", "t": "date"}, {"h": "Hazards Present"}, {"q": "Wood-burning stove or central gas fireplace not professionally installed?", "t": "single", "o": ["Yes", "No"]}, {"q": "Space heater used as primary heat source?", "t": "single", "o": ["Yes", "No"]}, {"q": "Is the source portable?", "t": "single", "o": ["Yes", "No"]}, {"q": "Does the air handler / condensate line or drain pan show any signs of blockage or leakage, including water damage to the surrounding area?", "t": "single", "o": ["Yes", "No"]}, {"h": "Supplemental Information"}, {"q": "Age of system", "t": "text"}, {"q": "Year last updated", "t": "text"}]}; FOURPT_SECS.push("4-Point — HVAC System");
+  SEC["4-Point — Plumbing System"]={icon:'box',form:'4point',pics:["Water heater", "Under-cabinet plumbing / drains", "Exposed valves", "Hazards / deficiencies"],items:[{"q": "Is there a temperature pressure relief valve on the water heater?", "t": "single", "o": ["Yes", "No"]}, {"q": "Is there any indication of an active leak?", "t": "single", "o": ["Yes", "No"]}, {"q": "Is there any indication of a prior leak?", "t": "single", "o": ["Yes", "No"]}, {"q": "Water heater location", "t": "text"}, {"h": "General condition of plumbing fixtures and connections to appliances"}, {"q": "Dishwasher", "t": "single", "o": ["Satisfactory", "Unsatisfactory", "N/A"]}, {"q": "Refrigerator", "t": "single", "o": ["Satisfactory", "Unsatisfactory", "N/A"]}, {"q": "Washing machine", "t": "single", "o": ["Satisfactory", "Unsatisfactory", "N/A"]}, {"q": "Water heater", "t": "single", "o": ["Satisfactory", "Unsatisfactory", "N/A"]}, {"q": "Showers / Tubs", "t": "single", "o": ["Satisfactory", "Unsatisfactory", "N/A"]}, {"q": "Toilets", "t": "single", "o": ["Satisfactory", "Unsatisfactory", "N/A"]}, {"q": "Sinks", "t": "single", "o": ["Satisfactory", "Unsatisfactory", "N/A"]}, {"q": "Sump pump", "t": "single", "o": ["Satisfactory", "Unsatisfactory", "N/A"]}, {"q": "Main shut off valve", "t": "single", "o": ["Satisfactory", "Unsatisfactory", "N/A"]}, {"q": "All other visible", "t": "single", "o": ["Satisfactory", "Unsatisfactory", "N/A"]}, {"q": "If unsatisfactory, provide comments / details (leaks, wet/soft spots, mold, corrosion, grout/caulk, etc.)", "t": "text"}, {"h": "Supplemental Information"}, {"q": "Age of piping system", "t": "single", "o": ["Original to home", "Completely re-piped", "Partially re-piped"]}, {"q": "Year and extent of renovation", "t": "text"}, {"q": "Type of pipes (check all that apply)", "t": "multi", "o": ["Copper", "PVC/CPVC", "Galvanized", "PEX", "Polybutylene", "Other (specify)"]}]}; FOURPT_SECS.push("4-Point — Plumbing System");
+  SEC["4-Point — Roof"]={icon:'box',form:'4point',pics:["Roof — each slope", "Hazards / deficiencies"],items:[{"h": "Predominant Roof"}, {"q": "Covering material", "t": "text"}, {"q": "Roof age (years)", "t": "num"}, {"q": "Remaining useful life (years)", "t": "num"}, {"q": "Date of last roofing permit", "t": "text"}, {"q": "Date of last update", "t": "text"}, {"q": "If updated", "t": "single", "o": ["Full replacement", "Partial replacement"]}, {"q": "% of replacement", "t": "num"}, {"q": "Overall condition", "t": "single", "o": ["Satisfactory", "Unsatisfactory (explain below)"]}, {"q": "Any visible signs of damage / deterioration?", "t": "multi", "o": ["Cracking", "Cupping/curling", "Excessive granule loss", "Exposed asphalt", "Exposed felt", "Missing/loose/cracked tabs or tiles", "Soft spots in decking", "Visible hail damage"]}, {"q": "Any visible signs of leaks?", "t": "single", "o": ["Yes", "No"]}, {"q": "Attic / underside of decking", "t": "single", "o": ["Yes", "No"]}, {"q": "Interior ceilings", "t": "single", "o": ["Yes", "No"]}, {"h": "Secondary Roof"}, {"q": "Covering material", "t": "text"}, {"q": "Roof age (years)", "t": "num"}, {"q": "Remaining useful life (years)", "t": "num"}, {"q": "Date of last roofing permit", "t": "text"}, {"q": "Date of last update", "t": "text"}, {"q": "If updated", "t": "single", "o": ["Full replacement", "Partial replacement"]}, {"q": "% of replacement", "t": "num"}, {"q": "Overall condition", "t": "single", "o": ["Satisfactory", "Unsatisfactory (explain below)"]}, {"q": "Any visible signs of damage / deterioration?", "t": "multi", "o": ["Cracking", "Cupping/curling", "Excessive granule loss", "Exposed asphalt", "Exposed felt", "Missing/loose/cracked tabs or tiles", "Soft spots in decking", "Visible hail damage"]}, {"q": "Any visible signs of leaks?", "t": "single", "o": ["Yes", "No"]}, {"q": "Attic / underside of decking", "t": "single", "o": ["Yes", "No"]}, {"q": "Interior ceilings", "t": "single", "o": ["Yes", "No"]}, {"h": "Additional Comments / Observations"}, {"q": "Additional comments / observations", "t": "text", "ph": "Updates (type, date, by whom), visible hazards or deficiencies, systems not in good working order…"}]}; FOURPT_SECS.push("4-Point — Roof");
+  SEC['4-Point — Pictures']={icon:'camera',form:'4point',photosOnly:true,pics:['Dwelling — front','Dwelling — left side','Dwelling — right side','Dwelling — back','Roof — each slope','Water heater','Under-cabinet plumbing / drains','Exposed valves','Main electrical panel & interior door label','Electrical box with panel off','HVAC equipment & dated manufacturer’s plate','Hazards / deficiencies'],items:[]};
+  var FORM_NAMES={texas:'Texas TREC form · REI 7-6',fourpt:'4-Point Inspection form'};
+  NUM["Texas — I. Structural Systems"]=1;
+  NUM["Texas — II. Electrical Systems"]=2;
+  NUM["Texas — III. Heating, Ventilation and Air Conditioning Systems"]=3;
+  NUM["Texas — IV. Plumbing Systems"]=4;
+  NUM["Texas — V. Appliances"]=5;
+  NUM["Texas — VI. Optional Systems"]=6;
+  NUM["Texas — Pictures"]=7;
+  NUM["4-Point — Electrical System"]=1;
+  NUM["4-Point — HVAC System"]=2;
+  NUM["4-Point — Plumbing System"]=3;
+  NUM["4-Point — Roof"]=4;
+  NUM["4-Point — Pictures"]=5;
   function secNum(n){ var b=baseName(n); return NUM[b]||99; }
   var ROOM_OPT=['Living Room','Family Room','Den / Home Office','Reception','Kitchen','Dining Room','Laundry Room','Storage Room','Attic','Garage','Additional Living Space'];
   var UTIL_OPT=['Boiler','Heating Oil Tank','Propane Tank'];
@@ -4090,6 +4127,7 @@ SEC['Wind Mitigation'].itemsHigh=[
     ['Interior',['Garage','Attic','Bathroom','Bedroom','Hallway','Living Room','Den / Home Office','Family Room','Reception','Kitchen','Dining Room','Laundry Room','Storage Room','Additional Living Space']],
     ['Utility',['Utility Room','HVAC Mechanical','Electrical','Water Heater','Boiler','Heating Oil Tank','Propane Tank','Plumbing','Foundation / Crawl Space']],
     ['Testing',['Radon','Meth Test','Thermal Audit','Termite','Lead','Indoor Air Quality','Septic','Sewer Scope','Asbestos','Wind Mitigation']],
+    ['State & Insurance Forms',TEXAS_SECS.concat(['Texas — Pictures']).concat(FOURPT_SECS).concat(['4-Point — Pictures'])],
     ['Phase Inspections',['Phase 1 — Foundation','Phase 2 — Exterior','Phase 2 — Framing & Interior','Phase 2 — Floor System','Phase 2 — Plumbing','Phase 2 — Electrical','Phase 2 — HVAC']]
   ];
 
@@ -4109,6 +4147,12 @@ SEC['Wind Mitigation'].itemsHigh=[
     }
     if(sel.inspType==='Phase 2 Pre-Dry Wall'){
       return [ {h:'Inspection Info',icon:'info',link:'s-new'}, {h:'Pre-Dry Wall (4-Way)',icon:'box',secs:['Phase 2 — Exterior','Phase 2 — Framing & Interior','Phase 2 — Floor System','Phase 2 — Plumbing','Phase 2 — Electrical','Phase 2 — HVAC']}, {h:'Summary',icon:'list',link:'s-summary'} ];
+    }
+    if(sel.inspType==='Texas'){
+      return [ {h:'Inspection Info',icon:'info',link:'s-new'}, {h:'Texas TREC Inspection (REI 7-6)',icon:'file',secs:TEXAS_SECS}, {h:'Pictures',icon:'camera',secs:['Texas — Pictures']}, {h:'Summary',icon:'list',link:'s-summary'} ];
+    }
+    if(sel.inspType==='4 Point Inspection'){
+      return [ {h:'Inspection Info',icon:'info',link:'s-new'}, {h:'4-Point Inspection',icon:'box',secs:FOURPT_SECS}, {h:'Pictures',icon:'camera',secs:['4-Point — Pictures']} ];
     }
     var ext=['Landscaping','Roof','Exterior Walls','Outside Utilities'];
     EXT_OPT.forEach(function(k){ if(sel.exterior[k]) ext.push(k); });
@@ -4207,6 +4251,7 @@ SEC['Wind Mitigation'].itemsHigh=[
   function secRow(n){ var st=STATUS[n]||'todo'; var r=document.createElement('button'); r.className='srow'; r.type='button'; r.innerHTML='<span class="sdot '+dotClass(st)+'"></span><span class="sn">'+n+'</span><span class="ss">'+statusWord(st)+'</span>'; r.onclick=function(){openSection(n);}; return r; }
   function renderOverview(){
     updateProgress();
+    var ovs=document.getElementById('ovsummary'); if(ovs) ovs.style.display=GROUPS.some(function(g){return g.link==='s-summary';})?'':'none';
     var wrap=document.getElementById('overviewgroups'); wrap.innerHTML='';
     GROUPS.forEach(function(g,gi){
       if(g.link){
@@ -4253,6 +4298,7 @@ SEC['Wind Mitigation'].itemsHigh=[
     var s=SEC[baseName(name)];
     if(s&&s.link){ closeDrawer(); go(s.link); return; }
     curSection=name;
+    if(s&&s.photosOnly){ closeDrawer(); go('s-photos'); return; }
     document.getElementById('s-section').setAttribute('data-title',name);
     renderSectionBody(name);
     renderDrawer();
@@ -4265,11 +4311,15 @@ SEC['Wind Mitigation'].itemsHigh=[
     var depthCls  = depth==='high'?'hi':depth==='free'?'fe':'std';
     var hint = depth==='free' ? 'Overall condition and notes — no line-by-line. Change depth in Settings.' : 'Tap what applies, scroll to the next line — saves in one go.';
     var h='<div class="modetile"><span class="modebadge '+depthCls+'">'+depthName+' checklist</span><span class="modehint">'+hint+'</span></div>';
+    if(s.form){
+      h='<div class="modetile"><span class="modebadge hi">'+(s.form==='texas'?FORM_NAMES.texas:FORM_NAMES.fourpt)+'</span><span class="modehint">'+(s.form==='texas'?'Mark each item I / NI / NP / D and add comments. Same on every checklist depth.':'Complete every line of the form. Same on every checklist depth.')+'</span></div>';
+      depth='standard';
+    }
     if(depth==='free'){
       var quick=(s.items||[]).filter(function(it){return it.q;});
       if(quick.length){ h+='<p class="lbl">Items present</p><div class="chips">'; quick.forEach(function(it){ h+='<button class="chip">'+it.q+'</button>'; }); h+='</div>'; }
     } else {
-      var useHigh=(depth==='high' && s.itemsHigh);
+      var useHigh=(depth==='high' && s.itemsHigh && !s.form);
       var items = useHigh ? s.itemsHigh : (s.items||[]);
       items.forEach(function(it){
         if(it.h){ h+='<div class="lihead">'+ico('list')+it.h+'</div>'; return; }
@@ -4281,9 +4331,11 @@ SEC['Wind Mitigation'].itemsHigh=[
         h+='</div>';
       });
     }
-    h+='<p class="lbl">Overall condition</p><div class="seg">';
-    OVERALL.forEach(function(o,i){ h+='<button'+(i===1?' class="on"':'')+'>'+o+'</button>'; });
-    h+='</div>';
+    if(!s.form){
+      h+='<p class="lbl">Overall condition</p><div class="seg">';
+      OVERALL.forEach(function(o,i){ h+='<button'+(i===1?' class="on"':'')+'>'+o+'</button>'; });
+      h+='</div>';
+    }
     h+='<p class="lbl">Comments</p><textarea class="txt" placeholder="Notes for this section…"></textarea>';
     h+='<div class="btnrow"><button class="btn ghost" onclick="go(\'s-photos\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"/><circle cx="12" cy="13" r="3"/></svg>Photos</button><button class="btn ghost" onclick="saveSection()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Save</button></div>';
     h+='<button class="btn primary" style="margin-top:10px" onclick="saveNext()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5M13 6l6 6-6 6"/></svg>Save &amp; next section</button>';
@@ -4309,7 +4361,8 @@ SEC['Wind Mitigation'].itemsHigh=[
     seedPhotos(name,pics);
     document.getElementById('s-photos').setAttribute('data-title',name+' photos');
     var js=function(x){ return String(x).replace(/'/g,"\\'"); };
-    var h='<p style="font-size:13px;color:var(--ink-3);margin:2px 0 14px">Tap <b>Add</b> to capture a photo, tap a photo to mark it up or flag it, or tap <b>&times;</b> to delete one.</p>';
+    var sp=SEC[baseName(name)]||{};
+    var h='<p style="font-size:13px;color:var(--ink-3);margin:2px 0 14px">'+(sp.photosOnly?'These pictures print on the picture pages after the checklist. ':'')+'Tap <b>Add</b> to capture a photo, tap a photo to mark it up or flag it, or tap <b>&times;</b> to delete one.</p>';
     pics.forEach(function(cat){
       var arr=PHOTOS[name][cat]||[];
       h+='<div class="pcat"><div class="ph"><b>'+cat+'</b><span>'+arr.length+' photo'+(arr.length===1?'':'s')+'</span></div><div class="pgrid">';
@@ -4319,9 +4372,19 @@ SEC['Wind Mitigation'].itemsHigh=[
       });
       h+='<button class="add" onclick="addPhoto(\''+js(name)+'\',\''+js(cat)+'\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"/><circle cx="12" cy="13" r="3"/></svg>Add</button></div></div>';
     });
-    h+='<button class="btn primary" style="margin-top:6px" onclick="go(\'s-section\')">Done</button>';
+    if(sp.photosOnly){
+      var toSummary=GROUPS.some(function(g){return g.link==='s-summary';});
+      h+='<button class="btn primary" style="margin-top:6px" onclick="finishPictures(\''+js(name)+'\')">Save &amp; continue to '+(toSummary?'summary':'report')+'</button>';
+    } else h+='<button class="btn primary" style="margin-top:6px" onclick="go(\'s-section\')">Done</button>';
     document.getElementById('photosbody').innerHTML=h;
   }
+
+  window.setInspLicense=function(v){ sel.inspLicense=v; };
+  window.finishPictures=function(name){
+    STATUS[name]='done'; renderOverview();
+    var toSummary=GROUPS.some(function(g){return g.link==='s-summary';});
+    toast('Pictures saved'); setTimeout(function(){ go(toSummary?'s-summary':'s-report'); },450);
+  };
 
   // ---------- new-inspection wizard ----------
   var wizStep=1;
@@ -4363,7 +4426,17 @@ SEC['Wind Mitigation'].itemsHigh=[
     wu.innerHTML=h;
     wu.querySelectorAll('button').forEach(function(b){ b.onclick=function(){ var k=b.getAttribute('data-k'),d=+b.getAttribute('data-d'); sel.unitmix[k]=Math.max(0,sel.unitmix[k]+d); b.parentElement.querySelector('span').textContent=sel.unitmix[k]; }; });
   }
+  // Texas (TREC REI 7-6) asks for a sponsor; the 4-Point form asks for an application / policy number
+  function renderTypeFields(){
+    var wf=document.getElementById('wtypefields'); if(!wf) return;
+    if(sel.inspType==='Texas'){
+      wf.innerHTML='<p class="lbl">Texas TREC form</p><div class="field"><label>Name of sponsor (if applicable)</label><input class="txt" placeholder="Sponsor name"></div><div class="field"><label>Sponsor TREC License #</label><input class="txt" placeholder="TREC license #"></div>';
+    } else if(sel.inspType==='4 Point Inspection'){
+      wf.innerHTML='<p class="lbl">4-Point form</p><div class="field"><label>Insured / applicant name</label><input class="txt" placeholder="Name on the insurance application"></div><div class="field"><label>Application / Policy #</label><input class="txt" placeholder="Policy or application number"></div>';
+    } else wf.innerHTML='';
+  }
   function renderComponentSub(){
+    renderTypeFields();
     var wc=document.getElementById('wcomponent'); if(!wc) return;
     if(sel.inspType!=='Component'){ wc.innerHTML=''; return; }
     if(!sel.component) sel.component={'Roof':1,'HVAC':0,'Electrical':0,'Plumbing':0};
@@ -4557,7 +4630,15 @@ SEC['Wind Mitigation'].itemsHigh=[
   };
   window.coverStep=function(n){ cover.step=n; renderCoverPicker(); };
   window.coverPick=function(k,v){ cover[k]=v; if(k==='category'){ cover.option=(COVER_CATS[v]||[])[0]||''; if(v==='Solid') cover.style='Solid'; else if(cover.style==='Solid') cover.style='Framed'; } renderCoverPicker(); };
+  function reportType(){ return sel.inspType==='Texas'?'texas':sel.inspType==='4 Point Inspection'?'4point':'standard'; }
+  var REPORT_PAGES={
+    standard:'Cover · Property information · Beginning notes · Checklist sections with their photos · Summary',
+    texas:'Cover · Inspector &amp; property information (TREC REI 7-6) · Checklist (I / NI / NP / D) · Pictures · Summary',
+    '4point':'Cover · 4-Point checklist (Electrical, HVAC, Plumbing, Roof) · Pictures'
+  };
   window.renderReportContents=function(){
+    var rt=reportType(), rp=document.getElementById('reportpages'); if(rp) rp.innerHTML=REPORT_PAGES[rt];
+    var pl=document.getElementById('previewlink'); if(pl) pl.href='report.html?type='+rt+(sel.inspLicense?'&lic='+encodeURIComponent(sel.inspLicense):'');
     var host=document.getElementById('reportcontents'); if(!host) return;
     var done=leafSecs().filter(function(n){return STATUS[n]==='done';});
     done.sort(function(a,b){ return secNum(a)-secNum(b) || a.localeCompare(b); });
