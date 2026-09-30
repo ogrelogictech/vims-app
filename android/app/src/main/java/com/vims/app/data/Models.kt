@@ -42,6 +42,8 @@ data class Session(
     val companyId: String = "",
     /** The VIMS platform owner (not a company role): may edit platform settings — feedback email, report BCC. */
     val platformOwner: Boolean = false,
+    /** EULA version this user has accepted (null = never). */
+    val eulaVersion: String? = null,
 ) {
     val isAdmin: Boolean get() = role != Role.INSPECTOR
     val initials: String get() = name.split(" ").filter { it.isNotBlank() }.take(2).joinToString("") { it.first().uppercase() }.ifEmpty { "?" }
@@ -74,7 +76,11 @@ data class AccountState(
     val feedbackEmail: String = "",
     val cardLast4: String? = null,
     val subscribedEpochDay: Long? = null,
+    /** Cancelled subscriptions stay active until the end of the current billing period (EULA 12.3). */
+    val cancelled: Boolean = false,
 ) {
+    /** Next billing date (or, when cancelled, the date access ends). */
+    val periodEndEpochDay: Long? get() = subscribedEpochDay?.let { java.time.LocalDate.ofEpochDay(it).plusMonths(1).toEpochDay() }
     val plan: Plan get() = plans.firstOrNull { it.id == planId } ?: plans.firstOrNull() ?: Plan("app", "App", 0.0)
     val seatCount: Int get() = maxOf(seats, inspectors.size, 1)
 }

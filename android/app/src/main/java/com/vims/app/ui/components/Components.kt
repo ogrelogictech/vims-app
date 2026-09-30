@@ -191,7 +191,8 @@ fun Hint(text: String, modifier: Modifier = Modifier, size: Float = 13f) {
 
 /* ---------------------------------------------------------------- buttons */
 
-enum class BtnKind { Primary, Signal, Ghost }
+/** Danger = c1 filled (confirm destructive); GhostDanger = ghost with c1 text (e.g. Cancel subscription). */
+enum class BtnKind { Primary, Signal, Ghost, Danger, GhostDanger }
 
 @Composable
 fun VBtn(
@@ -203,11 +204,13 @@ fun VBtn(
         BtnKind.Primary -> V.brand to Color.White
         BtnKind.Signal -> V.signal to V.signalInk
         BtnKind.Ghost -> V.paper to V.ink
+        BtnKind.Danger -> V.c1 to Color.White
+        BtnKind.GhostDanger -> V.paper to V.c1
     }
     var m = modifier.fillMaxWidth().heightIn(min = minHeight)
     if (kind == BtnKind.Primary) m = m.shadow(10.dp, shape, ambientColor = V.brand, spotColor = V.brand)
     m = m.clip(shape).background(if (enabled) bg else bg.copy(alpha = .5f))
-    if (kind == BtnKind.Ghost) m = m.border(1.dp, V.line, shape)
+    if (kind == BtnKind.Ghost || kind == BtnKind.GhostDanger) m = m.border(1.dp, V.line, shape)
     Row(
         m.clickable(enabled = enabled, role = Role.Button, onClick = onClick).padding(horizontal = 18.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically,

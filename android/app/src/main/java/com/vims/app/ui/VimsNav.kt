@@ -98,9 +98,10 @@ import kotlinx.serialization.Serializable
 @Serializable object BillingR
 @Serializable object FeedbackAdminR
 @Serializable object ReportBccR
+@Serializable object EulaR
 
 /** Debug-only launch options (adb `--es screen …`), used to open any screen directly for screenshots. */
-data class DebugLaunch(val screen: String, val insp: String?, val section: String?, val cat: String?, val photo: String?, val depth: String?, val splash: Boolean, val step: Int = 1, val coverStep: Int = 1)
+data class DebugLaunch(val screen: String, val insp: String?, val section: String?, val cat: String?, val photo: String?, val depth: String?, val splash: Boolean, val step: Int = 1, val coverStep: Int = 1, val eulaVersion: String? = null)
 
 fun NavHostController.back() { if (!popBackStack()) goHome() }
 fun NavHostController.goHome() = navigate(HomeR) { popUpTo(0) { inclusive = true } }
@@ -117,6 +118,7 @@ fun NavHostController.openSection(inspId: String, name: String) {
 fun VimsRoot(vm: AppViewModel, debug: DebugLaunch?) {
     val nav = rememberNavController()
     val start: Any = remember { if (vm.session.value != null) HomeR else LoginR }
+    val session by vm.session.collectAsState()
 
     Box(Modifier.fillMaxSize().background(V.paper2)) {
         NavHost(nav, startDestination = start) {
@@ -146,10 +148,16 @@ fun VimsRoot(vm: AppViewModel, debug: DebugLaunch?) {
             composable<SubStartedR> { SubStartedScreen(vm, nav) }
             composable<BillingR> { BillingScreen(vm, nav) }
             composable<FeedbackAdminR> { FeedbackAdminScreen(vm, nav) }
+            composable<EulaR> { com.vims.app.ui.screens.EulaScreen(vm, nav) }
             composable<ReportBccR> { com.vims.app.ui.screens.ReportBccScreen(vm, nav) }
         }
 
         TrialSplash(vm, nav)
+        // Re-acceptance: eula.json version differs from the signed-in user's accepted version.
+        val s = session
+        if (s != null && s.eulaVersion != vm.currentEulaVersion) {
+            com.vims.app.ui.screens.EulaReacceptGate(vm) { vm.signOut { nav.navigate(LoginR) { popUpTo(0) { inclusive = true } } } }
+        }
         ToastHost(vm)
     }
 
@@ -161,6 +169,7 @@ private suspend fun applyDebug(vm: AppViewModel, nav: NavHostController, d: Debu
     if (d.screen != "login") vm.debugSignIn()
     d.depth?.let { vm.debugSetDepth(id, it) }
     vm.debugWizardStep = d.step
+    d.eulaVersion?.let { vm.debugEulaVersion = it }
     vm.debugCoverStep = d.coverStep
     val sec = d.section ?: "Roof"
     val route: Any? = when (d.screen) {
@@ -191,6 +200,7 @@ private suspend fun applyDebug(vm: AppViewModel, nav: NavHostController, d: Debu
         "billing" -> BillingR
         "feedbackadmin" -> FeedbackAdminR
         "reportbcc" -> ReportBccR
+        "eula" -> EulaR
         else -> HomeR
     }
     if (route != null) {

@@ -58,6 +58,8 @@ interface VimsRepository {
     /** vims/companies/<companyId> (logo, agreement) */
     fun companyDir(): File
     fun photoFile(photo: Photo): File = File(root.parentFile, photo.file)
+    /** Records the signed-in user's EULA acceptance. */
+    suspend fun acceptEula(version: String)
     /** Waits until every queued write has reached the database (tests / sign-out). */
     suspend fun flush()
 }
@@ -113,7 +115,7 @@ class RoomRepository(filesDir: File, private val dao: VimsDao) : VimsRepository 
         val co = dao.company(session.companyId)
         if (user == null || co == null) { clearMemory(); return@withContext }
         // TODO(backend): the platform-owner flag comes from the server; locally it is the VIMS owner's account.
-        @Suppress("NAME_SHADOWING") val session = session.copy(platformOwner = PlatformOwner.isOwner(user.email))
+        @Suppress("NAME_SHADOWING") val session = session.copy(platformOwner = PlatformOwner.isOwner(user.email), eulaVersion = user.eulaVersion)
         val ins = dao.inspectionsFor(user.id)
         val answers = dao.answersFor(user.id).groupBy { it.inspectionId }
         val photos = dao.photosFor(user.id).groupBy { it.inspectionId }
@@ -152,6 +154,14 @@ class RoomRepository(filesDir: File, private val dao: VimsDao) : VimsRepository 
     }
 
     override suspend fun flush() { withContext(writer) {} }
+
+    override suspend fun acceptEula(version: String) = withContext(writer) {
+        val s = _session.value ?: return@withContext
+        dao.acceptEula(s.userId, version, System.currentTimeMillis())
+        val n = s.copy(eulaVersion = version)
+        _session.value = n
+        dao.putKv(KvEntity(KEY_SESSION, enc(Session.serializer(), n)))
+    }
 
     private fun write(block: suspend () -> Unit) { io.launch { block() } }
 

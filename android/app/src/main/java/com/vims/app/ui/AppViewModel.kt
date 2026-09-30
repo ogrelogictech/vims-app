@@ -4,6 +4,8 @@ import android.app.Application
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.vims.app.VimsApplication
@@ -68,6 +70,25 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val edits: StateFlow<ChecklistEdits> = repo.edits
     val inspections: StateFlow<Map<String, InspectionBundle>> = repo.inspections
     val platform: StateFlow<com.vims.app.data.PlatformSettings> = repo.platform
+
+    /** The client's EULA (assets/legal/eula.json). */
+    val eula: com.vims.app.data.Eula = com.vims.app.data.Eula.load(app)
+    /** Debug-only override of the current EULA version (to exercise the re-acceptance screen). */
+    var debugEulaVersion by androidx.compose.runtime.mutableStateOf<String?>(null)
+    val currentEulaVersion: String get() = debugEulaVersion ?: eula.version
+
+    fun acceptEula() = viewModelScope.launch { repo.acceptEula(currentEulaVersion); toast("License agreement accepted") }
+
+    // Subscription cancel / resume (owner & admins; TODO(backend): Square).
+    fun cancelSubscription() = viewModelScope.launch {
+        if (container.subscriptions.cancelSubscription()) {
+            repo.updateAccount { it.copy(cancelled = true) }
+            toast("Subscription cancelled — active until ${account.value.periodEndEpochDay?.let { com.vims.app.util.Fmt.date(java.time.LocalDate.ofEpochDay(it)) } ?: "the end of the period"}")
+        }
+    }
+    fun resumeSubscription() = viewModelScope.launch {
+        if (container.subscriptions.resumeSubscription()) { repo.updateAccount { it.copy(cancelled = false) }; toast("Cancellation undone — auto-pay continues") }
+    }
     val isPlatformOwner: Boolean get() = session.value?.platformOwner == true
 
     /** Owner-only: Report quality copy (BCC). The address is validated by the screen. */
@@ -108,14 +129,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun createAccount(name: String, companyName: String, email: String, password: String, onError: (AuthResult.Error) -> Unit, onOk: () -> Unit) = viewModelScope.launch {
-        when (val r = container.auth.createAccount(name.trim(), companyName.trim(), email.trim(), password)) {
+        when (val r = container.auth.createAccount(name.trim(), companyName.trim(), email.trim(), password, currentEulaVersion)) {
             is AuthResult.Error -> onError(r)
             is AuthResult.Success -> { repo.activate(r.session); onOk(); maybeShowSplash() }
         }
     }
 
     fun joinCompany(name: String, email: String, code: String, password: String, onError: (AuthResult.Error) -> Unit, onOk: () -> Unit) = viewModelScope.launch {
-        when (val r = container.auth.joinCompany(name.trim(), email.trim(), code, password)) {
+        when (val r = container.auth.joinCompany(name.trim(), email.trim(), code, password, currentEulaVersion)) {
             is AuthResult.Error -> onError(r)
             is AuthResult.Success -> {
                 repo.activate(r.session)
@@ -382,7 +403,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val a = account.value
         val r = container.subscriptions.startSubscription(a.plan, a.seatCount, cardNumber)
         if (r.ok) {
-            repo.updateAccount { it.copy(active = true, cardLast4 = r.cardLast4, subscribedEpochDay = LocalDate.now().toEpochDay()) }
+            repo.updateAccount { it.copy(active = true, cancelled = false, cardLast4 = r.cardLast4, subscribedEpochDay = LocalDate.now().toEpochDay()) }
             onOk()
         } else toast(r.message ?: "Payment failed")
     }

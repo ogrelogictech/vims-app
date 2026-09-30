@@ -52,6 +52,7 @@ import com.vims.app.ui.SubStartedR
 import com.vims.app.ui.SubscribeR
 import com.vims.app.ui.components.BinfoRow
 import com.vims.app.ui.components.BtnKind
+import com.vims.app.ui.components.BtnRow
 import com.vims.app.ui.components.Counter
 import com.vims.app.ui.components.FieldLabel
 import com.vims.app.ui.components.Hint
@@ -238,17 +239,50 @@ fun SubStartedScreen(vm: AppViewModel, nav: NavHostController) {
 @Composable
 fun BillingScreen(vm: AppViewModel, nav: NavHostController) {
     val a by vm.account.collectAsState()
+    val session by vm.session.collectAsState()
+    var confirmCancel by rememberSaveable { mutableStateOf(false) }
+    val endDate = a.periodEndEpochDay?.let { Fmt.date(LocalDate.ofEpochDay(it)) } ?: "the end of the billing period"
     VScreen("Subscription", companyName(vm), net(vm), backAction(nav), listOf(homeAction(nav))) {
         Column(Modifier.padding(bottom = 12.dp).fillMaxWidth().vCard()) {
-            BinfoRow({ Text("Status", style = T.ui(14.sp)) }, { if (a.active) Pill("Active · auto-pay", PillKind.Done) else Pill("Trial · ${vm.trialDaysLeft()}d left", PillKind.Queued) })
+            BinfoRow({ Text("Status", style = T.ui(14.sp)) }, {
+                when {
+                    a.active && a.cancelled -> Pill("Cancelled · active until $endDate", PillKind.Queued)
+                    a.active -> Pill("Active · auto-pay", PillKind.Done)
+                    else -> Pill("Trial · ${vm.trialDaysLeft()}d left", PillKind.Queued)
+                }
+            })
             BinfoRow("Plan", "${a.plan.name} · ${Fmt.money(a.plan.price)}${a.plan.unit ?: "/mo"}")
             if (!a.plan.perReport) BinfoRow("Inspectors", "${a.seatCount} (${maxOf(0, a.seatCount - 1)} × ${Fmt.money(a.extraInspectorMonthly)})")
             BinfoRow(if (a.plan.perReport) "Billing" else "Monthly total", subTotalLabel(vm))
             BinfoRow("Payment", if (a.active) "Square · Card ····${a.cardLast4 ?: "4242"}" else "Not set up")
             val next = a.subscribedEpochDay?.let { Fmt.date(LocalDate.ofEpochDay(it).plusMonths(1)) }
-            BinfoRow(if (a.active) "Next billing" else "Trial ends", if (a.active) next ?: "—" else "in ${vm.trialDaysLeft()} days", last = true)
+            BinfoRow(if (a.active && a.cancelled) "Access ends" else if (a.active) "Next billing" else "Trial ends", if (a.active) next ?: "—" else "in ${vm.trialDaysLeft()} days", last = true)
         }
         VBtn("Manage inspectors", { nav.navigate(InspectorsR) }, kind = BtnKind.Ghost, icon = VIcons.usersSmall)
         VBtn(if (a.active) "Change plan / payment" else "Set up subscription", { nav.navigate(SubscribeR) }, Modifier.padding(top = 10.dp), if (a.active) BtnKind.Ghost else BtnKind.Primary)
+        // Cancel (EULA 12.3): active subscriptions only, owner / admins only. TODO(backend): Square cancel / resume.
+        if (a.active && session?.isAdmin != false) {
+            when {
+                a.cancelled -> {
+                    VCard(Modifier.padding(top = 14.dp), bottom = 0.dp) {
+                        Text(rich("Your subscription is cancelled and stays active until **$endDate**. Download anything you need within 30 days after it ends.", V.ink),
+                            style = T.ui(13.sp, color = V.ink2, lineHeight = 19.5.sp))
+                    }
+                    VBtn("Undo cancellation", { vm.resumeSubscription() }, Modifier.padding(top = 10.dp), BtnKind.Ghost)
+                }
+                confirmCancel -> {
+                    Column(Modifier.padding(top = 14.dp).fillMaxWidth().vCard(border = V.c1).padding(horizontal = 16.dp, vertical = 15.dp)) {
+                        Text("Cancel your subscription?", style = T.ui(13.sp, FontWeight.Bold, V.ink))
+                        Text(rich("It stays active until the end of the current billing period (**$endDate**), then stops renewing. There are no refunds or prorated charges. Download anything you need within 30 days after it ends.", V.ink),
+                            style = T.ui(13.sp, color = V.ink2, lineHeight = 19.5.sp))
+                    }
+                    BtnRow(Modifier.padding(top = 0.dp)) {
+                        VBtn("Keep subscription", { confirmCancel = false }, Modifier.weight(1f), BtnKind.Ghost)
+                        VBtn("Yes, cancel", { confirmCancel = false; vm.cancelSubscription() }, Modifier.weight(1f), BtnKind.Danger)
+                    }
+                }
+                else -> VBtn("Cancel subscription", { confirmCancel = true }, Modifier.padding(top = 10.dp), BtnKind.GhostDanger)
+            }
+        }
     }
 }

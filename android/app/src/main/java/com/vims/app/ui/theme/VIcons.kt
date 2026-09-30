@@ -88,6 +88,8 @@ object VIcons {
     val sync by lazy { s("sync-now-subscription") { icon("sync", "M21 12a9 9 0 0 1-9 9 9 9 0 0 1-6.7-3L3 16M3 12a9 9 0 0 1 9-9 9 9 0 0 1 6.7 3L21 8M21 3v5h-5M3 21v-5h5") } }
     val card by lazy { s("collect-payment-div") { icon("card", r(2f, 5f, 20f, 14f, 2f), "M2 10h20") } }
     val mail by lazy { s("email-to-client") { icon("mail", r(2f, 4f, 20f, 16f, 2f), "m22 6-10 7L2 6") } }
+    /** Settings → Legal row (prototype: file with text lines). */
+    val fileText by lazy { icon("fileText", "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z", "M14 2v6h6M8 13h8M8 17h5") }
     /** Settings row "Report quality copy (BCC)" — the prototype's mail icon plus a "+". */
     val mailPlus by lazy { icon("mailPlus", r(2f, 4f, 20f, 16f, 2f), "m22 6-10 7L2 6", "M16 17h6M19 14v6") }
     val signOut by lazy { s("sign-out-sync") { icon("signOut", "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9") } }

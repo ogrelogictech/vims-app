@@ -115,6 +115,23 @@ preferred (the emulator's "goldfish" decoder renders nothing under software GPU)
   The address is never shown in the app; a short note says a quality copy is blind-copied and some email apps may drop
   it. `TODO(backend)`: the server-side send always adds the BCC so it can't be removed.
 
+### EULA (acceptance, viewer, re-acceptance)
+- Text comes verbatim from `../shared/legal/eula.json` (assets `legal/eula.json`, `data/Eula.kt`) — never hardcoded.
+- Create account and Join a company both require the checkbox "I have read and agree to the VIMS End User License
+  Agreement…" (the name links to the viewer); submitting without it shows an inline error. Acceptance is stored on the
+  user row (`users.eulaVersion`, `users.eulaAcceptedAt`; Room schema v2 with a 1→2 migration). `TODO(backend)`: send to the server.
+- If eula.json's `version` differs from the signed-in user's accepted version (incl. users who never accepted), a
+  full-screen "Updated license agreement" gate shows the text with **I agree** / **Sign out** before the app continues.
+  Debug override to test it: `--es eulaVersion 2026-12-01`.
+- Viewer: Settings → Legal → End User License Agreement ("Revised <date>"): title, revised date, intro, numbered
+  section headings (brand-deep), paragraphs, footer.
+
+### Cancel subscription (EULA 12.3)
+Plan & billing, active subscriptions only, owner/admins only: **Cancel subscription** (red ghost) → inline confirm
+(active until the end of the period, no refunds/proration, download within 30 days) → **Keep subscription** / **Yes, cancel**.
+Cancelled: status "Cancelled · active until <date>", explanation card, **Undo cancellation**. Trial shows no cancel button.
+`TODO(backend)`: Square Subscriptions cancel / resume (`SubscriptionService.cancelSubscription/resumeSubscription`).
+
 ### Home side menu
 The Home hamburger opens a left drawer (company logo or initials, user name, email, company; Inspections, New inspection,
 Settings, Company profile, How VIMS works, Help & feedback; admin-only Manage checklist, Plans & pricing, Inspectors;

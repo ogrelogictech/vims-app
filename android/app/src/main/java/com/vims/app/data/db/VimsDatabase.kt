@@ -50,6 +50,9 @@ data class UserEntity(
     val passwordHash: String,
     val settingsJson: String,
     val createdAt: Long,
+    /** EULA version the user accepted (eula.json "version") and when. TODO(backend): send to the server. */
+    val eulaVersion: String? = null,
+    val eulaAcceptedAt: Long? = null,
 )
 
 @Entity(tableName = "inspections", indices = [Index("userId"), Index("companyId")])
@@ -94,6 +97,7 @@ interface VimsDao {
     @Insert(onConflict = OnConflictStrategy.ABORT) suspend fun insertUser(u: UserEntity)
     @Query("UPDATE users SET settingsJson = :json WHERE id = :id") suspend fun updateUserSettings(id: String, json: String)
     @Query("UPDATE users SET name = :name WHERE id = :id") suspend fun updateUserName(id: String, name: String)
+    @Query("UPDATE users SET eulaVersion = :version, eulaAcceptedAt = :at WHERE id = :id") suspend fun acceptEula(id: String, version: String, at: Long)
 
     @Query("SELECT * FROM companies WHERE id = :id LIMIT 1") suspend fun company(id: String): CompanyEntity?
     @Query("SELECT * FROM companies WHERE code = :code LIMIT 1") suspend fun companyByCode(code: String): CompanyEntity?
@@ -137,13 +141,21 @@ interface VimsDao {
 
 @Database(
     entities = [CompanyEntity::class, UserEntity::class, InspectionEntity::class, AnswerEntity::class, PhotoEntity::class, FindingEntity::class, KvEntity::class],
-    version = 1, exportSchema = true,
+    version = 2, exportSchema = true,
 )
 abstract class VimsDatabase : RoomDatabase() {
     abstract fun dao(): VimsDao
 
     companion object {
+        /** v2: EULA acceptance on users. */
+        private val MIGRATION_1_2 = object : androidx.room.migration.Migration(1, 2) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE users ADD COLUMN eulaVersion TEXT")
+                db.execSQL("ALTER TABLE users ADD COLUMN eulaAcceptedAt INTEGER")
+            }
+        }
+
         fun open(context: Context): VimsDatabase =
-            Room.databaseBuilder(context, VimsDatabase::class.java, "vims.db").build()
+            Room.databaseBuilder(context, VimsDatabase::class.java, "vims.db").addMigrations(MIGRATION_1_2).build()
     }
 }

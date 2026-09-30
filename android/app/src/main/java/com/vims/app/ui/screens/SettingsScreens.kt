@@ -158,6 +158,9 @@ fun SettingsScreen(vm: AppViewModel, nav: NavHostController) {
         NavRow(VIcons.building, "Company profile & logo", "Inspector info, logo, review link") { nav.navigate(CompanyR) }
         NavRow(VIcons.help, "How VIMS works", "Instructions & new-account tutorial") { nav.navigate(InstructionsR) }
 
+        Lbl("Legal")
+        NavRow(VIcons.fileText, "End User License Agreement", "Revised ${vm.eula.revised}") { nav.navigate(com.vims.app.ui.EulaR) }
+
         Lbl("Defaults")
         VCard {
             Text("Checklist depth", style = T.ui(14.sp, FontWeight.Bold))

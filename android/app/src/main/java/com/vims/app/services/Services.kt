@@ -34,8 +34,8 @@ sealed interface AuthResult {
 
 interface AuthService {
     suspend fun signIn(email: String, password: String): AuthResult
-    suspend fun createAccount(name: String, company: String, email: String, password: String): AuthResult
-    suspend fun joinCompany(name: String, email: String, code: String, password: String): AuthResult
+    suspend fun createAccount(name: String, company: String, email: String, password: String, eulaVersion: String): AuthResult
+    suspend fun joinCompany(name: String, email: String, code: String, password: String, eulaVersion: String): AuthResult
     suspend fun sendPasswordReset(email: String): Boolean
     suspend fun companyExists(code: String): Boolean
     suspend fun signOut()
@@ -46,6 +46,9 @@ data class SubscriptionResult(val ok: Boolean, val cardLast4: String? = null, va
 interface SubscriptionService {
     /** Card details go straight to Square's tokenizer in production; the app never stores the card number. */
     suspend fun startSubscription(plan: Plan, seats: Int, cardNumber: String): SubscriptionResult
+    /** Stops renewal at the end of the current period (no refunds / proration — EULA 12.3). */
+    suspend fun cancelSubscription(): Boolean
+    suspend fun resumeSubscription(): Boolean
 }
 
 interface SyncService {
@@ -77,7 +80,7 @@ class LocalAuthService(private val dao: VimsDao, private val config: ChecklistCo
         AuthResult.Success(Session(u.name, u.email, roleFor(u.email, account(c)), userId = u.id, companyId = c.id))
     }
 
-    override suspend fun createAccount(name: String, company: String, email: String, password: String): AuthResult = withContext(Dispatchers.IO) {
+    override suspend fun createAccount(name: String, company: String, email: String, password: String, eulaVersion: String): AuthResult = withContext(Dispatchers.IO) {
         val e = email.trim().lowercase(Locale.US)
         if (dao.userByEmail(e) != null) return@withContext AuthResult.Error("An account with that email already exists.", "email")
         val cid = UUID.randomUUID().toString()
@@ -88,16 +91,17 @@ class LocalAuthService(private val dao: VimsDao, private val config: ChecklistCo
                 json.encodeToString(AccountState.serializer(), acct),
                 json.encodeToString(ChecklistEdits.serializer(), ChecklistEdits()), System.currentTimeMillis())
         )
-        val u = newUser(name, e, password, cid, config)
+        // TODO(backend): send the EULA acceptance (version + time) to the server.
+        val u = newUser(name, e, password, cid, config).copy(eulaVersion = eulaVersion, eulaAcceptedAt = System.currentTimeMillis())
         dao.insertUser(u)
-        AuthResult.Success(Session(u.name, u.email, Role.OWNER, userId = u.id, companyId = cid))
+        AuthResult.Success(Session(u.name, u.email, Role.OWNER, userId = u.id, companyId = cid, eulaVersion = eulaVersion))
     }
 
-    override suspend fun joinCompany(name: String, email: String, code: String, password: String): AuthResult = withContext(Dispatchers.IO) {
+    override suspend fun joinCompany(name: String, email: String, code: String, password: String, eulaVersion: String): AuthResult = withContext(Dispatchers.IO) {
         val e = email.trim().lowercase(Locale.US)
         val c = dao.companyByCode(normalizeCode(code)) ?: return@withContext AuthResult.Error("No company uses that code. Check it with your company admin.", "code")
         if (dao.userByEmail(e) != null) return@withContext AuthResult.Error("An account with that email already exists — sign in instead.", "email")
-        val u = newUser(name, e, password, c.id, config)
+        val u = newUser(name, e, password, c.id, config).copy(eulaVersion = eulaVersion, eulaAcceptedAt = System.currentTimeMillis())
         dao.insertUser(u)
         var acct = account(c)
         if (acct.inspectors.none { it.email.equals(e, true) }) {
@@ -149,6 +153,10 @@ class LocalSubscriptionService : SubscriptionService {
         val digits = cardNumber.filter { it.isDigit() }
         return SubscriptionResult(ok = true, cardLast4 = if (digits.length >= 4) digits.takeLast(4) else "4242")
     }
+
+    // TODO(backend): Square Subscriptions API — cancel at period end / resume.
+    override suspend fun cancelSubscription(): Boolean = true
+    override suspend fun resumeSubscription(): Boolean = true
 }
 
 // TODO(backend): Laravel API — upload pending inspections, photos, findings, and reports; pull checklist/plan edits.

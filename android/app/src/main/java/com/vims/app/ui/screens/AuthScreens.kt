@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.vims.app.R
 import com.vims.app.ui.AppViewModel
+import com.vims.app.ui.EulaR
 import com.vims.app.ui.ForgotR
 import com.vims.app.ui.HomeR
 import com.vims.app.ui.JoinR
@@ -115,6 +116,8 @@ fun SignupScreen(vm: AppViewModel, nav: NavHostController) {
     val emailErr = form.check("email", email) { Checks.email(email) }
     val pwErr = form.check("password", pw) { Checks.passwordNew(pw) }
     val pw2Err = form.check("confirm", pw2) { Checks.confirm(pw, pw2) }
+    var agreed by rememberSaveable { mutableStateOf(false) }
+    val eulaErr = form.check("eula", agreed.toString()) { if (!agreed) "Accept the End User License Agreement to continue" else null }
     VScreen("Create account", "VIMS", net(vm), backAction(nav)) {
         Lbl("Your details", first = true)
         VField("Full name", name, { name = it }, Modifier.formField(form, "name"), placeholder = "Jeremy Heath", caps = KeyboardCapitalization.Words, error = nameErr, filter = Filters::personName)
@@ -122,6 +125,7 @@ fun SignupScreen(vm: AppViewModel, nav: NavHostController) {
         VField("Email", email, { email = it }, Modifier.formField(form, "email"), placeholder = "you@company.com", keyboard = KeyboardType.Email, error = emailErr)
         PasswordField("Password", pw, { pw = it }, placeholder = "At least 8 characters", error = pwErr, modifier = Modifier.formField(form, "password"))
         PasswordField("Confirm password", pw2, { pw2 = it }, placeholder = "Re-enter your password", error = pw2Err, modifier = Modifier.formField(form, "confirm"))
+        EulaCheckbox(agreed, { agreed = it }, eulaErr, onOpen = { nav.navigate(EulaR) }, modifier = Modifier.formField(form, "eula"))
         VBtn("Create account & continue", {
             if (form.submit()) vm.createAccount(name, company, email, pw, onError = { e -> form.fail(e.field ?: "email", e.message, email) }) { nav.toHomeFromAuth() }
         })
@@ -151,6 +155,9 @@ fun JoinScreen(vm: AppViewModel, nav: NavHostController) {
     val emailErr = form.check("email", email) { Checks.email(email) }
     val pwErr = form.check("password", pw) { Checks.passwordNew(pw) }
     val codeErr = form.check("code", code) { Checks.joinCode(code) }
+    // Inspectors who join are bound by the company's agreement too.
+    var agreed by rememberSaveable { mutableStateOf(false) }
+    val eulaErr = form.check("eula", agreed.toString()) { if (!agreed) "Accept the End User License Agreement to continue" else null }
     VScreen("Join a company", "VIMS", net(vm), backAction(nav)) {
         Text("Enter the company code your inspection company shared with you. Your account will be linked to their license and billing.",
             style = T.ui(14.sp, color = V.ink2, lineHeight = 21.sp), modifier = Modifier.padding(top = 4.dp, bottom = 16.dp))
@@ -159,6 +166,7 @@ fun JoinScreen(vm: AppViewModel, nav: NavHostController) {
         PasswordField("Create a password", pw, { pw = it }, placeholder = "At least 8 characters", error = pwErr, modifier = Modifier.formField(form, "password"))
         VField("Company code", code, { code = it }, Modifier.formField(form, "code"), placeholder = "VIS-4827", mono = true, caps = KeyboardCapitalization.Characters,
             error = codeErr, filter = Filters::joinCode, visual = JoinCodeTransform)
+        EulaCheckbox(agreed, { agreed = it }, eulaErr, onOpen = { nav.navigate(EulaR) }, modifier = Modifier.formField(form, "eula"))
         VBtn("Link my account", {
             if (form.submit()) vm.joinCompany(name, email, code, pw, onError = { e -> form.fail(e.field ?: "code", e.message, if (e.field == "email") email else code) }) { nav.toHomeFromAuth() }
         }, icon = VIcons.check)
