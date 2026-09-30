@@ -100,7 +100,8 @@
     "9.1. Representations. Each party represents that it has validly entered into this Agreement and has the legal power to do so.",
     "9.2. Our Warranties. We warrant that (a) this Agreement and the Documentation accurately describe the applicable administrative, physical, and technical safeguards for protection of the security, confidentiality and integrity of Your Data, (b) We will not materially decrease the overall security of the Licensed SOFTWARE during a subscription term, (c) the Licensed SOFTWARE will perform materially in accordance with the applicable Documentation, (d) subject to Section 5.3 (Integration with Third-Party Applications), We will not materially decrease the functionality of the Licensed SOFTWARE during a subscription term, and (e) the Licensed SOFTWARE and Content will not introduce Malicious Code into Your systems. For any breach of an above warranty, Your exclusive remedies are those described in Sections 12.3 (Termination) and 12.4 (Refund or Payment upon Termination).",
     "9.3. Disclaimers. EXCEPT AS EXPRESSLY PROVIDED HEREIN, NEITHER PARTY MAKES ANY WARRANTY OF ANY KIND, WHETHER EXPRESS, IMPLIED, STATUTORY OR OTHERWISE, AND EACH PARTY SPECIFICALLY DISCLAIMS ALL IMPLIED WARRANTIES, INCLUDING ANY IMPLIED WARRANTY OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE OR NON-INFRINGEMENT, TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW.",
-    "EXCEPT AS EXPRESSLY PROVIDED IN SECTION 9.2 ABOVE, CONTENT AND SOFTWARE ARE PROVIDED “AS IS,” EXCLUSIVE OF ANY WARRANTY WHATSOEVER. EACH PARTY DISCLAIMS ALL LIABILITY AND INDEMNIFICATION OBLIGATIONS FOR ANY HARM OR DAMAGES CAUSED BY ANY THIRD-PARTY HOSTING PROVIDERS."
+    "EXCEPT AS EXPRESSLY PROVIDED IN SECTION",
+    "9.2 ABOVE, CONTENT AND SOFTWARE ARE PROVIDED “AS IS,” EXCLUSIVE OF ANY WARRANTY WHATSOEVER. EACH PARTY DISCLAIMS ALL LIABILITY AND INDEMNIFICATION OBLIGATIONS FOR ANY HARM OR DAMAGES CAUSED BY ANY THIRD-PARTY HOSTING PROVIDERS."
    ]
   },
   {
@@ -137,7 +138,8 @@
    "paragraphs": [
     "13.1. Manner of Giving Notice. Except as otherwise specified in this Agreement, all notices, permissions and approvals hereunder shall be in writing and shall be deemed to have been given upon: (i) personal delivery, (ii) the second business day after mailing, (iii) the second business day after sending by confirmed facsimile, or (iv) the first business day after sending by email (provided email shall not be sufficient for notices of termination or an indemnifiable claim). Billing-related notices to You shall be addressed to the relevant billing contact designated by You. All other notices to You shall be addressed to the relevant SOFTWARE system administrator designated by You.",
     "Notices to Us:",
-    "Vision Inspection Management Solutions 2029 N Main St Suite 103 Sunset, Utah 84015 Attention: Legal Affairs Department 13.2. Agreement to Governing Law and Jurisdiction. Each party agrees to the applicable governing law of North Carolina, at or near Apex, North Carolina at Our sole discretion, without regard to choice or conflicts of law rules, and to the exclusive jurisdiction of the applicable courts described herein.",
+    "Vision Inspection Management Solutions 2029 N Main St Suite 103 Sunset, Utah 84015 Attention: Legal Affairs Department",
+    "13.2. Agreement to Governing Law and Jurisdiction. Each party agrees to the applicable governing law of North Carolina, at or near Apex, North Carolina at Our sole discretion, without regard to choice or conflicts of law rules, and to the exclusive jurisdiction of the applicable courts described herein.",
     "13.3. No Agency. For the avoidance of doubt, We are entering into this Agreement as principal and not as agent for any other company. Subject to any permitted Assignment under Section 14.4, the obligations owed by Us under this Agreement shall be owed to You solely by Us and the obligations owed by You under this Agreement shall be owed solely to Us."
    ]
   },

@@ -18,6 +18,7 @@ final class UserRecord {
     var settingsData: Data?                     // AppSettings (per user)
     var eulaVersion: String?                    // eula.json version accepted (optional → lightweight migration)
     var eulaAcceptedAt: Date?
+    var photoFile: String?                      // own profile photo (relative file path)
 
     init(id: UUID, email: String, name: String, companyID: UUID, passwordHash: String, salt: String, createdAt: Date) {
         self.id = id

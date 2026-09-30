@@ -25,6 +25,8 @@ struct UserAccount: Hashable {
     /// TODO(backend): POST the acceptance (version, timestamp, user, company) to the server.
     var eulaVersion: String? = nil
     var eulaAcceptedAt: Date? = nil
+    /// The user's own profile photo (users/<id>/profile-….jpg) — never the company logo.
+    var photoFile: String? = nil
 }
 
 struct CompanyState {
@@ -41,11 +43,15 @@ protocol Repository: AnyObject {
     func user(id: UUID) -> UserAccount?
     func insertUser(_ u: UserAccount) throws
     func updateUser(_ u: UserAccount)
+    /// Deletes the user row, their inspections and their per-user folder (users/<id>/…).
+    func deleteUser(id: UUID)
     func userCount() -> Int
     // Companies
     func company(id: UUID) -> CompanyState?
     func company(joinCode: String) -> CompanyState?
     func saveCompany(_ c: CompanyState)
+    /// Deletes the company row and its folder (companies/<id>/…).
+    func deleteCompany(id: UUID)
     // Inspections (always scoped to one user)
     func inspections(userID: UUID) -> [Inspection]
     func saveInspection(_ i: Inspection, userID: UUID, companyID: UUID)
@@ -133,7 +139,7 @@ final class SwiftDataRepository: Repository {
         UserAccount(id: r.id, email: r.email, name: r.name, companyID: r.companyID, passwordHash: r.passwordHash,
                     salt: r.salt, createdAt: r.createdAt,
                     settings: r.settingsData.flatMap { try? decoder.decode(AppSettings.self, from: $0) },
-                    eulaVersion: r.eulaVersion, eulaAcceptedAt: r.eulaAcceptedAt)
+                    eulaVersion: r.eulaVersion, eulaAcceptedAt: r.eulaAcceptedAt, photoFile: r.photoFile)
     }
 
     func user(email: String) -> UserAccount? { userRecord(email: email).map(account) }
@@ -146,6 +152,7 @@ final class SwiftDataRepository: Repository {
         r.settingsData = u.settings.flatMap { try? encoder.encode($0) }
         r.eulaVersion = u.eulaVersion
         r.eulaAcceptedAt = u.eulaAcceptedAt
+        r.photoFile = u.photoFile
         context.insert(r)
         save()
     }
@@ -159,7 +166,18 @@ final class SwiftDataRepository: Repository {
         r.settingsData = u.settings.flatMap { try? encoder.encode($0) }
         r.eulaVersion = u.eulaVersion
         r.eulaAcceptedAt = u.eulaAcceptedAt
+        r.photoFile = u.photoFile
         save()
+    }
+
+    func deleteUser(id: UUID) {
+        for i in (try? context.fetch(FetchDescriptor<InspectionRecord>(predicate: #Predicate { $0.userID == id }))) ?? [] {
+            context.delete(i)
+        }
+        if let r = userRecord(id: id) { context.delete(r) }
+        if currentUserID == id { currentUserID = nil }
+        save()
+        files.deleteFolder("users/\(id.uuidString)")
     }
 
     #if DEBUG
@@ -190,6 +208,11 @@ final class SwiftDataRepository: Repository {
         var d = FetchDescriptor<CompanyRecord>(predicate: #Predicate { $0.joinCode == code })
         d.fetchLimit = 1
         return (try? context.fetch(d))?.first.flatMap(companyState)
+    }
+
+    func deleteCompany(id: UUID) {
+        if let r = companyRecord(id: id) { context.delete(r); save() }
+        files.deleteFolder("companies/\(id.uuidString)")
     }
 
     func saveCompany(_ c: CompanyState) {

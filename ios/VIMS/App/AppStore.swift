@@ -14,7 +14,7 @@ enum Route: Hashable {
     case manageChecklist
     case editSection(String)
     case plans, inspectors, subscribe, subscriptionStarted, billing, feedbackAdmin, reportBcc
-    case eula
+    case eula, deleteAccount
 }
 
 @MainActor
@@ -555,6 +555,63 @@ final class AppStore {
         return true
     }
 
+    /// The signed-in user is the company's owner.
+    var isCompanyOwner: Bool {
+        guard let me = currentUser else { return false }
+        return state.company.inspectors.contains { $0.id == me.id && $0.owner }
+    }
+
+    /// Owner only: hand ownership to another admin (the old owner stays an admin).
+    func makeOwner(_ id: UUID) {
+        guard isCompanyOwner, let me = currentUser,
+              let t = state.company.inspectors.firstIndex(where: { $0.id == id }), state.company.inspectors[t].admin,
+              let m = state.company.inspectors.firstIndex(where: { $0.id == me.id }) else { return }
+        state.company.inspectors[m].owner = false
+        state.company.inspectors[m].admin = true
+        state.company.inspectors[t].owner = true
+        state.company.inspectors[t].admin = true
+        toast("\(state.company.inspectors[t].name) is now the owner")
+    }
+
+    /// Other people on this company who have a VIMS account (not just an invite).
+    var otherCompanyUsers: [Inspector] {
+        state.company.inspectors.filter { $0.id != currentUser?.id && repo.user(id: $0.id) != nil }
+    }
+
+    /// App Store 5.1.1(v) account deletion. Deletes the user, their inspections, photos and reports on this
+    /// device. An owner who is alone on the company also deletes the company (subscription cancelled).
+    /// TODO(backend): send a deletion request to the server (completed within 10 working days per the EULA).
+    enum DeleteAccountBlock: Error { case ownerWithTeam }
+    func deleteAccount() async throws {
+        guard let me = currentUser, let cid = companyID else { return }
+        if isCompanyOwner && !otherCompanyUsers.isEmpty { throw DeleteAccountBlock.ownerWithTeam }
+        flushNow()
+        if isCompanyOwner {
+            if state.subscription.active && !state.subscription.cancelled {
+                try? await subscriptionService.cancelSubscription()
+                state.subscription.cancelledAt = Date()
+            }
+            loadingSession = true          // don't re-save the company we're deleting
+            repo.deleteCompany(id: cid)
+            // Invited inspectors without an account go with the company.
+        } else if var c = repo.company(id: cid) {
+            c.profile.inspectors.removeAll { $0.id == me.id }
+            repo.saveCompany(c)
+        }
+        repo.deleteUser(id: me.id)
+        loadingSession = false
+        repo.currentUserID = nil
+        currentUser = nil
+        companyID = nil
+        inspections = []
+        loadingSession = true
+        state = DemoSeed.emptyState(config: config)
+        loadingSession = false
+        path = []
+        showSplash = false
+        toast("Your account was deleted")
+    }
+
     func removeInspector(_ id: UUID) {
         state.company.inspectors.removeAll { $0.id == id && !$0.owner }
     }
@@ -605,6 +662,55 @@ final class AppStore {
         state.company.logoFile = files.saveImage(data, folder: companyFolder, name: name)
         saveAppStateNow()
         toast("Logo updated")
+    }
+
+    func removeLogo() {
+        guard let old = state.company.logoFile else { return }
+        files.deleteFile(old)
+        state.company.logoFile = nil
+        saveAppStateNow()
+        toast("Logo removed")
+    }
+
+    // MARK: Profile photo (per user — never the company logo)
+
+    /// Saves the signed-in user's own profile photo (square-cropped, 512 px JPEG) under users/<id>/.
+    /// TODO(backend): upload to the user's profile on the server.
+    func saveProfilePhoto(_ image: UIImage) {
+        guard let cur = currentUser else { return }
+        let side = min(image.size.width, image.size.height)
+        let out: CGFloat = min(512, side)
+        let scale = out / side
+        let draw = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+        let fmt = UIGraphicsImageRendererFormat(); fmt.scale = 1; fmt.opaque = true
+        let img = UIGraphicsImageRenderer(size: CGSize(width: out, height: out), format: fmt).image { _ in
+            image.draw(in: CGRect(x: (out - draw.width) / 2, y: (out - draw.height) / 2, width: draw.width, height: draw.height))
+        }
+        guard let data = img.jpegData(compressionQuality: 0.85) else { return }
+        var u = repo.user(id: cur.id) ?? cur
+        if let old = u.photoFile { files.deleteFile(old) }
+        u.photoFile = files.saveImage(data, folder: userFolder, name: "profile-\(UUID().uuidString.prefix(8)).jpg")
+        repo.updateUser(u)
+        currentUser = u
+        toast("Profile photo updated")
+    }
+
+    func removeProfilePhoto() {
+        guard let cur = currentUser else { return }
+        var u = repo.user(id: cur.id) ?? cur
+        guard let old = u.photoFile else { return }
+        files.deleteFile(old)
+        u.photoFile = nil
+        repo.updateUser(u)
+        currentUser = u
+        toast("Profile photo removed")
+    }
+
+    /// A user's own profile photo (nil → initials). Works for any teammate on this device.
+    func profilePhoto(userID: UUID) -> UIImage? {
+        let f = userID == currentUser?.id ? currentUser?.photoFile : repo.user(id: userID)?.photoFile
+        guard let f else { return nil }
+        return UIImage(contentsOfFile: files.url(for: f).path)
     }
 
     /// The company's uploaded logo, or nil (UI shows the initials badge).

@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 #if DEBUG
 import MessageUI
 #endif
@@ -27,6 +28,7 @@ enum DebugFlags {
 ///   -signInAs EMAIL            sign in as that local account
 ///   -eulaVersion V             pretend shared/legal/eula.json has version V (re-acceptance gate test)
 ///   -eulaGate                  show the EULA gate even with -screen / -skipLogin
+///   -profilePhotoSample        set the signed-in user's profile photo from an inspection photo
 ///   -activeSub                 mark the signed-in company's subscription active (Square · Visa ····4242)
 ///   -eulaStatus                print each local account's accepted EULA version to the console
 ///   -mailSelfTest              print the report email draft (to/BCC/subject/attachment) to the console
@@ -103,6 +105,12 @@ enum DebugLaunch {
                 print("EULASTATUS \(u.email) version=\(u.eulaVersion ?? "none") acceptedAt=\(u.eulaAcceptedAt.map { ISO8601DateFormatter().string(from: $0) } ?? "none") current=\(store.eula.version)")
             }
         }
+        // -profilePhotoSample: use the first inspection photo on this device as the signed-in user's profile photo.
+        if has("-profilePhotoSample"), store.currentUser?.photoFile == nil,
+           let ref = store.inspections.lazy.flatMap({ $0.photos.values.flatMap { $0.values.flatMap { $0 } } }).first,
+           let img = UIImage(contentsOfFile: store.files.url(for: ref.file).path) {
+            store.saveProfilePhoto(img)
+        }
         if has("-mailSelfTest") { mailSelfTest(store) }
         guard let screen else { return }
         if ["login", "signup", "forgot", "join", "signupEula"].contains(screen), store.session != nil {
@@ -118,7 +126,7 @@ enum DebugLaunch {
             "signup": [.signup], "forgot": [.forgot], "join": [.join], "wizard": [.wizard(editing: nil)],
             "settings": [.settings], "company": [.settings, .company], "instructions": [.settings, .instructions],
             "plans": [.settings, .plans], "subscribe": [.subscribe], "billing": [.settings, .billing],
-            "feedback": [.settings, .feedbackAdmin], "eula": [.settings, .eula], "signupEula": [.signup, .eula], "reportBcc": [.settings, .reportBcc], "inspectors": [.settings, .inspectors], "manage": [.settings, .manageChecklist]
+            "feedback": [.settings, .feedbackAdmin], "eula": [.settings, .eula], "deleteAccount": [.settings, .deleteAccount], "signupEula": [.signup, .eula], "reportBcc": [.settings, .reportBcc], "inspectors": [.settings, .inspectors], "manage": [.settings, .manageChecklist]
         ]
         if let r = general[screen] {
             if screen == "wizard" { DebugFlags.wizardStep = value("-step").flatMap(Int.init) }

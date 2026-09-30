@@ -37,13 +37,17 @@ xcrun simctl launch --terminate-running-process "iPhone 17" com.vims.app -resetD
 
 `-screen` accepts: `login signup forgot join home splash wizard sections section drawer photos markup flag summary
 report reportReady settings company instructions manage editSection plans inspectors subscribe subscribed billing
-feedback phase1 phase2`. Extras: `-step N` (wizard 1–4 / cover picker 1–3), `-depth high|standard|fast`,
+feedback reportBcc eula signupEula deleteAccount phase1 phase2`. Extras: `-step N` (wizard 1–4 / cover picker 1–3), `-depth high|standard|fast`,
 `-section NAME`, `-inspection PREFIX|TYPE` (e.g. `Texas`, `"4 Point Inspection"`), `-generate` (with
 `-screen reportReady`: regenerate the PDF first), `-group NAME` (Manage checklist), `-overview` (phase screens),
 `-trialDaysLeft N`, `-resetData` (wipes the SwiftData store + files and recreates the demo account),
 `-skipLogin` (signs in as the demo account), `-signInAs EMAIL`, `-mailSelfTest`, `-noSplash`, `-video` / `-noVideo` (the launch
 video is skipped by default whenever `-screen` is given), `-validate` (submits the screen's form once so its
-validation errors show).
+validation errors show), `-eulaVersion V` (pretend eula.json has version V → re-acceptance gate), `-eulaGate`
+(show the gate even with `-screen`, which otherwise skips it), `-eulaStatus` (print each account's accepted
+version), `-eulaSection N|footer` (viewer scroll), `-prefill EMAIL [-code CODE] [-agree]` (valid Create account /
+Join details), `-activeSub` (mark the subscription active), `-profilePhotoSample` (profile photo from an
+inspection photo), `-confirmDelete` (with `-screen deleteAccount`: type DELETE and submit).
 None of this is compiled into Release builds. The prototype's yellow review/jump button is intentionally not a
 user feature.
 
@@ -99,11 +103,45 @@ SwiftUI views ──► AppStore (@Observable, @MainActor)  ──► Repository
   `Theme/ProtoIcons.swift` (`ProtoIcon("hdr-back")`, 2-pt round stroke, tinted) — header, group, settings rows,
   buttons, eye, camera, flag, stamps, chevrons. No SF Symbols remain in the UI.
 - **Launch splash.** `Views/Shell/VideoSplash.swift` plays `shared/media/vims-splash.mp4` once, muted,
-  aspect-fill, tap to skip; with Reduce Motion on it shows the last frame for ~1 s. The launch screen color
-  (`LaunchBackground`, from `VIMS-Info.plist`) matches the video's first frame, so there is no white flash.
-- **Company identity.** `CompanyLogoBadge` shows the company's uploaded logo (or an initials badge) in Company
-  profile, the Settings account card and the Home side menu; the PDF cover and page headers use the same logo
-  (initials badge when none).
+  **aspect-fit** (the whole 9:16 frame incl. the tagline is visible on every phone), tap to skip. The letterbox
+  bands above/below are the video's own top/bottom edge colors, sampled from a frame at launch (defaults measured
+  from the current file), so the frame blends in. With Reduce Motion on it shows the last frame for ~1 s. (The
+  tagline misspelling is in the supplied video and is left as is.)
+- **Company identity vs. personal photo.** `CompanyLogoBadge` shows the company's logo (or initials) only in
+  company contexts: Company profile and the PDF cover / page headers. Company profile → Upload/Change logo offers
+  Take photo, Choose from library and Remove logo (`PhotoSourceDialog`; with no camera, Take photo opens the
+  library). The **account avatar is the user's own profile photo** (`UserAvatar`, initials if none): tap it on
+  the Settings account card → Take photo / Choose from library / Remove photo. Stored per user
+  (`UserRecord.photoFile` → `users/<id>/profile-….jpg`, 512 px square JPEG) and shown in the Settings account
+  card, the side-menu header and the Inspectors rows. TODO(backend): upload to the user's server profile.
+- **EULA** (`shared/legal/eula.json`, bundled via the `SharedLegal` synchronized group; `Data/Legal/EULA.swift`,
+  `Views/Legal/LegalViews.swift`). The text is rendered verbatim, never hardcoded. Create account and Join a
+  company both require the checkbox "I have read and agree to the VIMS End User License Agreement, which governs
+  the free trial and subscription." (the agreement name opens the viewer); submitting without it shows an inline
+  error. The accepted `version` + `acceptedAt` are stored on the user (`UserRecord.eulaVersion/eulaAcceptedAt`;
+  TODO(backend): send to the server). Whenever the signed-in user's accepted version differs from eula.json
+  (a revised file, or an account from before this feature) a full-screen gate ("Updated license agreement" /
+  "License agreement") shows the text with **I agree** and **Sign out**. Viewer: Settings → Legal → End User
+  License Agreement ("Revised <revised>") — title, revised date, intro, numbered headings in brand-deep, all 14
+  sections, footer.
+- **Cancel subscription** (Plan & billing, active subscription, owner/admin only; the trial shows no button):
+  red "Cancel subscription" → inline confirm card (active until the next billing date, no refunds or prorated
+  charges, download within 30 days) with Keep subscription / **Yes, cancel** → status "Cancelled · active until
+  <date>", explanatory card and **Undo cancellation**. Stored as `SubscriptionState.cancelledAt`.
+  TODO(backend): Square subscription cancel / resume (`SubscriptionService.cancelSubscription/resumeSubscription`).
+- **Delete account** (App Store 5.1.1(v)): Settings → Account → Delete account (red) → a screen listing what is
+  deleted (the account, the user's inspections with photos and reports on this device; for a sole owner also the
+  company, with the subscription cancelled) and a "Type DELETE to confirm" field. An owner with other users on the
+  company is blocked with "Make another admin the owner first" (Inspectors now has **Make owner** for admins,
+  visible to the owner). A non-owner is removed from the company. Ends on Sign in. TODO(backend): server
+  deletion request (within 10 working days per the EULA).
+- **Sign out** always asks "Sign out of VIMS?" (Cancel / Sign out) — Settings, side menu and the EULA gate.
+- **Status colors** (one palette, always with a label): inspections Done green / In progress blue / Queued amber /
+  Scheduled gray; checklist sections Done green / In progress blue / Not started gray (pills in Sections
+  overview and the drawer); sync badge Synced green / queued amber / Offline gray; subscription Active green /
+  Trial and Cancelled amber.
+- **Inspection date.** The wizard's date picker starts at today; editing an existing inspection allows its saved
+  (possibly past) date.
 - **VIMS platform-owner settings** (data v1.2). The feedback email and the **Report quality copy (BCC)**
   (`support.reportBcc` default) are platform-level, not per company: stored once in SwiftData
   (`PlatformRecord` → `PlatformSettings`) and editable only by the platform owner. `Session.isPlatformOwner` is
@@ -119,7 +157,7 @@ SwiftUI views ──► AppStore (@Observable, @MainActor)  ──► Repository
   added when reports are emailed through VIMS. TODO(backend): the server-side send always adds the BCC so it
   can't be removed. The simulator has no Mail account, so the composer wiring is checked with the DEBUG
   `-mailSelfTest` launch argument, which prints the draft (to / bcc / subject / attachment) to the console.
-- **Home side menu** (`Views/Home/SideMenu.swift`): hamburger opens a left drawer with the company logo, user,
+- **Home side menu** (`Views/Home/SideMenu.swift`): hamburger opens a left drawer with the user's profile photo, user,
   email and company; Inspections, New inspection, Settings, Company profile, How VIMS works, Help & feedback;
   admin-only Manage checklist, Plans & pricing, Inspectors; Sign out. Scrim tap or swipe left closes it.
 - **Adaptive layout.** Every screen scrolls within the safe areas (no fixed heights), SwiftUI handles keyboard
@@ -205,7 +243,7 @@ All in `VIMS/Services/Services.swift`, behind protocols so a Laravel implementat
 | Protocol | Stub | Phase 1 behavior |
 |---|---|---|
 | `AuthService` | `LocalAuthService` | local User table in SwiftData: sign in checks the email + salted PBKDF2 hash; register creates the user (Create account also creates a company; Join attaches to the company with that code); forgot password only checks the email format |
-| `SubscriptionService` | `LocalSubscriptionService` | the form validates the card (Luhn, expiry, CVC, name, ZIP) and the stub simulates Square success; stores only a "Visa ····4242" label, never card data. The card form is a placeholder until Square's card-entry SDK replaces it |
+| `SubscriptionService` | `LocalSubscriptionService` | the form validates the card (Luhn, expiry, CVC, name, ZIP) and the stub simulates Square success; stores only a "Visa ····4242" label, never card data. The card form is a placeholder until Square's card-entry SDK replaces it; cancel / undo cancellation are stubbed too |
 | `SyncService` | `LocalSyncService` | "Sync now" marks pending inspections synced; auto-sync toggle is stored only |
 
 Also pending backend work: sending the report/receipts by email server-side, role enforcement (admin screens are

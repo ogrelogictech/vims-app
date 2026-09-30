@@ -7,6 +7,8 @@ import UniformTypeIdentifiers
 struct SettingsView: View {
     @Environment(AppStore.self) private var store
     @Environment(\.openURL) private var openURL
+    @State private var photoMenu = false
+    @State private var confirmSignOut = false
 
     var body: some View {
         @Bindable var store = store
@@ -16,7 +18,21 @@ struct SettingsView: View {
         Screen(title: "Settings", actions: [store.homeAction()]) {
             SectionLabel(text: "Account", top: 2)
             HStack(spacing: 13) {
-                CompanyLogoBadge(size: 48, radius: 12)
+                // The user's own profile photo (initials if none) — tap to change. Not the company logo.
+                Button { photoMenu = true } label: {
+                    UserAvatar(userID: store.currentUser?.id, name: store.session?.name ?? "", size: 52)
+                        .overlay(alignment: .bottomTrailing) {
+                            ProtoIcon("camera", size: 11, lineWidth: 2.4).foregroundStyle(.white)
+                                .frame(width: 20, height: 20).background(VC.brand).clipShape(Circle())
+                                .overlay(Circle().stroke(VC.paper, lineWidth: 2))
+                                .offset(x: 3, y: 3)
+                        }
+                        .frame(width: 52, height: 52)
+                }
+                .buttonStyle(ChipPressStyle())
+                .frame(minWidth: 52, minHeight: 52)
+                .accessibilityLabel("Profile photo")
+                .accessibilityHint("Take, choose or remove your profile photo")
                 VStack(alignment: .leading, spacing: 2) {
                     Text(store.session?.name ?? "").font(VFont.ui(15, .bold)).foregroundStyle(VC.ink)
                     Text(store.session?.email ?? "").font(VFont.ui(12.5)).foregroundStyle(VC.ink3).lineLimit(1)
@@ -25,8 +41,15 @@ struct SettingsView: View {
             }
             .vCard()
             .padding(.bottom, 12)
-            Button { store.signOut() } label: { IconLabel("Sign out", icon: "sign-out-sync") }
+            .photoSourceDialog(isPresented: $photoMenu, title: "Profile photo",
+                               removeTitle: store.currentUser?.photoFile == nil ? nil : "Remove photo",
+                               onImage: { store.saveProfilePhoto($0) }, onRemove: { store.removeProfilePhoto() })
+            Button { confirmSignOut = true } label: { IconLabel("Sign out", icon: "sign-out-sync") }
                 .buttonStyle(.vGhost)
+                .signOutConfirmation(isPresented: $confirmSignOut)
+            Button("Delete account") { store.push(.deleteAccount) }
+                .buttonStyle(VButtonStyle(kind: .ghost, tint: VC.c1))
+                .padding(.top, 10)
 
             SectionLabel(text: "Sync")
             HStack {
@@ -128,7 +151,7 @@ struct Avatar: View {
 struct CompanyProfileView: View {
     @Environment(AppStore.self) private var store
     @State private var draft: CompanyProfile?
-    @State private var logoItem: PhotosPickerItem?
+    @State private var logoMenu = false
     @State private var showImporter = false
     @State private var errors = FormErrors()
 
@@ -141,10 +164,13 @@ struct CompanyProfileView: View {
                 HStack(spacing: 14) {
                     CompanyLogoBadge(size: 76, radius: 16)
                     VStack(alignment: .leading, spacing: 8) {
-                        PhotosPicker(selection: $logoItem, matching: .images) {
-                            IconLabel("Upload logo", icon: "upload-logo-png")
+                        Button { logoMenu = true } label: {
+                            IconLabel(store.company.logoFile == nil ? "Upload logo" : "Change logo", icon: "upload-logo-png")
                         }
                         .buttonStyle(VButtonStyle(kind: .ghost, minHeight: 44))
+                        .photoSourceDialog(isPresented: $logoMenu, title: "Company logo",
+                                           removeTitle: store.company.logoFile == nil ? nil : "Remove logo",
+                                           onImage: { store.saveLogo($0) }, onRemove: { store.removeLogo() })
                         Text("PNG or JPG, square works best.").font(VFont.ui(11.5)).foregroundStyle(VC.ink3).padding(.horizontal, 2)
                     }
                 }
@@ -194,15 +220,6 @@ struct CompanyProfileView: View {
         .onAppear {
             if draft == nil { draft = store.company }
             if DebugFlags.validate { DebugFlags.validate = false; draft?.name = ""; draft?.phone = "(801) 55"; draft?.email = "office@vpi"; draft?.reviewURL = "g.page/review"; save() }
-        }
-        .onChange(of: logoItem) { _, item in
-            guard let item else { return }
-            Task {
-                if let data = try? await item.loadTransferable(type: Data.self), let img = UIImage(data: data) {
-                    store.saveLogo(img)
-                }
-                logoItem = nil
-            }
         }
         .fileImporter(isPresented: $showImporter,
                       allowedContentTypes: [.pdf] + ["doc", "docx"].compactMap { UTType(filenameExtension: $0) }) { result in
@@ -375,5 +392,88 @@ struct ReportBccView: View {
         p.reportBccEmail = Validator.trimmed(email).lowercased()
         store.savePlatform(p)
         store.toast(on ? "Reports will be blind-copied to \(p.reportBccEmail)" : "Report BCC turned off")
+    }
+}
+
+// MARK: - Delete account (App Store 5.1.1(v))
+
+struct DeleteAccountView: View {
+    @Environment(AppStore.self) private var store
+    @State private var confirmText = ""
+    @State private var errors = FormErrors()
+    @State private var busy = false
+
+    var body: some View {
+        let blocked = store.isCompanyOwner && !store.otherCompanyUsers.isEmpty
+        let n = store.inspections.count
+        Screen(title: "Delete account", actions: [store.homeAction()], errors: errors) {
+            if blocked {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Make another admin the owner first").font(VFont.ui(14.5, .bold)).foregroundStyle(VC.ink)
+                    Text("You own \(store.company.name), and \(store.otherCompanyUsers.map(\.name).joined(separator: ", ")) \(store.otherCompanyUsers.count == 1 ? "still uses" : "still use") it. In Inspectors, make one of them an admin and tap Make owner, then delete your account.")
+                        .font(VFont.ui(13)).foregroundStyle(VC.ink2).lineSpacing(3)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .vCard()
+                .padding(.bottom, 12)
+                Button { store.push(.inspectors) } label: { IconLabel("Open Inspectors", icon: "manage-inspectors-h") }
+                    .buttonStyle(.vPrimary)
+            } else {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("This permanently deletes:").font(VFont.ui(14.5, .bold)).foregroundStyle(VC.ink)
+                    bullet("Your VIMS account (\(store.session?.email ?? ""))")
+                    bullet("Your \(n) inspection\(n == 1 ? "" : "s"), with their photos and reports, on this device")
+                    if store.isCompanyOwner {
+                        bullet("The company \(store.company.name) — its profile, logo, checklist changes and inspector invites")
+                        if store.subscription.active { bullet("Your subscription is cancelled (no further charges)") }
+                    }
+                    Text("We also delete your data from the VIMS servers within 10 working days. This can't be undone.")
+                        .font(VFont.ui(12.5)).foregroundStyle(VC.ink3).lineSpacing(2).padding(.top, 4)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(EdgeInsets(top: 15, leading: 16, bottom: 15, trailing: 16))
+                .background(VC.paper)
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(VC.c1, lineWidth: 1))
+                .padding(.bottom, 16)
+                VTextField(label: "Type DELETE to confirm", text: $confirmText, placeholder: "DELETE", capitalization: .characters,
+                           fieldID: "confirm", errors: errors)
+                Button { submit() } label: {
+                    if busy { ProgressView().tint(.white) } else { Text("Delete my account") }
+                }
+                .buttonStyle(VButtonStyle(kind: .danger))
+                .disabled(busy)
+            }
+        }
+        #if DEBUG
+        .task { try? await Task.sleep(nanoseconds: 1_200_000_000); debugConfirm() }
+        #endif
+    }
+
+    #if DEBUG
+    /// -confirmDelete: type DELETE and submit (review/testing only).
+    private func debugConfirm() {
+        if DebugLaunch.has("-confirmDelete") { confirmText = "DELETE"; submit() }
+    }
+    #endif
+
+    private func bullet(_ t: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Circle().fill(VC.c1).frame(width: 5, height: 5).padding(.top, 7)
+            Text(t).font(VFont.ui(13)).foregroundStyle(VC.ink2).fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func submit() {
+        guard errors.validate([("confirm", confirmText, .req(.plain(max: nil), "Confirmation",
+                                                              custom: { $0.trimmingCharacters(in: .whitespaces) == "DELETE" ? nil : "Type DELETE in capital letters to confirm" }))]) else { return }
+        busy = true
+        Task {
+            do { try await store.deleteAccount() }
+            catch { errors.set("confirm", "Make another admin the owner first") }
+            busy = false
+        }
     }
 }

@@ -72,6 +72,7 @@ struct EULAView: View {
 /// Full-screen gate shown at sign-in when the user hasn't accepted the current eula.json version.
 struct EULAGateView: View {
     @Environment(AppStore.self) private var store
+    @State private var confirmSignOut = false
 
     var body: some View {
         let updated = store.currentUser?.eulaVersion != nil
@@ -95,9 +96,10 @@ struct EULAGateView: View {
             VStack(spacing: 4) {
                 Button("I agree") { withAnimation(.easeOut(duration: 0.25)) { store.acceptEula() } }
                     .buttonStyle(.vPrimary)
-                Button("Sign out") { withAnimation(.easeOut(duration: 0.25)) { store.signOut() } }
+                Button("Sign out") { confirmSignOut = true }
                     .font(VFont.ui(14, .semibold)).foregroundStyle(VC.ink2)
                     .frame(maxWidth: .infinity, minHeight: 44)
+                    .signOutConfirmation(isPresented: $confirmSignOut)
             }
             .padding(.horizontal, 16).padding(.top, 12).padding(.bottom, 6)
             .background(VC.paper.ignoresSafeArea(edges: .bottom))

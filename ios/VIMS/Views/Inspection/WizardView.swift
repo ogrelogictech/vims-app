@@ -8,6 +8,8 @@ struct WizardView: View {
     @State private var draft: Inspection?
     @State private var step = 1
     @State private var errors = FormErrors()
+    /// Earliest selectable inspection date: today, or the saved date when editing an older inspection.
+    @State private var minDate = Calendar.current.startOfDay(for: Date())
 
     var body: some View {
         let w = store.config.wizard
@@ -22,8 +24,8 @@ struct WizardView: View {
                         StepsBar(count: w.steps.count, current: step)
                         if draft != nil {
                             switch step {
-                            case 1: EntryList(entries: w.step1, draft: draftBinding, errors: errors, pairText: false)
-                            case 2: EntryList(entries: w.step2, draft: draftBinding, errors: errors, pairText: true)
+                            case 1: EntryList(entries: w.step1, draft: draftBinding, errors: errors, pairText: false, minDate: minDate)
+                            case 2: EntryList(entries: w.step2, draft: draftBinding, errors: errors, pairText: true, minDate: minDate)
                             case 3: areas
                             default: tests
                             }
@@ -51,7 +53,10 @@ struct WizardView: View {
         }
         .onAppear {
             guard draft == nil else { return }
-            if let id = editingID, let existing = store.inspection(id) { draft = existing } else { draft = store.newInspectionDraft() }
+            if let id = editingID, let existing = store.inspection(id) {
+                draft = existing
+                if let saved = Fmt.parse(existing.field("Date"), "yyyy-MM-dd") { minDate = min(minDate, Calendar.current.startOfDay(for: saved)) }
+            } else { draft = store.newInspectionDraft() }
             if let s = DebugFlags.wizardStep { step = max(1, min(4, s)); DebugFlags.wizardStep = nil }
             if DebugFlags.validate {
                 DebugFlags.validate = false
@@ -119,6 +124,11 @@ struct WizardView: View {
         // Validate the current step; on the last step re-check step 1 (the required fields live there).
         let fields = stepFields(step, d)
         guard errors.validate(fields) else { scrollToError(proxy); return }
+        if let date = Fmt.parse(d.field("Date"), "yyyy-MM-dd"), date < minDate, fields.contains(where: { $0.id == "Date" }) {
+            errors.set("Date", "Choose today or a later date")
+            scrollToError(proxy)
+            return
+        }
         if step == store.config.wizard.steps.count, !errors.validate(stepFields(1, d)) {
             step = 1
             scrollToError(proxy)
@@ -202,6 +212,7 @@ private struct EntryList: View {
     @Binding var draft: Inspection
     let errors: FormErrors
     let pairText: Bool
+    var minDate: Date? = nil
 
     var body: some View {
         let groups = grouped()
@@ -273,7 +284,7 @@ private struct EntryList: View {
     private func field(_ e: WizardEntry, bottom: CGFloat) -> some View {
         switch e.type ?? "text" {
         case "date":
-            DateFieldBox(label: e.label, value: text(e.label), format: "yyyy-MM-dd", components: .date, error: errors[e.label]).padding(.bottom, bottom)
+            DateFieldBox(label: e.label, value: text(e.label), format: "yyyy-MM-dd", components: .date, error: errors[e.label], minimumDate: minDate).padding(.bottom, bottom)
                 .id(e.label)
         case "time":
             DateFieldBox(label: e.label, value: text(e.label), format: "HH:mm", components: .hourAndMinute).padding(.bottom, bottom)
@@ -408,14 +419,20 @@ struct DateFieldBox: View {
     let format: String
     let components: DatePickerComponents
     var error: String? = nil
+    var minimumDate: Date? = nil
 
     var body: some View {
+        let selection = Binding(get: { Fmt.parse(value, format) ?? Date() }, set: { value = Fmt.date($0, format) })
         VStack(alignment: .leading, spacing: 7) {
             FieldLabel(text: label)
             FieldBox(focused: false, error: error != nil) {
-                DatePicker(label, selection: Binding(
-                    get: { Fmt.parse(value, format) ?? Date() },
-                    set: { value = Fmt.date($0, format) }), displayedComponents: components)
+                Group {
+                    if let minimumDate {
+                        DatePicker(label, selection: selection, in: minimumDate..., displayedComponents: components)
+                    } else {
+                        DatePicker(label, selection: selection, displayedComponents: components)
+                    }
+                }
                     .labelsHidden()
                     .datePickerStyle(.compact)
                     .environment(\.locale, Fmt.locale)

@@ -18,7 +18,7 @@ struct SectionsOverviewView: View {
                     HStack {
                         Text(insp.addressLine1).font(VFont.ui(15, .bold)).foregroundStyle(VC.ink).lineLimit(1)
                         Spacer()
-                        Pill(kind: .prog, text: "\(pct)%")
+                        Pill(kind: pct == 100 ? .done : pct == 0 ? .new : .prog, text: "\(pct)%")
                     }
                     .padding(.bottom, 9)
                     GeometryReader { g in
@@ -146,8 +146,7 @@ struct GroupAccordion: View {
             HStack(spacing: 12) {
                 StatusDot(status: st, size: 9)
                 Text(n).font(VFont.ui(14, .medium)).foregroundStyle(VC.ink).frame(maxWidth: .infinity, alignment: .leading)
-                Text(st == .done ? "Done" : st == .prog ? "In progress" : "Not started")
-                    .font(VFont.mono(10.5, .semibold)).foregroundStyle(VC.ink2)
+                Pill(kind: st.pillKind, text: st.label)
             }
             .padding(.leading, 18).padding(.trailing, 15).padding(.vertical, 12)
             .frame(minHeight: 44)
@@ -158,13 +157,20 @@ struct GroupAccordion: View {
     }
 }
 
+/// One palette for every status in the app: Done = green, In progress = blue,
+/// Queued = amber, Scheduled / Not started / Offline = gray — always with a text label.
+extension SectionStatus {
+    var label: String { self == .done ? "Done" : self == .prog ? "In progress" : "Not started" }
+    var pillKind: PillKind { self == .done ? .done : self == .prog ? .prog : .new }
+}
+
 struct StatusDot: View {
     let status: SectionStatus
     var size: CGFloat = 9
     var body: some View {
         Circle()
-            .fill(status == .done ? VC.pass : status == .prog ? VC.signal : VC.paper3)
-            .overlay(Circle().stroke(status == .todo ? VC.line : .clear, lineWidth: 1))
+            .fill(status == .done ? VC.pass : status == .prog ? VC.brand : VC.paper3)
+            .overlay(Circle().stroke(status == .todo ? VC.ink3 : .clear, lineWidth: 1))
             .frame(width: size, height: size)
             .accessibilityHidden(true)
     }
@@ -285,9 +291,11 @@ struct SectionsDrawer: View {
             if !on { openSection(n) }
         } label: {
             HStack(spacing: 10) {
-                StatusDot(status: insp.status[n] ?? .todo, size: 8)
+                let st = insp.status[n] ?? .todo
+                StatusDot(status: st, size: 8)
                 Text(n).font(VFont.ui(13.5, on ? .semibold : .regular)).foregroundStyle(on ? VC.brandDeep : VC.ink2)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                Pill(kind: st.pillKind, text: st.label)
             }
             .padding(.leading, 16).padding(.trailing, 13).padding(.vertical, 10)
             .frame(minHeight: 44)

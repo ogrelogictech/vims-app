@@ -84,15 +84,16 @@ struct NetworkBadge: View {
     var body: some View {
         let n = store.pendingSyncCount
         let offline = !store.isOnline
-        let text: String = store.syncing ? "Syncing…" : (n == 0 ? "Synced" : "\(offline ? "Offline" : "Online") · \(n) queued")
-        let warn = n > 0
+        // Synced = green, queued = amber, Offline = gray (label always shown with the color).
+        let text: String = store.syncing ? "Syncing…" : offline ? (n == 0 ? "Offline" : "Offline · \(n) queued") : (n == 0 ? "Synced" : "\(n) queued")
+        let kind = offline ? 2 : (n > 0 && !store.syncing ? 1 : 0)
         HStack(spacing: 5) {
             Circle().frame(width: 6, height: 6)
             Text(text).font(VFont.mono(11))
         }
-        .foregroundStyle(warn ? Color(hex: 0xF2C869) : Color(hex: 0x7CE0AF))
+        .foregroundStyle(kind == 2 ? Color(hex: 0xE3E7ED) : kind == 1 ? Color(hex: 0xF2C869) : Color(hex: 0x7CE0AF))
         .padding(.horizontal, 9).padding(.vertical, 2)
-        .background(warn ? VC.signal.opacity(0.22) : VC.pass.opacity(0.26))
+        .background(kind == 2 ? Color.white.opacity(0.16) : kind == 1 ? VC.signal.opacity(0.22) : VC.pass.opacity(0.26))
         .clipShape(Capsule())
         .accessibilityLabel(text)
     }

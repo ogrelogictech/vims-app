@@ -6,6 +6,7 @@ struct HomeSideMenu: View {
     @Environment(\.openURL) private var openURL
     @Binding var isOpen: Bool
     @State private var drag: CGFloat = 0
+    @State private var confirmSignOut = false
 
     var body: some View {
         GeometryReader { geo in
@@ -35,9 +36,10 @@ struct HomeSideMenu: View {
 
     private var panel: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header: company logo (or initials), user name, email, company
+            // Header: the user's own profile photo (or initials), name, email, company
             VStack(alignment: .leading, spacing: 10) {
-                CompanyLogoBadge(size: 56, radius: 14)
+                UserAvatar(userID: store.currentUser?.id, name: store.session?.name ?? "", size: 56)
+                    .overlay(Circle().stroke(Color.white.opacity(0.35), lineWidth: 2))
                 VStack(alignment: .leading, spacing: 2) {
                     Text(store.session?.name ?? "").font(VFont.display(16, .bold)).foregroundStyle(.white)
                     Text(store.session?.email ?? "").font(VFont.ui(12)).foregroundStyle(VC.hdrSub).lineLimit(1)
@@ -76,12 +78,12 @@ struct HomeSideMenu: View {
             }
 
             Button {
-                close()
-                store.signOut()
+                confirmSignOut = true
             } label: {
                 IconLabel("Sign out", icon: "sign-out-sync")
             }
             .buttonStyle(.vGhost)
+            .signOutConfirmation(isPresented: $confirmSignOut) { close() }
             .padding(.horizontal, 10).padding(.bottom, 12)
         }
     }

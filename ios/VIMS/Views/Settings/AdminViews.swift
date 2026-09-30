@@ -459,7 +459,7 @@ struct InspectorsView: View {
 
             ForEach(company.inspectors) { ins in
                 HStack(spacing: 13) {
-                    Avatar(name: ins.name, size: 44, radius: 11)
+                    UserAvatar(userID: ins.id, name: ins.name, size: 44, radius: 11)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("\(ins.name) · \(ins.roleLabel)").font(VFont.ui(15, .semibold)).foregroundStyle(VC.ink)
                             .lineLimit(2).fixedSize(horizontal: false, vertical: true)
@@ -467,7 +467,7 @@ struct InspectorsView: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     if ins.owner {
-                        Pill(kind: .done, text: "Admin")
+                        Pill(kind: .done, text: "Owner")
                     } else {
                         VStack(alignment: .trailing, spacing: 6) {
                             Button { store.toggleAdmin(ins.id) } label: {
@@ -475,6 +475,14 @@ struct InspectorsView: View {
                                     .frame(minHeight: 32)
                             }
                             .buttonStyle(ChipPressStyle())
+                            // Only the owner can hand over ownership, and only to an admin.
+                            if store.isCompanyOwner && ins.admin {
+                                Button { store.makeOwner(ins.id) } label: {
+                                    Pill(kind: .new, text: "Make owner", dot: false).frame(minHeight: 32)
+                                }
+                                .buttonStyle(ChipPressStyle())
+                                .accessibilityLabel("Make \(ins.name) the owner")
+                            }
                             Button { store.removeInspector(ins.id) } label: {
                                 Pill(kind: .queued, text: "Remove", dot: false).frame(minHeight: 32)
                             }
