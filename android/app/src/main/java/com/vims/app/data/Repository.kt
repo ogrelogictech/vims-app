@@ -58,6 +58,14 @@ interface VimsRepository {
     /** vims/companies/<companyId> (logo, agreement) */
     fun companyDir(): File
     fun photoFile(photo: Photo): File = File(root.parentFile, photo.file)
+    /** Company members' profile photos by lowercased email (for the Inspectors list); includes the signed-in user. */
+    val memberPhotos: StateFlow<Map<String, String>>
+    /** The signed-in user's own profile photo (relative to filesDir), or null → initials. */
+    val userPhoto: StateFlow<String?>
+    fun setUserPhoto(relative: String?)
+    /** Deletes the signed-in user (and, for a sole owner, the company). Returns an error message when blocked. */
+    suspend fun deleteAccount(): String?
+
     /** Records the signed-in user's EULA acceptance. */
     suspend fun acceptEula(version: String)
     /** Waits until every queued write has reached the database (tests / sign-out). */
@@ -78,6 +86,10 @@ class RoomRepository(filesDir: File, private val dao: VimsDao) : VimsRepository 
     private val _edits = MutableStateFlow(ChecklistEdits())
     private val _inspections = MutableStateFlow<Map<String, InspectionBundle>>(emptyMap())
     private val _platform = MutableStateFlow(PlatformSettings())
+    private val _memberPhotos = MutableStateFlow<Map<String, String>>(emptyMap())
+    private val _userPhoto = MutableStateFlow<String?>(null)
+    override val memberPhotos = _memberPhotos.asStateFlow()
+    override val userPhoto = _userPhoto.asStateFlow()
 
     override val session = _session.asStateFlow()
     override val account = _account.asStateFlow()
@@ -135,12 +147,15 @@ class RoomRepository(filesDir: File, private val dao: VimsDao) : VimsRepository 
         _edits.value = dec(ChecklistEdits.serializer(), co.editsJson, ChecklistEdits())
         _settings.value = dec(AppSettings.serializer(), user.settingsJson, AppSettings())
         _inspections.value = bundles
+        _userPhoto.value = user.photoFile
+        _memberPhotos.value = dao.usersInCompany(co.id).mapNotNull { u -> u.photoFile?.let { u.email.lowercase() to it } }.toMap()
         _session.value = session
         if (persist) dao.putKv(KvEntity(KEY_SESSION, enc(Session.serializer(), session)))
     }
 
     private fun clearMemory() {
         _session.value = null
+        _userPhoto.value = null; _memberPhotos.value = emptyMap()
         _inspections.value = emptyMap()
         _account.value = AccountState(); _company.value = CompanyProfile(); _settings.value = AppSettings(); _edits.value = ChecklistEdits()
     }
@@ -154,6 +169,35 @@ class RoomRepository(filesDir: File, private val dao: VimsDao) : VimsRepository 
     }
 
     override suspend fun flush() { withContext(writer) {} }
+
+    override fun setUserPhoto(relative: String?) {
+        val s = _session.value ?: return
+        _userPhoto.value = relative
+        _memberPhotos.update { m -> if (relative == null) m - s.email.lowercase() else m + (s.email.lowercase() to relative) }
+        write { dao.updateUserPhoto(s.userId, relative) }
+    }
+
+    override suspend fun deleteAccount(): String? = withContext(writer) {
+        val s = _session.value ?: return@withContext "Not signed in"
+        val others = dao.usersInCompany(s.companyId).filter { it.id != s.userId }
+        val acct = _account.value
+        val isOwner = acct.inspectors.firstOrNull { it.email.equals(s.email, true) }?.owner == true || s.role == Role.OWNER
+        if (isOwner && others.isNotEmpty()) return@withContext "Make another admin the owner first (Inspectors → Make owner)."
+        dao.deleteInspectionsOf(s.userId) // answers, photos, findings cascade
+        File(root, "users/${s.userId}").deleteRecursively()
+        if (isOwner) {
+            // Sole owner: the company goes too (its users row cascades). TODO(backend): cancel the Square subscription server-side.
+            dao.deleteCompany(s.companyId)
+            File(root, "companies/${s.companyId}").deleteRecursively()
+        } else {
+            dao.deleteUser(s.userId)
+            val updated = acct.copy(inspectors = acct.inspectors.filterNot { it.email.equals(s.email, true) })
+            dao.updateCompanyAccount(s.companyId, enc(AccountState.serializer(), updated))
+        }
+        dao.deleteKv(KEY_SESSION)
+        clearMemory()
+        null
+    }
 
     override suspend fun acceptEula(version: String) = withContext(writer) {
         val s = _session.value ?: return@withContext

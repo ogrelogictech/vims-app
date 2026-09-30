@@ -68,3 +68,13 @@ dependencies {
     implementation(libs.media3.ui)
     implementation(libs.core.splashscreen)
 }
+
+// Fail the build (instead of shipping a blank EULA screen) if a required shared/ asset is missing from the checkout.
+val verifySharedAssets by tasks.registering {
+    val required = listOf("legal/eula.json", "icons/icons.json").map { rootProject.file("../shared/$it") }
+    doLast {
+        val missing = required.filter { !it.isFile || it.length() == 0L }
+        if (missing.isNotEmpty()) throw GradleException("Missing shared assets (pull shared/): " + missing.joinToString())
+    }
+}
+tasks.named("preBuild") { dependsOn(verifySharedAssets) }

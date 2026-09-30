@@ -53,6 +53,8 @@ data class UserEntity(
     /** EULA version the user accepted (eula.json "version") and when. TODO(backend): send to the server. */
     val eulaVersion: String? = null,
     val eulaAcceptedAt: Long? = null,
+    /** The user's own profile photo (relative to filesDir: vims/users/<id>/profile.jpg), never the company logo. */
+    val photoFile: String? = null,
 )
 
 @Entity(tableName = "inspections", indices = [Index("userId"), Index("companyId")])
@@ -98,6 +100,11 @@ interface VimsDao {
     @Query("UPDATE users SET settingsJson = :json WHERE id = :id") suspend fun updateUserSettings(id: String, json: String)
     @Query("UPDATE users SET name = :name WHERE id = :id") suspend fun updateUserName(id: String, name: String)
     @Query("UPDATE users SET eulaVersion = :version, eulaAcceptedAt = :at WHERE id = :id") suspend fun acceptEula(id: String, version: String, at: Long)
+    @Query("UPDATE users SET photoFile = :file WHERE id = :id") suspend fun updateUserPhoto(id: String, file: String?)
+    @Query("SELECT * FROM users WHERE companyId = :companyId") suspend fun usersInCompany(companyId: String): List<UserEntity>
+    @Query("DELETE FROM inspections WHERE userId = :userId") suspend fun deleteInspectionsOf(userId: String)
+    @Query("DELETE FROM users WHERE id = :id") suspend fun deleteUser(id: String)
+    @Query("DELETE FROM companies WHERE id = :id") suspend fun deleteCompany(id: String)
 
     @Query("SELECT * FROM companies WHERE id = :id LIMIT 1") suspend fun company(id: String): CompanyEntity?
     @Query("SELECT * FROM companies WHERE code = :code LIMIT 1") suspend fun companyByCode(code: String): CompanyEntity?
@@ -141,7 +148,7 @@ interface VimsDao {
 
 @Database(
     entities = [CompanyEntity::class, UserEntity::class, InspectionEntity::class, AnswerEntity::class, PhotoEntity::class, FindingEntity::class, KvEntity::class],
-    version = 2, exportSchema = true,
+    version = 3, exportSchema = true,
 )
 abstract class VimsDatabase : RoomDatabase() {
     abstract fun dao(): VimsDao
@@ -155,7 +162,12 @@ abstract class VimsDatabase : RoomDatabase() {
             }
         }
 
+        /** v3: per-user profile photo. */
+        private val MIGRATION_2_3 = object : androidx.room.migration.Migration(2, 3) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) { db.execSQL("ALTER TABLE users ADD COLUMN photoFile TEXT") }
+        }
+
         fun open(context: Context): VimsDatabase =
-            Room.databaseBuilder(context, VimsDatabase::class.java, "vims.db").addMigrations(MIGRATION_1_2).build()
+            Room.databaseBuilder(context, VimsDatabase::class.java, "vims.db").addMigrations(MIGRATION_1_2, MIGRATION_2_3).build()
     }
 }

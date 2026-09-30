@@ -38,10 +38,28 @@ import kotlinx.coroutines.withContext
 
 /** Same gray as the video background and the system splash (no white flash). */
 val SplashGray = Color(0xFFD4D4D9)
+/** Fallback letterbox colors = the video's top / bottom edge colors (sampled at runtime when possible). */
+private val EdgeTop = Color(0xFFD2D4DA)
+private val EdgeBottom = Color(0xFFC3CAD1)
+
+/** Averages the top and bottom pixel rows of a mid-video frame so the fit-inside letterbox blends seamlessly. */
+private fun sampleEdges(ctx: android.content.Context): Pair<Color, Color>? = try {
+    val r = MediaMetadataRetriever()
+    ctx.assets.openFd(ASSET).use { fd -> r.setDataSource(fd.fileDescriptor, fd.startOffset, fd.length) }
+    val durUs = (r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 5000L) * 1000
+    val bmp = r.getFrameAtTime(durUs / 2, MediaMetadataRetriever.OPTION_CLOSEST_SYNC).also { r.release() } ?: throw IllegalStateException()
+    fun avg(y0: Int, y1: Int): Color {
+        var rr = 0L; var gg = 0L; var bb = 0L; var n = 0
+        for (y in y0 until y1) for (x in 0 until bmp.width step 4) { val c = bmp.getPixel(x, y); rr += (c shr 16) and 255; gg += (c shr 8) and 255; bb += c and 255; n++ }
+        return Color((rr / n).toInt(), (gg / n).toInt(), (bb / n).toInt())
+    }
+    (avg(0, 6) to avg(bmp.height - 6, bmp.height)).also { bmp.recycle() }
+} catch (_: Exception) { null }
 private const val ASSET = "media/vims-splash.mp4"
 
 /**
- * Cold-launch splash (shared/media/vims-splash.mp4): full-screen, muted, center-crop, played once (~5 s), tap to skip.
+ * Cold-launch splash (shared/media/vims-splash.mp4): full-screen, muted, fit-inside (whole frame visible, letterbox in the
+ * video's edge colors), played once (~5 s), tap to skip.
  * With animations turned off (Animator duration scale 0) the last frame is shown for ~1 s instead.
  */
 @OptIn(UnstableApi::class)
@@ -67,7 +85,9 @@ fun SplashVideo(onDone: () -> Unit) {
             }
             delay(1000); finish()
         }
-        Box(tap.background(SplashGray)) { frame?.let { Image(it.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) } }
+        Box(tap.background(androidx.compose.ui.graphics.Brush.verticalGradient(0f to EdgeTop, 0.5f to EdgeTop, 0.5f to EdgeBottom, 1f to EdgeBottom))) {
+            frame?.let { Image(it.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = ContentScale.Fit) }
+        }
         return
     }
 
@@ -96,11 +116,16 @@ fun SplashVideo(onDone: () -> Unit) {
     }
     // Safety net: never hold the user on the splash (video is ~5 s).
     LaunchedEffect(Unit) { delay(7000); finish() }
-    Box(Modifier.fillMaxSize().background(SplashGray)) {
+    // Fit-inside: the whole frame (incl. the tagline) is visible; letterbox bands use the video's own edge colors.
+    var edges by remember { mutableStateOf(EdgeTop to EdgeBottom) }
+    LaunchedEffect(Unit) { withContext(Dispatchers.IO) { sampleEdges(ctx) }?.let { edges = it } }
+    Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Brush.verticalGradient(0f to edges.first, 0.5f to edges.first, 0.5f to edges.second, 1f to edges.second))) {
         AndroidView(
             factory = { c ->
                 (android.view.LayoutInflater.from(c).inflate(com.vims.app.R.layout.splash_player, null) as PlayerView).apply {
-                    resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                    resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                    setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                    setShutterBackgroundColor(android.graphics.Color.TRANSPARENT)
                     this.player = player
                 }
             },

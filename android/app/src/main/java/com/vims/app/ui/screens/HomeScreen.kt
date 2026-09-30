@@ -26,6 +26,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -170,16 +171,21 @@ private fun HomeMenu(vm: AppViewModel, nav: NavHostController, close: () -> Unit
     val ctx = LocalContext.current
     val admin = session?.isAdmin != false
     fun go(route: Any) { close(); nav.navigate(route) }
+    var askSignOut by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
+    if (askSignOut) SignOutDialog(vm, nav) { askSignOut = false }
     ModalDrawerSheet(
         drawerContainerColor = V.paper2, drawerShape = RoundedCornerShape(topEnd = 18.dp, bottomEnd = 18.dp),
         modifier = Modifier.widthIn(max = 320.dp).fillMaxWidth(0.84f), windowInsets = WindowInsets(0),
     ) {
         Column(Modifier.fillMaxWidth().background(V.hdr).statusBarsPadding().padding(start = 18.dp, end = 18.dp, top = 18.dp, bottom = 18.dp)) {
-            CompanyMark(vm, 56.dp)
+            MyAvatar(vm, 56.dp)
             Spacer(Modifier.height(12.dp))
             Text(session?.name.orEmpty(), style = T.display(16.sp, FontWeight.Bold, Color.White), maxLines = 2)
             Text(session?.email.orEmpty(), style = T.ui(12.sp, color = V.hdrSub), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(companyName(vm), style = T.ui(12.5.sp, FontWeight.SemiBold, V.hdrSub), maxLines = 2, modifier = Modifier.padding(top = 2.dp))
+            Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                CompanyMark(vm, 20.dp, bordered = false)
+                Text(companyName(vm), style = T.ui(12.5.sp, FontWeight.SemiBold, V.hdrSub), maxLines = 2)
+            }
         }
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 10.dp, vertical = 10.dp)) {
             MenuRow(VIcons.home, "Inspections", selected = true) { close() }
@@ -202,7 +208,7 @@ private fun HomeMenu(vm: AppViewModel, nav: NavHostController, close: () -> Unit
         }
         Box(Modifier.fillMaxWidth().height(1.dp).background(V.line))
         Box(Modifier.navigationBarsPadding().padding(10.dp)) {
-            MenuRow(VIcons.signOut, "Sign out") { close(); vm.signOut { nav.navigate(LoginR) { popUpTo(0) { inclusive = true } } } }
+            MenuRow(VIcons.signOut, "Sign out") { askSignOut = true }
         }
     }
 }

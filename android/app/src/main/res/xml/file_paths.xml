@@ -2,4 +2,6 @@
 <paths>
     <!-- Generated report PDFs shared via ACTION_SEND -->
     <files-path name="reports" path="vims/users/" />
+    <!-- Camera captures for profile photos / company logo (TakePicture writes here, then we crop + copy) -->
+    <cache-path name="capture" path="capture/" />
 </paths>

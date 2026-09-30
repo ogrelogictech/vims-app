@@ -68,6 +68,7 @@ import com.vims.app.ui.components.SingleChips
 import com.vims.app.ui.components.VBtn
 import com.vims.app.ui.components.VCard
 import com.vims.app.ui.components.VField
+import com.vims.app.ui.components.VInput
 import com.vims.app.ui.components.VScreen
 import com.vims.app.ui.components.rich
 import com.vims.app.ui.components.vCard
@@ -75,6 +76,9 @@ import com.vims.app.ui.theme.T
 import com.vims.app.ui.theme.V
 import com.vims.app.ui.theme.VIcons
 import com.vims.app.util.Checks
+import com.vims.app.ui.components.rememberImageChooser
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.runtime.remember
 import com.vims.app.util.Filters
 import com.vims.app.util.Fmt
 import com.vims.app.util.PhoneTransform
@@ -98,21 +102,30 @@ fun SettingsScreen(vm: AppViewModel, nav: NavHostController) {
     val admin = session?.isAdmin != false
 
     VScreen("Settings", companyName(vm), netState, backAction(nav), listOf(homeAction(nav))) {
+        var signOutAsk by remember { mutableStateOf(false) }
+        var deleteAsk by remember { mutableStateOf(false) }
+        val photoChooser = rememberImageChooser("Profile photo", vm.userPhoto.collectAsState().value != null, { vm.setUserPhoto(it) }, { vm.removeUserPhoto() })
+        if (signOutAsk) SignOutDialog(vm, nav) { signOutAsk = false }
+        if (deleteAsk) DeleteAccountDialog(vm, nav) { deleteAsk = false }
         Lbl("Account", first = true)
         VCard {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(13.dp)) {
-                LeadInitials(session?.initials ?: "?", 48.dp, circle = true)
+                // The user's OWN photo (tap to change) — never the company logo.
+                Box(Modifier.clip(CircleShape).clickable(role = Role.Button, onClickLabel = "Change profile photo") { photoChooser.open() }) {
+                    MyAvatar(vm, 52.dp)
+                    Box(Modifier.align(Alignment.BottomEnd).size(20.dp).clip(CircleShape).background(V.paper).padding(2.dp).clip(CircleShape).background(V.brand), contentAlignment = Alignment.Center) {
+                        Icon(VIcons.camera, null, tint = Color.White, modifier = Modifier.size(11.dp))
+                    }
+                }
                 Column(Modifier.weight(1f)) {
                     Text(session?.name ?: "Signed out", style = T.ui(15.sp, FontWeight.Bold))
                     Text(session?.email.orEmpty(), style = T.ui(12.5.sp, color = V.ink3), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                        CompanyMark(vm, 22.dp)
-                        Text(listOfNotNull(company.name.ifBlank { null }, if (session?.isAdmin == false) "Inspector" else null).joinToString(" · "), style = T.ui(12.5.sp, FontWeight.SemiBold, V.ink2))
-                    }
+                    Text(listOfNotNull(company.name.ifBlank { null }, if (session?.isAdmin == false) "Inspector" else null).joinToString(" · "), style = T.ui(12.5.sp, FontWeight.SemiBold, V.ink2), modifier = Modifier.padding(top = 2.dp))
                 }
             }
         }
-        VBtn("Sign out", { vm.signOut { nav.navigate(LoginR) { popUpTo(0) { inclusive = true } } } }, kind = BtnKind.Ghost, icon = VIcons.signOut)
+        VBtn("Sign out", { signOutAsk = true }, kind = BtnKind.Ghost, icon = VIcons.signOut)
+        VBtn("Delete account", { deleteAsk = true }, Modifier.padding(top = 10.dp), BtnKind.GhostDanger, icon = VIcons.trash)
 
         Lbl("Sync")
         VCard {
@@ -159,7 +172,7 @@ fun SettingsScreen(vm: AppViewModel, nav: NavHostController) {
         NavRow(VIcons.help, "How VIMS works", "Instructions & new-account tutorial") { nav.navigate(InstructionsR) }
 
         Lbl("Legal")
-        NavRow(VIcons.fileText, "End User License Agreement", "Revised ${vm.eula.revised}") { nav.navigate(com.vims.app.ui.EulaR) }
+        NavRow(VIcons.fileText, "End User License Agreement", if (vm.eula.isValid) "Revised ${vm.eula.revised}" else "Couldn't load — tap for details") { nav.navigate(com.vims.app.ui.EulaR) }
 
         Lbl("Defaults")
         VCard {
@@ -196,7 +209,7 @@ fun CompanyScreen(vm: AppViewModel, nav: NavHostController) {
     val logoVersion by vm.logoVersion.collectAsState()
     var p by rememberSaveable(saved.logoFile, saved.agreementName, stateSaver = companySaver) { mutableStateOf(saved) }
     val ctx = LocalContext.current
-    val logoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> if (uri != null) vm.importLogo(uri) }
+    val logoChooser = rememberImageChooser("Company logo", saved.logoFile != null, { vm.importLogo(it) }, { vm.removeLogo() })
     val docPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
             val name = ctx.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c -> if (c.moveToFirst()) c.getString(0) else null } ?: "Inspection agreement"
@@ -213,7 +226,7 @@ fun CompanyScreen(vm: AppViewModel, nav: NavHostController) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 CompanyMark(vm, 76.dp)
                 Column(Modifier.weight(1f)) {
-                    VBtn("Upload logo", { logoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }, kind = BtnKind.Ghost, icon = VIcons.upload, minHeight = 48.dp)
+                    VBtn(if (saved.logoFile != null) "Change logo" else "Upload logo", { logoChooser.open() }, kind = BtnKind.Ghost, icon = VIcons.upload, minHeight = 48.dp)
                     Text("PNG or JPG, square works best.", style = T.ui(11.5.sp, color = V.ink3), modifier = Modifier.padding(start = 2.dp, top = 8.dp))
                 }
             }
@@ -329,5 +342,25 @@ fun ReportBccScreen(vm: AppViewModel, nav: NavHostController) {
         }
         VField("BCC address", email, { email = it }, Modifier.formField(form, "email"), placeholder = "you@company.com", keyboard = KeyboardType.Email, error = err)
         VBtn("Save", { if (form.submit()) vm.saveReportBcc(on, email) }, icon = VIcons.check)
+    }
+}
+
+/** Delete account (app-store requirement): explains what is removed and requires typing DELETE. */
+@Composable
+fun DeleteAccountDialog(vm: AppViewModel, nav: NavHostController, onDismiss: () -> Unit) {
+    var typed by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+    val owner = vm.session.collectAsState().value?.role == com.vims.app.data.Role.OWNER
+    com.vims.app.ui.components.ConfirmDialog(
+        "Delete your account?",
+        "This permanently deletes **your account and your inspections, photos, and reports on this device**." +
+            (if (owner) " You own this company: if nobody else is on it, the company, its profile and logo are deleted too and the subscription is cancelled." else "") +
+            " A deletion request is also sent to VIMS (completed within 10 working days, per the EULA). Type **DELETE** to confirm.",
+        "Delete", danger = true, confirmEnabled = typed == "DELETE",
+        onConfirm = { vm.deleteAccount(onError = { error = it }) { onDismiss(); nav.navigate(com.vims.app.ui.LoginR) { popUpTo(0) { inclusive = true } } } },
+        onDismiss = onDismiss,
+    ) {
+        // TODO(backend): POST the deletion request to the server (10 working days per the EULA).
+        VInput(typed, { typed = it.uppercase() }, Modifier.padding(bottom = 10.dp), placeholder = "Type DELETE", caps = KeyboardCapitalization.Characters, error = error)
     }
 }

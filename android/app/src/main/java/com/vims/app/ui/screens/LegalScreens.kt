@@ -50,7 +50,16 @@ import com.vims.app.ui.theme.VIcons
 
 /** The EULA rendered verbatim from eula.json: title, revised date, intro, numbered section headings, paragraphs, footer. */
 @Composable
-fun EulaBody(eula: Eula) {
+fun EulaBody(eula: Eula, error: String? = null) {
+    if (!eula.isValid) {
+        // Never a blank card: say what happened (details are also in logcat under VIMS-EULA).
+        Column(Modifier.fillMaxWidth().vCard(border = V.c1).padding(16.dp)) {
+            Text("The license agreement couldn't be loaded", style = T.ui(14.sp, FontWeight.Bold, V.c1))
+            Text("Please reinstall or update VIMS. If this keeps happening, contact support.", style = T.ui(13.sp, color = V.ink2, lineHeight = 19.sp), modifier = Modifier.padding(top = 6.dp))
+            if (error != null) Text(error, style = T.mono(11.sp, color = V.ink3), modifier = Modifier.padding(top = 8.dp))
+        }
+        return
+    }
     Column(Modifier.fillMaxWidth().vCard().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 6.dp)) {
         Text(eula.title, style = T.display(17.sp, FontWeight.ExtraBold, lineHeight = 21.sp), modifier = Modifier.padding(bottom = 4.dp))
         Text("Revised ${eula.revised}", style = T.ui(12.sp, color = V.ink3), modifier = Modifier.padding(bottom = 12.dp))
@@ -69,7 +78,7 @@ private fun EulaPara(t: String) { Text(t, style = T.ui(13.sp, color = V.ink2, li
 /** Settings → Legal → End User License Agreement (also opened from the sign-up checkbox link). */
 @Composable
 fun EulaScreen(vm: AppViewModel, nav: NavHostController) {
-    VScreen("License agreement", companyName(vm), net(vm), backAction(nav)) { EulaBody(vm.eula) }
+    VScreen("License agreement", companyName(vm), net(vm), backAction(nav)) { EulaBody(vm.eula, vm.eulaError) }
 }
 
 /** "I have read and agree to the VIMS End User License Agreement…" — the agreement name opens the viewer. */
@@ -113,7 +122,7 @@ fun EulaReacceptGate(vm: AppViewModel, onSignOut: () -> Unit) {
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp)) {
             Text("The VIMS End User License Agreement has been revised (${vm.eula.revised}). Read it below and tap I agree to keep using VIMS.",
                 style = T.ui(13.sp, color = V.ink3, lineHeight = 19.sp), modifier = Modifier.padding(bottom = 12.dp))
-            EulaBody(vm.eula)
+            EulaBody(vm.eula, vm.eulaError)
         }
         GateButtons(vm, onSignOut)
     }

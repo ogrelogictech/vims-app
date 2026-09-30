@@ -23,6 +23,8 @@ import kotlinx.coroutines.runBlocking
 /** Simple manual DI container (no framework needed at this size). */
 class AppContainer(private val app: Application) {
     val config: ChecklistConfig = ChecklistLoader.load(app)
+    /** EULA loaded once, synchronously, at app start (survives into every screen / after process death via Application). */
+    val eulaResult: Result<com.vims.app.data.Eula> = com.vims.app.data.Eula.load(app)
     val db: VimsDatabase = VimsDatabase.open(app)
     private val roomRepo = RoomRepository(app.filesDir, db.dao())
     val repo: VimsRepository = roomRepo

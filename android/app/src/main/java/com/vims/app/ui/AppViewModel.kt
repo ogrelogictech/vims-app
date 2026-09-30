@@ -72,10 +72,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val platform: StateFlow<com.vims.app.data.PlatformSettings> = repo.platform
 
     /** The client's EULA (assets/legal/eula.json). */
-    val eula: com.vims.app.data.Eula = com.vims.app.data.Eula.load(app)
+    val eula: com.vims.app.data.Eula = container.eulaResult.getOrElse { com.vims.app.data.Eula() }
+    /** Non-null when the EULA couldn't be loaded — shown instead of a blank agreement. */
+    val eulaError: String? = container.eulaResult.exceptionOrNull()?.let { "${it::class.java.simpleName}: ${it.message}" }
     /** Debug-only override of the current EULA version (to exercise the re-acceptance screen). */
     var debugEulaVersion by androidx.compose.runtime.mutableStateOf<String?>(null)
-    val currentEulaVersion: String get() = debugEulaVersion ?: eula.version
+    val currentEulaVersion: String get() = debugEulaVersion ?: eula.version.ifBlank { "unavailable" }
 
     fun acceptEula() = viewModelScope.launch { repo.acceptEula(currentEulaVersion); toast("License agreement accepted") }
 
@@ -331,6 +333,43 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun syncNow() = viewModelScope.launch { container.sync.syncNow(); toast("Synced to portal") }
 
     fun saveCompany(p: CompanyProfile) { repo.updateCompany { p }; toast("Company profile saved") }
+
+    /* ---- profile photo (per user, never the company logo) ---- */
+    val userPhoto: StateFlow<String?> = repo.userPhoto
+    val memberPhotos: StateFlow<Map<String, String>> = repo.memberPhotos
+    fun setUserPhoto(uri: Uri) = viewModelScope.launch {
+        val s = session.value ?: return@launch
+        val f = File(repo.root, "users/${s.userId}/profile.jpg")
+        val ok = withContext(Dispatchers.IO) { com.vims.app.util.saveSquareAvatar(getApplication<Application>().contentResolver, uri, f) }
+        if (ok) { repo.setUserPhoto(f.relativeTo(getApplication<Application>().filesDir).path); logoVersion.update { it + 1 }; toast("Profile photo updated") } else toast("Could not read that image")
+    }
+    fun removeUserPhoto() = viewModelScope.launch {
+        val s = session.value ?: return@launch
+        withContext(Dispatchers.IO) { File(repo.root, "users/${s.userId}/profile.jpg").delete() }
+        repo.setUserPhoto(null); toast("Profile photo removed")
+    }
+    fun removeLogo() {
+        val f = company.value.logoFile?.let { File(getApplication<Application>().filesDir, it) }
+        repo.updateCompany { it.copy(logoFile = null) }; f?.delete(); logoVersion.update { it + 1 }; toast("Logo removed")
+    }
+
+    /* ---- account deletion / ownership ---- */
+    fun deleteAccount(onError: (String) -> Unit, onOk: () -> Unit) = viewModelScope.launch {
+        val wasSoleOwner = session.value?.role == Role.OWNER
+        val err = repo.deleteAccount()
+        if (err != null) { onError(err); return@launch }
+        if (wasSoleOwner) container.subscriptions.cancelSubscription() // TODO(backend): server-side cancel + deletion request
+        _splash.value = false
+        toast("Account deleted"); onOk()
+    }
+
+    /** Owner hands the company to another inspector (they become Owner · Admin; the old owner stays Admin). */
+    fun makeOwner(inspectorId: String) = viewModelScope.launch {
+        val target = account.value.inspectors.firstOrNull { it.id == inspectorId } ?: return@launch
+        repo.updateAccount { a -> a.copy(inspectors = a.inspectors.map { i -> if (i.id == inspectorId) i.copy(owner = true, admin = true) else if (i.owner) i.copy(owner = false, admin = true) else i }) }
+        session.value?.let { repo.activate(it.copy(role = Role.ADMIN)) }
+        toast("${target.name} is now the owner")
+    }
 
     fun importLogo(uri: Uri) = viewModelScope.launch {
         val ok = withContext(Dispatchers.IO) {

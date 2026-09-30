@@ -58,6 +58,19 @@ object Images {
     }
 }
 
+/** Square center-crop, scaled to `size`px, saved as JPEG (profile photos). Honors EXIF rotation. */
+fun saveSquareAvatar(cr: android.content.ContentResolver, uri: android.net.Uri, out: File, size: Int = 512): Boolean = try {
+    val raw = cr.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) } ?: throw IllegalStateException("decode")
+    val rot = try { cr.openInputStream(uri)?.use { ExifInterface(it).getAttributeInt(ExifInterface.TAG_ORIENTATION, 1) } ?: 1 } catch (_: Exception) { 1 }
+    val deg = when (rot) { ExifInterface.ORIENTATION_ROTATE_90 -> 90f; ExifInterface.ORIENTATION_ROTATE_180 -> 180f; ExifInterface.ORIENTATION_ROTATE_270 -> 270f; else -> 0f }
+    val side = minOf(raw.width, raw.height)
+    val m = Matrix().apply { val s = size.toFloat() / side; postScale(s, s); if (deg != 0f) postRotate(deg) }
+    val sq = Bitmap.createBitmap(raw, (raw.width - side) / 2, (raw.height - side) / 2, side, side, m, true)
+    out.parentFile?.mkdirs()
+    FileOutputStream(out).use { sq.compress(Bitmap.CompressFormat.JPEG, 90, it) }
+    true
+} catch (_: Exception) { false }
+
 @Composable
 fun rememberThumb(file: File, version: Int = 0, max: Int = 360): State<ImageBitmap?> =
     produceState<ImageBitmap?>(null, file.path, version, max) {

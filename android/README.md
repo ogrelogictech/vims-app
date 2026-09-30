@@ -58,7 +58,7 @@ Release builds ignore these extras (`BuildConfig.DEBUG`).
 | `demo/DemoSeed.kt` | **All demo data** (first launch only) |
 | `ui/AppViewModel.kt` | UI state + actions for every screen |
 | `ui/VimsNav.kt` | Routes, NavHost, toast host, debug jumper |
-| `ui/SplashVideo.kt` | Launch video (Media3 ExoPlayer, muted, center-crop, once, tap to skip; last frame ~1 s when animations are off) |
+| `ui/SplashVideo.kt` | Launch video (Media3 ExoPlayer, muted, fit-inside with edge-color letterbox, once, tap to skip; last frame ~1 s when animations are off) |
 | `ui/theme/` | Design tokens (`V`), fonts (`VimsFonts`, text styles `T`), icons (`VIcons`: ImageVectors built at startup from `shared/icons/icons.json` — the prototype's own 24×24 stroke paths, stroke 2, round caps/joins, tinted — with the same paths embedded as fallback) |
 | `ui/components/Components.kt` | Header bar, buttons, cards, inputs, chips (single = tap again to deselect), segmented control, pills, rows, counters, banners, success block |
 | `ui/screens/` | `AuthScreens` (login, create account, forgot, join) · `HomeScreen` (+ trial splash) · `WizardScreen` · `SectionsScreen` (+ sections drawer) · `SectionScreen` · `PhotosScreens` (photos, CameraX capture, markup viewer, flag-a-finding sheet) · `SummaryScreen` · `ReportScreens` (cover picker, report ready, PDF preview, share) · `SettingsScreens` (settings, company profile, how VIMS works, feedback admin) · `AdminScreens` (manage checklist, edit section, plans & pricing) · `AccountScreens` (inspectors, subscribe, subscription started, billing) |
@@ -96,7 +96,10 @@ Release builds ignore these extras (`BuildConfig.DEBUG`).
 
 ### Launch splash
 `Theme.VIMS.Starting` (SplashScreen API, light gray `#D4D4D9` matching the video, no icon) → `SplashVideo` plays
-`shared/media/vims-splash.mp4` once, muted, center-crop, tap to skip, then Sign in (or Home with a saved session).
+`shared/media/vims-splash.mp4` once, muted, **fit inside** (whole frame visible on every aspect ratio, never cropped),
+tap to skip, then Sign in (or Home with a saved session). The letterbox is a two-band background whose colors are
+sampled from the video's top/bottom edge rows at runtime (`MediaMetadataRetriever`; fallback `#D2D4DA` / `#C3CAD1`),
+so the bands blend into the frame. The video file itself is not altered.
 With animator duration scale 0 the last frame shows for ~1 s. On emulators only, the platform software H.264 decoder is
 preferred (the emulator's "goldfish" decoder renders nothing under software GPU). Note: the source video's tagline reads
 "Vision Ins**j**ection…" — pending a corrected file from the client.
@@ -125,6 +128,11 @@ preferred (the emulator's "goldfish" decoder renders nothing under software GPU)
   Debug override to test it: `--es eulaVersion 2026-12-01`.
 - Viewer: Settings → Legal → End User License Agreement ("Revised <date>"): title, revised date, intro, numbered
   section headings (brand-deep), paragraphs, footer.
+- Loading: `Eula.load()` runs once, synchronously, when `AppContainer` is created (Application scope, so it is present on
+  a cold start straight into any screen and after process death). It returns a `Result`; a missing/unreadable/invalid
+  file is logged (`adb logcat -s VIMS-EULA`) and the viewer and gate show "The license agreement couldn't be loaded"
+  with the error instead of a blank card. The build also fails (`verifySharedAssets`, runs before `preBuild`) if
+  `../shared/legal/eula.json` or `../shared/icons/icons.json` is missing, since assets come from `../shared`.
 
 ### Cancel subscription (EULA 12.3)
 Plan & billing, active subscriptions only, owner/admins only: **Cancel subscription** (red ghost) → inline confirm
@@ -132,10 +140,39 @@ Plan & billing, active subscriptions only, owner/admins only: **Cancel subscript
 Cancelled: status "Cancelled · active until <date>", explanation card, **Undo cancellation**. Trial shows no cancel button.
 `TODO(backend)`: Square Subscriptions cancel / resume (`SubscriptionService.cancelSubscription/resumeSubscription`).
 
+### Profile photo vs company logo
+- **Account picture = the user's own profile photo** (initials fallback). Tap the avatar in Settings → Account →
+  Profile photo: Take photo / Choose from gallery / Remove. Stored per user: `vims/users/<userId>/profile.jpg`
+  (512 px square, EXIF-rotated) + `users.photoFile` (Room schema v3, migration 2→3). Shown in the Settings account
+  card, the side-menu header, and Inspectors rows (matched by email).
+- **Company logo** (Company profile): Take photo / Choose from gallery / Remove. It appears on the Home header, PDF
+  cover + page headers, and as a small badge next to the company name in the side menu — no longer in the account card.
+- Camera capture uses `ActivityResultContracts.TakePicture` into `cacheDir/capture/` via FileProvider (CAMERA
+  permission requested on first use); gallery uses the Photo Picker (`ui/components/ImagePick.kt`).
+
+### Delete account / Make owner / Sign out
+- Settings → Account → **Delete account** (red): dialog explains what is deleted (account, inspections, photos, reports
+  on this device; deletion request to VIMS within 10 working days per the EULA) and requires typing `DELETE`.
+  Non-owner: deletes their user row, inspections (cascade), user folder, removes them from the company's inspector list,
+  signs out. Owner with other users on the company: blocked — "Make another admin the owner first (Inspectors → Make
+  owner)". Sole owner: company row + folder deleted too and the subscription marked cancelled. Returns to Sign in.
+  `TODO(backend)`: server-side deletion + Square cancel.
+- Inspectors: the owner sees **Make owner** on admin rows (confirm dialog); ownership moves and the old owner stays admin.
+- Sign out (Settings, side menu, EULA gate) always asks "Sign out of VIMS?" (Cancel / Sign out).
+
+### Status colors (one scheme everywhere)
+Inspections: Done green · In progress blue · Queued amber · Scheduled gray. Sections (overview, drawer, report contents):
+Done green · In progress blue · Not started gray. Sync badge: Synced green · Offline · N queued amber · Offline gray.
+Subscription: Active green · Trial / Cancelled amber.
+
+### Wizard date
+New inspection date picker's minimum is today (past days disabled; typed/validated "Choose today or a later date").
+When editing an existing inspection whose saved date is in the past, that saved date stays valid (min = saved date).
+
 ### Home side menu
-The Home hamburger opens a left drawer (company logo or initials, user name, email, company; Inspections, New inspection,
+The Home hamburger opens a left drawer (user photo or initials, user name, email, company with logo badge; Inspections, New inspection,
 Settings, Company profile, How VIMS works, Help & feedback; admin-only Manage checklist, Plans & pricing, Inspectors;
-Sign out at the bottom). The company logo also shows in the Home header, Settings account card, Company profile, and the
+Sign out at the bottom). The company logo also shows in the Home header, Company profile, and the
 PDF cover + page headers; without a logo an initials badge is used everywhere.
 
 ## State & insurance forms (Texas TREC, 4 Point) — data v1.1

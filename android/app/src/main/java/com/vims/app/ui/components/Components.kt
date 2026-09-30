@@ -87,10 +87,13 @@ data class NetState(val pending: Int, val synced: Boolean)
 
 @Composable
 fun NetBadge(net: NetState) {
-    val off = net.pending > 0
-    val bg = if (off) Color(0x38E4A11B) else Color(0x422F9E6B)
-    val fg = if (off) Color(0xFFF2C869) else Color(0xFF7CE0AF)
-    val text = if (off) "Offline · ${net.pending} queued" else if (net.synced) "Synced" else "Offline · all saved"
+    // Sync badge: queued = amber, Synced = green, Offline (nothing waiting) = gray.
+    val (bg, fg) = when {
+        net.pending > 0 -> Color(0x38E4A11B) to Color(0xFFF2C869)
+        net.synced -> Color(0x422F9E6B) to Color(0xFF7CE0AF)
+        else -> Color(0x33FFFFFF) to Color(0xFFD7E3F7)
+    }
+    val text = if (net.pending > 0) "Offline · ${net.pending} queued" else if (net.synced) "Synced" else "Offline"
     Row(
         Modifier.clip(RoundedCornerShape(20.dp)).background(bg).padding(horizontal = 9.dp, vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp),
@@ -591,6 +594,34 @@ fun CompanyBadge(logo: java.io.File?, name: String, size: Dp, version: Int = 0, 
     } else {
         Box(Modifier.size(size).clip(RoundedCornerShape(radius)).background(Brush.linearGradient(listOf(V.brandBright, V.brandDeep))), contentAlignment = Alignment.Center) {
             Text(companyInitials(name), style = T.display((size.value * 0.36f).sp, FontWeight.Bold, Color.White))
+        }
+    }
+}
+
+/** The user's own profile photo in a circle, or their initials (never the company logo). */
+@Composable
+fun UserAvatar(photo: java.io.File?, initials: String, size: Dp, version: Int = 0) {
+    val img = photo?.takeIf { it.exists() }?.let { com.vims.app.util.rememberThumb(it, version, 384).value }
+    if (img != null) {
+        androidx.compose.foundation.Image(img, "Profile photo", Modifier.size(size).clip(CircleShape), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+    } else LeadInitials(initials, size, circle = true)
+}
+
+/** Confirmation dialog in the app's style (Cancel + confirm; `danger` makes the confirm button red). */
+@Composable
+fun ConfirmDialog(
+    title: String, message: String, confirmLabel: String, onConfirm: () -> Unit, onDismiss: () -> Unit,
+    danger: Boolean = false, confirmEnabled: Boolean = true, content: @Composable ColumnScope.() -> Unit = {},
+) {
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(V.paper).padding(20.dp)) {
+            Text(title, style = T.display(18.sp, FontWeight.Bold), modifier = Modifier.padding(bottom = 8.dp))
+            Text(rich(message, V.ink), style = T.ui(13.5.sp, color = V.ink2, lineHeight = 20.sp), modifier = Modifier.padding(bottom = 14.dp))
+            content()
+            BtnRow(Modifier.padding(top = 2.dp)) {
+                VBtn("Cancel", onDismiss, Modifier.weight(1f), BtnKind.Ghost)
+                VBtn(confirmLabel, onConfirm, Modifier.weight(1f), if (danger) BtnKind.Danger else BtnKind.Primary, enabled = confirmEnabled)
+            }
         }
     }
 }

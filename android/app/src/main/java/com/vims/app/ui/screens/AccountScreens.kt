@@ -65,6 +65,7 @@ import com.vims.app.ui.components.SuccessBlock
 import com.vims.app.ui.components.VBtn
 import com.vims.app.ui.components.VCard
 import com.vims.app.ui.components.VField
+import com.vims.app.ui.components.UserAvatar
 import com.vims.app.ui.components.VInput
 import com.vims.app.ui.components.VScreen
 import com.vims.app.ui.components.dashedBorder
@@ -94,6 +95,15 @@ fun InspectorsScreen(vm: AppViewModel, nav: NavHostController) {
     val canManage = session?.isAdmin != false
     val focus = androidx.compose.ui.platform.LocalFocusManager.current
     val form = rememberForm()
+    var ownerTo by rememberSaveable { mutableStateOf<String?>(null) }
+    ownerTo?.let { id ->
+        val who = account.inspectors.firstOrNull { it.id == id }?.name ?: "this admin"
+        com.vims.app.ui.components.ConfirmDialog(
+            "Make $who the owner?",
+            "$who becomes the account owner (billing and company). You stay an admin.",
+            "Make owner", { vm.makeOwner(id); ownerTo = null }, { ownerTo = null },
+        )
+    }
     VScreen("Inspectors", companyName(vm), net(vm), backAction(nav), listOf(homeAction(nav))) {
         Hint("Add inspector accounts under your company license. First inspector is included; each additional is **${Fmt.money(account.extraInspectorMonthly)}/mo**.", Modifier.padding(top = 2.dp, bottom = 12.dp))
         Column(Modifier.padding(bottom = 14.dp).fillMaxWidth().clip(RoundedCornerShape(13.dp)).background(V.paper).dashedBorder(V.brand, 13.dp).padding(horizontal = 16.dp, vertical = 15.dp)) {
@@ -116,13 +126,19 @@ fun InspectorsScreen(vm: AppViewModel, nav: NavHostController) {
         }
         Text(rich("You (the account owner) are an **admin** by default. Tap **Make admin** to grant any inspector admin access — admins can manage checklists, plans, the company profile, and settings. Nothing is hard-coded; roles are set here."),
             style = T.ui(12.sp, color = V.ink3, lineHeight = 18.sp), modifier = Modifier.padding(start = 2.dp, end = 2.dp, bottom = 12.dp))
+        val photos by vm.memberPhotos.collectAsState()
+        val photoVersion by vm.logoVersion.collectAsState()
+        val iAmOwner = session?.role == com.vims.app.data.Role.OWNER
         account.inspectors.forEach { ins ->
             ListRow(
-                "${ins.name} · ${ins.roleLabel}", ins.email.ifBlank { "no email yet" }, lead = { LeadInitials(ins.initials) }, titleMaxLines = 2,
+                "${ins.name} · ${ins.roleLabel}", ins.email.ifBlank { "no email yet" }, titleMaxLines = 2,
+                lead = { UserAvatar(photos[ins.email.lowercase()]?.let { java.io.File(ctx.filesDir, it) }, ins.initials, 44.dp, photoVersion) },
                 end = {
                     if (ins.owner) Pill("Admin", PillKind.Done)
                     else if (canManage) Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Pill(if (ins.admin) "Admin ✓" else "Make admin", if (ins.admin) PillKind.Prog else PillKind.New, dot = false) { vm.toggleAdmin(ins.id) }
+                        // Owner can hand the company to an admin (needed before the owner can delete their account).
+                        if (iAmOwner && ins.admin) Pill("Make owner", PillKind.Prog, dot = false) { ownerTo = ins.id }
                         Pill("Remove", PillKind.Queued, dot = false) { vm.removeInspector(ins.id) }
                     }
                 },

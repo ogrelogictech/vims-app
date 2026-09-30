@@ -156,7 +156,9 @@ fun VimsRoot(vm: AppViewModel, debug: DebugLaunch?) {
         // Re-acceptance: eula.json version differs from the signed-in user's accepted version.
         val s = session
         if (s != null && s.eulaVersion != vm.currentEulaVersion) {
-            com.vims.app.ui.screens.EulaReacceptGate(vm) { vm.signOut { nav.navigate(LoginR) { popUpTo(0) { inclusive = true } } } }
+            var ask by remember { mutableStateOf(false) }
+            if (ask) com.vims.app.ui.screens.SignOutDialog(vm, nav) { ask = false }
+            com.vims.app.ui.screens.EulaReacceptGate(vm) { ask = true }
         }
         ToastHost(vm)
     }

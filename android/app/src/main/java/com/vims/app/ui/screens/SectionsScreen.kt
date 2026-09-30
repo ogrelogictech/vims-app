@@ -74,7 +74,9 @@ import com.vims.app.ui.theme.V
 import com.vims.app.ui.theme.VIcons
 
 fun statusWord(st: String) = when (st) { SecStatus.DONE -> "Done"; SecStatus.PROG -> "In progress"; else -> "Not started" }
-fun statusDot(st: String) = when (st) { SecStatus.DONE -> V.pass; SecStatus.PROG -> V.signal; else -> V.paper3 }
+/** Checklist sections: Done = green, In progress = blue, Not started = gray (same everywhere). */
+fun statusDot(st: String) = when (st) { SecStatus.DONE -> V.pass; SecStatus.PROG -> V.brand; else -> V.paper3 }
+fun statusTextColor(st: String) = when (st) { SecStatus.DONE -> V.doneText; SecStatus.PROG -> V.brandDeep; else -> V.ink3 }
 
 /** Navigates a built-checklist `link` group (Inspection Info → wizard, Summary → summary). */
 fun NavHostController.openLink(link: String, inspId: String) = when (link) {
@@ -171,7 +173,7 @@ private fun SecRow(name: String, st: String, last: Boolean, onClick: () -> Unit)
         ) {
             Dot(st)
             Text(name, style = T.ui(14.sp, FontWeight.Medium), modifier = Modifier.weight(1f))
-            Text(statusWord(st), style = T.mono(10.5.sp, FontWeight.SemiBold, V.ink2))
+            Text(statusWord(st), style = T.mono(10.5.sp, FontWeight.SemiBold, statusTextColor(st)))
         }
         if (!last) Box(Modifier.fillMaxWidth().height(1.dp).background(V.line2))
     }
@@ -243,6 +245,7 @@ private fun DrawerRow(name: String, st: String, on: Boolean, onClick: () -> Unit
         ) {
             Dot(st, 8)
             Text(name, style = T.ui(13.5.sp, if (on) FontWeight.SemiBold else FontWeight.Normal, if (on) V.brandDeep else V.ink2), modifier = Modifier.weight(1f))
+            Text(statusWord(st), style = T.mono(9.5.sp, FontWeight.SemiBold, statusTextColor(st)))
         }
     }
 }

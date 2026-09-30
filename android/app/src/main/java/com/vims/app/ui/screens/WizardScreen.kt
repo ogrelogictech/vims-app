@@ -267,11 +267,17 @@ private fun FieldCell(vm: AppViewModel, f: WizardFieldDef, sel: WizardSelections
     val ctx = LocalContext.current
     val v = sel.fields[f.label].orEmpty()
     val set: (String) -> Unit = { nv -> vm.updateSel { it.copy(fields = it.fields + (f.label to nv)) } }
-    val err = form.check(f.label, v) { wizardCheck(f.label, v) }
+    // Inspection date: today or later for new inspections; an edited inspection keeps its saved date valid.
+    val w = vm.wizard.collectAsState().value
+    val savedDate = w.editingId?.let { vm.bundle(it)?.inspection?.selections?.date }?.let { Fmt.parseDate(it) }
+    val minDate = listOfNotNull(java.time.LocalDate.now(), savedDate).minOrNull()!!
+    val err = form.check(f.label, v) {
+        wizardCheck(f.label, v) ?: if (f.label == WizardSelections.F_DATE && Fmt.parseDate(v)?.isBefore(minDate) == true) "Choose today or a later date" else null
+    }
     Column(modifier.formField(form, f.label)) {
         FieldLabel(f.label)
         when (f.type) {
-            "date" -> PickerField(if (v.isBlank()) "" else Fmt.date(v), "Select date", VIcons.calendar, { pickDate(ctx, v, set) }, error = err)
+            "date" -> PickerField(if (v.isBlank()) "" else Fmt.date(v), "Select date", VIcons.calendar, { pickDate(ctx, v, minDate, set) }, error = err)
             "time" -> PickerField(if (v.isBlank()) "" else Fmt.time(v), "Select time", VIcons.clock, { pickTime(ctx, v, set) }, error = err)
             "textarea" -> VInput(v, set, placeholder = f.placeholder.orEmpty(), multiline = true, filter = { Filters.base(it, 1000, multiline = true) }, error = err)
             else -> VInput(v, set, placeholder = f.placeholder.orEmpty(), keyboard = keyboardFor(f, step2), error = err, filter = wizardFilter(f.label),

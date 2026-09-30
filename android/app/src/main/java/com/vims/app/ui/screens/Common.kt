@@ -25,9 +25,11 @@ fun companyName(vm: AppViewModel): String = vm.company.collectAsState().value.na
 fun backAction(nav: NavHostController) = HdrAction(VIcons.back, "Back") { nav.back() }
 fun homeAction(nav: NavHostController) = HdrAction(VIcons.home, "Home") { nav.goHome() }
 
-fun pickDate(ctx: Context, iso: String, onPick: (String) -> Unit) {
+fun pickDate(ctx: Context, iso: String, minDate: LocalDate? = null, onPick: (String) -> Unit) {
     val d = Fmt.parseDate(iso) ?: LocalDate.now()
-    DatePickerDialog(ctx, { _, y, m, day -> onPick(LocalDate.of(y, m + 1, day).toString()) }, d.year, d.monthValue - 1, d.dayOfMonth).show()
+    val dlg = DatePickerDialog(ctx, { _, y, m, day -> onPick(LocalDate.of(y, m + 1, day).toString()) }, d.year, d.monthValue - 1, d.dayOfMonth)
+    minDate?.let { dlg.datePicker.minDate = it.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli() }
+    dlg.show()
 }
 
 fun pickTime(ctx: Context, hhmm: String, onPick: (String) -> Unit) {
@@ -48,4 +50,23 @@ fun companyLogo(vm: AppViewModel): java.io.File? {
 fun CompanyMark(vm: AppViewModel, size: androidx.compose.ui.unit.Dp, bordered: Boolean = true) {
     val version = vm.logoVersion.collectAsState().value
     com.vims.app.ui.components.CompanyBadge(companyLogo(vm), companyName(vm), size, version, bordered = bordered)
+}
+
+/** The signed-in user's avatar (their own photo or initials). */
+@Composable
+fun MyAvatar(vm: AppViewModel, size: androidx.compose.ui.unit.Dp) {
+    val s = vm.session.collectAsState().value
+    val photo = vm.userPhoto.collectAsState().value
+    val v = vm.logoVersion.collectAsState().value
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    com.vims.app.ui.components.UserAvatar(photo?.let { java.io.File(ctx.filesDir, it) }, s?.initials ?: "?", size, v)
+}
+
+/** "Sign out of VIMS?" confirmation used everywhere sign-out exists. */
+@Composable
+fun SignOutDialog(vm: AppViewModel, nav: NavHostController, onDismiss: () -> Unit) {
+    com.vims.app.ui.components.ConfirmDialog(
+        "Sign out of VIMS?", "Your inspections stay saved on this device and are there when you sign back in.", "Sign out",
+        onConfirm = { onDismiss(); vm.signOut { nav.navigate(com.vims.app.ui.LoginR) { popUpTo(0) { inclusive = true } } } }, onDismiss = onDismiss,
+    )
 }

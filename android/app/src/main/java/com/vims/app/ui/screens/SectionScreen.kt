@@ -181,7 +181,7 @@ private fun ItemCard(key: String, it: ItemDef, a: SectionAnswers, detail: Boolea
             "multi" -> MultiChips(it.options.orEmpty(), a.values[key].orEmpty(), { o ->
                 edit { s -> val cur = s.values[key].orEmpty(); s.copy(values = s.values + (key to if (o in cur) cur - o else cur + o)) }
             })
-            "date" -> PickerField(if (input.isBlank()) "" else Fmt.date(input), "Select date", VIcons.calendar, { pickDate(ctx, input, setInput) })
+            "date" -> PickerField(if (input.isBlank()) "" else Fmt.date(input), "Select date", VIcons.calendar, { pickDate(ctx, input, onPick = setInput) })
             "time" -> PickerField(if (input.isBlank()) "" else Fmt.time(input), "Select time", VIcons.clock, { pickTime(ctx, input, setInput) })
             else -> {
                 val numErr = if (it.type == "num") Checks.positive(input) else null
