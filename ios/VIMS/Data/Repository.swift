@@ -21,6 +21,10 @@ struct UserAccount: Hashable {
     var salt: String
     var createdAt: Date
     var settings: AppSettings?
+    /// EULA acceptance: the eula.json `version` this user agreed to, and when.
+    /// TODO(backend): POST the acceptance (version, timestamp, user, company) to the server.
+    var eulaVersion: String? = nil
+    var eulaAcceptedAt: Date? = nil
 }
 
 struct CompanyState {
@@ -128,7 +132,8 @@ final class SwiftDataRepository: Repository {
     private func account(_ r: UserRecord) -> UserAccount {
         UserAccount(id: r.id, email: r.email, name: r.name, companyID: r.companyID, passwordHash: r.passwordHash,
                     salt: r.salt, createdAt: r.createdAt,
-                    settings: r.settingsData.flatMap { try? decoder.decode(AppSettings.self, from: $0) })
+                    settings: r.settingsData.flatMap { try? decoder.decode(AppSettings.self, from: $0) },
+                    eulaVersion: r.eulaVersion, eulaAcceptedAt: r.eulaAcceptedAt)
     }
 
     func user(email: String) -> UserAccount? { userRecord(email: email).map(account) }
@@ -139,6 +144,8 @@ final class SwiftDataRepository: Repository {
         let r = UserRecord(id: u.id, email: u.email.lowercased(), name: u.name, companyID: u.companyID,
                            passwordHash: u.passwordHash, salt: u.salt, createdAt: u.createdAt)
         r.settingsData = u.settings.flatMap { try? encoder.encode($0) }
+        r.eulaVersion = u.eulaVersion
+        r.eulaAcceptedAt = u.eulaAcceptedAt
         context.insert(r)
         save()
     }
@@ -150,8 +157,14 @@ final class SwiftDataRepository: Repository {
         r.passwordHash = u.passwordHash
         r.salt = u.salt
         r.settingsData = u.settings.flatMap { try? encoder.encode($0) }
+        r.eulaVersion = u.eulaVersion
+        r.eulaAcceptedAt = u.eulaAcceptedAt
         save()
     }
+
+    #if DEBUG
+    func allUsers() -> [UserAccount] { ((try? context.fetch(FetchDescriptor<UserRecord>())) ?? []).map(account) }
+    #endif
 
     func userCount() -> Int { (try? context.fetchCount(FetchDescriptor<UserRecord>())) ?? 0 }
 

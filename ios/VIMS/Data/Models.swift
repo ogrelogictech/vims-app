@@ -222,6 +222,11 @@ struct SubscriptionState: Codable, Hashable {
     var active: Bool = false
     var paymentLabel: String?
     var startedAt: Date?
+    /// Set when an owner/admin cancels: the subscription stays active until `nextBillingDate`,
+    /// then stops renewing. Optional so older saved data still decodes.
+    var cancelledAt: Date?
+
+    var cancelled: Bool { active && cancelledAt != nil }
 
     func plan(_ id: String) -> PlanDef? { plans.first { $0.id == id } }
 

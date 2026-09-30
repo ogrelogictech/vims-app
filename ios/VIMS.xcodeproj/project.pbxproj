@@ -33,6 +33,7 @@
 		A10000000000000000000012 /* SharedFonts */ = {isa = PBXFileSystemSynchronizedRootGroup; name = SharedFonts; path = ../shared/fonts; sourceTree = "<group>"; };
 		A10000000000000000000013 /* SharedMedia */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (A10000000000000000000090 /* Exceptions for "SharedMedia" folder in "VIMS" target */, ); name = SharedMedia; path = ../shared/media; sourceTree = "<group>"; };
 		A10000000000000000000014 /* SharedIcons */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (A10000000000000000000091 /* Exceptions for "SharedIcons" folder in "VIMS" target */, ); name = SharedIcons; path = ../shared/icons; sourceTree = "<group>"; };
+		A10000000000000000000015 /* SharedLegal */ = {isa = PBXFileSystemSynchronizedRootGroup; name = SharedLegal; path = ../shared/legal; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -54,6 +55,7 @@
 				A10000000000000000000012 /* SharedFonts */,
 				A10000000000000000000013 /* SharedMedia */,
 				A10000000000000000000014 /* SharedIcons */,
+				A10000000000000000000015 /* SharedLegal */,
 				A10000000000000000000031 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -87,6 +89,7 @@
 				A10000000000000000000012 /* SharedFonts */,
 				A10000000000000000000013 /* SharedMedia */,
 				A10000000000000000000014 /* SharedIcons */,
+				A10000000000000000000015 /* SharedLegal */,
 			);
 			name = VIMS;
 			packageProductDependencies = (

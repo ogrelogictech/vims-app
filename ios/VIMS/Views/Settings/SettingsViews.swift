@@ -82,6 +82,9 @@ struct SettingsView: View {
             NavRow(symbol: "company-profile-logo", title: "Company profile & logo", subtitle: "Inspector info, logo, review link") { store.push(.company) }
             NavRow(symbol: "how-vims-works", title: "How VIMS works", subtitle: "Instructions & new-account tutorial") { store.push(.instructions) }
 
+            SectionLabel(text: "Legal", top: 10)
+            NavRow(symbol: "legal-document", title: "End User License Agreement", subtitle: "Revised \(store.eula.revised)") { store.push(.eula) }
+
             SectionLabel(text: "Defaults", top: 10)
             VStack(alignment: .leading, spacing: 0) {
                 Text("Checklist depth").font(VFont.ui(14, .bold)).foregroundStyle(VC.ink)

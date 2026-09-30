@@ -76,6 +76,10 @@ struct CardEntry {
 protocol SubscriptionService {
     /// Returns a display label for the stored payment method, e.g. "Square · Visa ····4242".
     func startSubscription(planID: String, seats: Int, card: CardEntry) async throws -> String
+    /// Stops renewal at the end of the current billing period (EULA 12.3: no refunds or prorated charges).
+    func cancelSubscription() async throws
+    /// Undoes a pending cancellation before the period ends; auto-pay continues.
+    func resumeSubscription() async throws
 }
 
 // TODO(backend): Laravel API + Square Web Payments / In-App Payments SDK.
@@ -87,6 +91,11 @@ final class LocalSubscriptionService: SubscriptionService {
         try await Task.sleep(nanoseconds: 400_000_000)
         return "Square · \(card.brand) ····\(card.last4)"
     }
+
+    // TODO(backend): Square Subscriptions API — CancelSubscription (sets canceled_date to the end of the
+    // paid period) and, for undo, delete the pending CANCEL action (DeleteSubscriptionAction) / ResumeSubscription.
+    func cancelSubscription() async throws { try await Task.sleep(nanoseconds: 300_000_000) }
+    func resumeSubscription() async throws { try await Task.sleep(nanoseconds: 300_000_000) }
 }
 
 // MARK: - Sync

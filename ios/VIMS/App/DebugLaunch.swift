@@ -14,6 +14,8 @@ enum DebugFlags {
     static var adminGroup: String?
     static var openMenu = false
     static var validate = false
+    /// Screenshot jumps (-screen / -skipLogin) skip the EULA gate unless -eulaGate or -eulaVersion is given.
+    static var skipEulaGate = false
 }
 
 #if DEBUG
@@ -23,6 +25,10 @@ enum DebugFlags {
 ///   -resetData                 wipe the SwiftData store + files and reseed the demo account
 ///   -video / -noVideo          force / skip the launch video (skipped by default with -screen)
 ///   -signInAs EMAIL            sign in as that local account
+///   -eulaVersion V             pretend shared/legal/eula.json has version V (re-acceptance gate test)
+///   -eulaGate                  show the EULA gate even with -screen / -skipLogin
+///   -activeSub                 mark the signed-in company's subscription active (Square · Visa ····4242)
+///   -eulaStatus                print each local account's accepted EULA version to the console
 ///   -mailSelfTest              print the report email draft (to/BCC/subject/attachment) to the console
 ///   -validate                  submit the form once so its validation errors show
 ///   -skipLogin                 sign in as the demo owner
@@ -74,17 +80,32 @@ enum DebugLaunch {
         if (screen != nil || has("-skipLogin") || has("-noVideo")) && !has("-video") { store.showVideoSplash = false }
         if let email = value("-signInAs"), let u = store.repo.user(email: email) { store.loadSession(u) }
         if has("-noSplash") || (screen != nil && screen != "splash" && screen != "home") { DebugFlags.suppressSplash = true }
-        if (has("-skipLogin") || (screen != nil && screen != "login" && !["signup", "forgot", "join"].contains(screen!))), store.session == nil,
+        if (has("-skipLogin") || (screen != nil && screen != "login" && !["signup", "forgot", "join", "signupEula"].contains(screen!))), store.session == nil,
            let demo = store.repo.user(email: DemoSeed.loginEmail) {
             store.loadSession(demo)
         }
         if let d = value("-trialDaysLeft"), let n = Int(d) {
             store.state.subscription.trialStart = Calendar.current.date(byAdding: .day, value: -(store.state.subscription.trialDays - n), to: Date()) ?? Date()
             store.state.subscription.active = false
+            store.state.subscription.cancelledAt = nil
+        }
+        // -activeSub: pretend the company already subscribed (Plan & billing cancel test).
+        if has("-activeSub"), store.session != nil, !store.state.subscription.active {
+            store.state.subscription.active = true
+            store.state.subscription.paymentLabel = "Square · Visa ····4242"
+            store.state.subscription.startedAt = Calendar.current.date(byAdding: .day, value: -2, to: Date())
+            store.state.subscription.cancelledAt = nil
+        }
+        if let v = value("-eulaVersion") { store.eula.version = v }
+        if (screen != nil || has("-skipLogin")), !has("-eulaGate"), value("-eulaVersion") == nil { DebugFlags.skipEulaGate = true }
+        if has("-eulaStatus"), let repo = store.repo as? SwiftDataRepository {
+            for u in repo.allUsers() {
+                print("EULASTATUS \(u.email) version=\(u.eulaVersion ?? "none") acceptedAt=\(u.eulaAcceptedAt.map { ISO8601DateFormatter().string(from: $0) } ?? "none") current=\(store.eula.version)")
+            }
         }
         if has("-mailSelfTest") { mailSelfTest(store) }
         guard let screen else { return }
-        if ["login", "signup", "forgot", "join"].contains(screen), store.session != nil {
+        if ["login", "signup", "forgot", "join", "signupEula"].contains(screen), store.session != nil {
             let v = DebugFlags.validate
             store.signOut()
             DebugFlags.validate = v
@@ -97,7 +118,7 @@ enum DebugLaunch {
             "signup": [.signup], "forgot": [.forgot], "join": [.join], "wizard": [.wizard(editing: nil)],
             "settings": [.settings], "company": [.settings, .company], "instructions": [.settings, .instructions],
             "plans": [.settings, .plans], "subscribe": [.subscribe], "billing": [.settings, .billing],
-            "feedback": [.settings, .feedbackAdmin], "reportBcc": [.settings, .reportBcc], "inspectors": [.settings, .inspectors], "manage": [.settings, .manageChecklist]
+            "feedback": [.settings, .feedbackAdmin], "eula": [.settings, .eula], "signupEula": [.signup, .eula], "reportBcc": [.settings, .reportBcc], "inspectors": [.settings, .inspectors], "manage": [.settings, .manageChecklist]
         ]
         if let r = general[screen] {
             if screen == "wizard" { DebugFlags.wizardStep = value("-step").flatMap(Int.init) }

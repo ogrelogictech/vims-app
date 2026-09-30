@@ -30,6 +30,8 @@ enum ProtoIconSet {
         "copy": ["M11 9h11v13H11z", "M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"],
         "minus": ["M5 12h14"],
         // index.html s-settings "Report quality copy (BCC)" row: envelope + plus.
+        "check": ["M20 6 9 17l-5-5"],
+        "legal-document": ["M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z", "M14 2v6h6M8 13h8M8 17h5"],
         "report-bcc": ["M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z", "m22 6-10 7L2 6", "M16 17h6M19 14v6"],
         // Not in the prototype (it used native date/select inputs); drawn in the same style.
         "calendar": ["M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z", "M16 2v4M8 2v4M3 10h18"],

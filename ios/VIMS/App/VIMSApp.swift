@@ -14,7 +14,7 @@ struct VIMSApp: App {
         #endif
         do {
             let config = try ChecklistLoader.load()
-            let store = AppStore(config: config, repo: try SwiftDataRepository())
+            let store = AppStore(config: config, eula: try EULADocument.load(), repo: try SwiftDataRepository())
             #if DEBUG
             DebugLaunch.apply(to: store)
             #endif
@@ -60,10 +60,17 @@ struct RootView: View {
                 }
             }
 
-            if store.showSplash, store.session != nil, !store.showVideoSplash {
+            if store.showSplash, store.session != nil, !store.showVideoSplash, !store.needsEulaAcceptance {
                 TrialSplashView()
                     .transition(.opacity)
                     .zIndex(10)
+            }
+
+            // New or revised EULA: the user must accept it (or sign out) before using the app.
+            if store.session != nil, store.needsEulaAcceptance {
+                EULAGateView()
+                    .transition(.opacity)
+                    .zIndex(15)
             }
 
             if let msg = store.toastMessage {
@@ -116,6 +123,7 @@ struct RootView: View {
         // VIMS platform-owner screens: nobody else can open them (TODO(backend): enforced server-side too).
         case .feedbackAdmin: if store.isPlatformOwner { FeedbackAdminView() } else { OwnerOnlyView() }
         case .reportBcc: if store.isPlatformOwner { ReportBccView() } else { OwnerOnlyView() }
+        case .eula: EULAView()
         }
     }
 }

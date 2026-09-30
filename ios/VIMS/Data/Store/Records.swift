@@ -16,6 +16,8 @@ final class UserRecord {
     var salt: String
     var createdAt: Date
     var settingsData: Data?                     // AppSettings (per user)
+    var eulaVersion: String?                    // eula.json version accepted (optional → lightweight migration)
+    var eulaAcceptedAt: Date?
 
     init(id: UUID, email: String, name: String, companyID: UUID, passwordHash: String, salt: String, createdAt: Date) {
         self.id = id

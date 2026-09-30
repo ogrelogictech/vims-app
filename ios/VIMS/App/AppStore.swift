@@ -14,12 +14,15 @@ enum Route: Hashable {
     case manageChecklist
     case editSection(String)
     case plans, inspectors, subscribe, subscriptionStarted, billing, feedbackAdmin, reportBcc
+    case eula
 }
 
 @MainActor
 @Observable
 final class AppStore {
     let config: ChecklistConfig
+    /// Client EULA (shared/legal/eula.json). `var` only so a DEBUG launch argument can bump its version.
+    var eula: EULADocument
     let repo: any Repository
     let auth: AuthService
     let subscriptionService: SubscriptionService
@@ -49,10 +52,11 @@ final class AppStore {
     @ObservationIgnored private var appSaveTask: Task<Void, Never>?
     @ObservationIgnored private var loadingSession = false
 
-    init(config: ChecklistConfig, repo: any Repository,
+    init(config: ChecklistConfig, eula: EULADocument, repo: any Repository,
          subscriptionService: SubscriptionService = LocalSubscriptionService(),
          syncService: SyncService = LocalSyncService()) {
         self.config = config
+        self.eula = eula
         self.repo = repo
         self.auth = LocalAuthService(repo: repo)
         self.subscriptionService = subscriptionService
@@ -183,6 +187,31 @@ final class AppStore {
         path = []
     }
 
+    // MARK: License agreement (EULA)
+
+    /// True when the signed-in user hasn't accepted the current eula.json version (never accepted, or
+    /// the client revised it). RootView then shows the full-screen re-acceptance gate.
+    var needsEulaAcceptance: Bool {
+        guard let u = currentUser, !DebugFlags.skipEulaGate else { return false }
+        return u.eulaVersion != eula.version
+    }
+
+    /// Records acceptance of the current EULA on the user.
+    /// TODO(backend): send { userID, companyID, eulaVersion, acceptedAt } to the server as the legal record.
+    private func stampEula(_ u: inout UserAccount) {
+        u.eulaVersion = eula.version
+        u.eulaAcceptedAt = Date()
+    }
+
+    func acceptEula() {
+        guard let cur = currentUser else { return }
+        var u = repo.user(id: cur.id) ?? cur
+        stampEula(&u)
+        repo.updateUser(u)
+        currentUser = u
+        toast("License agreement accepted")
+    }
+
     func signIn(email: String, password: String) async throws {
         let u = try await auth.signIn(email: email, password: password)
         loadSession(u)
@@ -192,7 +221,9 @@ final class AppStore {
     /// Create account = a new user + a new company (the user is its owner/admin). Starts empty.
     func createAccount(name: String, company: String, email: String, password: String) async throws {
         let cid = UUID()
-        let u = try await auth.register(name: name, email: email, password: password, companyID: cid)
+        var u = try await auth.register(name: name, email: email, password: password, companyID: cid)
+        stampEula(&u)                                   // the Create account checkbox is required
+        repo.updateUser(u)
         repo.saveCompany(Bootstrap.newCompany(name: company, owner: u, config: config, repo: repo))
         loadSession(u)
         presentSplashIfNeeded()
@@ -208,6 +239,9 @@ final class AppStore {
         } else {
             u = try await auth.register(name: name, email: email, password: password, companyID: c.id)
         }
+        // Inspectors joining a company are bound by the agreement too (the Join checkbox is required).
+        stampEula(&u)
+        repo.updateUser(u)
         if let i = c.profile.inspectors.firstIndex(where: { $0.email.caseInsensitiveCompare(u.email) == .orderedSame }) {
             c.profile.inspectors[i].id = u.id            // an invited inspector signing up
         } else if !c.profile.inspectors.contains(where: { $0.id == u.id }) {
@@ -538,6 +572,22 @@ final class AppStore {
         state.subscription.active = true
         state.subscription.paymentLabel = label
         state.subscription.startedAt = Date()
+        state.subscription.cancelledAt = nil
+    }
+
+    /// Owner/admin only. Stays active until the end of the billing period, then stops renewing.
+    func cancelSubscription() async throws {
+        guard isAdmin, state.subscription.active else { return }
+        try await subscriptionService.cancelSubscription()
+        state.subscription.cancelledAt = Date()
+        toast("Subscription cancelled — active until \(Fmt.date(state.subscription.nextBillingDate, "MMM d, yyyy").replacingOccurrences(of: " ", with: "\u{00A0}"))")
+    }
+
+    func resumeSubscription() async throws {
+        guard isAdmin, state.subscription.cancelled else { return }
+        try await subscriptionService.resumeSubscription()
+        state.subscription.cancelledAt = nil
+        toast("Cancellation undone — auto-pay continues")
     }
 
     // MARK: Company files (per company)

@@ -85,12 +85,14 @@ extension View {
 
 // MARK: - Buttons (.btn primary / ghost / signal)
 
-enum VButtonKind { case primary, ghost, signal }
+enum VButtonKind { case primary, ghost, signal, danger }
 
 struct VButtonStyle: ButtonStyle {
     var kind: VButtonKind = .primary
     var minHeight: CGFloat = 52
     var fullWidth = true
+    /// Overrides the text color (e.g. the red "Cancel subscription" ghost button).
+    var tint: Color? = nil
 
     func makeBody(configuration: Configuration) -> some View {
         let pressed = configuration.isPressed
@@ -109,8 +111,9 @@ struct VButtonStyle: ButtonStyle {
     }
 
     private var fg: Color {
+        if let tint { return tint }
         switch kind {
-        case .primary: return .white
+        case .primary, .danger: return .white
         case .ghost: return VC.ink
         case .signal: return Color(hex: 0x3A2A05)
         }
@@ -120,6 +123,7 @@ struct VButtonStyle: ButtonStyle {
         case .primary: return pressed ? VC.brandDeep : VC.brand
         case .ghost: return pressed ? VC.paper2 : VC.paper
         case .signal: return pressed ? VC.signalDeep : VC.signal
+        case .danger: return pressed ? Color(hex: 0xB04438) : VC.c1
         }
     }
 }

@@ -105,6 +105,7 @@ struct SignupView: View {
     @State private var email = ""
     @State private var password = ""
     @State private var confirm = ""
+    @State private var agreed = false
     @State private var errors = FormErrors()
     @State private var busy = false
 
@@ -121,6 +122,7 @@ struct SignupView: View {
                          fieldID: "password", errors: errors)
             VSecureField(label: "Confirm password", text: $confirm, placeholder: "Re-enter your password", contentType: .newPassword,
                          fieldID: "confirm", errors: errors)
+            EULAAgreeCheckbox(agreed: $agreed, errors: errors)
             Button {
                 submit()
             } label: {
@@ -129,7 +131,18 @@ struct SignupView: View {
             .buttonStyle(.vPrimary)
             .disabled(busy)
         }
-        .onAppear { if DebugFlags.validate { DebugFlags.validate = false; name = "Test  User"; email = "test user@x"; password = "short"; confirm = "shorter"; submit() } }
+        .onAppear {
+            #if DEBUG
+            // -prefill EMAIL [-agree]: valid details (EULA test); with -validate the form is submitted once.
+            if let e = DebugLaunch.value("-prefill"), store.path.last == .signup {
+                name = "Morgan Blake"; company = "Blake Home Inspections"; email = e; password = "blake2026"; confirm = "blake2026"
+                agreed = DebugLaunch.has("-agree")
+                if DebugFlags.validate || agreed { DebugFlags.validate = false; submit() }
+                return
+            }
+            #endif
+            if DebugFlags.validate { DebugFlags.validate = false; name = "Test  User"; email = "test user@x"; password = "short"; confirm = "shorter"; submit() }
+        }
     }
 
     private func submit() {
@@ -140,7 +153,13 @@ struct SignupView: View {
             ("password", password, .req(.password, "Password")),
             ("confirm", confirm, .req(.password, "Confirm password", custom: { $0 == password ? nil : "Passwords don't match" }))
         ]
-        guard errors.validate(fields) else { return }
+        let fieldsOK = errors.validate(fields)
+        // The account can't be created until the EULA checkbox is ticked (inline error, like the fields).
+        if !agreed {
+            errors.map[EULAAgreeCheckbox.fieldID] = EULAAgreeCheckbox.errorText
+            if fieldsOK { errors.scrollTarget = EULAAgreeCheckbox.fieldID }
+        }
+        guard fieldsOK, agreed else { return }
         busy = true
         Task {
             do {
@@ -193,6 +212,7 @@ struct JoinCompanyView: View {
     @State private var email = ""
     @State private var password = ""
     @State private var code = ""
+    @State private var agreed = false
     @State private var errors = FormErrors()
     @State private var busy = false
 
@@ -210,6 +230,8 @@ struct JoinCompanyView: View {
                          fieldID: "password", errors: errors)
             VTextField(label: "Company code", text: $code, placeholder: "VIS-4827", keyboard: .asciiCapable,
                        capitalization: .characters, mono: true, kind: .joinCode, fieldID: "code", errors: errors)
+            // Inspectors joining a company are bound by the agreement too.
+            EULAAgreeCheckbox(agreed: $agreed, errors: errors)
             Button {
                 submit()
             } label: {
@@ -222,7 +244,18 @@ struct JoinCompanyView: View {
                 .frame(maxWidth: .infinity, minHeight: 44)
                 .padding(.top, 6)
         }
-        .onAppear { if DebugFlags.validate { DebugFlags.validate = false; code = "ABC-1234"; email = "me@site"; submit() } }
+        .onAppear {
+            #if DEBUG
+            // -prefill EMAIL -code CODE [-agree]: valid join details (EULA test); with -validate the form is submitted once.
+            if let e = DebugLaunch.value("-prefill"), let c = DebugLaunch.value("-code") {
+                name = "Casey Nguyen"; email = e; password = "casey2026"; code = c
+                agreed = DebugLaunch.has("-agree")
+                if DebugFlags.validate || agreed { DebugFlags.validate = false; submit() }
+                return
+            }
+            #endif
+            if DebugFlags.validate { DebugFlags.validate = false; code = "ABC-1234"; email = "me@site"; submit() }
+        }
     }
 
     private func submit() {
@@ -232,7 +265,12 @@ struct JoinCompanyView: View {
             ("password", password, .req(.password, "Password")),
             ("code", code, .req(.joinCode, "Company code", custom: { store.repo.company(joinCode: $0) == nil ? "No company uses that code" : nil }))
         ]
-        guard errors.validate(fields) else { return }
+        let fieldsOK = errors.validate(fields)
+        if !agreed {
+            errors.map[EULAAgreeCheckbox.fieldID] = EULAAgreeCheckbox.errorText
+            if fieldsOK { errors.scrollTarget = EULAAgreeCheckbox.fieldID }
+        }
+        guard fieldsOK, agreed else { return }
         busy = true
         Task {
             do { try await store.joinCompany(code: code, name: Validator.trimmed(name), email: Validator.trimmed(email), password: password) }

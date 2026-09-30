@@ -672,14 +672,20 @@ struct SubscriptionStartedView: View {
 
 struct BillingView: View {
     @Environment(AppStore.self) private var store
+    @State private var confirmCancel = false
+    @State private var busy = false
+
     var body: some View {
         let sub = store.subscription
         let plan = sub.plan(sub.selectedPlan)
         let seats = store.seats()
+        let periodEnd = Fmt.date(sub.nextBillingDate, "MMM d, yyyy").replacingOccurrences(of: " ", with: "\u{00A0}")  // keep the date on one line
         Screen(title: "Subscription", actions: [store.homeAction()]) {
             VStack(spacing: 0) {
                 row("Status") {
-                    if sub.active { Pill(kind: .done, text: "Active · auto-pay") } else { Pill(kind: .queued, text: "Trial · \(sub.trialDaysLeft)d left") }
+                    if sub.cancelled { Pill(kind: .queued, text: "Cancelled · active until \(periodEnd)") }
+                    else if sub.active { Pill(kind: .done, text: "Active · auto-pay") }
+                    else { Pill(kind: .queued, text: "Trial · \(sub.trialDaysLeft)d left") }
                 }
                 row("Plan") { Text("\(plan?.name ?? "") · \(Fmt.money(plan?.price ?? 0))\(plan?.unit ?? "/mo")").font(VFont.ui(14, .bold)).foregroundStyle(VC.ink) }
                 if plan?.perReport != true {
@@ -687,8 +693,8 @@ struct BillingView: View {
                 }
                 row(plan?.perReport == true ? "Billing" : "Monthly total") { Text(sub.totalLabel(seats: seats)).font(VFont.ui(14, .bold)).foregroundStyle(VC.ink) }
                 row("Payment") { Text(sub.active ? (sub.paymentLabel ?? "Square") : "Not set up").font(VFont.ui(14, .bold)).foregroundStyle(VC.ink) }
-                row(sub.active ? "Next billing" : "Trial ends", last: true) {
-                    Text(sub.active ? Fmt.date(sub.nextBillingDate, "MMM d, yyyy") : "in \(sub.trialDaysLeft) days").font(VFont.ui(14, .bold)).foregroundStyle(VC.ink)
+                row(sub.cancelled ? "Active until" : sub.active ? "Next billing" : "Trial ends", last: true) {
+                    Text(sub.active ? periodEnd : "in \(sub.trialDaysLeft) days").font(VFont.ui(14, .bold)).foregroundStyle(VC.ink)
                 }
             }
             .background(VC.paper)
@@ -700,6 +706,69 @@ struct BillingView: View {
             Button(sub.active ? "Change plan / payment" : "Set up subscription") { store.push(.subscribe) }
                 .buttonStyle(VButtonStyle(kind: sub.active ? .ghost : .primary))
                 .padding(.top, 10)
+
+            // EULA 12.3 — cancel at the end of the billing period. Owner/admin only; not shown during the trial.
+            if sub.active && store.isAdmin {
+                if sub.cancelled {
+                    Text("Your subscription is cancelled and stays active until \(Text(periodEnd).font(VFont.ui(13, .bold)).foregroundStyle(VC.ink)). Download anything you need within 30 days after it ends.")
+                        .font(VFont.ui(13)).foregroundStyle(VC.ink2).lineSpacing(3)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .vCard()
+                        .padding(.top, 14)
+                    Button { run { try await store.resumeSubscription() } } label: { busyLabel("Undo cancellation", tint: VC.ink) }
+                        .buttonStyle(.vGhost)
+                        .disabled(busy)
+                        .padding(.top, 10)
+                } else if confirmCancel {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Cancel your subscription?").font(VFont.ui(13, .bold)).foregroundStyle(VC.ink)
+                        Text("It stays active until the end of the current billing period (\(Text(periodEnd).font(VFont.ui(13, .bold)))), then stops renewing. There are no refunds or prorated charges. Download anything you need within 30 days after it ends.")
+                            .font(VFont.ui(13)).foregroundStyle(VC.ink2).lineSpacing(3)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(EdgeInsets(top: 15, leading: 16, bottom: 15, trailing: 16))
+                    .background(VC.paper)
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(VC.c1, lineWidth: 1))
+                    .padding(.top, 14)
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 10) { keepButton; yesCancelButton }
+                        VStack(spacing: 10) { yesCancelButton; keepButton }
+                    }
+                    .padding(.top, 10)
+                } else {
+                    Button("Cancel subscription") { withAnimation(.easeOut(duration: 0.2)) { confirmCancel = true } }
+                        .buttonStyle(VButtonStyle(kind: .ghost, tint: VC.c1))
+                        .padding(.top, 10)
+                }
+            }
+        }
+    }
+
+    private var keepButton: some View {
+        Button("Keep subscription") { withAnimation(.easeOut(duration: 0.2)) { confirmCancel = false } }
+            .buttonStyle(.vGhost)
+    }
+
+    private var yesCancelButton: some View {
+        Button { run { try await store.cancelSubscription() } } label: { busyLabel("Yes, cancel", tint: .white) }
+            .buttonStyle(VButtonStyle(kind: .danger))
+            .disabled(busy)
+    }
+
+    @ViewBuilder
+    private func busyLabel(_ title: String, tint: Color) -> some View {
+        if busy { ProgressView().tint(tint) } else { Text(title) }
+    }
+
+    private func run(_ op: @escaping () async throws -> Void) {
+        busy = true
+        Task {
+            do { try await op() } catch { store.toast(error.localizedDescription) }
+            confirmCancel = false
+            busy = false
         }
     }
 
