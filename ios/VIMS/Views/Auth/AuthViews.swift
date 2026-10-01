@@ -42,8 +42,8 @@ struct LoginView: View {
 
                     VStack(spacing: 0) {
                         VTextField(label: "Email", text: $email, placeholder: "you@company.com", keyboard: .emailAddress,
-                                   contentType: .username, capitalization: .never, kind: .email, fieldID: "email", errors: errors)
-                        VSecureField(label: "Password", text: $password, placeholder: "Password", fieldID: "password", errors: errors)
+                                   contentType: .username, capitalization: .never, kind: .email, fieldID: "email", errors: errors, required: true)
+                        VSecureField(label: "Password", text: $password, placeholder: "Password", fieldID: "password", errors: errors, required: true)
                         Button {
                             signIn()
                         } label: {
@@ -77,6 +77,12 @@ struct LoginView: View {
         .background(VC.paper2.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
         .onAppear {
+            #if DEBUG
+            // -prefill EMAIL -password PW -validate: try that sign-in once (field-specific error test).
+            if DebugFlags.validate, store.path.isEmpty, let e = DebugLaunch.value("-prefill") {
+                DebugFlags.validate = false; email = e; password = DebugLaunch.value("-password") ?? ""; signIn(); return
+            }
+            #endif
             if DebugFlags.validate, store.path.isEmpty { DebugFlags.validate = false; email = "jeremy@@example"; password = "abc"; signIn() }
         }
     }
@@ -90,7 +96,8 @@ struct LoginView: View {
         busy = true
         Task {
             do { try await store.signIn(email: Validator.trimmed(email), password: password) }
-            catch { errors.set("password", error.localizedDescription) }
+            catch AuthError.noAccount { errors.set("email", AuthError.noAccount.localizedDescription) }   // email field only
+            catch { errors.set("password", error.localizedDescription) }                               // wrong password
             busy = false
         }
     }
@@ -112,16 +119,17 @@ struct SignupView: View {
     var body: some View {
         Screen(title: "Create account", actions: [], errors: errors) {
             SectionLabel(text: "Your details", top: 2)
+                .overlay(alignment: .bottomTrailing) { RequiredHint().fixedSize().padding(.bottom, 4) }
             VTextField(label: "Full name", text: $name, placeholder: "Jeremy Heath", contentType: .name, capitalization: .words,
-                       kind: .personName, fieldID: "name", errors: errors)
+                       kind: .personName, fieldID: "name", errors: errors, required: true)
             VTextField(label: "Company name", text: $company, placeholder: "Vision Property Inspections", contentType: .organizationName,
-                       capitalization: .words, kind: .companyName, fieldID: "company", errors: errors)
+                       capitalization: .words, kind: .companyName, fieldID: "company", errors: errors, required: true)
             VTextField(label: "Email", text: $email, placeholder: "you@company.com", keyboard: .emailAddress, contentType: .emailAddress,
-                       capitalization: .never, kind: .email, fieldID: "email", errors: errors)
+                       capitalization: .never, kind: .email, fieldID: "email", errors: errors, required: true)
             VSecureField(label: "Password", text: $password, placeholder: "At least 8 characters", contentType: .newPassword,
-                         fieldID: "password", errors: errors)
+                         fieldID: "password", errors: errors, required: true)
             VSecureField(label: "Confirm password", text: $confirm, placeholder: "Re-enter your password", contentType: .newPassword,
-                         fieldID: "confirm", errors: errors)
+                         fieldID: "confirm", errors: errors, required: true)
             EULAAgreeCheckbox(agreed: $agreed, errors: errors)
             Button {
                 submit()
@@ -135,7 +143,7 @@ struct SignupView: View {
             #if DEBUG
             // -prefill EMAIL [-agree]: valid details (EULA test); with -validate the form is submitted once.
             if let e = DebugLaunch.value("-prefill"), store.path.last == .signup {
-                name = "Morgan Blake"; company = "Blake Home Inspections"; email = e; password = "blake2026"; confirm = "blake2026"
+                name = "Morgan Blake"; company = "Blake Home Inspections"; email = e; password = "blake2026"; confirm = DebugLaunch.value("-confirm") ?? "blake2026"
                 agreed = DebugLaunch.has("-agree")
                 if DebugFlags.validate || agreed { DebugFlags.validate = false; submit() }
                 return
@@ -151,7 +159,7 @@ struct SignupView: View {
             ("company", company, .req(.companyName, "Company name")),
             ("email", email, .req(.email, "Email", custom: { store.repo.user(email: $0) != nil ? "An account with that email already exists" : nil })),
             ("password", password, .req(.password, "Password")),
-            ("confirm", confirm, .req(.password, "Confirm password", custom: { $0 == password ? nil : "Passwords don't match" }))
+            ("confirm", confirm, .req(.plain(max: nil), "Confirm password", custom: { $0 == password ? nil : "Passwords don't match" }))
         ]
         let fieldsOK = errors.validate(fields)
         // The account can't be created until the EULA checkbox is ticked (inline error, like the fields).
@@ -184,7 +192,7 @@ struct ForgotPasswordView: View {
                 .font(VFont.ui(14)).foregroundStyle(VC.ink2).lineSpacing(3)
                 .padding(.top, 4).padding(.bottom, 16)
             VTextField(label: "Email", text: $email, placeholder: "you@company.com", keyboard: .emailAddress, contentType: .emailAddress,
-                       capitalization: .never, kind: .email, fieldID: "email", errors: errors)
+                       capitalization: .never, kind: .email, fieldID: "email", errors: errors, required: true)
             Button("Send reset link") {
                 guard errors.validate([("email", email, .req(.email, "Email"))]) else { return }
                 Task {
@@ -223,13 +231,13 @@ struct JoinCompanyView: View {
                 .padding(.top, 4).padding(.bottom, 16)
                 .fixedSize(horizontal: false, vertical: true)
             VTextField(label: "Full name", text: $name, placeholder: "Your name", contentType: .name, capitalization: .words,
-                       kind: .personName, fieldID: "name", errors: errors)
+                       kind: .personName, fieldID: "name", errors: errors, required: true)
             VTextField(label: "Email", text: $email, placeholder: "you@email.com", keyboard: .emailAddress, contentType: .emailAddress,
-                       capitalization: .never, kind: .email, fieldID: "email", errors: errors)
+                       capitalization: .never, kind: .email, fieldID: "email", errors: errors, required: true)
             VSecureField(label: "Password", text: $password, placeholder: "At least 8 characters", contentType: .newPassword,
-                         fieldID: "password", errors: errors)
+                         fieldID: "password", errors: errors, required: true)
             VTextField(label: "Company code", text: $code, placeholder: "VIS-4827", keyboard: .asciiCapable,
-                       capitalization: .characters, mono: true, kind: .joinCode, fieldID: "code", errors: errors)
+                       capitalization: .characters, mono: true, kind: .joinCode, fieldID: "code", errors: errors, required: true)
             // Inspectors joining a company are bound by the agreement too.
             EULAAgreeCheckbox(agreed: $agreed, errors: errors)
             Button {

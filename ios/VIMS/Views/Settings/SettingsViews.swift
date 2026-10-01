@@ -124,9 +124,12 @@ struct SettingsView: View {
             RowView(title: "Report cover", subtitle: store.state.settings.defaultCover.label) { EmptyView() } trailing: { EmptyView() }
                 .padding(.bottom, 10)
             RowView(title: "Photo size", subtitle: "JPG · ~750 KB") { EmptyView() } trailing: { EmptyView() }
-            Text("VIMS \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "") · data \(store.config.version)")
+            #if DEBUG
+            // App + data version: developer builds only (not shown to customers).
+            Text("DEBUG · VIMS \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "") · data \(store.config.version)")
                 .font(VFont.mono(10.5)).foregroundStyle(VC.ink3)
                 .frame(maxWidth: .infinity).padding(.top, 18)
+            #endif
         }
     }
 }
@@ -178,7 +181,7 @@ struct CompanyProfileView: View {
                 .padding(.bottom, 12)
 
                 SectionLabel(text: "Company details")
-                VTextField(label: "Company name", text: bind(\.name), capitalization: .words, kind: .companyName, fieldID: "name", errors: errors)
+                VTextField(label: "Company name", text: bind(\.name), capitalization: .words, kind: .companyName, fieldID: "name", errors: errors, required: true)
                 VTextField(label: "Address", text: bind(\.address), contentType: .fullStreetAddress, capitalization: .words,
                            kind: .address, fieldID: "address", errors: errors)
                 SectionLabel(text: "Lead inspector")
@@ -327,7 +330,7 @@ struct FeedbackAdminView: View {
             HintText(text: "Owner admin — set the email address that receives help & feedback messages sent from the app.")
                 .padding(.top, 2).padding(.bottom, 14)
             VTextField(label: "Feedback contact email", text: $email, keyboard: .emailAddress, contentType: .emailAddress,
-                       capitalization: .never, kind: .email, fieldID: "email", errors: errors)
+                       capitalization: .never, kind: .email, fieldID: "email", errors: errors, required: true)
             Button { save() } label: { IconLabel("Save", icon: "link-my-account") }
                 .buttonStyle(.vPrimary)
         }
@@ -373,7 +376,7 @@ struct ReportBccView: View {
             .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(VC.line, lineWidth: 1))
             .padding(.bottom, 14)
             VTextField(label: "BCC address", text: $email, placeholder: "you@company.com", keyboard: .emailAddress, contentType: .emailAddress,
-                       capitalization: .never, kind: .email, fieldID: "bcc", errors: errors)
+                       capitalization: .never, kind: .email, fieldID: "bcc", errors: errors, required: on)
             Button { save() } label: { IconLabel("Save", icon: "link-my-account") }
                 .buttonStyle(.vPrimary)
         }
@@ -439,7 +442,7 @@ struct DeleteAccountView: View {
                 .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(VC.c1, lineWidth: 1))
                 .padding(.bottom, 16)
                 VTextField(label: "Type DELETE to confirm", text: $confirmText, placeholder: "DELETE", capitalization: .characters,
-                           fieldID: "confirm", errors: errors)
+                           fieldID: "confirm", errors: errors, required: true)
                 Button { submit() } label: {
                     if busy { ProgressView().tint(.white) } else { Text("Delete my account") }
                 }

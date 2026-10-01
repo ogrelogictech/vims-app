@@ -92,14 +92,14 @@ struct PhotoSourceDialog: ViewModifier {
     }
 }
 
-/// "Sign out of VIMS?" confirmation used everywhere sign-out is offered.
+/// "Do you really want to sign out?" confirmation used everywhere sign-out is offered.
 struct SignOutConfirmation: ViewModifier {
     @Environment(AppStore.self) private var store
     @Binding var isPresented: Bool
     var beforeSignOut: () -> Void = {}
 
     func body(content: Content) -> some View {
-        content.alert("Sign out of VIMS?", isPresented: $isPresented) {
+        content.alert("Do you really want to sign out?", isPresented: $isPresented) {
             Button("Cancel", role: .cancel) {}
             Button("Sign out", role: .destructive) {
                 beforeSignOut()

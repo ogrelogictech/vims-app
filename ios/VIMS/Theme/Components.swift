@@ -493,6 +493,8 @@ struct VTextField: View {
     var fieldID: String? = nil
     var errors: FormErrors? = nil
     var trailing: String? = nil
+    /// Mandatory field (same as its `.req` validation rule) → red " *" after the label.
+    var required = false
     @State private var focused = false
 
     private var shownError: String? { error ?? fieldID.flatMap { errors?[$0] } }
@@ -502,7 +504,7 @@ struct VTextField: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
-            if let label { FieldLabel(text: label) }
+            if let label { FieldLabel(text: label, required: required) }
             FieldBox(focused: focused, error: shownError != nil) {
                 HStack(spacing: 8) {
                     FilteredTextField(text: $text, kind: kind, fieldID: fieldID, errors: errors, placeholder: placeholder,
@@ -525,11 +527,33 @@ struct VTextField: View {
     }
 }
 
+/// The one form-field label style (prototype `.field > label`: IBM Plex Sans semibold, ink-2).
+/// Required fields get a trailing " *" in c1 red; the label text itself is unchanged.
 struct FieldLabel: View {
     let text: String
+    var required = false
     var body: some View {
-        Text(text).font(VFont.ui(12.5, .semibold)).foregroundStyle(VC.ink2)
-            .fixedSize(horizontal: false, vertical: true)
+        Group {
+            if required {
+                Text("\(text)\(Text(" *").foregroundStyle(VC.c1))")
+            } else {
+                Text(text)
+            }
+        }
+        .font(VFont.ui(13, .semibold)).foregroundStyle(VC.ink2)
+        .fixedSize(horizontal: false, vertical: true)
+        .accessibilityLabel(required ? "\(text), required" : text)
+    }
+}
+
+/// "* Required" hint shown at the top of longer forms.
+struct RequiredHint: View {
+    var body: some View {
+        Text("\(Text("*").foregroundStyle(VC.c1)) Required")
+            .font(VFont.ui(12)).foregroundStyle(VC.ink3)
+            .frame(maxWidth: .infinity, alignment: .trailing)
+            .padding(.bottom, 6)
+            .accessibilityLabel("Fields marked with an asterisk are required")
     }
 }
 
@@ -542,6 +566,7 @@ struct VSecureField: View {
     var error: String? = nil
     var fieldID: String? = nil
     var errors: FormErrors? = nil
+    var required = false
     @State private var reveal = false
     @State private var focused = false
 
@@ -549,7 +574,7 @@ struct VSecureField: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
-            FieldLabel(text: label)
+            FieldLabel(text: label, required: required)
             FieldBox(focused: focused, error: shownError != nil) {
                 HStack(spacing: 6) {
                     FilteredTextField(text: $text, kind: .password, fieldID: fieldID, errors: errors, placeholder: placeholder,
@@ -669,13 +694,21 @@ struct SmallField: View {
     var fieldID: String? = nil
     var errors: FormErrors? = nil
     var onSubmit: (() -> Void)? = nil
+    /// Placeholder-only field: a required one shows a red "*" inside its trailing edge.
+    var required = false
     var body: some View {
         let err = fieldID.flatMap { errors?[$0] }
         VStack(alignment: .leading, spacing: 5) {
-            FilteredTextField(text: $text, kind: kind, fieldID: fieldID, errors: errors, placeholder: placeholder,
-                              font: VFont.uUI(14), keyboard: keyboard,
-                              caps: keyboard == .emailAddress || kind == .email ? .never : .sentences,
-                              autocorrect: !(keyboard == .emailAddress || kind == .email), onSubmit: onSubmit)
+            HStack(spacing: 6) {
+                FilteredTextField(text: $text, kind: kind, fieldID: fieldID, errors: errors, placeholder: placeholder,
+                                  font: VFont.uUI(14), keyboard: keyboard,
+                                  caps: keyboard == .emailAddress || kind == .email ? .never : .sentences,
+                                  autocorrect: !(keyboard == .emailAddress || kind == .email),
+                                  accessibilityLabel: required ? "\(placeholder), required" : placeholder, onSubmit: onSubmit)
+                if required {
+                    Text("*").font(VFont.ui(15, .semibold)).foregroundStyle(VC.c1).accessibilityHidden(true)
+                }
+            }
                 .padding(.horizontal, 12)
                 .frame(minHeight: 44)
                 .background(VC.paper)

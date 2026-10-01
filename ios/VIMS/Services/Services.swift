@@ -4,6 +4,17 @@ import Network
 // Backend-dependent services. Phase 1 ships local stubs so the app is fully usable
 // offline; each stub is marked TODO(backend) where the Laravel API plugs in.
 
+/// Sign-in failures, so the UI can put the message on the right field.
+enum AuthError: LocalizedError {
+    case noAccount, wrongPassword
+    var errorDescription: String? {
+        switch self {
+        case .noAccount: return "No account found for that email. Create an account or join with a company code."
+        case .wrongPassword: return "That password isn't right. Try again or reset it."
+        }
+    }
+}
+
 enum ServiceError: LocalizedError {
     case invalid(String)
     var errorDescription: String? {
@@ -32,10 +43,10 @@ final class LocalAuthService: AuthService {
     func signIn(email: String, password: String) async throws -> UserAccount {
         let e = email.trimmingCharacters(in: .whitespaces).lowercased()
         guard let u = repo.user(email: e) else {
-            throw ServiceError.invalid("No account found for that email. Create an account or join with a company code.")
+            throw AuthError.noAccount
         }
         guard PasswordHasher.verify(password, hash: u.passwordHash, salt: u.salt) else {
-            throw ServiceError.invalid("That password isn't right. Try again or reset it.")
+            throw AuthError.wrongPassword
         }
         return u
     }

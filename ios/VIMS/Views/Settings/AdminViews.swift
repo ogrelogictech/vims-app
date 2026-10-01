@@ -14,7 +14,7 @@ struct ManageChecklistView: View {
             HintText(text: "Add and edit checklist sections and items yourself — changes apply to new inspections.")
                 .padding(.top, 2).padding(.bottom, 12)
             DashedBox {
-                SmallField(text: $newName, placeholder: "New section name (e.g. Solar Panels)", kind: .sectionName, fieldID: "section", errors: errors)
+                SmallField(text: $newName, placeholder: "New section name (e.g. Solar Panels)", kind: .sectionName, fieldID: "section", errors: errors, required: true)
                 SingleChipGroup(options: ChecklistCatalog.customGroups, value: $newGroup, required: true)
                     .padding(.bottom, 2)
                 Button {
@@ -340,8 +340,8 @@ struct PlansAdminView: View {
                 store.toast("Extra inspector → \(Fmt.money(v))")
             }
             DashedBox {
-                SmallField(text: $newName, placeholder: "Plan name (e.g. Team)", kind: .plain(max: 40), fieldID: "newName", errors: errors)
-                SmallField(text: $newPrice, placeholder: "Monthly price (e.g. 99.00)", keyboard: .decimalPad, kind: .price, fieldID: "newPrice", errors: errors)
+                SmallField(text: $newName, placeholder: "Plan name (e.g. Team)", kind: .plain(max: 40), fieldID: "newName", errors: errors, required: true)
+                SmallField(text: $newPrice, placeholder: "Monthly price (e.g. 99.00)", keyboard: .decimalPad, kind: .price, fieldID: "newPrice", errors: errors, required: true)
                 SmallField(text: $newDesc, placeholder: "Short description", kind: .plain(max: 80))
                 Button { addPlan() } label: { IconLabel("Add plan", icon: "hdr-add") }
                     .buttonStyle(VButtonStyle(kind: .primary, minHeight: 46))
@@ -360,7 +360,7 @@ struct PlansAdminView: View {
         return VStack(alignment: .leading, spacing: 10) {
             Text(title).font(VFont.ui(14.5, .bold)).foregroundStyle(VC.ink)
             HStack(spacing: 10) {
-                Text("Price $").font(VFont.ui(13)).foregroundStyle(VC.ink2)
+                FieldLabel(text: "Price $", required: true)
                 FilteredTextField(text: text, kind: .price, fieldID: id, errors: errors, keyboard: .decimalPad,
                                   accessibilityLabel: "\(title) price")
                     .padding(.horizontal, 12).frame(width: 130, height: 48)
@@ -502,8 +502,8 @@ struct InspectorsView: View {
                 .padding(.horizontal, 2).padding(.top, 4).padding(.bottom, 14)
 
             DashedBox {
-                SmallField(text: $name, placeholder: "Inspector name", kind: .personName, fieldID: "name", errors: errors)
-                SmallField(text: $email, placeholder: "inspector@email.com", keyboard: .emailAddress, kind: .email, fieldID: "email", errors: errors)
+                SmallField(text: $name, placeholder: "Inspector name", kind: .personName, fieldID: "name", errors: errors, required: true)
+                SmallField(text: $email, placeholder: "inspector@email.com", keyboard: .emailAddress, kind: .email, fieldID: "email", errors: errors, required: true)
                 Button {
                     addInspector()
                 } label: { IconLabel("Add inspector", icon: "hdr-add") }
@@ -605,23 +605,24 @@ struct SubscribeView: View {
             .padding(.top, 14)
 
             SectionLabel(text: "Payment — via Square")
+                .overlay(alignment: .bottomTrailing) { RequiredHint().fixedSize().padding(.bottom, 4) }
             // Placeholder card form until Square's In-App Payments SDK card entry replaces it (TODO(backend)).
             VTextField(label: "Card number", text: $card, placeholder: "1234 5678 9012 3456",
                        keyboard: .numberPad, contentType: .creditCardNumber, capitalization: .never,
-                       kind: .cardNumber, fieldID: "card", errors: errors, trailing: brand.rawValue)
+                       kind: .cardNumber, fieldID: "card", errors: errors, trailing: brand.rawValue, required: true)
             HStack(alignment: .top, spacing: 10) {
                 VTextField(label: "Expiry", text: $expiry, placeholder: "MM/YY",
                            keyboard: .numberPad, contentType: .creditCardExpiration, capitalization: .never, bottom: 0,
-                           kind: .expiry, fieldID: "expiry", errors: errors)
+                           kind: .expiry, fieldID: "expiry", errors: errors, required: true)
                 VTextField(label: "CVC", text: $cvc, placeholder: brand == .amex ? "1234" : "123",
                            keyboard: .numberPad, contentType: .creditCardSecurityCode, capitalization: .never, bottom: 0,
-                           kind: .cvc(amex: brand == .amex), fieldID: "cvc", errors: errors)
+                           kind: .cvc(amex: brand == .amex), fieldID: "cvc", errors: errors, required: true)
             }
             .padding(.bottom, 13)
             VTextField(label: "Cardholder name", text: $holder, placeholder: "Name on card", contentType: .name, capitalization: .words,
-                       kind: .personName, fieldID: "holder", errors: errors)
+                       kind: .personName, fieldID: "holder", errors: errors, required: true)
             VTextField(label: "Billing ZIP", text: $zip, placeholder: "84015", keyboard: .numberPad, contentType: .postalCode,
-                       capitalization: .never, bottom: 0, kind: .zip, fieldID: "zip", errors: errors)
+                       capitalization: .never, bottom: 0, kind: .zip, fieldID: "zip", errors: errors, required: true)
             HStack(spacing: 8) {
                 ProtoIcon("secured-by-square", size: 14)
                 Text("Secured by Square · auto-renews monthly · cancel anytime").font(VFont.ui(12))

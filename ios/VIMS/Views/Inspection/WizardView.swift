@@ -217,7 +217,10 @@ private struct EntryList: View {
     var body: some View {
         let groups = grouped()
         VStack(alignment: .leading, spacing: 0) {
-            if !pairText { SectionLabel(text: store.config.wizard.steps.first ?? "Client & inspection", top: 2) }
+            if !pairText {
+                SectionLabel(text: store.config.wizard.steps.first ?? "Client & inspection", top: 2)
+                    .overlay(alignment: .bottomTrailing) { RequiredHint().fixedSize().padding(.bottom, 4) }
+            }
             ForEach(Array(groups.enumerated()), id: \.offset) { _, g in
                 render(g)
             }
@@ -284,7 +287,8 @@ private struct EntryList: View {
     private func field(_ e: WizardEntry, bottom: CGFloat) -> some View {
         switch e.type ?? "text" {
         case "date":
-            DateFieldBox(label: e.label, value: text(e.label), format: "yyyy-MM-dd", components: .date, error: errors[e.label], minimumDate: minDate).padding(.bottom, bottom)
+            DateFieldBox(label: e.label, value: text(e.label), format: "yyyy-MM-dd", components: .date, error: errors[e.label], minimumDate: minDate,
+                         required: WizardRules.rule(for: e.label, type: e.type)?.required ?? false).padding(.bottom, bottom)
                 .id(e.label)
         case "time":
             DateFieldBox(label: e.label, value: text(e.label), format: "HH:mm", components: .hourAndMinute).padding(.bottom, bottom)
@@ -299,7 +303,8 @@ private struct EntryList: View {
             VTextField(label: e.label, text: text(e.label), placeholder: e.placeholder ?? "", keyboard: kb,
                        contentType: e.type == "email" ? .emailAddress : e.type == "tel" ? .telephoneNumber : (isAddress ? .fullStreetAddress : nil),
                        capitalization: e.type == "email" ? .never : (kind == .license ? .characters : .words),
-                       bottom: bottom, kind: kind ?? .plain(max: isAddress ? 120 : nil), fieldID: e.label, errors: errors)
+                       bottom: bottom, kind: kind ?? .plain(max: isAddress ? 120 : nil), fieldID: e.label, errors: errors,
+                       required: WizardRules.rule(for: e.label, type: e.type)?.required ?? false)
             if e.label == "Real estate agent email" {
                 Text("Client & agent emails are used to send the finished report.")
                     .font(VFont.ui(12)).foregroundStyle(VC.ink3)
@@ -391,7 +396,8 @@ private struct EntryList: View {
                 ForEach(tf, id: \.key) { f in
                     VTextField(label: f.label, text: text(f.key), placeholder: f.placeholder ?? Self.typeFieldPlaceholders[f.key] ?? "",
                                capitalization: f.key.lowercased().contains("license") || f.key.lowercased().contains("number") ? .characters : .words,
-                               kind: WizardRules.kind(for: f.key, type: nil), fieldID: f.key, errors: errors)
+                               kind: WizardRules.kind(for: f.key, type: nil), fieldID: f.key, errors: errors,
+                               required: WizardRules.rule(for: f.key, type: nil)?.required ?? false)
                 }
             }
         } else if e.id == "wstruct" {
@@ -420,11 +426,12 @@ struct DateFieldBox: View {
     let components: DatePickerComponents
     var error: String? = nil
     var minimumDate: Date? = nil
+    var required = false
 
     var body: some View {
         let selection = Binding(get: { Fmt.parse(value, format) ?? Date() }, set: { value = Fmt.date($0, format) })
         VStack(alignment: .leading, spacing: 7) {
-            FieldLabel(text: label)
+            FieldLabel(text: label, required: required)
             FieldBox(focused: false, error: error != nil) {
                 Group {
                     if let minimumDate {

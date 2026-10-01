@@ -47,7 +47,8 @@ validation errors show), `-eulaVersion V` (pretend eula.json has version V → r
 (show the gate even with `-screen`, which otherwise skips it), `-eulaStatus` (print each account's accepted
 version), `-eulaSection N|footer` (viewer scroll), `-prefill EMAIL [-code CODE] [-agree]` (valid Create account /
 Join details), `-activeSub` (mark the subscription active), `-profilePhotoSample` (profile photo from an
-inspection photo), `-confirmDelete` (with `-screen deleteAccount`: type DELETE and submit).
+inspection photo), `-confirmDelete` (with `-screen deleteAccount`: type DELETE and submit), `-prefill EMAIL -password PW -validate`
+on `-screen login` (try that sign-in), `-confirm PW` (signup confirm value).
 None of this is compiled into Release builds. The prototype's yellow review/jump button is intentionally not a
 user feature.
 
@@ -135,7 +136,15 @@ SwiftUI views ──► AppStore (@Observable, @MainActor)  ──► Repository
   company is blocked with "Make another admin the owner first" (Inspectors now has **Make owner** for admins,
   visible to the owner). A non-owner is removed from the company. Ends on Sign in. TODO(backend): server
   deletion request (within 10 working days per the EULA).
-- **Sign out** always asks "Sign out of VIMS?" (Cancel / Sign out) — Settings, side menu and the EULA gate.
+- **Sign out** always asks "Do you really want to sign out?" (Cancel / Sign out) — Settings, side menu and the
+  EULA gate.
+- **Form labels & required fields.** Every field label uses `FieldLabel` (IBM Plex Sans 13 semibold, ink-2); the
+  uppercase mono section labels are unchanged. Fields whose validation rule is `.req` pass `required: true` and
+  show a red " *" (wizard fields derive it from `WizardRules`); placeholder-only admin fields show the "*" inside
+  the box. Create account, wizard step 1 and Subscribe show a "* Required" hint.
+- **Sign-in errors** land on the right field: unknown email → Email ("No account found…"), wrong password →
+  Password, bad format → that field; each clears when edited. Confirm password only checks "Passwords don't match".
+- The app/data version line in Settings is shown in DEBUG builds only.
 - **Status colors** (one palette, always with a label): inspections Done green / In progress blue / Queued amber /
   Scheduled gray; checklist sections Done green / In progress blue / Not started gray (pills in Sections
   overview and the drawer); sync badge Synced green / queued amber / Offline gray; subscription Active green /
