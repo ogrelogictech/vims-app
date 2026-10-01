@@ -38,6 +38,7 @@ import com.vims.app.ui.AppViewModel
 import com.vims.app.ui.SectionsR
 import com.vims.app.ui.WizardR
 import com.vims.app.ui.back
+import com.vims.app.ui.components.RequiredHint
 import com.vims.app.ui.components.BtnKind
 import com.vims.app.ui.components.BtnRow
 import com.vims.app.ui.components.ChipFlow
@@ -94,6 +95,7 @@ fun WizardScreen(vm: AppViewModel, nav: NavHostController, inspId: String?) {
             when (w.step) {
                 1 -> {
                     Lbl(cfg.steps.getOrElse(0) { "Client & inspection" }, first = true)
+                    RequiredHint()
                     WizardFields(vm, cfg.step1, w.sel, form = form)
                 }
                 2 -> WizardFields(vm, cfg.step2, w.sel, step2 = true, form = form)
@@ -275,7 +277,7 @@ private fun FieldCell(vm: AppViewModel, f: WizardFieldDef, sel: WizardSelections
         wizardCheck(f.label, v) ?: if (f.label == WizardSelections.F_DATE && Fmt.parseDate(v)?.isBefore(minDate) == true) "Choose today or a later date" else null
     }
     Column(modifier.formField(form, f.label)) {
-        FieldLabel(f.label)
+        FieldLabel(f.label, required = isWizardRequired(f.label))
         when (f.type) {
             "date" -> PickerField(if (v.isBlank()) "" else Fmt.date(v), "Select date", VIcons.calendar, { pickDate(ctx, v, minDate, set) }, error = err)
             "time" -> PickerField(if (v.isBlank()) "" else Fmt.time(v), "Select time", VIcons.clock, { pickTime(ctx, v, set) }, error = err)
@@ -302,6 +304,9 @@ private fun wizardFilter(key: String): ((String) -> String)? = when (key) {
 }
 
 /** On-submit checks for wizard fields. */
+/** Required = the field's own validation rejects an empty value (same rules as [wizardCheck]). */
+private fun isWizardRequired(label: String) = wizardCheck(label, "") != null
+
 private fun wizardCheck(label: String, v: String): String? = when (label) {
     WizardSelections.F_CLIENT -> Checks.required(v, "Enter the client's name")
     WizardSelections.F_ADDRESS -> Checks.required(v, "Enter the inspection address")

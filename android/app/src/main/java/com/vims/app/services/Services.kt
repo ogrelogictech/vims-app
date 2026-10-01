@@ -74,8 +74,8 @@ class LocalAuthService(private val dao: VimsDao, private val config: ChecklistCo
 
     override suspend fun signIn(email: String, password: String): AuthResult = withContext(Dispatchers.IO) {
         val e = email.trim().lowercase(Locale.US)
-        val u = dao.userByEmail(e) ?: return@withContext AuthResult.Error("No account uses that email. Create an account or join a company with a code.", "email")
-        if (!PasswordHasher.verify(password, u.salt, u.passwordHash)) return@withContext AuthResult.Error("That password isn't right.", "password")
+        val u = dao.userByEmail(e) ?: return@withContext AuthResult.Error("No account found for that email. Check it, or create an account / join a company with a code.", "email")
+        if (!PasswordHasher.verify(password, u.salt, u.passwordHash)) return@withContext AuthResult.Error("Incorrect password. Try again or tap Forgot password.", "password")
         val c = dao.company(u.companyId) ?: return@withContext AuthResult.Error("This account's company is missing on this device.")
         AuthResult.Success(Session(u.name, u.email, roleFor(u.email, account(c)), userId = u.id, companyId = c.id))
     }

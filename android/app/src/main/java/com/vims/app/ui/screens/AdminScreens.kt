@@ -51,6 +51,8 @@ import com.vims.app.data.ItemDef
 import com.vims.app.ui.AppViewModel
 import com.vims.app.ui.EditSecR
 import com.vims.app.ui.back
+import com.vims.app.ui.components.FieldLabel
+import com.vims.app.ui.components.VField
 import com.vims.app.ui.components.BtnKind
 import com.vims.app.ui.components.ChipFlow
 import com.vims.app.ui.components.Hint
@@ -91,7 +93,8 @@ fun AdminScreen(vm: AppViewModel, nav: NavHostController) {
         Hint("Add and edit checklist sections and items yourself — changes apply to new inspections.", Modifier.padding(top = 2.dp, bottom = 12.dp))
         AddBox {
             val nameErr = form.check("name", name) { Checks.sectionName(name) { n -> engine.def(n) != null } }
-            VInput(name, { name = it }, Modifier.formField(form, "name"), placeholder = "New section name (e.g. Solar Panels)", textSize = 14f, filter = Filters::sectionName, error = nameErr)
+            VField("Section name", name, { name = it }, Modifier.formField(form, "name"), placeholder = "e.g. Solar Panels", filter = Filters::sectionName, error = nameErr, required = true, bottom = 0.dp)
+            FieldLabel("Group", required = true, modifier = Modifier.padding(top = 4.dp))
             SingleChips(listOf("Exterior", "Interior", "Utility", "Testing"), group, { if (it != null) group = it }, required = true)
             VBtn("Add section", {
                 val n = name.trim()
@@ -150,7 +153,7 @@ fun EditSectionScreen(vm: AppViewModel, nav: NavHostController, name: String) {
             item(key = "tier") {
                 Column {
                     if (def?.form == null) {
-                        Text("Checklist tier", style = T.ui(12.5.sp, FontWeight.SemiBold, V.ink2), modifier = Modifier.padding(bottom = 7.dp))
+                        FieldLabel("Checklist tier")
                         SingleChips(listOf("Standard", "High Detail"), if (high) "High Detail" else "Standard", { v -> if (v != null) high = v == "High Detail" }, required = true)
                     } else {
                         Text("${vm.config.formLabels[def.form] ?: "State form"} — the same items print at every checklist depth.", style = T.ui(12.sp, color = V.ink3))
@@ -274,9 +277,9 @@ fun PlansAdminScreen(vm: AppViewModel, nav: NavHostController) {
         AddBox {
             val nErr = form.check("n", n) { Checks.required(n, "Enter a plan name") }
             val pErr = form.check("p", p) { Checks.price(p) }
-            VInput(n, { n = it }, Modifier.formField(form, "n"), placeholder = "Plan name (e.g. Team)", textSize = 14f, filter = { Filters.base(it, 40) }, error = nErr)
-            VInput(p, { p = it }, Modifier.formField(form, "p"), placeholder = "Monthly price (e.g. 99.00)", keyboard = KeyboardType.Decimal, textSize = 14f, filter = Filters::price, error = pErr)
-            VInput(d, { d = it }, placeholder = "Short description", textSize = 14f, filter = { Filters.base(it, 80) })
+            VField("Plan name", n, { n = it }, Modifier.formField(form, "n"), placeholder = "e.g. Team", filter = { Filters.base(it, 40) }, error = nErr, required = true, bottom = 0.dp)
+            VField("Monthly price", p, { p = it }, Modifier.formField(form, "p"), placeholder = "e.g. 99.00", keyboard = KeyboardType.Decimal, filter = Filters::price, error = pErr, required = true, bottom = 0.dp)
+            VField("Description", d, { d = it }, placeholder = "Short description", filter = { Filters.base(it, 80) }, bottom = 0.dp)
             VBtn("Add plan", { if (form.submit() && vm.addPlan(n, p, d)) { n = ""; p = ""; d = ""; form.reset() } }, icon = VIcons.plus, minHeight = 48.dp)
         }
     }

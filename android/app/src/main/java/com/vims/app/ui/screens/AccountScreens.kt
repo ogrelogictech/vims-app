@@ -50,6 +50,7 @@ import com.vims.app.ui.BillingR
 import com.vims.app.ui.InspectorsR
 import com.vims.app.ui.SubStartedR
 import com.vims.app.ui.SubscribeR
+import com.vims.app.ui.components.RequiredHint
 import com.vims.app.ui.components.BinfoRow
 import com.vims.app.ui.components.BtnKind
 import com.vims.app.ui.components.BtnRow
@@ -153,8 +154,8 @@ fun InspectorsScreen(vm: AppViewModel, nav: NavHostController) {
             val emailErr = form.check("email", email) {
                 Checks.email(email) ?: if (account.inspectors.any { it.email.equals(email.trim(), true) }) "That email is already on your team" else null
             }
-            VInput(name, { name = it }, Modifier.formField(form, "name"), placeholder = "Inspector name", textSize = 14f, caps = KeyboardCapitalization.Words, filter = Filters::personName, error = nameErr)
-            VInput(email, { email = it }, Modifier.formField(form, "email"), placeholder = "inspector@email.com", keyboard = KeyboardType.Email, textSize = 14f, error = emailErr)
+            VField("Inspector name", name, { name = it }, Modifier.formField(form, "name"), placeholder = "Full name", caps = KeyboardCapitalization.Words, filter = Filters::personName, error = nameErr, required = true, bottom = 0.dp)
+            VField("Email", email, { email = it }, Modifier.formField(form, "email"), placeholder = "inspector@email.com", keyboard = KeyboardType.Email, error = emailErr, required = true, bottom = 0.dp)
             VBtn("Add inspector", { if (form.submit() && vm.addInspector(name, email)) { name = ""; email = ""; form.reset(); focus.clearFocus() } }, icon = VIcons.plus, minHeight = 48.dp)
         }
     }
@@ -211,6 +212,7 @@ fun SubscribeScreen(vm: AppViewModel, nav: NavHostController) {
             }
         }
         Lbl("Payment — via Square")
+        RequiredHint()
         // TODO(backend): replace with the Square In-App Payments SDK card entry (tokenized); raw card data is never stored.
         val brand = CardBrand.of(card)
         val amex = brand == CardBrand.AMEX
@@ -221,18 +223,18 @@ fun SubscribeScreen(vm: AppViewModel, nav: NavHostController) {
         val zipErr = form.check("zip", zip) { Checks.zip(zip) }
         Column(Modifier.padding(bottom = 13.dp).formField(form, "card")) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                FieldLabel("Card number")
+                FieldLabel("Card number", required = true)
                 Spacer(Modifier.weight(1f))
                 if (brand != CardBrand.UNKNOWN) Text(brand.label, style = T.ui(12.sp, FontWeight.SemiBold, V.brandDeep), modifier = Modifier.padding(bottom = 7.dp))
             }
             VInput(card, { card = it }, placeholder = "1234 5678 9012 3456", keyboard = KeyboardType.Number, visual = CardTransform, filter = Filters::cardNumber, error = cardErr)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Column(Modifier.weight(1f).formField(form, "exp")) { FieldLabel("Expiry"); VInput(exp, { exp = it }, placeholder = "MM/YY", keyboard = KeyboardType.Number, visual = ExpiryTransform, filter = Filters::expiry, error = expErr) }
-            Column(Modifier.weight(1f).formField(form, "cvc")) { FieldLabel("CVC"); VInput(cvc, { cvc = it }, placeholder = if (amex) "1234" else "123", keyboard = KeyboardType.NumberPassword, filter = { Filters.cvc(it, amex) }, error = cvcErr) }
+            Column(Modifier.weight(1f).formField(form, "exp")) { FieldLabel("Expiry", required = true); VInput(exp, { exp = it }, placeholder = "MM/YY", keyboard = KeyboardType.Number, visual = ExpiryTransform, filter = Filters::expiry, error = expErr) }
+            Column(Modifier.weight(1f).formField(form, "cvc")) { FieldLabel("CVC", required = true); VInput(cvc, { cvc = it }, placeholder = if (amex) "1234" else "123", keyboard = KeyboardType.NumberPassword, filter = { Filters.cvc(it, amex) }, error = cvcErr) }
         }
-        VField("Cardholder name", holder, { holder = it }, Modifier.padding(top = 13.dp).formField(form, "holder"), placeholder = "Name on card", caps = KeyboardCapitalization.Words, filter = Filters::personName, error = holderErr)
-        VField("Billing ZIP", zip, { zip = it }, Modifier.formField(form, "zip"), placeholder = "84015", keyboard = KeyboardType.Number, filter = Filters::zip, error = zipErr, bottom = 0.dp)
+        VField("Cardholder name", holder, { holder = it }, Modifier.padding(top = 13.dp).formField(form, "holder"), placeholder = "Name on card", caps = KeyboardCapitalization.Words, filter = Filters::personName, error = holderErr, required = true)
+        VField("Billing ZIP", zip, { zip = it }, Modifier.formField(form, "zip"), placeholder = "84015", keyboard = KeyboardType.Number, filter = Filters::zip, error = zipErr, bottom = 0.dp, required = true)
         Row(Modifier.padding(start = 2.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Icon(VIcons.lock, null, tint = V.ink3, modifier = Modifier.size(14.dp))
             Text("Secured by Square · auto-renews monthly · cancel anytime", style = T.ui(12.sp, color = V.ink3))

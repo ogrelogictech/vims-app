@@ -66,7 +66,9 @@ fun MyAvatar(vm: AppViewModel, size: androidx.compose.ui.unit.Dp) {
 @Composable
 fun SignOutDialog(vm: AppViewModel, nav: NavHostController, onDismiss: () -> Unit) {
     com.vims.app.ui.components.ConfirmDialog(
-        "Sign out of VIMS?", "Your inspections stay saved on this device and are there when you sign back in.", "Sign out",
+        "Do you really want to sign out?",
+        vm.net.value.pending.let { n -> if (n > 0) "$n ${if (n == 1) "inspection hasn't" else "inspections haven't"} synced yet. They stay saved on this device and sync when you sign back in." else "Your inspections stay saved on this device and are there when you sign back in." },
+        "Sign out",
         onConfirm = { onDismiss(); vm.signOut { nav.navigate(com.vims.app.ui.LoginR) { popUpTo(0) { inclusive = true } } } }, onDismiss = onDismiss,
     )
 }

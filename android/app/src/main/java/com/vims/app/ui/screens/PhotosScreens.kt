@@ -518,7 +518,7 @@ fun FindingSheet(visible: Boolean, vm: AppViewModel, initialText: String, onCanc
                 }
                 FieldLabel("Quick comment")
                 SelectBox("Pick a quick comment…", vm.config.findings.quickComments, { text = it }, Modifier.padding(bottom = 13.dp))
-                FieldLabel("Description")
+                FieldLabel("Description", required = true)
                 VInput(text, { text = it; descErr = false }, placeholder = "Describe the concern…", multiline = true, filter = { com.vims.app.util.Filters.base(it, 1000, multiline = true) },
                     error = if (descErr) "Describe the concern or pick a quick comment" else null)
                 BtnRow(Modifier.padding(top = 4.dp)) {

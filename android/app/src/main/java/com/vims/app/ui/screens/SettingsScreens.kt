@@ -182,7 +182,8 @@ fun SettingsScreen(vm: AppViewModel, nav: NavHostController) {
         }
         ListRow("Report cover", settings.defaultCover.let { "${it.color} · ${it.artLabel()}" })
         ListRow("Photo size", "JPG · up to 2048 px")
-        Text("VIMS ${com.vims.app.BuildConfig.VERSION_NAME} · checklist data v${vm.config.version}", style = T.mono(10.5.sp, color = V.ink3), modifier = Modifier.padding(top = 8.dp, start = 2.dp))
+        // Version/data line is for developers only — never shown in release builds.
+        if (com.vims.app.BuildConfig.DEBUG) Text("Debug build · VIMS ${com.vims.app.BuildConfig.VERSION_NAME} · checklist data v${vm.config.version}", style = T.mono(10.5.sp, color = V.ink3), modifier = Modifier.padding(top = 8.dp, start = 2.dp))
     }
 }
 
@@ -236,7 +237,7 @@ fun CompanyScreen(vm: AppViewModel, nav: NavHostController) {
         val phoneErr = form.check("phone", p.phone) { Checks.phone(p.phone.filter { it.isDigit() }) }
         val emailErr = form.check("email", p.email) { Checks.email(p.email, required = false) }
         val urlErr = form.check("url", p.reviewUrl) { Checks.url(p.reviewUrl) }
-        VField("Company name", p.name, { v -> set { it.copy(name = v) } }, Modifier.formField(form, "name"), caps = KeyboardCapitalization.Words, error = nameErr, filter = Filters::companyName)
+        VField("Company name", p.name, { v -> set { it.copy(name = v) } }, Modifier.formField(form, "name"), caps = KeyboardCapitalization.Words, error = nameErr, filter = Filters::companyName, required = true)
         VField("Address", p.address, { v -> set { it.copy(address = v) } }, placeholder = "Street, City, State ZIP", caps = KeyboardCapitalization.Words, filter = Filters::address)
         Lbl("Lead inspector")
         VField("Inspector name", p.inspectorName, { v -> set { it.copy(inspectorName = v) } }, caps = KeyboardCapitalization.Words, filter = Filters::personName)
@@ -308,7 +309,7 @@ fun FeedbackAdminScreen(vm: AppViewModel, nav: NavHostController) {
         Hint("Owner admin — set the email address that receives help & feedback messages sent from the app.", Modifier.padding(top = 2.dp, bottom = 14.dp))
         val form = rememberForm()
         val err = form.check("email", email) { Checks.email(email) }
-        VField("Feedback contact email", email, { email = it }, Modifier.formField(form, "email"), keyboard = KeyboardType.Email, error = err)
+        VField("Feedback contact email", email, { email = it }, Modifier.formField(form, "email"), keyboard = KeyboardType.Email, error = err, required = true)
         VBtn("Save", { if (form.submit()) vm.saveFeedbackEmail(email) }, icon = VIcons.check)
     }
 }
@@ -340,7 +341,7 @@ fun ReportBccScreen(vm: AppViewModel, nav: NavHostController) {
             Text("BCC every emailed report", style = T.ui(14.5.sp, FontWeight.Bold), modifier = Modifier.weight(1f))
             SingleChips(listOf("On", "Off"), if (on) "On" else "Off", { v -> if (v != null) on = v == "On" }, required = true, modifier = Modifier.width(140.dp))
         }
-        VField("BCC address", email, { email = it }, Modifier.formField(form, "email"), placeholder = "you@company.com", keyboard = KeyboardType.Email, error = err)
+        VField("BCC address", email, { email = it }, Modifier.formField(form, "email"), placeholder = "you@company.com", keyboard = KeyboardType.Email, error = err, required = on)
         VBtn("Save", { if (form.submit()) vm.saveReportBcc(on, email) }, icon = VIcons.check)
     }
 }

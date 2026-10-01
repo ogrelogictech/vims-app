@@ -58,6 +58,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
@@ -259,9 +262,23 @@ fun Banner(text: String, icon: ImageVector = VIcons.info, modifier: Modifier = M
 
 /* ---------------------------------------------------------------- inputs */
 
+/** Field label — the one style for every form field (prototype `label`: IBM Plex Sans 12.5sp semibold, ink-2). Required → red " *". */
+val FieldLabelStyle: TextStyle @Composable get() = T.ui(12.5.sp, FontWeight.SemiBold, V.ink2)
+
 @Composable
-fun FieldLabel(text: String) {
-    Text(text, style = T.ui(12.5.sp, FontWeight.SemiBold, V.ink2), modifier = Modifier.padding(bottom = 7.dp))
+fun FieldLabel(text: String, required: Boolean = false, modifier: Modifier = Modifier) {
+    val t = if (!required) androidx.compose.ui.text.AnnotatedString(text) else androidx.compose.ui.text.buildAnnotatedString {
+        append(text); withStyle(androidx.compose.ui.text.SpanStyle(color = V.c1)) { append(" *") }
+    }
+    Text(t, style = FieldLabelStyle, modifier = modifier.padding(bottom = 7.dp).semantics { if (required) contentDescription = "$text, required" })
+}
+
+/** Small "* Required" legend for the top of longer forms. */
+@Composable
+fun RequiredHint(modifier: Modifier = Modifier) {
+    Text(androidx.compose.ui.text.buildAnnotatedString {
+        withStyle(androidx.compose.ui.text.SpanStyle(color = V.c1)) { append("*") }; append(" Required")
+    }, style = T.ui(12.sp, color = V.ink3), modifier = modifier.padding(bottom = 10.dp))
 }
 
 /** Inline error under a field (c1 red, 12.5sp). */
@@ -326,19 +343,19 @@ fun VField(
     label: String?, value: String, onChange: (String) -> Unit, modifier: Modifier = Modifier, placeholder: String = "",
     keyboard: KeyboardType = KeyboardType.Text, multiline: Boolean = false, mono: Boolean = false, bottom: Dp = 13.dp,
     caps: KeyboardCapitalization = KeyboardCapitalization.None, error: String? = null, filter: ((String) -> String)? = null,
-    visual: VisualTransformation = VisualTransformation.None,
+    visual: VisualTransformation = VisualTransformation.None, required: Boolean = false,
 ) {
     Column(modifier.padding(bottom = bottom)) {
-        if (label != null) FieldLabel(label)
+        if (label != null) FieldLabel(label, required)
         VInput(value, onChange, placeholder = placeholder, keyboard = keyboard, multiline = multiline, mono = mono, caps = caps, error = error, filter = filter, visual = visual)
     }
 }
 
 @Composable
-fun PasswordField(label: String, value: String, onChange: (String) -> Unit, placeholder: String = "", error: String? = null, modifier: Modifier = Modifier) {
+fun PasswordField(label: String, value: String, onChange: (String) -> Unit, placeholder: String = "", error: String? = null, modifier: Modifier = Modifier, required: Boolean = false) {
     var show by remember { mutableStateOf(false) }
     Column(modifier.padding(bottom = 13.dp)) {
-        FieldLabel(label)
+        FieldLabel(label, required)
         VInput(
             value, onChange, placeholder = placeholder, keyboard = KeyboardType.Password, error = error,
             visual = if (show) VisualTransformation.None else PasswordVisualTransformation(),

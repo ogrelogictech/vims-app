@@ -83,6 +83,14 @@ Release builds ignore these extras (`BuildConfig.DEBUG`).
 - Existing JSON data from earlier builds is imported once into Room and attached to the demo account.
 
 ### Validation (`util/Validation.kt`, rules from `../docs/validation-rules.md`)
+- **Required fields** show a red " *" after the label (`FieldLabel(required = true)` / `VField(required = …)`), set
+  wherever the field's check rejects an empty value (wizard: `isWizardRequired()` runs the same `wizardCheck`). Longer
+  forms (Create account, wizard step 1, Subscribe payment) start with a small "* Required" legend (`RequiredHint`).
+- **One field-label style** everywhere (`FieldLabel`: prototype `label` — IBM Plex Sans 12.5sp semibold, ink-2). The
+  uppercase mono section labels (`Lbl`) are unchanged. Add inspector and the admin editors now use labeled fields.
+- **Sign-in errors land on the right field**: unknown email → Email field ("No account found for that email…"),
+  wrong password → Password field only, bad email format → Email field; each clears as soon as that field is edited.
+  Create account: Confirm password only says "Re-enter your password" / "Passwords don't match".
 - `Filters` run while typing — every field: no leading space, never two spaces in a row; emails/passwords/URLs strip spaces;
   person names, phone (digits, shown as `(801) 555-0134`), join code (`VIS-4827`), license, policy #, year, decimals,
   temperature, prices (2 decimals), card number (grouped, Amex 4-6-5, brand shown), expiry `MM/YY`, CVC, ZIP.
@@ -158,7 +166,8 @@ Cancelled: status "Cancelled · active until <date>", explanation card, **Undo c
   owner)". Sole owner: company row + folder deleted too and the subscription marked cancelled. Returns to Sign in.
   `TODO(backend)`: server-side deletion + Square cancel.
 - Inspectors: the owner sees **Make owner** on admin rows (confirm dialog); ownership moves and the old owner stays admin.
-- Sign out (Settings, side menu, EULA gate) always asks "Sign out of VIMS?" (Cancel / Sign out).
+- Sign out (Settings, side menu, EULA gate) always asks "Do you really want to sign out?" (Cancel / Sign out); the
+  secondary line says how many inspections haven't synced yet (or that inspections stay saved on the device).
 
 ### Status colors (one scheme everywhere)
 Inspections: Done green · In progress blue · Queued amber · Scheduled gray. Sections (overview, drawer, report contents):
@@ -168,6 +177,10 @@ Subscription: Active green · Trial / Cancelled amber.
 ### Wizard date
 New inspection date picker's minimum is today (past days disabled; typed/validated "Choose today or a later date").
 When editing an existing inspection whose saved date is in the past, that saved date stays valid (min = saved date).
+
+### Settings footer
+No app/data version line in release builds; debug builds show "Debug build · VIMS x.y.z · checklist data vN" at the
+bottom of Settings for developers.
 
 ### Home side menu
 The Home hamburger opens a left drawer (user photo or initials, user name, email, company with logo badge; Inspections, New inspection,

@@ -45,6 +45,7 @@ import com.vims.app.ui.JoinR
 import com.vims.app.ui.LoginR
 import com.vims.app.ui.SignupR
 import com.vims.app.ui.back
+import com.vims.app.ui.components.RequiredHint
 import com.vims.app.ui.components.BtnKind
 import com.vims.app.ui.components.ContentWidth
 import com.vims.app.ui.components.Lbl
@@ -92,8 +93,8 @@ fun LoginScreen(vm: AppViewModel, nav: NavHostController) {
         }
         ContentWidth {
             Column(Modifier.padding(horizontal = 18.dp, vertical = 24.dp).navigationBarsPadding()) {
-                VField("Email", email, { email = it }, Modifier.formField(form, "email"), placeholder = "you@company.com", keyboard = KeyboardType.Email, error = emailErr)
-                PasswordField("Password", pw, { pw = it }, placeholder = "Password", error = pwErr, modifier = Modifier.formField(form, "password"))
+                VField("Email", email, { email = it }, Modifier.formField(form, "email"), placeholder = "you@company.com", keyboard = KeyboardType.Email, error = emailErr, required = true)
+                PasswordField("Password", pw, { pw = it }, placeholder = "Password", error = pwErr, modifier = Modifier.formField(form, "password"), required = true)
                 VBtn("Sign in", { submit() })
                 VBtn("Create account", { nav.navigate(SignupR) }, Modifier.padding(top = 10.dp), BtnKind.Ghost)
                 VBtn("Join a company with a code", { nav.navigate(JoinR) }, Modifier.padding(top = 10.dp), BtnKind.Ghost, icon = VIcons.userPlus)
@@ -120,11 +121,12 @@ fun SignupScreen(vm: AppViewModel, nav: NavHostController) {
     val eulaErr = form.check("eula", agreed.toString()) { if (!agreed) "Accept the End User License Agreement to continue" else null }
     VScreen("Create account", "VIMS", net(vm), backAction(nav)) {
         Lbl("Your details", first = true)
-        VField("Full name", name, { name = it }, Modifier.formField(form, "name"), placeholder = "Jeremy Heath", caps = KeyboardCapitalization.Words, error = nameErr, filter = Filters::personName)
-        VField("Company name", company, { company = it }, Modifier.formField(form, "company"), placeholder = "Vision Property Inspections", caps = KeyboardCapitalization.Words, error = companyErr, filter = Filters::companyName)
-        VField("Email", email, { email = it }, Modifier.formField(form, "email"), placeholder = "you@company.com", keyboard = KeyboardType.Email, error = emailErr)
-        PasswordField("Password", pw, { pw = it }, placeholder = "At least 8 characters", error = pwErr, modifier = Modifier.formField(form, "password"))
-        PasswordField("Confirm password", pw2, { pw2 = it }, placeholder = "Re-enter your password", error = pw2Err, modifier = Modifier.formField(form, "confirm"))
+        RequiredHint()
+        VField("Full name", name, { name = it }, Modifier.formField(form, "name"), placeholder = "Jeremy Heath", caps = KeyboardCapitalization.Words, error = nameErr, filter = Filters::personName, required = true)
+        VField("Company name", company, { company = it }, Modifier.formField(form, "company"), placeholder = "Vision Property Inspections", caps = KeyboardCapitalization.Words, error = companyErr, filter = Filters::companyName, required = true)
+        VField("Email", email, { email = it }, Modifier.formField(form, "email"), placeholder = "you@company.com", keyboard = KeyboardType.Email, error = emailErr, required = true)
+        PasswordField("Password", pw, { pw = it }, placeholder = "At least 8 characters", error = pwErr, modifier = Modifier.formField(form, "password"), required = true)
+        PasswordField("Confirm password", pw2, { pw2 = it }, placeholder = "Re-enter your password", error = pw2Err, modifier = Modifier.formField(form, "confirm"), required = true)
         EulaCheckbox(agreed, { agreed = it }, eulaErr, onOpen = { nav.navigate(EulaR) }, modifier = Modifier.formField(form, "eula"))
         VBtn("Create account & continue", {
             if (form.submit()) vm.createAccount(name, company, email, pw, onError = { e -> form.fail(e.field ?: "email", e.message, email) }) { nav.toHomeFromAuth() }
@@ -139,7 +141,7 @@ fun ForgotScreen(vm: AppViewModel, nav: NavHostController) {
     val emailErr = form.check("email", email) { Checks.email(email) }
     VScreen("Reset password", "VIMS", net(vm), backAction(nav)) {
         Text("Enter your email and we'll send a reset link.", style = T.ui(14.sp, color = V.ink2, lineHeight = 21.sp), modifier = Modifier.padding(top = 4.dp, bottom = 16.dp))
-        VField("Email", email, { email = it }, Modifier.formField(form, "email"), placeholder = "you@company.com", keyboard = KeyboardType.Email, error = emailErr)
+        VField("Email", email, { email = it }, Modifier.formField(form, "email"), placeholder = "you@company.com", keyboard = KeyboardType.Email, error = emailErr, required = true)
         VBtn("Send reset link", { if (form.submit()) vm.sendReset(email) { nav.navigate(LoginR) { popUpTo(0) { inclusive = true } } } })
     }
 }
@@ -161,11 +163,11 @@ fun JoinScreen(vm: AppViewModel, nav: NavHostController) {
     VScreen("Join a company", "VIMS", net(vm), backAction(nav)) {
         Text("Enter the company code your inspection company shared with you. Your account will be linked to their license and billing.",
             style = T.ui(14.sp, color = V.ink2, lineHeight = 21.sp), modifier = Modifier.padding(top = 4.dp, bottom = 16.dp))
-        VField("Full name", name, { name = it }, Modifier.formField(form, "name"), placeholder = "Your name", caps = KeyboardCapitalization.Words, error = nameErr, filter = Filters::personName)
-        VField("Email", email, { email = it }, Modifier.formField(form, "email"), placeholder = "you@email.com", keyboard = KeyboardType.Email, error = emailErr)
-        PasswordField("Create a password", pw, { pw = it }, placeholder = "At least 8 characters", error = pwErr, modifier = Modifier.formField(form, "password"))
+        VField("Full name", name, { name = it }, Modifier.formField(form, "name"), placeholder = "Your name", caps = KeyboardCapitalization.Words, error = nameErr, filter = Filters::personName, required = true)
+        VField("Email", email, { email = it }, Modifier.formField(form, "email"), placeholder = "you@email.com", keyboard = KeyboardType.Email, error = emailErr, required = true)
+        PasswordField("Create a password", pw, { pw = it }, placeholder = "At least 8 characters", error = pwErr, modifier = Modifier.formField(form, "password"), required = true)
         VField("Company code", code, { code = it }, Modifier.formField(form, "code"), placeholder = "VIS-4827", mono = true, caps = KeyboardCapitalization.Characters,
-            error = codeErr, filter = Filters::joinCode, visual = JoinCodeTransform)
+            error = codeErr, filter = Filters::joinCode, visual = JoinCodeTransform, required = true)
         EulaCheckbox(agreed, { agreed = it }, eulaErr, onOpen = { nav.navigate(EulaR) }, modifier = Modifier.formField(form, "eula"))
         VBtn("Link my account", {
             if (form.submit()) vm.joinCompany(name, email, code, pw, onError = { e -> form.fail(e.field ?: "code", e.message, if (e.field == "email") email else code) }) { nav.toHomeFromAuth() }
