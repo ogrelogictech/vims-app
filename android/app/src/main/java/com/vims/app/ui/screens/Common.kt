@@ -41,8 +41,7 @@ fun pickTime(ctx: Context, hhmm: String, onPick: (String) -> Unit) {
 @Composable
 fun companyLogo(vm: AppViewModel): java.io.File? {
     val c = vm.company.collectAsState().value
-    val ctx = androidx.compose.ui.platform.LocalContext.current
-    return c.logoFile?.let { java.io.File(ctx.filesDir, it) }
+    return c.logoFile?.let { java.io.File(vm.filesDir, it) }
 }
 
 /** Company logo (or initials) badge, refreshed when a new logo is uploaded. */
@@ -58,8 +57,7 @@ fun MyAvatar(vm: AppViewModel, size: androidx.compose.ui.unit.Dp) {
     val s = vm.session.collectAsState().value
     val photo = vm.userPhoto.collectAsState().value
     val v = vm.logoVersion.collectAsState().value
-    val ctx = androidx.compose.ui.platform.LocalContext.current
-    com.vims.app.ui.components.UserAvatar(photo?.let { java.io.File(ctx.filesDir, it) }, s?.initials ?: "?", size, v)
+    com.vims.app.ui.components.UserAvatar(photo?.let { java.io.File(vm.filesDir, it) }, s?.initials ?: "?", size, v)
 }
 
 /** "Sign out of VIMS?" confirmation used everywhere sign-out exists. */

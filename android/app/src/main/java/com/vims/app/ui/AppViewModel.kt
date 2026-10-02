@@ -58,10 +58,13 @@ data class WizardState(val step: Int = 1, val sel: WizardSelections = WizardSele
 
 data class ToastMsg(val text: String, val id: Long = System.nanoTime())
 
+/** Created by `MainActivity` only after `VimsApplication.ready` (the container's startup work runs in the background). */
 class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val container = (app as VimsApplication).container
     val repo = container.repo
     val config: ChecklistConfig = container.config
+    /** App files dir, derived from the repository root (Context.getFilesDir() stats the disk; composables use this instead). */
+    val filesDir: File = repo.root.parentFile!!
 
     val session: StateFlow<Session?> = repo.session
     val account: StateFlow<AccountState> = repo.account

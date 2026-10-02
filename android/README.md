@@ -45,8 +45,8 @@ Release builds ignore these extras (`BuildConfig.DEBUG`).
 
 | Package / file | What it holds |
 |---|---|
-| `VimsApplication.kt` | App start: fonts + icons, `AppContainer` (config, Room database, repository, services); one-time JSON → Room migration, demo account, restore last session |
-| `MainActivity.kt` | SplashScreen API, edge-to-edge, splash video on cold launch, debug intent parsing, sets `VimsRoot` |
+| `VimsApplication.kt` | App start (background, `ready` StateFlow): fonts + icons, `AppContainer` (config, EULA, Room database, repository, services); one-time JSON → Room migration, demo account, restore last session |
+| `MainActivity.kt` | SplashScreen API (held until startup is `ready`), edge-to-edge, splash video on cold launch, debug intent parsing, sets `VimsRoot` |
 | `data/db/VimsDatabase.kt` | Room entities (`users`, `companies`, `inspections`, `section_answers`, `photos`, `findings`, `kv`), DAO, database |
 | `data/JsonMigration.kt` | One-time import of the pre-Room JSON store into Room (attached to the demo user/company; files moved to per-user folders) |
 | `data/ChecklistConfig.kt` | `@Serializable` model of `vims-checklists.json` + `ChecklistLoader` |
@@ -102,6 +102,15 @@ Release builds ignore these extras (`BuildConfig.DEBUG`).
   password, join, wizard (per step on Next), company profile, add inspector, subscribe card form, plans & pricing, add plan,
   feedback email, admin section / question / option editor, checklist number items, finding description.
 
+### App startup (off the main thread)
+`VimsApplication.onCreate` does no disk work on the main thread: an application-scoped coroutine on `Dispatchers.IO`
+loads fonts/icons, builds `AppContainer` (checklist config, EULA, Room) and runs `AppContainer.start()` (one-time JSON →
+Room migration, demo account, platform settings, last-session restore), then flips `VimsApplication.ready` to true.
+`MainActivity` keeps the system splash on screen (`setKeepOnScreenCondition`) and creates `AppViewModel` + the Compose UI
+only after `ready` — on a normal cold launch and when the activity is recreated after process death. Never read
+`VimsApplication.container` before `ready` (it throws). Debug builds enable StrictMode (disk reads/writes on the main thread,
+`penaltyLog`): `adb logcat -s StrictMode`; startup logs `VIMS-Startup: ready in N ms`.
+
 ### Launch splash
 `Theme.VIMS.Starting` (SplashScreen API, light gray `#D4D4D9` matching the video, no icon) → `SplashVideo` plays
 `shared/media/vims-splash.mp4` once, muted, **fit inside** (whole frame visible on every aspect ratio, never cropped),
@@ -136,8 +145,8 @@ preferred (the emulator's "goldfish" decoder renders nothing under software GPU)
   Debug override to test it: `--es eulaVersion 2026-12-01`.
 - Viewer: Settings → Legal → End User License Agreement ("Revised <date>"): title, revised date, intro, numbered
   section headings (brand-deep), paragraphs, footer.
-- Loading: `Eula.load()` runs once, synchronously, when `AppContainer` is created (Application scope, so it is present on
-  a cold start straight into any screen and after process death). It returns a `Result`; a missing/unreadable/invalid
+- Loading: `Eula.load()` runs once, during the background app startup when `AppContainer` is created, and always before
+  any screen is shown (Application scope, so it is present on a cold start straight into any screen and after process death). It returns a `Result`; a missing/unreadable/invalid
   file is logged (`adb logcat -s VIMS-EULA`) and the viewer and gate show "The license agreement couldn't be loaded"
   with the error instead of a blank card. The build also fails (`verifySharedAssets`, runs before `preBuild`) if
   `../shared/legal/eula.json` or `../shared/icons/icons.json` is missing, since assets come from `../shared`.

@@ -16,31 +16,49 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.lifecycle.lifecycleScope
 import com.vims.app.ui.SplashVideo
 import com.vims.app.ui.AppViewModel
 import com.vims.app.ui.DebugLaunch
 import com.vims.app.ui.VimsRoot
 import com.vims.app.ui.theme.VimsTheme
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private val vm: AppViewModel by viewModels()
     private var debug by mutableStateOf<DebugLaunch?>(null)
 
+    /** Set (main thread) right after the UI is composed; the system splash stays up until then. */
+    private var uiShown = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
-        installSplashScreen() // Android 12+ SplashScreen API (light gray, no icon) → then the splash video below
+        // Android 12+ SplashScreen API (light gray, no icon) → then the splash video below. It stays on screen while
+        // VimsApplication finishes its background startup (Room, migration, EULA, checklist config, session restore).
+        installSplashScreen().setKeepOnScreenCondition { !uiShown }
         super.onCreate(savedInstanceState)
         // Blue header runs under the status bar (light icons); light navigation bar over the paper background.
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT),
         )
+        val cold = savedInstanceState == null
         var showVideo = false
-        if (savedInstanceState == null) {
+        if (cold) {
             debug = parseDebug(intent)
             showVideo = debug == null || intent.getBooleanExtra("video", false)
-            // Free-look splash: a restored session counts as a sign-in during the trial.
-            if (debug == null && vm.session.value != null) vm.maybeShowSplash()
         }
+        val launchedWithDebug = debug != null
+        // The ViewModel (and everything that reads the AppContainer) is only created once startup is done; this also
+        // covers process-death restore, where the activity is recreated before the new process has finished starting.
+        val app = application as VimsApplication
+        if (app.ready.value) showUi(cold, launchedWithDebug, showVideo)
+        else lifecycleScope.launch { app.ready.first { it }; showUi(cold, launchedWithDebug, showVideo) }
+    }
+
+    private fun showUi(cold: Boolean, launchedWithDebug: Boolean, showVideo: Boolean) {
+        // Free-look splash: a restored session counts as a sign-in during the trial.
+        if (cold && !launchedWithDebug && vm.session.value != null) vm.maybeShowSplash()
         setContent {
             VimsTheme {
                 var video by rememberSaveable { mutableStateOf(showVideo) }
@@ -51,6 +69,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+        uiShown = true
     }
 
     override fun onNewIntent(intent: Intent) {

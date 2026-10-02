@@ -76,3 +76,10 @@ fun rememberThumb(file: File, version: Int = 0, max: Int = 360): State<ImageBitm
     produceState<ImageBitmap?>(null, file.path, version, max) {
         value = withContext(Dispatchers.IO) { Images.thumb(file, max)?.asImageBitmap() }
     }
+
+/** Whether [file] exists, checked off the main thread (starts as [initial] until the check finishes). */
+@Composable
+fun rememberFileExists(file: File?, version: Int = 0, initial: Boolean = file != null): State<Boolean> =
+    produceState(initial, file?.path, version) {
+        value = file != null && withContext(Dispatchers.IO) { file.exists() }
+    }

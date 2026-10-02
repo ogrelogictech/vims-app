@@ -133,7 +133,7 @@ fun InspectorsScreen(vm: AppViewModel, nav: NavHostController) {
         account.inspectors.forEach { ins ->
             ListRow(
                 "${ins.name} · ${ins.roleLabel}", ins.email.ifBlank { "no email yet" }, titleMaxLines = 2,
-                lead = { UserAvatar(photos[ins.email.lowercase()]?.let { java.io.File(ctx.filesDir, it) }, ins.initials, 44.dp, photoVersion) },
+                lead = { UserAvatar(photos[ins.email.lowercase()]?.let { java.io.File(vm.filesDir, it) }, ins.initials, 44.dp, photoVersion) },
                 end = {
                     if (ins.owner) Pill("Admin", PillKind.Done)
                     else if (canManage) Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {

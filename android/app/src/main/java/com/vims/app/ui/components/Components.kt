@@ -602,8 +602,9 @@ fun companyInitials(name: String): String =
 /** The company's uploaded logo on a white tile, or an initials badge when no logo has been uploaded. */
 @Composable
 fun CompanyBadge(logo: java.io.File?, name: String, size: Dp, version: Int = 0, radius: Dp = size * 0.22f, bordered: Boolean = true) {
-    val img = logo?.takeIf { it.exists() }?.let { com.vims.app.util.rememberThumb(it, version, 512).value }
-    if (logo?.exists() == true) {
+    // File checks and decoding stay off the main thread (the Home header shows this badge right at startup).
+    val img = logo?.let { com.vims.app.util.rememberThumb(it, version, 512).value }
+    if (com.vims.app.util.rememberFileExists(logo, version).value) {
         Box(
             Modifier.size(size).clip(RoundedCornerShape(radius)).background(Color.White).let { if (bordered) it.border(1.dp, V.line, RoundedCornerShape(radius)) else it },
             contentAlignment = Alignment.Center,
@@ -618,7 +619,7 @@ fun CompanyBadge(logo: java.io.File?, name: String, size: Dp, version: Int = 0, 
 /** The user's own profile photo in a circle, or their initials (never the company logo). */
 @Composable
 fun UserAvatar(photo: java.io.File?, initials: String, size: Dp, version: Int = 0) {
-    val img = photo?.takeIf { it.exists() }?.let { com.vims.app.util.rememberThumb(it, version, 384).value }
+    val img = photo?.let { com.vims.app.util.rememberThumb(it, version, 384).value } // missing file → null (checked off the main thread)
     if (img != null) {
         androidx.compose.foundation.Image(img, "Profile photo", Modifier.size(size).clip(CircleShape), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
     } else LeadInitials(initials, size, circle = true)
