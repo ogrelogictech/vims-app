@@ -1,6 +1,6 @@
 {
  "_about": "VIMS shared checklist + configuration data. Single source of truth for the native iOS (SwiftUI) and Android (Kotlin/Compose) apps. Extracted from the client-approved prototype (index.html, approved Sep 15, 2026). Edit here, not in app code.",
- "version": "1.2.0",
+ "version": "1.3.0",
  "generated": "2026-09-29",
  "depths": [
   {
@@ -30824,6 +30824,9 @@
    "on": true,
    "email": "jeremy@visionpropertyinspections.com",
    "_about": "Owner-admin setting (VIMS platform owner only, not each company's admin): every inspection report emailed from the app is also sent as a blind carbon copy to this address for report-quality review. Disclosed in the VIMS EULA. Clients/agents never see it. Default address is a placeholder until the client confirms."
+  },
+  "ccInspector": {
+   "_about": "Every report emailed from the app is CC'd to the signed-in inspector's own email (archive copy), alongside To = client (+agent) and BCC = platform report-quality address when on."
   }
  },
  "sample": {
@@ -30902,5 +30905,241 @@
    "4 Point Inspection": "4 Point Inspection",
    "*": "standard"
   }
+ },
+ "states": [
+  {
+   "code": "AL",
+   "name": "Alabama"
+  },
+  {
+   "code": "AK",
+   "name": "Alaska"
+  },
+  {
+   "code": "AZ",
+   "name": "Arizona"
+  },
+  {
+   "code": "AR",
+   "name": "Arkansas"
+  },
+  {
+   "code": "CA",
+   "name": "California"
+  },
+  {
+   "code": "CO",
+   "name": "Colorado"
+  },
+  {
+   "code": "CT",
+   "name": "Connecticut"
+  },
+  {
+   "code": "DE",
+   "name": "Delaware"
+  },
+  {
+   "code": "DC",
+   "name": "District of Columbia"
+  },
+  {
+   "code": "FL",
+   "name": "Florida"
+  },
+  {
+   "code": "GA",
+   "name": "Georgia"
+  },
+  {
+   "code": "HI",
+   "name": "Hawaii"
+  },
+  {
+   "code": "ID",
+   "name": "Idaho"
+  },
+  {
+   "code": "IL",
+   "name": "Illinois"
+  },
+  {
+   "code": "IN",
+   "name": "Indiana"
+  },
+  {
+   "code": "IA",
+   "name": "Iowa"
+  },
+  {
+   "code": "KS",
+   "name": "Kansas"
+  },
+  {
+   "code": "KY",
+   "name": "Kentucky"
+  },
+  {
+   "code": "LA",
+   "name": "Louisiana"
+  },
+  {
+   "code": "ME",
+   "name": "Maine"
+  },
+  {
+   "code": "MD",
+   "name": "Maryland"
+  },
+  {
+   "code": "MA",
+   "name": "Massachusetts"
+  },
+  {
+   "code": "MI",
+   "name": "Michigan"
+  },
+  {
+   "code": "MN",
+   "name": "Minnesota"
+  },
+  {
+   "code": "MS",
+   "name": "Mississippi"
+  },
+  {
+   "code": "MO",
+   "name": "Missouri"
+  },
+  {
+   "code": "MT",
+   "name": "Montana"
+  },
+  {
+   "code": "NE",
+   "name": "Nebraska"
+  },
+  {
+   "code": "NV",
+   "name": "Nevada"
+  },
+  {
+   "code": "NH",
+   "name": "New Hampshire"
+  },
+  {
+   "code": "NJ",
+   "name": "New Jersey"
+  },
+  {
+   "code": "NM",
+   "name": "New Mexico"
+  },
+  {
+   "code": "NY",
+   "name": "New York"
+  },
+  {
+   "code": "NC",
+   "name": "North Carolina"
+  },
+  {
+   "code": "ND",
+   "name": "North Dakota"
+  },
+  {
+   "code": "OH",
+   "name": "Ohio"
+  },
+  {
+   "code": "OK",
+   "name": "Oklahoma"
+  },
+  {
+   "code": "OR",
+   "name": "Oregon"
+  },
+  {
+   "code": "PA",
+   "name": "Pennsylvania"
+  },
+  {
+   "code": "RI",
+   "name": "Rhode Island"
+  },
+  {
+   "code": "SC",
+   "name": "South Carolina"
+  },
+  {
+   "code": "SD",
+   "name": "South Dakota"
+  },
+  {
+   "code": "TN",
+   "name": "Tennessee"
+  },
+  {
+   "code": "TX",
+   "name": "Texas"
+  },
+  {
+   "code": "UT",
+   "name": "Utah"
+  },
+  {
+   "code": "VT",
+   "name": "Vermont"
+  },
+  {
+   "code": "VA",
+   "name": "Virginia"
+  },
+  {
+   "code": "WA",
+   "name": "Washington"
+  },
+  {
+   "code": "WV",
+   "name": "West Virginia"
+  },
+  {
+   "code": "WI",
+   "name": "Wisconsin"
+  },
+  {
+   "code": "WY",
+   "name": "Wyoming"
+  }
+ ],
+ "stateRules": {
+  "TX": {
+   "type": "Texas",
+   "note": "Texas requires the TREC Property Inspection Report form (REI 7-6) for every inspection, so the inspection type is set to Texas."
+  },
+  "OK": {
+   "summaryDisclosure": "If yellow Corrugated Stainless Steel Tubing is observed, noting that only a licensed electrician can determine proper bonding.",
+   "note": "Oklahoma: a required disclosure is added to page 1 of the report summary."
+  },
+  "OR": {
+   "coverNotice": "This inspection report is for the express and exclusive use of the purchaser and any third parties (such as future buyers) cannot rely on the findings.",
+   "note": "Oregon: required wording is added to the report cover, and the CCB Home Inspection Consumer Notice must be given with the inspection agreement.",
+   "docs": [
+    {
+     "name": "Oregon Home Inspection Consumer Notice (CCB, OAR 812-008-0202)",
+     "file": "legal/state/oregon-home-inspection-consumer-notice.pdf"
+    }
+   ]
+  },
+  "LA": {
+   "note": "Louisiana: the LSBHI Standards of Practice and Code of Ethics must be given with the inspection agreement.",
+   "docs": [
+    {
+     "name": "Louisiana Standards of Practice & Code of Ethics (LSBHI)",
+     "file": "legal/state/louisiana-standards-of-practice-code-of-ethics.pdf"
+    }
+   ]
+  },
+  "_about": "Keyed by the inspection's property state (new required 'State' field in wizard step 1, right after Inspection address). type: auto-select that inspection type when the state is chosen (revert to 'Real Estate Sale' if the state changes away and the type is still the auto one). note: info card under the State field. summaryDisclosure: permanent entry at the top of the Summary screen and page 1 of the report's Summary (any report layout that has a summary). coverNotice: extra line on the report cover under the ownership notice (all layouts). docs: state documents (PDF paths relative to shared/) that must be given to the client with the inspection agreement — show View + Send to client (share/email the PDF to the client email) and a required checkbox 'Provided to the client with the inspection agreement' that blocks Next on step 1 until checked; store the acknowledgment on the inspection."
  }
 }

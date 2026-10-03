@@ -1,7 +1,7 @@
 {
  "title": "Vision Inspection Management Solutions (V.I.M.S.) — Master End User License Agreement",
  "revised": "June 10, 2026",
- "version": "2026-06-10",
+ "version": "2026-10-03",
  "intro": [
   "THIS AGREEMENT GOVERNS YOUR FREE TRIAL AND/OR YOUR LICENSE SUBSCRIPTION OF OUR SOFTWARE PRODUCTS.",
   "IF THIS AGREEMENT IS TRANSLATED INTO ANY OTHER LANGUAGE, THE ENGLISH LANGUAGE VERSION WILL ALWAYS BE THE CONTROLLING LANGUAGE.",
@@ -45,7 +45,8 @@
    "paragraphs": [
     "3.1. Provision of SOFTWARE. We will (a) make the SOFTWARE available to You pursuant to this Agreement and the applicable Order Forms, (b) provide Our standard support for the Licensed SOFTWARE to You at no additional charge, and/or upgraded support if purchased, and (c) use commercially reasonable efforts to make the online Licensed SOFTWARE available 24 hours a day, 7 days a week, except for: (i) planned downtime (of which We shall give at least 8 hours electronic notice and which We shall schedule to the extent practicable during the weekend hours between 6:00 p.m. Friday and 3:00 a.m. Monday Pacific time), and (ii) any unavailability caused by circumstances beyond Our reasonable control, including, for example, an act of God, act of government, flood, fire, earthquake, civil unrest, act of terror, strike or other labor problem (other than one involving Our employees), Internet service provider failure or delay, Third-Party Application, or denial of service attack.",
     "3.2. Protection of Your Data. We will maintain administrative, physical, and technical safeguards for protection of the security, confidentiality and integrity of Your Data. Those safeguards will include, but will not be limited to, measures for preventing access, use, modification, Sale or disclosure of Your Data by Our personnel except (a) to provide the Licensed SOFTWARE and prevent or address service or technical problems, (b) as compelled by law in accordance with Section 8.3 (Compelled Disclosure) below, or (c) as You expressly permit in writing. In the event that the subscriber chooses to discontinue their subscription, it is the duty of the subscriber to export or download any and all data that they have entered into the V.I.M.S. system within 30 days following discontinuance or cancellation of said subscription or service.",
-    "3.3 Our Personnel. We will be responsible for the performance of Our personnel (including Our employees and contractors) and their compliance with Our obligations under this Agreement, except as otherwise specified herein."
+    "3.3 Our Personnel. We will be responsible for the performance of Our personnel (including Our employees and contractors) and their compliance with Our obligations under this Agreement, except as otherwise specified herein.",
+    "3.4 Licensing. Any person/inspector using this software/service must comply with the local and state home inspector licensing requirement, if any. Not maintaining the required licensing constitutes a breach of this contract and will result in termination."
    ]
   },
   {
@@ -158,5 +159,5 @@
   }
  ],
  "footer": "Vision Inspection Management Solutions LLC Master End User License Agreement Revised June 10, 2026 © Vision Inspection Management Solutions LLC. All Rights Reserved",
- "_about": "Client-supplied EULA (file 'Vision Inspection Management Solution EULA.pdf', revised June 10, 2026), text reproduced verbatim for in-app display. Shown on Create account (must accept) and Settings → Legal. Replace this file when the client sends a revised version; bump 'version' so users re-accept."
+ "_about": "Client-supplied EULA (client file 'Vision Inspection Management Solution EULA', latest revision received Oct 3, 2026 — adds 3.4 Licensing; document still says Revised June 10, 2026), text reproduced verbatim for in-app display. Shown on Create account (must accept) and Settings → Legal. Replace this file when the client sends a revised version; bump 'version' so users re-accept."
 }
