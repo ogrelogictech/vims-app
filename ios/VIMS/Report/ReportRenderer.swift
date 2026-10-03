@@ -63,6 +63,13 @@ struct ReportData {
     var formSections: [FormSectionData] = []
     var pictures: [ReportPhoto] = []
 
+    // Property state rules (data v1.3 stateRules)
+    /// summaryDisclosure: boxed at the top of page 1 of the Summary (standard + Texas layouts).
+    var summaryDisclosure: String = ""
+    var summaryDisclosureTitle: String = ""
+    /// coverNotice: extra line under the ownership notice on the cover (all layouts).
+    var coverNotice: String = ""
+
     static func make(_ insp: Inspection, config cfg: ChecklistConfig, overrides: ChecklistOverrides,
                      company: CompanyProfile, repo: FileStore, logo: UIImage?) -> ReportData {
         let cat = ChecklistCatalog(config: cfg, overrides: overrides)
@@ -203,6 +210,11 @@ struct ReportData {
         data.policyNumber = insp.field("policyNumber")
         data.yearBuilt = insp.field("Year of construction")
         data.companyPhone = company.phone
+        if let rule = cfg.stateRule(insp.state) {
+            data.summaryDisclosure = rule.summaryDisclosure ?? ""
+            data.summaryDisclosureTitle = "\(cfg.stateName(insp.state) ?? insp.stateCode) disclosure"
+            data.coverNotice = rule.coverNotice ?? ""
+        }
         if data.layout != .standard {
             let formNames = insp.leafSections.filter { cat.isForm($0) && !cat.isPhotosOnly($0) }
             data.formSections = cat.sortedForReport(formNames).map { name in
@@ -571,8 +583,12 @@ enum ReportRenderer {
                 hline(fy + 20, x: lx + ll, w: licW, UIColor(hex: 0x9FB0C2), width: 0.8)
                 fy += 28
             }
-            // image area
-            let bandH: CGFloat = 92
+            // image area — the bottom band grows when a state cover notice (Oregon) is printed under the ownership notice
+            let ownership = "This inspection report is the property of \(d.companyName). Any reproduction or distribution without written consent is prohibited."
+            let noticeW = W * 0.58
+            let ownershipH = measure(ownership, VFont.uDisplay(10.5, .bold), w: noticeW, lineSpacing: 3)
+            let coverNoticeH = d.coverNotice.isEmpty ? 0 : measure(d.coverNotice, VFont.uUI(9.2, .semibold), w: noticeW, lineSpacing: 2) + 6
+            let bandH: CGFloat = max(92, 22 + ownershipH + coverNoticeH + 18)
             let img = CGRect(x: 50, y: fy + 14, width: W - 100, height: H - bandH - 16 - (fy + 14))
             let photo = d.coverPhoto.flatMap { loadImage($0, maxPixel: 1800) }
             switch d.cover.style {
@@ -598,8 +614,10 @@ enum ReportRenderer {
             // bottom band
             let band = CGRect(x: 0, y: H - bandH, width: W, height: bandH)
             gradient(band, d.coverFrom, d.coverTo)
-            text("This inspection report is the property of \(d.companyName). Any reproduction or distribution without written consent is prohibited.",
-                 VFont.uDisplay(10.5, .bold), .white, x: 40, y: band.minY + 22, w: W * 0.58, lineSpacing: 3)
+            text(ownership, VFont.uDisplay(10.5, .bold), .white, x: 40, y: band.minY + 22, w: noticeW, lineSpacing: 3)
+            if !d.coverNotice.isEmpty {
+                text(d.coverNotice, VFont.uUI(9.2, .semibold), .white, x: 40, y: band.minY + 22 + ownershipH + 6, w: noticeW, lineSpacing: 2)
+            }
             text("Cover artwork", VFont.uUI(8.5), UIColor(hex: 0xCFE0FF), x: W - 40 - 200, y: band.minY + 26, w: 200, align: .right)
             let tag = d.cover.label
             let tw = (tag as NSString).size(withAttributes: [.font: VFont.uUI(7.5)]).width + 14
@@ -684,6 +702,22 @@ enum ReportRenderer {
             }
         }
 
+        /// stateRules summaryDisclosure (Oklahoma) — report.html okBox(): note with an amber left rule.
+        func stateDisclosure() {
+            let tw = contentW - 26
+            let titleF = VFont.uUI(9.5, .bold), bodyF = VFont.uUI(9.2)
+            let h = 10 + measure(d.summaryDisclosureTitle, titleF, w: tw) + 3 + measure(d.summaryDisclosure, bodyF, w: tw) + 10
+            ensure(h)
+            let r = CGRect(x: m, y: y, width: contentW, height: h)
+            fill(r, paper2, radius: 6)
+            stroke(r, line, radius: 6)
+            fill(CGRect(x: m, y: y, width: 3, height: h), UIColor(hex: 0xC98A1A))
+            var ty = y + 10
+            ty += text(d.summaryDisclosureTitle, titleF, ink, x: m + 14, y: ty, w: tw) + 3
+            text(d.summaryDisclosure, bodyF, ink2, x: m + 14, y: ty, w: tw)
+            y += h + 14
+        }
+
         func findingLine(_ f: Finding, number: Int?) {
             let lead: CGFloat = 26
             let label = number.map(String.init) ?? "Cat \(f.category)"
@@ -760,6 +794,7 @@ enum ReportRenderer {
             onPageBreak = nil
             newContentPage()
             pageTitle("Summary of Findings", subtitle)
+            if !d.summaryDisclosure.isEmpty { stateDisclosure() }
             let order = d.sections.map(\.name)
             for c in d.categories {
                 let items = d.findings.filter { $0.category == c.id }.sorted { a, b in

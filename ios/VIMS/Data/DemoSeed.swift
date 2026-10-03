@@ -68,6 +68,7 @@ enum DemoSeed {
                 counts: ["bedrooms": d.bedrooms, "bathrooms": d.bathrooms, "hallways": d.hallways],
                 cover: state.settings.defaultCover)
             if let fx = config.wizard.structureSideEffects[structure]?["exterior"], !i.exterior.contains(fx) { i.exterior.append(fx) }
+            i.state = Inspection.inferState(from: address, states: config.states ?? [])
             return i
         }
 

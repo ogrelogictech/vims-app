@@ -273,3 +273,15 @@ the app (or launch with `-resetData` in Debug) to reseed.
 
 Client-payment screens (Collect payment / Payment received, prototype screens 31–32) and every "Collect
 payment" button are a confirmed add-on and are not built. The report therefore has no invoice page.
+
+## State rules, state documents, CC inspector (shared data v1.3)
+
+- **State field:** wizard step 1 has a required **State** (from `shared/data/vims-checklists.json` → `states`) right after Inspection address. It is saved on the inspection and shown with the address.
+- **`stateRules`** (same JSON; behavior described in its `_about`):
+  - **TX:** auto-selects the **Texas** (TREC) inspection type. If the state changes away while the type is still the automatic one, it reverts to Real Estate Sale.
+  - **OK:** the `summaryDisclosure` is a permanent entry at the top of the Summary screen and page 1 of the PDF summary.
+  - **OR:** the `coverNotice` prints on the PDF cover under the ownership notice, in every layout.
+  - **OR / LA `docs`:** the state documents (`shared/legal/state/*.pdf`) are listed in step 1 with **View** and **Send to client**. A required checkbox, "Provided to the client with the inspection agreement," blocks **Next**, and the acknowledgment is stored with a timestamp.
+  - **Adding a state:** edit `stateRules` in the shared JSON. No code changes are needed.
+- **Emailed reports** go To the client and agent, with **CC to the signed-in inspector** (archive copy) and BCC to the platform report-quality address when that setting is on.
+- **EULA** `version` 2026-10-03 adds clause 3.4 (Licensing). Users who accepted an older version see the re-accept gate once.

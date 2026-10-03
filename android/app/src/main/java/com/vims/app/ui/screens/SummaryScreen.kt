@@ -55,6 +55,8 @@ fun SummaryScreen(vm: AppViewModel, nav: NavHostController, inspId: String) {
         overlay = { SectionsDrawer(drawer, b, null, { drawer = false }, { drawer = false; nav.openLink(it, inspId) }, { drawer = false; nav.openSection(inspId, it) }) },
     ) {
         Hint("Every finding you flag lands here automatically, grouped by category. This drives the summary pages of the report.", Modifier.padding(top = 2.dp, bottom = 14.dp))
+        // State-required disclosure (stateRules.<STATE>.summaryDisclosure, e.g. Oklahoma) — permanent, always first.
+        StateDisclosureCard(vm, b.inspection.selections.state)
         vm.config.findings.categories.forEach { cat ->
             val items = b.findings.filter { it.cat == cat.id }.sortedWith(compareBy({ ChecklistEngine.number(b.defs, it.section) }, { it.createdAt }))
             Column(Modifier.padding(bottom = 12.dp).fillMaxWidth().vCard()) {

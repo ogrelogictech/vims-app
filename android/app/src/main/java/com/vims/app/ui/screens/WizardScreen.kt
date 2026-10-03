@@ -96,9 +96,9 @@ fun WizardScreen(vm: AppViewModel, nav: NavHostController, inspId: String?) {
                 1 -> {
                     Lbl(cfg.steps.getOrElse(0) { "Client & inspection" }, first = true)
                     RequiredHint()
-                    WizardFields(vm, cfg.step1, w.sel, form = form)
+                    WizardFields(vm, nav, cfg.step1, w.sel, form = form)
                 }
-                2 -> WizardFields(vm, cfg.step2, w.sel, step2 = true, form = form)
+                2 -> WizardFields(vm, nav, cfg.step2, w.sel, step2 = true, form = form)
                 3 -> {
                     Hint("Choose every area to inspect — add or remove anything. This builds the checklist.", Modifier.padding(top = 2.dp, bottom = 12.dp))
                     Lbl("Exterior areas", first = true)
@@ -148,7 +148,7 @@ private fun keyboardFor(f: WizardFieldDef, step2: Boolean): KeyboardType = when 
 
 /** Renders a wizard step from `wizard.step1` / `wizard.step2` in vims-checklists.json. */
 @Composable
-private fun WizardFields(vm: AppViewModel, defs: List<WizardFieldDef>, sel: WizardSelections, step2: Boolean = false, form: FormState) {
+private fun WizardFields(vm: AppViewModel, nav: NavHostController, defs: List<WizardFieldDef>, sel: WizardSelections, step2: Boolean = false, form: FormState) {
     val cfg = vm.config.wizard
     var i = 0
     var shownDetailsLbl = false
@@ -182,6 +182,8 @@ private fun WizardFields(vm: AppViewModel, defs: List<WizardFieldDef>, sel: Wiza
                 Column(Modifier.padding(bottom = 13.dp)) {
                     FieldCell(vm, f, sel, Modifier, step2, form)
                 }
+                // Data v1.3: required State dropdown (+ state rules) directly after Inspection address.
+                if (f.label == WizardSelections.F_ADDRESS && !step2) StateField(vm, nav, sel, form)
                 if (f.label == WizardSelections.F_AGENT_EMAIL) {
                     Text("Client & agent emails are used to send the finished report.", style = T.ui(12.sp, color = V.ink3), modifier = Modifier.padding(start = 2.dp, end = 2.dp, top = 0.dp, bottom = 12.dp))
                 }
@@ -282,12 +284,20 @@ private fun FieldCell(vm: AppViewModel, f: WizardFieldDef, sel: WizardSelections
             "date" -> PickerField(if (v.isBlank()) "" else Fmt.date(v), "Select date", VIcons.calendar, { pickDate(ctx, v, minDate, set) }, error = err)
             "time" -> PickerField(if (v.isBlank()) "" else Fmt.time(v), "Select time", VIcons.clock, { pickTime(ctx, v, set) }, error = err)
             "textarea" -> VInput(v, set, placeholder = f.placeholder.orEmpty(), multiline = true, filter = { Filters.base(it, 1000, multiline = true) }, error = err)
-            else -> VInput(v, set, placeholder = f.placeholder.orEmpty(), keyboard = keyboardFor(f, step2), error = err, filter = wizardFilter(f.label),
+            else -> VInput(v, set, placeholder = placeholderFor(f), keyboard = keyboardFor(f, step2), error = err, filter = wizardFilter(f.label),
                 visual = if (f.type == "tel") PhoneTransform else androidx.compose.ui.text.input.VisualTransformation.None,
                 caps = if (f.label.contains("name", true) || f.label.contains("address", true)) KeyboardCapitalization.Words else KeyboardCapitalization.None)
         }
     }
 }
+
+/**
+ * The address no longer asks for the state (it has its own field since data v1.3): "Street, City, ZIP". Until
+ * shared/data's wizard.step1 placeholder is updated from "Street, City, State", that one value is swapped here.
+ */
+private fun placeholderFor(f: WizardFieldDef): String =
+    if (f.label == WizardSelections.F_ADDRESS && f.placeholder.orEmpty().endsWith("State")) f.placeholder.orEmpty().removeSuffix("State") + "ZIP"
+    else f.placeholder.orEmpty()
 
 /** While-typing filters for wizard fields (by JSON label / typeField key) — docs/validation-rules.md. */
 private fun wizardFilter(key: String): ((String) -> String)? = when (key) {

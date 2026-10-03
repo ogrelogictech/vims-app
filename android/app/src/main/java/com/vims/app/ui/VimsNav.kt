@@ -99,9 +99,11 @@ import kotlinx.serialization.Serializable
 @Serializable object FeedbackAdminR
 @Serializable object ReportBccR
 @Serializable object EulaR
+/** State document viewer (`file` = asset path relative to shared/, from stateRules.<STATE>.docs). */
+@Serializable data class StateDocR(val file: String, val name: String)
 
 /** Debug-only launch options (adb `--es screen …`), used to open any screen directly for screenshots. */
-data class DebugLaunch(val screen: String, val insp: String?, val section: String?, val cat: String?, val photo: String?, val depth: String?, val splash: Boolean, val step: Int = 1, val coverStep: Int = 1, val eulaVersion: String? = null)
+data class DebugLaunch(val screen: String, val insp: String?, val section: String?, val cat: String?, val photo: String?, val depth: String?, val splash: Boolean, val step: Int = 1, val coverStep: Int = 1, val eulaVersion: String? = null, val state: String? = null)
 
 fun NavHostController.back() { if (!popBackStack()) goHome() }
 fun NavHostController.goHome() = navigate(HomeR) { popUpTo(0) { inclusive = true } }
@@ -150,6 +152,7 @@ fun VimsRoot(vm: AppViewModel, debug: DebugLaunch?) {
             composable<FeedbackAdminR> { FeedbackAdminScreen(vm, nav) }
             composable<EulaR> { com.vims.app.ui.screens.EulaScreen(vm, nav) }
             composable<ReportBccR> { com.vims.app.ui.screens.ReportBccScreen(vm, nav) }
+            composable<StateDocR> { val r = it.toRoute<StateDocR>(); com.vims.app.ui.screens.StateDocScreen(vm, nav, r.file, r.name) }
         }
 
         TrialSplash(vm, nav)
@@ -170,6 +173,7 @@ private suspend fun applyDebug(vm: AppViewModel, nav: NavHostController, d: Debu
     val id = d.insp ?: "demo-ridgeline"
     if (d.screen != "login") vm.debugSignIn()
     d.depth?.let { vm.debugSetDepth(id, it) }
+    d.state?.let { vm.debugSetState(id, it) }
     vm.debugWizardStep = d.step
     d.eulaVersion?.let { vm.debugEulaVersion = it }
     vm.debugCoverStep = d.coverStep

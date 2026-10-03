@@ -85,6 +85,7 @@ class MainActivity : ComponentActivity() {
             screen = screen, insp = i.getStringExtra("insp"), section = i.getStringExtra("section"), cat = i.getStringExtra("cat"),
             photo = i.getStringExtra("photo"), depth = i.getStringExtra("depth"), splash = i.getBooleanExtra("splash", false),
             step = i.getIntExtra("step", 1), coverStep = i.getIntExtra("coverStep", 1), eulaVersion = i.getStringExtra("eulaVersion"),
+            state = i.getStringExtra("state"),
         )
     }
 }

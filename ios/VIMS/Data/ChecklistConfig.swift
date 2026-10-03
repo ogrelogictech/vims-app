@@ -22,6 +22,9 @@ struct ChecklistConfig: Decodable {
     let sample: SampleDef
     let formLabels: [String: String]?
     let reportLayouts: ReportLayoutsDef?
+    /// v1.3: the property State picker (50 states + DC, in display order) and per-state rules.
+    let states: [StateDef]?
+    let stateRules: StateRulesDef?
 
     /// Keys of JSON objects whose order matters but that Swift dictionaries lose.
     var unitMixOrder: [String] = []
@@ -29,7 +32,72 @@ struct ChecklistConfig: Decodable {
 
     private enum CodingKeys: String, CodingKey {
         case version, depths, depthRules, overallCondition, overallConditionDefault, sectionGroups, sections,
-             checklistBuilder, wizard, findings, covers, subscription, support, sample, formLabels, reportLayouts
+             checklistBuilder, wizard, findings, covers, subscription, support, sample, formLabels, reportLayouts,
+             states, stateRules
+    }
+
+    /// `stateRules[code]`, or nil when the state has no special rules (or no state is set).
+    func stateRule(_ code: String?) -> StateRuleDef? {
+        guard let code, !code.isEmpty else { return nil }
+        return stateRules?.byState[code]
+    }
+    /// Full state name for a USPS code ("OR" -> "Oregon").
+    func stateName(_ code: String?) -> String? {
+        guard let code, !code.isEmpty else { return nil }
+        return states?.first { $0.code == code }?.name
+    }
+}
+
+/// `states[]` entry (v1.3).
+struct StateDef: Decodable, Hashable { let code: String; let name: String }
+
+/// `stateRules[code]` (v1.3) — see the JSON `_about`:
+/// type → auto-select that inspection type; note → info card under the State field;
+/// summaryDisclosure → top of the Summary screen + page 1 of the PDF summary; coverNotice → PDF cover line;
+/// docs → state documents given with the inspection agreement (View / Send to client + required acknowledgment).
+struct StateRuleDef: Decodable, Hashable {
+    let type: String?
+    let note: String?
+    let summaryDisclosure: String?
+    let coverNotice: String?
+    let docs: [StateDocDef]?
+
+    var requiredDocs: [StateDocDef] { docs ?? [] }
+}
+
+/// A state document; `file` is relative to shared/ (e.g. "legal/state/oregon-….pdf").
+struct StateDocDef: Decodable, Hashable {
+    let name: String
+    let file: String
+
+    /// The bundled PDF (shared/legal is a synchronized group, so the file is copied into the app bundle).
+    var bundleURL: URL? {
+        let base = ((file as NSString).lastPathComponent as NSString).deletingPathExtension
+        let ext = (file as NSString).pathExtension.isEmpty ? "pdf" : (file as NSString).pathExtension
+        let dir = (file as NSString).deletingLastPathComponent
+        return Bundle.main.url(forResource: base, withExtension: ext)
+            ?? Bundle.main.url(forResource: base, withExtension: ext, subdirectory: dir)
+            ?? Bundle.main.url(forResource: base, withExtension: ext, subdirectory: (dir as NSString).lastPathComponent)
+    }
+}
+
+/// `stateRules`: state code -> rule (the object also carries an "_about" string).
+struct StateRulesDef: Decodable {
+    let byState: [String: StateRuleDef]
+
+    private struct Key: CodingKey {
+        var stringValue: String; var intValue: Int? { nil }
+        init?(stringValue: String) { self.stringValue = stringValue }
+        init?(intValue: Int) { nil }
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: Key.self)
+        var out: [String: StateRuleDef] = [:]
+        for k in c.allKeys where !k.stringValue.hasPrefix("_") {
+            if let v = try? c.decode(StateRuleDef.self, forKey: k) { out[k.stringValue] = v }
+        }
+        byState = out
     }
 }
 
@@ -216,7 +284,11 @@ struct SupportDef: Decodable {
     let feedbackEmail: String
     /// v1.2: default for the platform owner's report-quality BCC.
     let reportBcc: ReportBccDef?
+    /// v1.3: present → every emailed report is CC'd to the signed-in inspector's own email.
+    let ccInspector: CCInspectorDef?
 }
+
+struct CCInspectorDef: Decodable {}
 
 struct ReportBccDef: Decodable { let on: Bool; let email: String }
 

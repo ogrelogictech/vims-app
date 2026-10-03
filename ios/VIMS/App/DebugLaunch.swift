@@ -15,6 +15,8 @@ enum DebugFlags {
     static var adminGroup: String?
     static var openMenu = false
     static var validate = false
+    /// -wizState TX[,UT]: states picked in the wizard on open (auto type / revert test).
+    static var wizardStates: [String]?
     /// Screenshot jumps (-screen / -skipLogin) skip the EULA gate unless -eulaGate or -eulaVersion is given.
     static var skipEulaGate = false
 }
@@ -31,7 +33,10 @@ enum DebugFlags {
 ///   -profilePhotoSample        set the signed-in user's profile photo from an inspection photo
 ///   -activeSub                 mark the signed-in company's subscription active (Square · Visa ····4242)
 ///   -eulaStatus                print each local account's accepted EULA version to the console
-///   -mailSelfTest              print the report email draft (to/BCC/subject/attachment) to the console
+///   -mailSelfTest              print the report email draft (to/CC/BCC/subject/attachment) + state-document drafts
+///   -state XX                  set the chosen inspection's property state (OK summary disclosure, OR cover notice)
+///   -wizState TX[,UT]          pick those states in order when the wizard opens (prints STATETEST lines)
+///   -ackStateDocs              with -wizState: tick "Provided to the client with the inspection agreement"
 ///   -validate                  submit the form once so its validation errors show
 ///   -skipLogin                 sign in as the demo owner
 ///   -noSplash                  don't show the free-look splash
@@ -66,9 +71,18 @@ enum DebugLaunch {
         guard let insp, let url = store.reportURL(insp.id) ?? store.inspections.lazy.compactMap({ store.reportURL($0.id) }).first else {
             print("MAILTEST no inspection with a report"); return
         }
-        let d = ReportMailDraft.make(insp, company: store.company, platform: store.platform, pdf: url)
+        let d = store.reportMailDraft(insp, pdf: url)
         print("MAILTEST canSendMail=\(MFMailComposeViewController.canSendMail())")
-        print("MAILTEST to=\(d.to) bcc=\(d.bcc) subject=\(d.subject) attachment=\(d.attachmentName) bytes=\((try? Data(contentsOf: url))?.count ?? 0)")
+        print("MAILTEST to=\(d.to) cc=\(d.cc) bcc=\(d.bcc) subject=\(d.subject) attachment=\(d.attachmentName) bytes=\((try? Data(contentsOf: url))?.count ?? 0)")
+        print("MAILTEST signedIn=\(store.session?.email ?? "none") ccInspector=\(store.config.support.ccInspector != nil)")
+        // State documents (stateRules docs) — the wizard's "Send to client" draft.
+        for (code, rule) in (store.config.stateRules?.byState ?? [:]).sorted(by: { $0.key < $1.key }) {
+            for doc in rule.requiredDocs {
+                guard let pdf = doc.bundleURL else { print("MAILTEST statedoc \(code) MISSING \(doc.file)"); continue }
+                let sd = ReportMailDraft.stateDocument(doc, pdf: pdf, insp: insp, company: store.company, sender: store.session?.name ?? "")
+                print("MAILTEST statedoc \(code) to=\(sd.to) cc=\(sd.cc) bcc=\(sd.bcc) subject=\(sd.subject) attachment=\(sd.attachmentName) bytes=\((try? Data(contentsOf: pdf))?.count ?? 0)")
+            }
+        }
         print("MAILTEST platform bccOn=\(store.platform.reportBccOn) bccEmail=\(store.platform.reportBccEmail)")
         if MFMailComposeViewController.canSendMail() {
             let vc = MFMailComposeViewController(); d.configure(vc); print("MAILTEST composer configured")
@@ -111,6 +125,7 @@ enum DebugLaunch {
            let img = UIImage(contentsOfFile: store.files.url(for: ref.file).path) {
             store.saveProfilePhoto(img)
         }
+        if let v = value("-wizState") { DebugFlags.wizardStates = v.split(separator: ",").map(String.init) }
         if has("-mailSelfTest") { mailSelfTest(store) }
         guard let screen else { return }
         if ["login", "signup", "forgot", "join", "signupEula"].contains(screen), store.session != nil {
@@ -136,9 +151,19 @@ enum DebugLaunch {
 
         let step = value("-step").flatMap(Int.init)
         let pick = value("-inspection") ?? "1428"
+        // -inspection TYPE for a type with no inspection yet (e.g. Texas, "4 Point Inspection"): create one.
+        if store.config.wizard.inspectionTypes.contains(pick), !store.inspections.contains(where: { $0.inspType == pick }) {
+            var draft = store.newInspectionDraft()
+            draft.inspType = pick
+            draft.fields["Inspection address"] = "2207 Lakeview Ter, Austin, 78703"
+            draft.fields["Client name"] = "Marisol Vega"
+            _ = store.buildChecklist(from: draft)
+        }
         guard let ridge = store.inspections.first(where: { $0.address.hasPrefix(pick) || $0.inspType == pick })
                 ?? store.inspections.first else { return }
         let id = ridge.id
+        // -state XX: set the property state on that inspection (summary disclosure / cover notice checks).
+        if let st = value("-state") { store.update(id, markDirty: false) { $0.state = st; $0.stateDocsAck = nil } }
         if let d = value("-depth"), let depth = Depth(rawValue: d) { store.update(id, markDirty: false) { $0.depth = depth } }
         let depth = store.inspection(id)?.depth ?? .standard
         let section = value("-section") ?? (ridge.leafSections.contains("Roof") ? (depth == .high ? "Outside Utilities" : "Roof") : (ridge.leafSections.first ?? "Roof"))

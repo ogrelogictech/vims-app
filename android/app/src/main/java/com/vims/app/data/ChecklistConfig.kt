@@ -35,7 +35,22 @@ data class ChecklistConfig(
     val formLabels: Map<String, String> = emptyMap(),
     /** Page order of the PDF per inspection type (`typeToLayout` picks the layout). */
     val reportLayouts: JsonObject = JsonObject(emptyMap()),
+    /** Property states for the wizard's required "State" dropdown (50 + DC, data v1.3). */
+    val states: List<StateDef> = emptyList(),
+    /** Per-state rules keyed by state code (TX / OK / OR / LA); non-object keys such as `_about` are ignored. */
+    val stateRules: JsonObject = JsonObject(emptyMap()),
 ) {
+    /** Parsed [stateRules] (tolerant: unknown keys inside a rule are ignored, malformed entries skipped). */
+    private val rules: Map<String, StateRule> by lazy {
+        stateRules.mapNotNull { (code, v) ->
+            val o = v as? JsonObject ?: return@mapNotNull null
+            runCatching { ChecklistLoader.json.decodeFromJsonElement(StateRule.serializer(), o) }.getOrNull()?.let { code.uppercase() to it }
+        }.toMap()
+    }
+
+    fun stateRule(code: String?): StateRule? = code?.takeIf { it.isNotBlank() }?.let { rules[it.uppercase()] }
+    fun stateName(code: String?): String = states.firstOrNull { it.code.equals(code, true) }?.name ?: code.orEmpty()
+
     fun section(name: String): SectionDef? = sections.firstOrNull { it.name == name }
     fun depthId(label: String): String = depths.firstOrNull { it.label == label }?.id ?: "standard"
     fun depthLabel(id: String): String = depths.firstOrNull { it.id == id }?.label ?: "Standard"
@@ -57,6 +72,27 @@ data class ChecklistConfig(
         const val LAYOUT_FOUR_POINT = "fourPoint"
     }
 }
+
+@Serializable
+data class StateDef(val code: String, val name: String)
+
+/**
+ * `stateRules.<CODE>` (see its `_about` in vims-checklists.json):
+ * type = auto-selected inspection type · note = info card under the State field · summaryDisclosure = permanent entry at
+ * the top of the Summary screen and page 1 of the PDF summary · coverNotice = extra line under the cover's ownership
+ * notice · docs = PDFs (paths relative to shared/) that must be given to the client with the inspection agreement.
+ */
+@Serializable
+data class StateRule(
+    val type: String? = null,
+    val note: String? = null,
+    val summaryDisclosure: String? = null,
+    val coverNotice: String? = null,
+    val docs: List<StateDoc> = emptyList(),
+)
+
+@Serializable
+data class StateDoc(val name: String, val file: String)
 
 @Serializable
 data class DepthDef(val id: String, val label: String)
@@ -201,7 +237,14 @@ data class SubscriptionDef(
 )
 
 @Serializable
-data class SupportDef(val feedbackEmail: String = "", val reportBcc: ReportBccDef = ReportBccDef())
+data class SupportDef(
+    val feedbackEmail: String = "",
+    val reportBcc: ReportBccDef = ReportBccDef(),
+    /** Data v1.3: every emailed report is CC'd to the signed-in inspector's own email (present = on). */
+    val ccInspector: JsonObject? = null,
+) {
+    val ccInspectorOn: Boolean get() = ccInspector != null
+}
 
 /** Default for the platform owner's "Report quality copy (BCC)" setting (data v1.2). */
 @Serializable

@@ -80,6 +80,7 @@ struct EULAGateView: View {
             AppHeader(title: updated ? "Updated license agreement" : "License agreement",
                       subtitle: store.session == nil ? "Vision Inspection Management Solutions" : store.company.name,
                       leading: .none)
+            ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     // Draft copy (not in the prototype): explains why the screen appears.
@@ -92,6 +93,15 @@ struct EULAGateView: View {
                     EULABody(doc: store.eula)
                 }
                 .padding(.horizontal, 16).padding(.top, 16).padding(.bottom, 20)
+            }
+            #if DEBUG
+            .task {
+                // -eulaSection N|footer also scrolls the gate (review screenshots of a revised clause).
+                guard let n = DebugLaunch.value("-eulaSection") else { return }
+                try? await Task.sleep(nanoseconds: 500_000_000)
+                proxy.scrollTo(n == "footer" ? "eula-footer" : "eula-sec-\(n)", anchor: DebugLaunch.has("-eulaAnchorBottom") ? .bottom : .top)
+            }
+            #endif
             }
             VStack(spacing: 4) {
                 Button("I agree") { withAnimation(.easeOut(duration: 0.25)) { store.acceptEula() } }

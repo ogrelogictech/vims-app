@@ -156,6 +156,12 @@ data class WizardSelections(
     val exterior: List<String> = emptyList(),
     val utilOpt: List<String> = emptyList(),
     val tests: List<String> = emptyList(),
+    /** Property state code (e.g. "OR"); required on wizard step 1 (data v1.3). Empty on inspections made before v1.3. */
+    val state: String = "",
+    /** The state's required documents (stateRules.<CODE>.docs) were provided to the client with the inspection agreement. */
+    val stateDocsAck: Boolean = false,
+    /** When [stateDocsAck] was confirmed (epoch ms). */
+    val stateDocsAckAt: Long? = null,
 ) {
     fun field(label: String): String = fields[label].orEmpty().trim()
     fun chip(label: String): String = chips[label].orEmpty()
@@ -163,7 +169,10 @@ data class WizardSelections(
 
     val address: String get() = field(F_ADDRESS)
     val street: String get() = address.substringBefore(",").trim()
-    val cityLine: String get() = if (address.contains(",")) address.substringAfter(",").trim() else ""
+    /** City line with the State field merged in: "Portland, 97201" + OR → "Portland, OR 97201". */
+    val cityLine: String get() = withState(if (address.contains(",")) address.substringAfter(",").trim() else "", state)
+    /** Street + city line (incl. state), e.g. for email bodies. */
+    val fullAddress: String get() = listOf(street, cityLine).filter { it.isNotBlank() }.joinToString(", ")
     val clientName: String get() = field(F_CLIENT)
     val clientEmail: String get() = field(F_CLIENT_EMAIL)
     val agentName: String get() = field(F_AGENT)
@@ -183,6 +192,18 @@ data class WizardSelections(
         const val F_DATE = "Date"
         const val F_TIME = "Time"
         const val F_LICENSE = "Inspector License #"
+
+        private val ZIP = Regex("^\\d{5}(-\\d{4})?$")
+
+        /** Adds the state code to an address's city part unless it's already there (addresses typed before v1.3). */
+        fun withState(city: String, state: String): String {
+            val st = state.trim().uppercase()
+            val parts = city.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+            if (st.isEmpty() || parts.any { p -> p.uppercase().let { it == st || it.startsWith("$st ") } }) return city
+            if (parts.isEmpty()) return st
+            val last = parts.last()
+            return if (ZIP.matches(last)) (parts.dropLast(1) + "$st $last").joinToString(", ") else (parts + st).joinToString(", ")
+        }
     }
 }
 

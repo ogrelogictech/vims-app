@@ -4,4 +4,6 @@
     <files-path name="reports" path="vims/users/" />
     <!-- Camera captures for profile photos / company logo (TakePicture writes here, then we crop + copy) -->
     <cache-path name="capture" path="capture/" />
+    <!-- State documents (stateRules docs, copied from assets) for View / Send to client -->
+    <cache-path name="state_docs" path="state-docs/" />
 </paths>

@@ -188,10 +188,32 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun wizardStep(step: Int) = _wizard.update { it.copy(step = step.coerceIn(1, 4)) }
     fun updateSel(f: (WizardSelections) -> WizardSelections) = _wizard.update { it.copy(sel = f(it.sel)) }
 
+    /**
+     * Wizard step 1 "State" (stateRules `_about`): a rule's `type` is auto-selected; changing to a state without that
+     * rule while the inspection is still on the auto type reverts it to the default type ("Real Estate Sale").
+     * Changing the state clears the state-documents acknowledgment.
+     */
+    fun setInspState(code: String) = updateSel { s ->
+        if (s.state == code) return@updateSel s
+        val prev = config.stateRule(s.state)?.type
+        val next = config.stateRule(code)?.type
+        var type = s.inspType
+        if (prev != null && type == prev && next != prev) type = config.wizard.defaults.inspType
+        if (next != null && next in config.wizard.inspectionTypes) type = next
+        s.copy(state = code, inspType = type, stateDocsAck = false, stateDocsAckAt = null)
+    }
+
+    /** "Provided to the client with the inspection agreement" — stored with a timestamp on the inspection. */
+    fun ackStateDocs(on: Boolean) = updateSel { it.copy(stateDocsAck = on, stateDocsAckAt = if (on) System.currentTimeMillis() else null) }
+
     /** "Build checklist": creates the inspection (or rebuilds an edited one) and returns its id. */
     fun buildChecklist(): String? {
         val w = _wizard.value
         if (w.sel.address.isBlank()) { toast("Enter the inspection address"); _wizard.update { it.copy(step = 1) }; return null }
+        if (w.sel.state.isBlank()) { toast("Select the property's state"); _wizard.update { it.copy(step = 1) }; return null }
+        if (config.stateRule(w.sel.state)?.docs.orEmpty().isNotEmpty() && !w.sel.stateDocsAck) {
+            toast("Confirm the required state notice was given to the client"); _wizard.update { it.copy(step = 1) }; return null
+        }
         val eng = engine.value
         val groups = eng.buildGroups(w.sel)
         val editing = w.editingId?.let { bundle(it) }
@@ -489,6 +511,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Debug-only helper (screenshots): force an inspection's depth. */
     fun debugSetDepth(id: String, depth: String) = repo.updateInspection(id) { it.copy(selections = it.selections.copy(depth = depth)) }
+    /** Debug-only helper (screenshots / QA): set an inspection's property state (docs marked as provided). */
+    fun debugSetState(id: String, state: String) = repo.updateInspection(id) {
+        val docs = config.stateRule(state)?.docs.orEmpty().isNotEmpty()
+        it.copy(selections = it.selections.copy(state = state.uppercase(), stateDocsAck = docs, stateDocsAckAt = if (docs) System.currentTimeMillis() else null))
+    }
     suspend fun debugSignIn() {
         if (session.value != null) return
         val r = container.auth.signIn(com.vims.app.demo.DemoSeed.DEMO_EMAIL, com.vims.app.demo.DemoSeed.DEMO_PASSWORD)

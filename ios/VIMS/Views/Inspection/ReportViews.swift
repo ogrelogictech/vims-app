@@ -14,6 +14,11 @@ struct SummaryView: View {
                    actions: [HeaderAction(symbol: "hdr-sections", label: "Sections") { store.popToSections(inspectionID) }, store.homeAction()]) {
                 HintText(text: "Every finding you flag lands here automatically, grouped by category. This drives the summary pages of the report.")
                     .padding(.top, 2).padding(.bottom, 14)
+                // stateRules summaryDisclosure (Oklahoma): a permanent entry at the top of the summary.
+                if let text = store.config.stateRule(insp.state)?.summaryDisclosure {
+                    StateDisclosureCard(title: "\(store.config.stateName(insp.state) ?? insp.stateCode) disclosure", text: text)
+                        .padding(.bottom, 12)
+                }
                 ForEach(store.config.findings.categories, id: \.id) { c in
                     SummaryCategoryCard(category: c, findings: insp.findings.filter { $0.category == c.id }) { f in
                         store.deleteFinding(inspectionID, findingID: f.id)
@@ -373,13 +378,10 @@ struct ReportReadyView: View {
                         .buttonStyle(.vPrimary)
                         Button { emailReport(insp, url) } label: { IconLabel("Email to client", icon: "email-to-client") }
                             .buttonStyle(.vGhost)
-                        if !canSendMail {
-                            // Mail isn't set up on this device: the share sheet is used instead.
-                            Text("Mail isn't set up on this device, so the report opens in the share sheet. When reports are emailed through VIMS, a blind copy is added for report-quality review.")
-                                .font(VFont.ui(12)).foregroundStyle(VC.ink3).multilineTextAlignment(.center)
-                                .fixedSize(horizontal: false, vertical: true)
-                                .padding(.horizontal, 6)
-                        }
+                        Text(mailNote)
+                            .font(VFont.ui(12)).foregroundStyle(VC.ink3).multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.horizontal, 6)
                     } else {
                         Text("The PDF file is missing — generate it again from the report screen.")
                             .font(VFont.ui(13)).foregroundStyle(VC.c1)
@@ -401,11 +403,23 @@ struct ReportReadyView: View {
         }
     }
 
-    /// Mail composer with the report attached and the platform BCC; share sheet when Mail isn't available.
-    /// TODO(backend): the server-side send will always add the BCC so it can't be removed.
+    /// Under "Email to client": the inspector gets a copy (CC); without Mail, the share sheet is used instead.
+    private var mailNote: String {
+        let me = store.reportCcEmail
+        if canSendMail {
+            return me.map { "The report is emailed to the client and agent, with a copy to you (\($0))." }
+                ?? "The report is emailed to the client and agent."
+        }
+        return "Mail isn't set up on this device, so the report opens in the share sheet. When reports are emailed through VIMS, "
+            + (me.map { "a copy goes to you (\($0)) and " } ?? "")
+            + "a blind copy is added for report-quality review."
+    }
+
+    /// Mail composer with the report attached, CC to the inspector and the platform BCC; share sheet when
+    /// Mail isn't available. TODO(backend): the server-side send will always add the CC/BCC.
     private func emailReport(_ insp: Inspection, _ url: URL) {
         if canSendMail {
-            mailDraft = MailDraftItem(draft: ReportMailDraft.make(insp, company: store.company, platform: store.platform, pdf: url))
+            mailDraft = MailDraftItem(draft: store.reportMailDraft(insp, pdf: url))
         } else {
             // Share a copy with a readable file name (the stored PDF is named by inspection id).
             let named = FileManager.default.temporaryDirectory.appendingPathComponent("Inspection Report - \(insp.addressLine1).pdf")

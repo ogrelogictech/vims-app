@@ -91,6 +91,15 @@ struct CoverChoice: Codable, Hashable {
     var artLabel: String { category == "Solid" ? color : option }
 }
 
+/// The client was given the state's required documents (stateRules[state].docs) with the inspection
+/// agreement — the wizard's "Provided to the client with the inspection agreement" checkbox.
+/// TODO(backend): send with the inspection as the compliance record.
+struct StateDocsAck: Codable, Hashable {
+    var state: String
+    var docs: [String]
+    var acknowledgedAt: Date
+}
+
 struct ReportInfo: Codable, Hashable {
     var generatedAt: Date
     var pageCount: Int
@@ -111,6 +120,11 @@ struct Inspection: Codable, Hashable, Identifiable {
     var unitMix: [String: Int] = [:]
     var storiesOther: String = ""
     var depth: Depth
+    /// Property state (USPS code from `states`, data v1.3), required on wizard step 1. Optional so
+    /// inspections saved before v1.3 still decode.
+    var state: String?
+    /// Acknowledgment that the state documents were given to the client (only valid for `state`).
+    var stateDocsAck: StateDocsAck?
 
     // Areas to inspect
     var exterior: [String]
@@ -135,9 +149,63 @@ struct Inspection: Codable, Hashable, Identifiable {
     func field(_ label: String) -> String { fields[label] ?? "" }
 
     var address: String { field("Inspection address") }
+    var stateCode: String { state ?? "" }
+
+    /// The address as shown everywhere (lists, headers, report, email): the typed "Street, City, ZIP" plus
+    /// the State field — "12 Elm St, Portland, OR 97201" (state before a trailing ZIP), else "…, OR".
+    /// Left alone when there is no state or the address already names it (inspections before v1.3).
+    var displayAddress: String {
+        let a = address.trimmingCharacters(in: .whitespaces)
+        let st = stateCode
+        guard !st.isEmpty, !a.isEmpty else { return a }
+        var parts = a.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        let alreadyNamed = parts.dropFirst().contains { p in
+            p.split(separator: " ").contains { $0.uppercased() == st }
+        }
+        if alreadyNamed { return a }
+        if let last = parts.last, parts.count > 1, last.range(of: #"^\d{5}(-\d{4})?$"#, options: .regularExpression) != nil {
+            parts[parts.count - 1] = "\(st) \(last)"
+            return parts.joined(separator: ", ")
+        }
+        return (parts + [st]).joined(separator: ", ")
+    }
+
+    /// Picks the property state the way the wizard does (stateRules `_about`): clears the documents
+    /// acknowledgment, reverts an auto-selected type when the state changes away from it, and auto-selects
+    /// the state's required inspection type (TX → Texas).
+    mutating func setState(_ code: String?, config: ChecklistConfig) {
+        let prev = config.stateRule(state)
+        let new = config.stateRule(code)
+        if code != state { stateDocsAck = nil }
+        state = (code?.isEmpty ?? true) ? nil : code
+        if let auto = prev?.type, inspType == auto, new?.type != auto {
+            inspType = config.wizard.defaults.inspType          // "Real Estate Sale"
+        }
+        if let t = new?.type, config.wizard.inspectionTypes.contains(t), inspType != t { inspType = t }
+    }
+
+    /// A state code written into an older free-form address ("Ogden, UT 84403" -> "UT"), used to prefill
+    /// the State field for inspections created before v1.3 (and the demo seed).
+    static func inferState(from address: String, states: [StateDef]) -> String? {
+        let codes = Set(states.map(\.code))
+        let rest = address.split(separator: ",").dropFirst().map { $0.trimmingCharacters(in: .whitespaces) }
+        for part in rest.reversed() {
+            for tok in part.split(separator: " ").map(String.init) where tok.count == 2 && tok == tok.uppercased() && codes.contains(tok) {
+                return tok
+            }
+        }
+        return nil
+    }
+
+    /// The state documents still have to be acknowledged before step 1 can continue.
+    func stateDocsPending(_ config: ChecklistConfig) -> Bool {
+        guard let r = config.stateRule(state), !r.requiredDocs.isEmpty else { return false }
+        return stateDocsAck?.state != state
+    }
+
     /// Street line, keeping unit/lot suffixes ("210 Willow Park, Lot 17").
     private var addressSplit: (String, String) {
-        let parts = address.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        let parts = displayAddress.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
         guard var line = parts.first else { return ("", "") }
         var i = 1
         while i < parts.count, parts[i].range(of: #"^((Lot|Unit|Apt|Suite|Ste|Space|Bldg)\b|#)"#, options: [.regularExpression, .caseInsensitive]) != nil {

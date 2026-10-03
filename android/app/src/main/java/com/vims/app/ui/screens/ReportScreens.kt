@@ -270,12 +270,15 @@ private fun OptGrid(options: List<String>, selected: String, onPick: (String) ->
     }
 }
 
+/** The signed-in user's own email, CC'd on every emailed report when `support.ccInspector` is in the data (v1.3). */
+fun reportCc(vm: AppViewModel): String? = vm.session.value?.email?.trim()?.takeIf { vm.config.support.ccInspectorOn && it.isNotEmpty() }
+
 fun shareReport(ctx: Context, vm: AppViewModel, b: InspectionBundle, file: File) {
     val uri = FileProvider.getUriForFile(ctx, "${ctx.packageName}.fileprovider", file)
     val s = b.inspection.selections
     val review = vm.company.value.reviewUrl
     val body = buildString {
-        append("Hi ${s.clientName.ifBlank { "there" }},\n\nAttached is your inspection report for ${s.address.ifBlank { s.street }}.")
+        append("Hi ${s.clientName.ifBlank { "there" }},\n\nAttached is your inspection report for ${s.fullAddress.ifBlank { s.street }}.")
         if (review.isNotBlank()) append("\n\nIf you have a moment, we'd appreciate a review: $review")
         append("\n\n${vm.company.value.inspectorName.ifBlank { vm.company.value.name }}\n${vm.company.value.name}")
     }
@@ -283,6 +286,8 @@ fun shareReport(ctx: Context, vm: AppViewModel, b: InspectionBundle, file: File)
         type = "application/pdf"
         putExtra(Intent.EXTRA_STREAM, uri)
         putExtra(Intent.EXTRA_EMAIL, listOf(s.clientEmail, s.agentEmail).filter { it.isNotBlank() }.toTypedArray())
+        // support.ccInspector (data v1.3): the signed-in inspector gets a CC (archive copy).
+        reportCc(vm)?.let { putExtra(Intent.EXTRA_CC, arrayOf(it)) }
         // Platform "Report quality copy": blind-copy the report. Some share targets ignore EXTRA_BCC —
         // TODO(backend): the server-side send always adds the BCC so it can't be removed.
         vm.platform.value.activeBcc?.let { putExtra(Intent.EXTRA_BCC, arrayOf(it)) }
@@ -290,7 +295,7 @@ fun shareReport(ctx: Context, vm: AppViewModel, b: InspectionBundle, file: File)
         putExtra(Intent.EXTRA_TEXT, body)
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
-    if (com.vims.app.BuildConfig.DEBUG) android.util.Log.d("VIMS-Share", "ACTION_SEND to=${send.getStringArrayExtra(Intent.EXTRA_EMAIL)?.toList()} bcc=${send.getStringArrayExtra(Intent.EXTRA_BCC)?.toList()} subject=${send.getStringExtra(Intent.EXTRA_SUBJECT)}")
+    if (com.vims.app.BuildConfig.DEBUG) android.util.Log.d("VIMS-Share", "ACTION_SEND to=${send.getStringArrayExtra(Intent.EXTRA_EMAIL)?.toList()} cc=${send.getStringArrayExtra(Intent.EXTRA_CC)?.toList()} bcc=${send.getStringArrayExtra(Intent.EXTRA_BCC)?.toList()} subject=${send.getStringExtra(Intent.EXTRA_SUBJECT)}")
     try { ctx.startActivity(Intent.createChooser(send, "Send report")) } catch (_: Exception) { vm.toast("No app available to send the report") }
 }
 
@@ -306,9 +311,15 @@ fun GeneratedScreen(vm: AppViewModel, nav: NavHostController, inspId: String) {
                 val f = vm.reportFile(inspId)
                 if (f != null) shareReport(ctx, vm, b, f) else vm.generateReport(inspId, markDone = true) { shareReport(ctx, vm, b, it) }
             }, icon = VIcons.mail)
-            // No address shown: the quality copy is a platform setting clients/agents never see.
-            if (vm.platform.collectAsState().value.activeBcc != null) Text("A quality-review copy is blind-copied per the VIMS terms. Some email apps may drop blind copies.",
-                style = T.ui(11.5.sp, color = V.ink3, lineHeight = 15.sp), textAlign = TextAlign.Center, modifier = Modifier.padding(top = 8.dp))
+            // CC = the inspector's own address (shown); the BCC address is a platform setting clients/agents never see.
+            val cc = reportCc(vm)
+            val bcc = vm.platform.collectAsState().value.activeBcc != null
+            val note = listOfNotNull(
+                cc?.let { "A copy goes to you ($it)." },
+                if (bcc) "A quality-review copy is blind-copied per the VIMS terms." else null,
+                if (cc != null || bcc) "Some email apps may drop copies." else null,
+            ).joinToString(" ")
+            if (note.isNotEmpty()) Text(note, style = T.ui(11.5.sp, color = V.ink3, lineHeight = 15.sp), textAlign = TextAlign.Center, modifier = Modifier.padding(top = 8.dp))
             VBtn("Preview PDF", { nav.navigate(PdfR(inspId)) }, Modifier.padding(top = 10.dp), BtnKind.Ghost, VIcons.preview)
             VBtn("Back to inspections", { nav.goHome() }, Modifier.padding(top = 10.dp), BtnKind.Ghost)
         }
@@ -336,15 +347,16 @@ fun PdfPreviewScreen(vm: AppViewModel, nav: NavHostController, inspId: String) {
         }
         Hint("${renderer.pageCount} pages · US Letter · saved on this device", Modifier.padding(start = 16.dp, top = 12.dp, end = 16.dp), size = 12f)
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            items(renderer.pageCount) { i -> PdfPage(renderer, i) }
+            items(renderer.pageCount) { i -> PdfPage(renderer, i, "Report page ${i + 1}") }
         }
     }
 }
 
 private val pdfLock = Any()
 
+/** One rendered PDF page (report preview and state documents). */
 @Composable
-private fun PdfPage(renderer: PdfRenderer, index: Int) {
+fun PdfPage(renderer: PdfRenderer, index: Int, description: String) {
     val img by produceState<ImageBitmap?>(null, renderer, index) {
         value = withContext(Dispatchers.IO) {
             synchronized(pdfLock) {
@@ -361,6 +373,6 @@ private fun PdfPage(renderer: PdfRenderer, index: Int) {
         }
     }
     Box(Modifier.fillMaxWidth().aspectRatio(8.5f / 11f).shadow(6.dp, RoundedCornerShape(4.dp)).background(Color.White), contentAlignment = Alignment.Center) {
-        img?.let { Image(it, "Report page ${index + 1}", Modifier.fillMaxSize(), contentScale = ContentScale.Fit) } ?: CircularProgressIndicator(Modifier.size(24.dp), color = V.brand)
+        img?.let { Image(it, description, Modifier.fillMaxSize(), contentScale = ContentScale.Fit) } ?: CircularProgressIndicator(Modifier.size(24.dp), color = V.brand)
     }
 }

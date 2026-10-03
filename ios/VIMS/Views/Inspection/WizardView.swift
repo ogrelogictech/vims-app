@@ -53,11 +53,28 @@ struct WizardView: View {
         }
         .onAppear {
             guard draft == nil else { return }
-            if let id = editingID, let existing = store.inspection(id) {
+            if let id = editingID, var existing = store.inspection(id) {
+                // Inspections from before v1.3: prefill State from a code written into the address.
+                if existing.state == nil, let st = Inspection.inferState(from: existing.address, states: store.config.states ?? []) {
+                    existing.state = st
+                }
                 draft = existing
                 if let saved = Fmt.parse(existing.field("Date"), "yyyy-MM-dd") { minDate = min(minDate, Calendar.current.startOfDay(for: saved)) }
             } else { draft = store.newInspectionDraft() }
             if let s = DebugFlags.wizardStep { step = max(1, min(4, s)); DebugFlags.wizardStep = nil }
+            #if DEBUG
+            // -wizState TX[,UT…]: pick those states in order through the same setter as the picker.
+            if let seq = DebugFlags.wizardStates {
+                DebugFlags.wizardStates = nil
+                for code in seq {
+                    draft?.setState(code, config: store.config)
+                    print("STATETEST picked \(code) -> type=\(draft?.inspType ?? "") state=\(draft?.state ?? "none") docsPending=\(draft?.stateDocsPending(store.config) ?? false)")
+                }
+                if DebugLaunch.has("-ackStateDocs"), let st = draft?.state, let r = store.config.stateRule(st) {
+                    draft?.stateDocsAck = StateDocsAck(state: st, docs: r.requiredDocs.map(\.name), acknowledgedAt: Date())
+                }
+            }
+            #endif
             if DebugFlags.validate {
                 DebugFlags.validate = false
                 draft?.fields["Client phone"] = "(801) 555"
@@ -65,6 +82,7 @@ struct WizardView: View {
                 draft?.fields["Temperature (°F)"] = "150"
                 draft?.fields["Year of construction"] = "1700"
                 errors.validate(stepFields(step, draft!))
+                if step == 1 { applyStateErrors(draft!) }
             }
         }
     }
@@ -123,13 +141,15 @@ struct WizardView: View {
         guard var d = draft else { return }
         // Validate the current step; on the last step re-check step 1 (the required fields live there).
         let fields = stepFields(step, d)
-        guard errors.validate(fields) else { scrollToError(proxy); return }
+        let fieldsOK = errors.validate(fields)
+        let stateOK = step == 1 ? applyStateErrors(d) : true
+        guard fieldsOK, stateOK else { scrollToError(proxy); return }
         if let date = Fmt.parse(d.field("Date"), "yyyy-MM-dd"), date < minDate, fields.contains(where: { $0.id == "Date" }) {
             errors.set("Date", "Choose today or a later date")
             scrollToError(proxy)
             return
         }
-        if step == store.config.wizard.steps.count, !errors.validate(stepFields(1, d)) {
+        if step == store.config.wizard.steps.count, !(errors.validate(stepFields(1, d)) && applyStateErrors(d)) {
             step = 1
             scrollToError(proxy)
             return
@@ -148,6 +168,20 @@ struct WizardView: View {
         }
     }
 
+    /// Adds the State / state-documents errors after the field validation (which resets the map) and
+    /// scrolls to the first error in screen order (State sits right after Inspection address).
+    @discardableResult
+    private func applyStateErrors(_ d: Inspection) -> Bool {
+        let errs = WizardRules.stateErrors(d, store.config)
+        guard let first = errs.first else { return true }
+        let fieldScroll = errors.scrollTarget
+        for (id, msg) in errs { errors.map[id] = msg }
+        let step1 = store.config.wizard.step1.map(\.label)
+        let before = Set(step1.prefix { $0 != "Inspection address" } + ["Inspection address"])
+        if fieldScroll == nil || !before.contains(fieldScroll!) { errors.scrollTarget = first.0 }
+        return false
+    }
+
     private func scrollToError(_ proxy: ScrollViewProxy) {
         guard let t = errors.scrollTarget else { return }
         errors.scrollTarget = nil
@@ -160,6 +194,17 @@ struct WizardView: View {
 
 /// Field rules for the JSON-driven wizard fields, keyed by label / typeFields key.
 enum WizardRules {
+    /// Data v1.3 has a `states` list → the wizard shows the required State field on step 1.
+    static func hasStateField(_ cfg: ChecklistConfig) -> Bool { !(cfg.states ?? []).isEmpty }
+
+    /// Step-1 State checks (docs/validation-rules.md: State required) + the stateRules documents
+    /// acknowledgment, as (field id, message) in screen order.
+    static func stateErrors(_ d: Inspection, _ cfg: ChecklistConfig) -> [(String, String)] {
+        guard hasStateField(cfg) else { return [] }
+        guard let st = d.state, cfg.stateName(st) != nil else { return [(StateFieldIDs.state, StateFieldIDs.stateError)] }
+        return d.stateDocsPending(cfg) ? [(StateFieldIDs.docsAck, StateFieldIDs.docsAckError)] : []
+    }
+
     static func rule(for key: String, type: String?) -> FieldRule? {
         switch key {
         case "Client name": return .req(.personName, "Client name")
@@ -270,7 +315,12 @@ private struct EntryList: View {
             field(e, bottom: 11).frame(maxWidth: 140, alignment: .leading)
         case .single(let e):
             switch e.kind {
-            case "field": field(e, bottom: 13)
+            case "field":
+                field(e, bottom: 13)
+                // v1.3: required State right after Inspection address (list + rules from the shared JSON).
+                if e.label == "Inspection address", WizardRules.hasStateField(store.config) {
+                    StateFieldBlock(draft: $draft, errors: errors)
+                }
             case "dynamic": dynamic(e)
             default: chips(e)
             }
@@ -300,7 +350,10 @@ private struct EntryList: View {
                 e.label.hasPrefix("Temperature") ? .numbersAndPunctuation :
                 (["Year of construction", "Total sq ft", "Lot size (acres)", "Valuation ($)"].contains(e.label) ? .decimalPad : .default)
             let isAddress = e.label == "Inspection address"
-            VTextField(label: e.label, text: text(e.label), placeholder: e.placeholder ?? "", keyboard: kb,
+            // The state now has its own field, so the address asks for "Street, City, ZIP" (prototype ca5ab5a;
+            // vims-checklists.json v1.3 still carries the older "Street, City, State" placeholder).
+            let placeholder = isAddress && WizardRules.hasStateField(store.config) ? "Street, City, ZIP" : (e.placeholder ?? "")
+            VTextField(label: e.label, text: text(e.label), placeholder: placeholder, keyboard: kb,
                        contentType: e.type == "email" ? .emailAddress : e.type == "tel" ? .telephoneNumber : (isAddress ? .fullStreetAddress : nil),
                        capitalization: e.type == "email" ? .never : (kind == .license ? .characters : .words),
                        bottom: bottom, kind: kind ?? .plain(max: isAddress ? 120 : nil), fieldID: e.label, errors: errors,

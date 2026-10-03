@@ -95,6 +95,18 @@ final class AppStore {
     }
     var pendingSyncCount: Int { inspections.filter(\.needsSync).count }
 
+    /// The signed-in inspector's own email, CC'd on every emailed report (data v1.3 `support.ccInspector`).
+    var reportCcEmail: String? {
+        guard config.support.ccInspector != nil else { return nil }
+        let e = (currentUser?.email ?? session?.email ?? "").trimmingCharacters(in: .whitespaces)
+        return e.isEmpty ? nil : e
+    }
+
+    /// Email draft for a finished report: To client + agent, CC the inspector, BCC the platform copy when on.
+    func reportMailDraft(_ insp: Inspection, pdf: URL) -> ReportMailDraft {
+        ReportMailDraft.make(insp, company: company, platform: platform, pdf: pdf, ccInspector: reportCcEmail)
+    }
+
     /// Per-owner file folders (Documents/vims/…).
     var userFolder: String { "users/\(currentUser?.id.uuidString ?? "anonymous")" }
     var companyFolder: String { "companies/\(companyID?.uuidString ?? "none")" }

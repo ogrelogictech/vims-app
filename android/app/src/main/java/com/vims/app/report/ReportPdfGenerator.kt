@@ -339,7 +339,11 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
         // cover art band (bottom)
         val notice = layout("This inspection report is the property of ${company.name.ifBlank { "the inspection company" }}. Any reproduction or distribution without written consent is prohibited.",
             tp(archivo700, 15f, Color.WHITE), PW * .5f, Layout.Alignment.ALIGN_CENTER, 1.25f)
-        val bandH = notice.height + 44f
+        // stateRules.<STATE>.coverNotice (e.g. Oregon): extra semibold line under the ownership notice, every layout.
+        val stateNotice = config.stateRule(b.inspection.selections.state)?.coverNotice?.let {
+            layout(it, tp(plex600, 12.5f, Color.WHITE), PW * .5f, Layout.Alignment.ALIGN_CENTER, 1.25f)
+        }
+        val bandH = notice.height + (stateNotice?.let { it.height + 6f } ?: 0f) + 44f
         val bandTop = PH - bandH
         // property photo area
         val imgTop = y + 22f - 15f
@@ -362,6 +366,7 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
         photo?.recycle()
         cv.drawRect(0f, bandTop, PW, PH, Paint().apply { shader = LinearGradient(0f, bandTop, PW, PH, cFrom, cTo, Shader.TileMode.CLAMP) })
         cv.drawLayout(notice, 40f, bandTop + 20f)
+        stateNotice?.let { cv.drawLayout(it, 40f, bandTop + 20f + notice.height + 6f) }
         val ap = tp(plex400, 12f, Color.parseColor("#CFE0FF")).apply { textAlign = Paint.Align.RIGHT }
         cv.drawText("Cover artwork", PW - 34f, bandTop + bandH - 44f, ap)
         val tag = cover.tag()
@@ -572,6 +577,7 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
     private fun summary() {
         startPage()
         title("Summary of Findings", if (layoutKind == ChecklistConfig.LAYOUT_TEXAS) "Findings grouped by category" else "Findings grouped by category, in the order they appear in the report")
+        stateDisclosure()
         config.findings.categories.forEach { cat ->
             val items = b.findings.filter { it.cat == cat.id }.sortedWith(compareBy({ ChecklistEngine.number(b.defs, it.section) }, { it.createdAt }))
             val rows = items.mapIndexed { i, f ->
@@ -620,6 +626,24 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
                 startPage()
             }
         }
+    }
+
+    /** stateRules.<STATE>.summaryDisclosure (e.g. Oklahoma): note box with an amber left edge on page 1 of the summary. */
+    private fun stateDisclosure() {
+        val st = b.inspection.selections.state
+        val text = config.stateRule(st)?.summaryDisclosure ?: return
+        val sb = android.text.SpannableStringBuilder().apply {
+            val s0 = length; append("${config.stateName(st)} disclosure")
+            setSpan(android.text.style.StyleSpan(Typeface.BOLD), s0, length, 0); setSpan(android.text.style.ForegroundColorSpan(INK), s0, length, 0)
+            append("\n"); append(text)
+        }
+        val l = layout(sb, tp(plex400, 12.5f, INK2), CW - 29f, spacing = 1.2f)
+        val h = l.height + 22f
+        val r = RectF(PADX, y, PADX + CW, y + h)
+        cv.drawRoundRect(r, 8f, 8f, fill(PAPER2)); cv.drawRoundRect(r, 8f, 8f, stroke(LINE, 1f))
+        cv.save(); cv.clipPath(Path().apply { addRoundRect(r, 8f, 8f, Path.Direction.CW) }); cv.drawRect(PADX, y, PADX + 3f, y + h, fill(C[2])); cv.restore()
+        cv.drawLayout(l, PADX + 16f, y + 11f)
+        y += h + 14f
     }
 
     // ================================================================== state & insurance forms
