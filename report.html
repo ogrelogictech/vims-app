@@ -184,6 +184,10 @@
   var COMPANY={name:'Vision Property Inspections',addr:['2029 N Main St Suite 103','Sunset, UT 84015','VisionPropertyInspections@Gmail.com']};
   var Q=new URLSearchParams(location.search);
   var TYPE=({texas:'texas','4point':'4point'})[Q.get('type')]||'standard';
+  var STATE=(Q.get('state')||'').toUpperCase();
+  var OK_DISCLOSURE='If yellow Corrugated Stainless Steel Tubing is observed, noting that only a licensed electrician can determine proper bonding.';
+  var OR_COVER='This inspection report is for the express and exclusive use of the purchaser and any third parties (such as future buyers) cannot rely on the findings.';
+  function okBox(){ return STATE==='OK'?'<div class="note" style="margin-bottom:14px;border-left:3px solid var(--c2)"><b style="color:var(--ink)">Oklahoma disclosure</b><br>'+OK_DISCLOSURE+'</div>':''; }
   var INSP={client:'Tysen and Chantel Gough',address:'1428 Ridgeline Dr',city:'Ogden, UT 84403',date:'08/30/2026',agent:'Cyndi Farrais',inspector:'Jeremy K. Heath',
     license:Q.get('lic')||(TYPE==='texas'?'TREC 12345':'UT-12345'),sponsor:'N/A',sponsorLicense:'',policy:'HO3-4481207',yearBuilt:'1998'};
 
@@ -216,7 +220,7 @@
     +'<div class="frow"><div class="fl">Name of Inspector</div><div class="fv">'+INSP.inspector+'</div><div class="fl lic">License #</div><div class="fv lic">'+INSP.license+'</div></div>'
     +'</div>'
     +'<div class="cimgwrap"><img src="'+photo(0,'Front of property')+'" alt="Property"></div>'
-    +'<div class="cart"><div class="notice">This inspection report is the property of Vision Property Inspections. Any reproduction or distribution without written consent is prohibited.</div>'
+    +'<div class="cart"><div class="notice">This inspection report is the property of Vision Property Inspections. Any reproduction or distribution without written consent is prohibited.'+(STATE==='OR'?'<div style="font-weight:600;font-size:12.5px;margin-top:6px">'+OR_COVER+'</div>':'')+'</div>'
     +'<div class="art">Cover artwork<br><span class="arttag">Blue · Hobbies · F1 Racing · Framed</span></div></div>'
     +'</div>');
   function frow(l,v){ return '<div class="frow"><div class="fl">'+l+'</div><div class="fv">'+v+'</div></div>'; }
@@ -270,28 +274,27 @@
     ['Water meter accessible','Yes'],['Water meter leaking','No'],
     ['Outdoor sewer access','Accessible'],['Sewer main scope ordered','No'],['Pipe appears intact','Yes',2]
   ];
-  var outxt='<div class="page">'+rhead()+'<div class="sectitle"><span class="num">11</span><b>Utilities &ndash; Outside</b></div>';
-  var open=false;
-  ou.forEach(function(it){
-    if(it.h){ if(open){outxt+='</table>';} outxt+='<div class="subband">'+it.h+'</div><table class="lines">'; open=true; return; }
+  // section data runs across two pages (continued), like a real report
+  function linesHtml(list){ var h='',open=false; list.forEach(function(it){
+    if(it.h){ if(open){h+='</table>';} h+='<div class="subband">'+it.h+'</div><table class="lines">'; open=true; return; }
     var flag=it[2]; var dot = flag? '<span class="flagdot" style="background:var(--c'+flag+')"></span>' : '';
-    outxt+='<tr><td class="k">'+it[0]+'</td><td class="v">'+it[1]+dot+'</td></tr>';
-  });
-  if(open) outxt+='</table>';
-  outxt+='<div class="oc"><span>Overall condition</span><b>Good</b></div>';
-  outxt+='<div class="blocklbl">Comments</div><div class="note">A/C compressor operates normally. Recommend trimming vegetation back from the condenser unit for airflow.</div>';
-  outxt+=pfoot(4)+'</div>';
-  pages.push(outxt);
+    h+='<tr><td class="k">'+it[0]+'</td><td class="v">'+it[1]+dot+'</td></tr>'; }); if(open) h+='</table>'; return h; }
+  var cut=ou.findIndex(function(it){ return it.h==='Natural Gas'; });
+  pages.push('<div class="page">'+rhead()+'<div class="sectitle"><span class="num">11</span><b>Utilities &ndash; Outside</b></div>'+linesHtml(ou.slice(0,cut))+pfoot(4)+'</div>');
+  pages.push('<div class="page">'+rhead()+'<div class="sectitle"><span class="num">11</span><b>Utilities &ndash; Outside (continued)</b></div>'+linesHtml(ou.slice(cut))
+    +'<div class="oc"><span>Overall condition</span><b>Good</b></div>'
+    +'<div class="blocklbl">Comments</div><div class="note">A/C compressor operates normally. Recommend trimming vegetation back from the condenser unit for airflow.</div>'
+    +pfoot(5)+'</div>');
 
   // 5. PHOTO PAGE
   var photos=[['Compressor',0,0],['Coolant Lines',1,0],['Service Mast & Meter',2,0],['Gas Meter',3,0],['Sewer Access',4,0],['Concern — corroded meter bracket',5,1]];
-  var ph='<div class="page">'+rhead()+'<div class="sectitle"><span class="num">11</span><b>Utilities &ndash; Outside · Photos</b></div><div class="pgrid">';
+  var ph='<div class="page">'+rhead()+'<div class="sectitle"><span class="num">11</span><b>Utilities &ndash; Outside · Photos</b></div><div class="pgrid three">';
   photos.forEach(function(p){
     var flag = p[2]? '<span class="concern-tag">Concern</span>' : '';
     var cf = p[2]? '<span class="cf" style="background:var(--c1)">Cat 1</span>' : '';
     ph+='<div class="pcard"><div class="pimg">'+flag+'<img src="'+photo(p[1],p[0])+'" alt=""></div><div class="pcap"><span>'+p[0]+'</span>'+cf+'</div></div>';
   });
-  ph+='</div>'+pfoot(5)+'</div>';
+  ph+='</div>'+pfoot(6)+'</div>';
   pages.push(ph);
 
   // 6. SUMMARY
@@ -302,14 +305,14 @@
   };
   var meta={1:['Category 1','Safety'],2:['Category 2','Functional'],3:['Category 3','Items to monitor']};
   var subnote={1:'Address before closing',2:'Address in the first few months after closing',3:'Monitor and address over time'};
-  var sm='<div class="page">'+rhead()+'<div class="ptitle">Summary of Findings</div><div class="psub">Findings grouped by category, in the order they appear in the report</div>';
+  var sm='<div class="page">'+rhead()+'<div class="ptitle">Summary of Findings</div><div class="psub">Findings grouped by category, in the order they appear in the report</div>'+okBox();
   [1,2,3].forEach(function(cat){
     var items=FIND[cat];
     sm+='<div class="sumcat c'+cat+'"><div class="sh"><div class="cn">'+cat+'</div><div><b>'+meta[cat][0]+'</b> <span>&middot; '+meta[cat][1]+'</span><div class="sh-note">'+subnote[cat]+'</div></div><div class="ct">'+items.length+'</div></div>';
     items.forEach(function(f,i){ sm+='<div class="sfind"><span class="n">'+(i+1)+'</span><span>'+f[0]+' <span class="sec">('+f[1]+')</span></span></div>'; });
     sm+='</div>';
   });
-  sm+=pfoot(6)+'</div>';
+  sm+=pfoot(7)+'</div>';
   pages.push(sm);
 
   // 7. INVOICE
@@ -324,7 +327,7 @@
     +'</tbody></table>'
     +'<div class="inv-tot"><div class="box"><div class="row"><span>Subtotal</span><span>$685.00</span></div><div class="row"><span>Discount</span><span>&minus;$0.00</span></div><div class="row grand"><span>Total due</span><span>$685.00</span></div></div></div>'
     +'<div class="note" style="margin-top:20px">Thank you for choosing Vision Property Inspections. Payment accepted by card, check, or Square.</div>'
-    +pfoot(7)+'</div>');
+    +pfoot(8)+'</div>');
   }
 
   if(TYPE==='texas') buildTexas();
@@ -420,7 +423,7 @@
     // pictures + summary
     tp.push(function(n){ return picturePage('Pictures',[['Front of home',0],['Left side',0],['Back of home',0],['Roof',0],['Foundation crack — NE corner',1],['Basement stairs — no handrail',1]],tfoot(n)); });
     tp.push(function(n){
-      var sm='<div class="page">'+rhead()+'<div class="ptitle">Summary of Findings</div><div class="psub">Findings grouped by category</div>';
+      var sm='<div class="page">'+rhead()+'<div class="ptitle">Summary of Findings</div><div class="psub">Findings grouped by category</div>'+okBox();
       var F={1:[['Handrail missing at the basement stairs.','I. Structural — I. Stairways'],['No GFCI protection at the exterior receptacles.','II. Electrical — B. Branch Circuits'],['Garage door auto-reverse did not activate.','V. Appliances — G. Garage Door Operators']],2:[['Minor settlement cracks at the NE corner of the slab.','I. Structural — A. Foundations'],['Soil sloped toward the foundation on the north side.','I. Structural — B. Grading and Drainage']],3:[['Front storm door does not latch.','I. Structural — G. Doors']]};
       [1,2,3].forEach(function(cat){ sm+='<div class="sumcat c'+cat+'"><div class="sh"><div class="cn">'+cat+'</div><div><b>'+CATMETA[cat][0]+'</b> <span>&middot; '+CATMETA[cat][1]+'</span><div class="sh-note">'+CATNOTE[cat]+'</div></div><div class="ct">'+F[cat].length+'</div></div>';
         F[cat].forEach(function(f,i){ sm+='<div class="sfind"><span class="n">'+(i+1)+'</span><span>'+f[0]+' <span class="sec">('+f[1]+')</span></span></div>'; }); sm+='</div>'; });
