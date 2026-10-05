@@ -125,6 +125,9 @@ struct Inspection: Codable, Hashable, Identifiable {
     var state: String?
     /// Acknowledgment that the state documents were given to the client (only valid for `state`).
     var stateDocsAck: StateDocsAck?
+    /// Step 1 "Send the report to the real estate agent" (data v1.4). nil (inspections saved before v1.4) = on.
+    /// Reset to the state's `agentCopyDefault` whenever the state changes (off for New Hampshire).
+    var sendToAgent: Bool?
 
     // Areas to inspect
     var exterior: [String]
@@ -150,6 +153,8 @@ struct Inspection: Codable, Hashable, Identifiable {
 
     var address: String { field("Inspection address") }
     var stateCode: String { state ?? "" }
+    /// Emailed reports include the agent (To) only when this is on.
+    var sendsReportToAgent: Bool { sendToAgent ?? true }
 
     /// The address as shown everywhere (lists, headers, report, email): the typed "Street, City, ZIP" plus
     /// the State field — "12 Elm St, Portland, OR 97201" (state before a trailing ZIP), else "…, OR".
@@ -176,7 +181,10 @@ struct Inspection: Codable, Hashable, Identifiable {
     mutating func setState(_ code: String?, config: ChecklistConfig) {
         let prev = config.stateRule(state)
         let new = config.stateRule(code)
-        if code != state { stateDocsAck = nil }
+        if code != state {
+            stateDocsAck = nil
+            sendToAgent = new?.agentCopyDefault ?? true     // stateRules agentCopyDefault (NH → off)
+        }
         state = (code?.isEmpty ?? true) ? nil : code
         if let auto = prev?.type, inspType == auto, new?.type != auto {
             inspType = config.wizard.defaults.inspType          // "Real Estate Sale"

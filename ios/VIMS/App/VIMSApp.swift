@@ -124,6 +124,7 @@ struct RootView: View {
         case .feedbackAdmin: if store.isPlatformOwner { FeedbackAdminView() } else { OwnerOnlyView() }
         case .reportBcc: if store.isPlatformOwner { ReportBccView() } else { OwnerOnlyView() }
         case .eula: EULAView()
+        case .agreement(let st): InspectionAgreementView(stateCode: st)
         case .deleteAccount: DeleteAccountView()
         }
     }

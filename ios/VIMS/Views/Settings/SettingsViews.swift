@@ -201,21 +201,12 @@ struct CompanyProfileView: View {
                 VTextField(label: "Review URL", text: bind(\.reviewURL), placeholder: "https://g.page/r/your-review-link", keyboard: .URL,
                            contentType: .URL, capitalization: .never, kind: .url, fieldID: "review", errors: errors)
                 SectionLabel(text: "Inspection agreement")
-                Text("Legal requirements vary by state, so use your own agreement. Upload it here and clients sign it before each inspection.")
+                Text("Every company starts with the VIMS agreement covering all 50 states. Upload your own to use it instead.")
                     .font(VFont.ui(12)).foregroundStyle(VC.ink3).padding(.top, -4).padding(.bottom, 10).padding(.horizontal, 2)
                     .fixedSize(horizontal: false, vertical: true)
-                HStack(spacing: 12) {
-                    LeadIcon(symbol: "no-agreement-uploaded")
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(store.company.agreementName ?? "No agreement uploaded").font(VFont.ui(14, .bold)).foregroundStyle(VC.ink).lineLimit(1)
-                        Text("PDF or Word document").font(VFont.ui(12)).foregroundStyle(VC.ink3)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    Button("Upload") { showImporter = true }
-                        .buttonStyle(VButtonStyle(kind: .ghost, minHeight: 44, fullWidth: false))
-                }
-                .vCard(EdgeInsets(top: 12, leading: 14, bottom: 12, trailing: 12))
-                .padding(.bottom, 12)
+                AgreementCard { showImporter = true }
+                    .vCard(EdgeInsets(top: 12, leading: 14, bottom: 12, trailing: 12))
+                    .padding(.bottom, 12)
                 Button { save() } label: { IconLabel("Save profile", icon: "link-my-account") }
                     .buttonStyle(.vPrimary)
             }

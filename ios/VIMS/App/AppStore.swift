@@ -15,6 +15,9 @@ enum Route: Hashable {
     case editSection(String)
     case plans, inspectors, subscribe, subscriptionStarted, billing, feedbackAdmin, reportBcc
     case eula, deleteAccount
+    /// VIMS default inspection agreement viewer: nil = every state's disclosures (Company profile),
+    /// a code = only that state's section (wizard step 1).
+    case agreement(state: String?)
 }
 
 @MainActor
@@ -738,6 +741,21 @@ final class AppStore {
         if let old = state.company.agreementFile { files.deleteFile(old) }
         state.company.agreementFile = files.saveFile(data, folder: companyFolder, name: url.lastPathComponent)
         state.company.agreementName = url.lastPathComponent
-        toast("Agreement uploaded")
+        toast("Your agreement is now in use")
+    }
+
+    /// The company's own uploaded agreement file (Company profile → Upload your own), nil = VIMS agreement in use.
+    var ownAgreementURL: URL? {
+        guard let f = state.company.agreementFile else { return nil }
+        let url = files.url(for: f)
+        return FileManager.default.fileExists(atPath: url.path) ? url : nil
+    }
+
+    /// "Use VIMS agreement": drop the uploaded file and go back to the VIMS default agreement.
+    func useDefaultAgreement() {
+        if let old = state.company.agreementFile { files.deleteFile(old) }
+        state.company.agreementFile = nil
+        state.company.agreementName = nil
+        toast("Using the VIMS agreement")
     }
 }

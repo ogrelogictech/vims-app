@@ -406,13 +406,16 @@ struct ReportReadyView: View {
     /// Under "Email to client": the inspector gets a copy (CC); without Mail, the share sheet is used instead.
     private var mailNote: String {
         let me = store.reportCcEmail
+        // v1.4: the agent is left out when the inspection's "Send the report to the real estate agent" is off.
+        let who = (store.inspection(inspectionID)?.sendsReportToAgent ?? true) ? "the client and agent" : "the client only"
         if canSendMail {
-            return me.map { "The report is emailed to the client and agent, with a copy to you (\($0))." }
-                ?? "The report is emailed to the client and agent."
+            return me.map { "The report is emailed to \(who), with a copy to you (\($0))." }
+                ?? "The report is emailed to \(who)."
         }
         return "Mail isn't set up on this device, so the report opens in the share sheet. When reports are emailed through VIMS, "
-            + (me.map { "a copy goes to you (\($0)) and " } ?? "")
-            + "a blind copy is added for report-quality review."
+            + "they go to \(who)"
+            + (me.map { ", a copy goes to you (\($0))," } ?? "")
+            + " and a blind copy is added for report-quality review."
     }
 
     /// Mail composer with the report attached, CC to the inspector and the platform BCC; share sheet when

@@ -49,6 +49,14 @@ struct WizardView: View {
                     .padding(.horizontal, 16).padding(.bottom, 34)
                 }
                 .scrollDismissesKeyboard(.interactively)
+                #if DEBUG
+                .task {
+                    // -wizScroll ID: scroll step 1 to a block (e.g. sendToAgent, agreementLine) for review screenshots.
+                    guard let target = DebugLaunch.value("-wizScroll") else { return }
+                    try? await Task.sleep(nanoseconds: 700_000_000)
+                    proxy.scrollTo(target, anchor: .center)
+                }
+                #endif
             }
         }
         .onAppear {
@@ -68,7 +76,7 @@ struct WizardView: View {
                 DebugFlags.wizardStates = nil
                 for code in seq {
                     draft?.setState(code, config: store.config)
-                    print("STATETEST picked \(code) -> type=\(draft?.inspType ?? "") state=\(draft?.state ?? "none") docsPending=\(draft?.stateDocsPending(store.config) ?? false)")
+                    print("STATETEST picked \(code) -> type=\(draft?.inspType ?? "") state=\(draft?.state ?? "none") docsPending=\(draft?.stateDocsPending(store.config) ?? false) sendToAgent=\(draft?.sendsReportToAgent ?? true)")
                 }
                 if DebugLaunch.has("-ackStateDocs"), let st = draft?.state, let r = store.config.stateRule(st) {
                     draft?.stateDocsAck = StateDocsAck(state: st, docs: r.requiredDocs.map(\.name), acknowledgedAt: Date())
@@ -361,8 +369,26 @@ private struct EntryList: View {
             if e.label == "Real estate agent email" {
                 Text("Client & agent emails are used to send the finished report.")
                     .font(VFont.ui(12)).foregroundStyle(VC.ink3)
-                    .padding(.horizontal, 2).padding(.top, -2).padding(.bottom, 12)
+                    .padding(.horizontal, 2).padding(.top, -2).padding(.bottom, 6)
+                agentCopy
             }
+        }
+    }
+
+    /// v1.4: "Send the report to the real estate agent" — set to the state's `agentCopyDefault` when the state
+    /// changes (off for New Hampshire, whose rule note is shown under it); stored on the inspection.
+    @ViewBuilder
+    private var agentCopy: some View {
+        CheckboxRow(label: "Send the report to the real estate agent",
+                    isOn: Binding(get: { draft.sendsReportToAgent }, set: { draft.sendToAgent = $0 }))
+            .padding(.horizontal, 2)
+            .padding(.bottom, 6)
+            .id("sendToAgent")
+        if let rule = store.config.stateRule(draft.state), rule.agentCopyDefault == false, let note = rule.note {
+            Text(note)
+                .font(VFont.ui(12)).foregroundStyle(VC.signalDeep)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 2).padding(.bottom, 10)
         }
     }
 

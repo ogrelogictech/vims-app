@@ -55,12 +55,14 @@ struct StateDef: Decodable, Hashable { let code: String; let name: String }
 /// type → auto-select that inspection type; note → info card under the State field;
 /// summaryDisclosure → top of the Summary screen + page 1 of the PDF summary; coverNotice → PDF cover line;
 /// docs → state documents given with the inspection agreement (View / Send to client + required acknowledgment).
+/// agentCopyDefault (v1.4) → initial value of step 1's "Send the report to the real estate agent" (true when absent).
 struct StateRuleDef: Decodable, Hashable {
     let type: String?
     let note: String?
     let summaryDisclosure: String?
     let coverNotice: String?
     let docs: [StateDocDef]?
+    let agentCopyDefault: Bool?
 
     var requiredDocs: [StateDocDef] { docs ?? [] }
 }

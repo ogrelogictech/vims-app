@@ -37,6 +37,12 @@ enum DebugFlags {
 ///   -state XX                  set the chosen inspection's property state (OK summary disclosure, OR cover notice)
 ///   -wizState TX[,UT]          pick those states in order when the wizard opens (prints STATETEST lines)
 ///   -ackStateDocs              with -wizState: tick "Provided to the client with the inspection agreement"
+///   -wizScroll ID              scroll wizard step 1 to a block (sendToAgent, agreementLine, State)
+///   -ownAgreement NAME         use bundled NAME.pdf as the company's own uploaded agreement (same path as Upload your own)
+///   -useVimsAgreement          revert the company to the VIMS agreement
+///   -agreementScroll disclosures  scroll the agreement viewer to the state disclosures
+///   -agreementStatus           print AGREEMENTTEST (bundled agreement loaded, state keys, own file)
+///   -agreementState XX         with -screen agreement: open the viewer from the wizard for state XX (else from Company profile)
 ///   -validate                  submit the form once so its validation errors show
 ///   -skipLogin                 sign in as the demo owner
 ///   -noSplash                  don't show the free-look splash
@@ -83,6 +89,13 @@ enum DebugLaunch {
                 print("MAILTEST statedoc \(code) to=\(sd.to) cc=\(sd.cc) bcc=\(sd.bcc) subject=\(sd.subject) attachment=\(sd.attachmentName) bytes=\((try? Data(contentsOf: pdf))?.count ?? 0)")
             }
         }
+        // v1.4 "Send the report to the real estate agent": the same inspection picked in NH (agentCopyDefault false)
+        // and UT (no rule → on), through the wizard's state setter.
+        for code in ["NH", "UT"] {
+            var v = insp; v.state = nil; v.setState(code, config: store.config)
+            let dv = store.reportMailDraft(v, pdf: url)
+            print("MAILTEST state=\(code) sendToAgent=\(v.sendsReportToAgent) to=\(dv.to) cc=\(dv.cc) bcc=\(dv.bcc)")
+        }
         print("MAILTEST platform bccOn=\(store.platform.reportBccOn) bccEmail=\(store.platform.reportBccEmail)")
         if MFMailComposeViewController.canSendMail() {
             let vc = MFMailComposeViewController(); d.configure(vc); print("MAILTEST composer configured")
@@ -125,6 +138,15 @@ enum DebugLaunch {
            let img = UIImage(contentsOfFile: store.files.url(for: ref.file).path) {
             store.saveProfilePhoto(img)
         }
+        if has("-useVimsAgreement"), store.session != nil { store.useDefaultAgreement() }
+        if let n = value("-ownAgreement"), store.session != nil {
+            if let u = Bundle.main.url(forResource: n, withExtension: "pdf") { store.saveAgreement(from: u) }
+            else { print("AGREEMENTTEST missing bundled \(n).pdf") }
+        }
+        if has("-agreementStatus") {
+            let a = InspectionAgreement.bundled
+            print("AGREEMENTTEST loaded=\(a != nil) version=\(a?.version ?? "-") states=\(a?.disclosureStates.joined(separator: ",") ?? "-") own=\(store.company.agreementName ?? "none") file=\(store.ownAgreementURL?.lastPathComponent ?? "none")")
+        }
         if let v = value("-wizState") { DebugFlags.wizardStates = v.split(separator: ",").map(String.init) }
         if has("-mailSelfTest") { mailSelfTest(store) }
         guard let screen else { return }
@@ -141,7 +163,7 @@ enum DebugLaunch {
             "signup": [.signup], "forgot": [.forgot], "join": [.join], "wizard": [.wizard(editing: nil)],
             "settings": [.settings], "company": [.settings, .company], "instructions": [.settings, .instructions],
             "plans": [.settings, .plans], "subscribe": [.subscribe], "billing": [.settings, .billing],
-            "feedback": [.settings, .feedbackAdmin], "eula": [.settings, .eula], "deleteAccount": [.settings, .deleteAccount], "signupEula": [.signup, .eula], "reportBcc": [.settings, .reportBcc], "inspectors": [.settings, .inspectors], "manage": [.settings, .manageChecklist]
+            "feedback": [.settings, .feedbackAdmin], "agreement": value("-agreementState").map { [.wizard(editing: nil), .agreement(state: $0)] } ?? [.settings, .company, .agreement(state: nil)], "eula": [.settings, .eula], "deleteAccount": [.settings, .deleteAccount], "signupEula": [.signup, .eula], "reportBcc": [.settings, .reportBcc], "inspectors": [.settings, .inspectors], "manage": [.settings, .manageChecklist]
         ]
         if let r = general[screen] {
             if screen == "wizard" { DebugFlags.wizardStep = value("-step").flatMap(Int.init) }

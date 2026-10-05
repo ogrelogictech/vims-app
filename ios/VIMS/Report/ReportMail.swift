@@ -2,7 +2,8 @@ import SwiftUI
 import MessageUI
 import UIKit
 
-/// Everything needed to email a finished report. To = client (+ agent); CC = the signed-in inspector's own
+/// Everything needed to email a finished report. To = client (+ agent, unless the inspection's step-1
+/// "Send the report to the real estate agent" is off — v1.4, e.g. New Hampshire); CC = the signed-in inspector's own
 /// email (data v1.3 `support.ccInspector`, an archive copy); BCC = the VIMS platform owner's report-quality
 /// copy (PlatformSettings.activeReportBcc), never shown in the app UI.
 struct ReportMailDraft: Equatable {
@@ -21,7 +22,7 @@ struct ReportMailDraft: Equatable {
     /// - Parameter ccInspector: the signed-in user's email when `support.ccInspector` is on (nil = no CC).
     static func make(_ insp: Inspection, company: CompanyProfile, platform: PlatformSettings, pdf: URL,
                      ccInspector: String? = nil) -> ReportMailDraft {
-        let to = validEmails([insp.field("Client email"), insp.field("Real estate agent email")])
+        let to = validEmails([insp.field("Client email")] + (insp.sendsReportToAgent ? [insp.field("Real estate agent email")] : []))
         let cc = validEmails([ccInspector ?? ""]).filter { me in !to.contains { $0.caseInsensitiveCompare(me) == .orderedSame } }
         let client = insp.clientName.split(separator: " ").first.map(String.init) ?? ""
         let date = Fmt.parse(insp.field("Date"), "yyyy-MM-dd").map { Fmt.date($0, "MMMM d, yyyy") } ?? ""

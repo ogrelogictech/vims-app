@@ -73,6 +73,35 @@ struct StateFieldBlock: View {
                     ActivityView(items: [item.url]).presentationDetents([.medium, .large])
                 }
         }
+        agreementLine
+    }
+
+    /// v1.4: "Inspection agreement: View (shows the selected state's section)" → the VIMS agreement viewer,
+    /// filtered to the picked state (every state when none is picked yet).
+    private var agreementLine: some View {
+        var text = AttributedString("Inspection agreement: ")
+        var link = AttributedString("View")
+        link.link = URL(string: "vims://agreement")
+        link.foregroundColor = VC.brand
+        link.font = VFont.ui(12.5, .semibold)
+        text += link
+        text += AttributedString(" (shows the selected state\u{2019}s section)")
+        return Text(text)
+            .font(VFont.ui(12.5)).foregroundStyle(VC.ink3)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
+            .contentShape(Rectangle())
+            .onTapGesture { endEditing(); store.push(.agreement(state: draft.state)) }
+            .environment(\.openURL, OpenURLAction { _ in
+                endEditing(); store.push(.agreement(state: draft.state))
+                return .handled
+            })
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Inspection agreement: View")
+            .accessibilityHint(draft.state == nil ? "Shows every state's section" : "Shows the selected state's section")
+            .accessibilityAddTraits(.isLink)
+            .padding(.horizontal, 2).padding(.top, -4).padding(.bottom, 14)
+            .id("agreementLine")
     }
 
     @ViewBuilder
