@@ -1,0 +1,251 @@
+{
+ "_about": "Client-supplied VIMS default Home Inspection Agreement for all 50 states ('Home Inspection Agreement - App for all 50 states.docx', received Oct 5, 2026), reproduced verbatim except '{companyName}' replaces the hard-coded 'Vision Property Inspections' (filled with the company's name at display time). Used as the default inspection agreement for every company unless they upload their own (Company profile). 'stateDisclosures' is keyed by state code; when shown for a specific inspection, display only that state's entry (all states when viewed from Company profile). No in-app e-signature in Phase 1 (deferred add-on).",
+ "title": "Inspection Agreement",
+ "version": "2026-10-05",
+ "status": "draft — client corrections pending",
+ "header": [
+  "Company Name Company Logo",
+  "Inspection Agreement",
+  "Clients Name ________________________",
+  "Phone # _____________________________",
+  "Email _______________________________",
+  "Date of Birth _________________________",
+  "Spouse _____________________________",
+  "Phone # _____________________________",
+  "Email ______________________________",
+  "Date of Birth ________________________ Safety - Function - Education",
+  "Preferred Language ___________________",
+  "Inspectors Name _________________________ License/Reg # _______________ State _____",
+  "Date and Time of Inspection__________________________ Time of walk through ____________",
+  "Current Address _________________________________________________________________",
+  "Address of Property to be inspected __________________________________________________",
+  "Property Type Mobile Home ☐ Manufactured Home ☐ Town House ☐ Condo ☐",
+  "Single Family ☐ Multi-Unit ☐ # Units _____ Total Sqft __________",
+  "Type of Inspection Purchase ☐ New Construction ☐ Warranty ☐",
+  "Wind Mitigation ☐ Pre-listing/Maintenance ☐ 4 Point or 4 Way Inspection ☐",
+  "Phase 1 Foundation pre-pour ☐ Phase 2 Pre-Dry wall ☐ Phase 3 Final ☐",
+  "Component Roof ☐ Chimney ☐ Electrical ☐ Plumbing ☐ HVAC ☐",
+  "Additional Inspection Services. These services are not a part of the regular inspection and must be added if desired. May require a separate agreement to be signed.",
+  "☐ Radon Testing $__________ ☐ Indoor Air Quality Testing $__________",
+  "☐ Lead Testing $__________ ☐ Thermal Energy Efficiency $__________",
+  "☐ Meth Testing $__________ ☐ Termite/Pest Inspection $__________",
+  "☐ Sewer Scope $__________ ☐ Heating Oil Tank $__________",
+  "☐ Boiler System $__________",
+  "Inspection Fee $__________ Bundled Services $__________ Total Amount Due $__________",
+  "The inspection fee is due upon completion of the inspection. The inspection report will be provided upon payment of the inspection."
+ ],
+ "body": [
+  {
+   "t": "p",
+   "text": "THIS AGREEMENT is entered into on _______________ (Date agreement is signed) by and between {companyName}. (Hereinafter “INSPECTOR”) and the undersigned (hereinafter “CLIENT”) collectively referred to herein as “parties.”"
+  },
+  {
+   "t": "p",
+   "text": "Please read and sign this Inspection Agreement. This document explains the Scope of the Inspection, Limits of the Inspection, General Exclusions, Terms and Conditions, Limitations of Liability, and an Arbitration Agreement. You may call us for an explanation of this agreement or any aspect of the report which you do not fully understand."
+  },
+  {
+   "t": "p",
+   "text": "The Parties Understand and Voluntarily Agree as follows:",
+   "lead": true
+  },
+  {
+   "t": "p",
+   "text": "Expectations. The home inspection process will follow these steps.",
+   "lead": true
+  },
+  {
+   "t": "li",
+   "text": "The Inspection agreement must be read and signed prior to the inspection being conducted."
+  },
+  {
+   "t": "li",
+   "text": "This agreement will be retained for no less than 5 years and the inspection report will be retained for no less than 3 years."
+  },
+  {
+   "t": "li",
+   "text": "The inspection will follow the Internachi and ASHI standards of practice. This is not a code compliance inspection."
+  },
+  {
+   "t": "li",
+   "text": "All inspection reports will be provided in writing."
+  },
+  {
+   "t": "li",
+   "text": "The inspection is a “Limited Visual inspection” limited to what can be seen, no furniture or personal items can or will be moved in the conduction of the inspection. See Limits of the Inspection."
+  },
+  {
+   "t": "li",
+   "text": "The Inspection constitutes a “Picture in Time” of the property being inspected."
+  },
+  {
+   "t": "li",
+   "text": "No Destructive Testing can, may or will be conducted."
+  },
+  {
+   "t": "li",
+   "text": "After the inspection there will be a summary walk through to review any inspection findings."
+  },
+  {
+   "t": "li",
+   "text": "Payment for the inspection service is due upon completion of the inspection."
+  },
+  {
+   "t": "li",
+   "text": "The written inspection report will be ready by the end of the next business day, after the inspection fee is paid."
+  },
+  {
+   "t": "li",
+   "text": "The inspection is not an appraisal, as a result property pricing will not be covered as a part of the inspection."
+  },
+  {
+   "t": "li",
+   "text": "The inspector will review the safety and functional details for the property and may not be licensed for any of the repairs that might be necessary."
+  },
+  {
+   "t": "li",
+   "text": "Soil and foundation movement can happen in any area, especially in areas prone to said condition and the inspection can observed only what is visible on the day of the inspection and cannot be held liable for future conditions."
+  },
+  {
+   "t": "li",
+   "text": "The inspector does not provide Structural strength, adequacy, or efficiency of any system or component."
+  },
+  {
+   "t": "li",
+   "text": "The written inspection report will be delivered to the client within 5 business days of the inspections."
+  },
+  {
+   "t": "p",
+   "text": "1. Scope of Inspection. The Home Inspection is a limited visual inspection of the apparent condition of the readily accessible systems and components of the property and detached structures. Latent and concealed defects and deficiencies are excluded from the inspection. The systems and components to be inspected include: Landscaping, exterior walkways, visible foundation, property exterior, roofing, plumbing, electrical, attic, interior walls and flooring, bathrooms and kitchen, kitchen appliances, basement and crawlspaces, heating and cooling systems (weather Permitting), structural ventilation, garage or carport, fireplaces and solid fuel burning appliances (if present). The client is encouraged to participate in the post inspection walk through to review the inspection and ask questions of the inspector if any. The inspection and report are performed and prepared for the sole, confidential and exclusive use and possession of the client(s). The inspection report is not transferable.",
+   "lead": true
+  },
+  {
+   "t": "p",
+   "text": "2. Limits of the Inspection. The inspection is limited to the readily accessible and visible systems, equipment and components of the home. The inspector will not dismantle and/or move equipment, systems, furniture, appliances, floor coverings, finished or fastened surfaces or components, personal property or other items to conduct this inspection or otherwise to expose concealed or inaccessible conditions. The inspection will not include destructive testing of any kind.",
+   "lead": true
+  },
+  {
+   "t": "p",
+   "text": "3. General Exclusion. The client acknowledges and agrees that this Inspection and the inspection report and findings are limited in nature and scope, and that the following are outside the scope of the inspection, therefore they cannot be accurately assessed by the inspector during the inspection. The following are components that are excluded from the inspection: Asbestos, Lead Paint, Soil, Air Quality, Swimming Pools, Hot Tubs, Sprinkler Systems, Water Wells, Water Softeners, Water quality, mold and sewer systems, ancillary electrical systems such as A/V theater systems, intercoms and non-excisable wiring. Basic operational testing of built-in kitchen appliances is performed (dishwasher/oven/range/microwave/garbage disposal). No determination beyond basic operation is made regarding the performance of or service life of appliances. The results of the inspection are applicable for the day of the inspection only.",
+   "lead": true
+  },
+  {
+   "t": "p",
+   "text": "No Guarantee or warranty. The Inspection and Inspection report are not a guarantee or warranty that the items inspected are defect-free, or that concealed defects do not or will not exist. Problems may exist even though signs of such may not be present during the inspection. No representation is made as to how long any equipment will continue to function.",
+   "lead": true
+  },
+  {
+   "t": "p",
+   "text": "Reinspection for verification of repairs. A reinspection of the same property is available for 15 days at no cost, if a reinspection is desired, it must be requested during that first 15 calendar days after the first inspection. On the 16th calendar day or beyond the reinspection will have a fee of $75.00 per 30 minutes up to the original inspection fee.,",
+   "lead": true
+  },
+  {
+   "t": "p",
+   "text": "{companyName} - Inspection Agreement TERMS AND CONDITIONS:"
+  },
+  {
+   "t": "p",
+   "text": "A. The Client recognizes that the inspection report is for the benefit of the Client and their agent and that any person or party designated by the Client to receive a copy of this report shall be subject to the TERMS AND CONDITIONS contained herein. Such designation shall be provided in writing to the inspector and the receiver must be licensed to receive a copy of the report for a fee of $100.00",
+   "lead": true
+  },
+  {
+   "t": "p",
+   "text": "C. If there is a claim of missed defect, the client agrees to allow the inspection company in writing and to allow the company to reinspect and or make offer to repair or pay for the defect before changing the condition of the problem (except in an emergency) and before taking any insurance or legal action. to re-inspect. Failure to allow the inspection company the opportunity to re-inspect, as required above, shall constitute a waiver of any and all claims client may have against the Company.",
+   "lead": true
+  },
+  {
+   "t": "p",
+   "text": "D. The Client agrees that, to the extent allowed by law, any damages or breach of this contract or report are limited to the amount of the inspection fee only. Furthermore, the Client agrees to pay all attorney fees should the Client pursue a civil action against the Company, and fail to prevail.",
+   "lead": true
+  },
+  {
+   "t": "p",
+   "text": "E. The Client agrees that this agreement represents the entire agreement between the parties. No oral agreements, understandings or representations shall change, modify or amend any part of this agreement. No change or modification shall be enforceable against any party unless such changes or modifications are in writing and signed by the parties and supported by valid consideration.",
+   "lead": true
+  },
+  {
+   "t": "p",
+   "text": "STATUTE OF LIMITATIONS: The customer has 1 years from the completion of the inspection to file a claim with insurance or legal action again the inspection company for missed items in the inspection or damage related to the inspection. The customer has 10 days from the date of discovery to notify the inspection company in writing of any claim or complaint.",
+   "lead": true
+  },
+  {
+   "t": "p",
+   "text": "REAPIRS TO THE PROPERTY: The inspector is barred from conducting paid repairs to the property for any defects discovered in the inspection for a period of 12 months.",
+   "lead": true
+  },
+  {
+   "t": "p",
+   "text": "LIMITATION OF LIABILITY: It is understood and agreed that the Company, is not an insurer and that the inspection and report are not to be intended or construed as a guarantee or warranty of the adequacy, performance or condition of any structure, item or system at the property address. The Client hereby releases and exempts the Company and its agents and employees from any and all liability and responsibility for the cost of repairing or replacing any unreported defect or deficiency in excess of 2X the cost of the inspection report, and for any consequential damage, property damage, or personal injury of any nature.",
+   "lead": true
+  },
+  {
+   "t": "p",
+   "text": "ARBITRATION AGREEMENT Any dispute, controversy, interpretation or claim including claims for, but not limited to, breach of contract, any form of negligence, fraud or misrepresentation arising out of, from, or related to, this contract or arising out of, from or related to the inspection or inspection report shall be submitted to final and binding arbitration under the rules of the state. The decision of the Arbitrator appointed thereunder shall be final and binding judgment on the Award that may be entered in any Court of competent jurisdiction."
+  }
+ ],
+ "stateDisclosuresHeading": "State Specific required disclosures.",
+ "stateDisclosures": {
+  "AL": "The visual examination follows the Alabama Administrative Code Standards of Practice. Alabama is a high moisture area and special attention should be paid for areas like crawlspaces and roof shingles. Dispute resolution will utilize the American Arbitration Associations standards.",
+  "AK": "Reports are valid for 180 from the date signed and dated by the inspector. This is cold weather area and special attention should be paid for Permafrost shifting, ice damming and extreme freeze/thaw cycle damage.",
+  "CA": "Statute of limitation for claims. Any and all legal action must be entered into within 4 years of the date of the inspection.",
+  "IL": "the inspection will comply, at minimum, with the Florida state standard of Practice. The written reports must be provided to the client within 2 business days of the inspection.",
+  "IN": "Statute of Limitation for claims: Any legal action for damages must be filed within 2 years of the date of the action accrues.",
+  "IA": "Inspection cannot provide repair estimates as a part of the inspection report. Repair estimate must be a independent report and must cite the source of the estimate and clearly states the cost.",
+  "KS": "The inspection will follow the Kansas registration board standards for a visual, non-invasive inspection of readily accessible systems. Liability is limited to the base amount of the inspection fee.",
+  "LA": "Standards of Practice and Code of Ethics is attached.",
+  "ME": "Special attention should be paid to naturally occurring arsenic in the bedrock well water and naturally high Radon levels.",
+  "MN": "Special attention should be paid for Ice dam susceptibility, attic ventilation balance, and seasonal freeze-thaw basement moisture or foundation shifting.",
+  "MS": "The scope of the inspection will follow the standards as outlined by the Mississippi Home Inspection Division. Inspection of new construction requires the Mississippi New Home Designation.",
+  "MT": "The scope of the dwelling inspection will be limited to the physical dwelling structure. Any other structures, systems or conditions are required to be added on.",
+  "NH": "The inspection will be performed in accordance with New Hampshire’s specific administrative rules and Standards of Practice, known as Home 600",
+  "NJ": "New Jersey home inspections cover only nine specific systems: structural, exterior, roofing, plumbing, electrical, heating, cooling, interior, and insulation/ventilation, plus fireplaces. A material defect is defined as – a condition that substantially affects value, habitability, or safety, explicitly excluding cosmetic or aesthetic flaws.",
+  "NC": "The written inspection report to required to be delivered to the client within 72 hours of the completion of the inspection.",
+  "OH": "The work listed in this agreement qualifies as a home inspection under ORC 4764.01©and the report follows Ohio Revised Code Chapter 4764",
+  "SD": "Inspections must align strictly with the South Dakota Real Estate Commission's Standards of Practice (Articles 20:74:06 through 0.6.15 of the Administrative Rules) covering residential buildings of four or fewer.",
+  "TX": "Inspections follow TREC standards of Practice, limiting liability and scope to what is legally mandated in the state.",
+  "VT": "Due to older housing stock historical documentation regarding heating sources, Oil Tanks and fuel storage history are the responsibility of the owner and not the inspector or the inspection company.",
+  "WI": "Inspection in Wisconsin follow the Wisconsin Statute 440.975 and SPS 131 of the Wisconsin Administrative Code."
+ },
+ "closing": [
+  {
+   "t": "p",
+   "text": "SIGNATURE – Signing this agreement is required before the inspection can begin. Electronic signature will be as legally binding as an original ink signature."
+  },
+  {
+   "t": "p",
+   "text": "SEVERABILITY - It is agreed that if any part of this agreement is found to be unenforceable by a court are arbitrator that the remainder of the agreement will remain in force."
+  },
+  {
+   "t": "p",
+   "text": "Non-Payment - If payment is made by check and the check is returned by your back, there will be a $50 Fee assessed to your account balance. If payment is not tendered it will be added to your closing costs. If closing does not occur, a service fee of 100% of the amount due will be added to your account and the account will be sent to collections."
+  },
+  {
+   "t": "p",
+   "text": "The client is responsible to review and act upon the information in the inspection report."
+  },
+  {
+   "t": "p",
+   "text": "A copy of the report will be sent to your Real Estate Agent unless otherwise directed (except in New Hampshire)."
+  },
+  {
+   "t": "p",
+   "text": "NO Report to Real Estate Agent. ☐"
+  },
+  {
+   "t": "p",
+   "text": "Real Estate Agents Name _________________________________ Agents Email _________________________________"
+  },
+  {
+   "t": "p",
+   "text": "ACKNOWLEDGEMENT: I, the undersigned, have carefully read the preceding Inspection Agreement and scop of inspection. I understand and agree with the limitations and terms described.",
+   "lead": true
+  },
+  {
+   "t": "p",
+   "text": "Printed Name of Client: ______________________________________________________"
+  },
+  {
+   "t": "p",
+   "text": "Client Signature: _____________________________________________Date __________"
+  }
+ ]
+}

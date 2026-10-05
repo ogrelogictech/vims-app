@@ -1,6 +1,6 @@
 {
  "_about": "VIMS shared checklist + configuration data. Single source of truth for the native iOS (SwiftUI) and Android (Kotlin/Compose) apps. Extracted from the client-approved prototype (index.html, approved Sep 15, 2026). Edit here, not in app code.",
- "version": "1.3.0",
+ "version": "1.4.0",
  "generated": "2026-09-29",
  "depths": [
   {
@@ -31140,6 +31140,10 @@
     }
    ]
   },
-  "_about": "Keyed by the inspection's property state (new required 'State' field in wizard step 1, right after Inspection address). type: auto-select that inspection type when the state is chosen (revert to 'Real Estate Sale' if the state changes away and the type is still the auto one). note: info card under the State field. summaryDisclosure: permanent entry at the top of the Summary screen and page 1 of the report's Summary (any report layout that has a summary). coverNotice: extra line on the report cover under the ownership notice (all layouts). docs: state documents (PDF paths relative to shared/) that must be given to the client with the inspection agreement — show View + Send to client (share/email the PDF to the client email) and a required checkbox 'Provided to the client with the inspection agreement' that blocks Next on step 1 until checked; store the acknowledgment on the inspection."
+  "_about": "Keyed by the inspection's property state (new required 'State' field in wizard step 1, right after Inspection address). type: auto-select that inspection type when the state is chosen (revert to 'Real Estate Sale' if the state changes away and the type is still the auto one). note: info card under the State field. summaryDisclosure: permanent entry at the top of the Summary screen and page 1 of the report's Summary (any report layout that has a summary). coverNotice: extra line on the report cover under the ownership notice (all layouts). docs: state documents (PDF paths relative to shared/) that must be given to the client with the inspection agreement — show View + Send to client (share/email the PDF to the client email) and a required checkbox 'Provided to the client with the inspection agreement' that blocks Next on step 1 until checked; store the acknowledgment on the inspection. agentCopyDefault: initial value of the step-1 'Send the report to the real estate agent' checkbox for that state (true everywhere else); when unchecked, emailed reports go to the client only (CC inspector, BCC platform).",
+  "NH": {
+   "note": "New Hampshire: send the report to the real estate agent only with the client's written authorization.",
+   "agentCopyDefault": false
+  }
  }
 }
