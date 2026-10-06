@@ -76,7 +76,7 @@ val verifySharedAssets = tasks.register("verifySharedAssets") {
     val shared = rootProject.file("../shared")
     val checklist = File(shared, "data/vims-checklists.json")
     val required = listOf(
-        "legal/eula.json", "icons/icons.json", "data/vims-checklists.json",
+        "legal/eula.json", "legal/inspection-agreement.json", "icons/icons.json", "data/vims-checklists.json",
         "legal/state/oregon-home-inspection-consumer-notice.pdf",
         "legal/state/louisiana-standards-of-practice-code-of-ethics.pdf",
     )

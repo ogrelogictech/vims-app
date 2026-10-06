@@ -185,6 +185,7 @@ private fun WizardFields(vm: AppViewModel, nav: NavHostController, defs: List<Wi
                 // Data v1.3: required State dropdown (+ state rules) directly after Inspection address.
                 if (f.label == WizardSelections.F_ADDRESS && !step2) StateField(vm, nav, sel, form)
                 if (f.label == WizardSelections.F_AGENT_EMAIL) {
+                    SendToAgentCheck(vm, sel)
                     Text("Client & agent emails are used to send the finished report.", style = T.ui(12.sp, color = V.ink3), modifier = Modifier.padding(start = 2.dp, end = 2.dp, top = 0.dp, bottom = 12.dp))
                 }
                 i++

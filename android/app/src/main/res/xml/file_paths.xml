@@ -6,4 +6,6 @@
     <cache-path name="capture" path="capture/" />
     <!-- State documents (stateRules docs, copied from assets) for View / Send to client -->
     <cache-path name="state_docs" path="state-docs/" />
+    <!-- Company's own uploaded inspection agreement (Company profile → View your file) -->
+    <files-path name="company_docs" path="vims/companies/" />
 </paths>

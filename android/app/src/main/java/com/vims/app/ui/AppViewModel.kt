@@ -78,6 +78,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val eula: com.vims.app.data.Eula = container.eulaResult.getOrElse { com.vims.app.data.Eula() }
     /** Non-null when the EULA couldn't be loaded — shown instead of a blank agreement. */
     val eulaError: String? = container.eulaResult.exceptionOrNull()?.let { "${it::class.java.simpleName}: ${it.message}" }
+    /** VIMS default inspection agreement (assets/legal/inspection-agreement.json), loaded at startup. */
+    val agreement: com.vims.app.data.InspectionAgreement = container.agreementResult.getOrElse { com.vims.app.data.InspectionAgreement() }
+    val agreementError: String? = container.agreementResult.exceptionOrNull()?.let { "${it::class.java.simpleName}: ${it.message}" }
     /** Debug-only override of the current EULA version (to exercise the re-acceptance screen). */
     var debugEulaVersion by androidx.compose.runtime.mutableStateOf<String?>(null)
     val currentEulaVersion: String get() = debugEulaVersion ?: eula.version.ifBlank { "unavailable" }
@@ -191,7 +194,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /**
      * Wizard step 1 "State" (stateRules `_about`): a rule's `type` is auto-selected; changing to a state without that
      * rule while the inspection is still on the auto type reverts it to the default type ("Real Estate Sale").
-     * Changing the state clears the state-documents acknowledgment.
+     * Changing the state clears the state-documents acknowledgment and resets "Send the report to the real estate agent"
+     * to the state's `agentCopyDefault` (unchecked for NH, checked elsewhere).
      */
     fun setInspState(code: String) = updateSel { s ->
         if (s.state == code) return@updateSel s
@@ -200,8 +204,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         var type = s.inspType
         if (prev != null && type == prev && next != prev) type = config.wizard.defaults.inspType
         if (next != null && next in config.wizard.inspectionTypes) type = next
-        s.copy(state = code, inspType = type, stateDocsAck = false, stateDocsAckAt = null)
+        s.copy(state = code, inspType = type, stateDocsAck = false, stateDocsAckAt = null, sendToAgent = config.stateRule(code)?.agentCopy ?: true)
     }
+
+    /** Step 1 "Send the report to the real estate agent" — saved on the inspection with the rest of the selections. */
+    fun setSendToAgent(on: Boolean) = updateSel { it.copy(sendToAgent = on) }
 
     /** "Provided to the client with the inspection agreement" — stored with a timestamp on the inspection. */
     fun ackStateDocs(on: Boolean) = updateSel { it.copy(stateDocsAck = on, stateDocsAckAt = if (on) System.currentTimeMillis() else null) }
@@ -421,7 +428,23 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             } catch (_: Exception) { false }
         }
         val rel = File(repo.companyDir(), "agreement.$ext").relativeTo(getApplication<Application>().filesDir).path
-        if (ok) { repo.updateCompany { it.copy(agreementName = name, agreementFile = rel) }; toast("Agreement uploaded") } else toast("Could not read that file")
+        if (ok) {
+            val old = company.value.agreementFile
+            repo.updateCompany { it.copy(agreementName = name, agreementFile = rel) }
+            if (old != null && old != rel) withContext(Dispatchers.IO) { File(filesDir, old).delete() }
+            toast("Your agreement is now in use")
+        } else toast("Could not read that file")
+    }
+
+    /** The company's own uploaded agreement file, or null when it uses the VIMS agreement. */
+    fun ownAgreementFile(): File? = company.value.agreementFile?.takeIf { company.value.agreementName != null }?.let { File(filesDir, it) }
+
+    /** "Use VIMS agreement": back to the default agreement; the uploaded file is removed from the device. */
+    fun useDefaultAgreement() = viewModelScope.launch {
+        val old = company.value.agreementFile
+        repo.updateCompany { it.copy(agreementName = null, agreementFile = null) }
+        if (old != null) withContext(Dispatchers.IO) { File(filesDir, old).delete() }
+        toast("Using the VIMS agreement")
     }
 
     fun saveFeedbackEmail(email: String): Boolean {
@@ -514,7 +537,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Debug-only helper (screenshots / QA): set an inspection's property state (docs marked as provided). */
     fun debugSetState(id: String, state: String) = repo.updateInspection(id) {
         val docs = config.stateRule(state)?.docs.orEmpty().isNotEmpty()
-        it.copy(selections = it.selections.copy(state = state.uppercase(), stateDocsAck = docs, stateDocsAckAt = if (docs) System.currentTimeMillis() else null))
+        it.copy(selections = it.selections.copy(state = state.uppercase(), stateDocsAck = docs, stateDocsAckAt = if (docs) System.currentTimeMillis() else null,
+            sendToAgent = config.stateRule(state)?.agentCopy ?: true))
     }
     suspend fun debugSignIn() {
         if (session.value != null) return

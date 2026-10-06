@@ -34,6 +34,7 @@ Join a company with a code attaches a new user to an existing company. Auth is a
 adb shell am start -S -n com.vims.app/.MainActivity --es screen section --es section Roof
 #   screen: login signup forgot join home wizard sections section photos camera markup finding summary report
 #           generated pdf settings company instructions admin editsec plans inspectors subscribe substarted billing feedbackadmin
+#           eula agreement (inspection agreement; add --es state NH to show only that state's disclosures)
 #   --es insp demo-ridgeline   --es section "'Outside Utilities'"   --es photo demo-p0   --es cat "North Side"
 #   --es depth high|standard|fast (rewrites that inspection's depth)   --ei step 1-4 (wizard)   --ei coverStep 1-3
 #   --ez splash true (show the free-look splash)   --ez video true (play the launch video too)
@@ -239,5 +240,27 @@ per-inspector rate, trial length, and feedback email come from `vims-checklists.
   - **OR:** the `coverNotice` prints on the PDF cover under the ownership notice, in every layout.
   - **OR / LA `docs`:** the state documents (`shared/legal/state/*.pdf`) are listed in step 1 with **View** and **Send to client**. A required checkbox, "Provided to the client with the inspection agreement," blocks **Next**, and the acknowledgment is stored with a timestamp.
   - **Adding a state:** edit `stateRules` in the shared JSON. No code changes are needed.
-- **Emailed reports** go To the client and agent, with **CC to the signed-in inspector** (archive copy) and BCC to the platform report-quality address when that setting is on.
+- **Emailed reports** go To the client and agent (client only when "Send the report to the real estate agent" is off — see v1.4 below), with **CC to the signed-in inspector** (archive copy) and BCC to the platform report-quality address when that setting is on.
 - **EULA** `version` 2026-10-03 adds clause 3.4 (Licensing). Users who accepted an older version see the re-accept gate once.
+
+## VIMS default inspection agreement + send-to-agent (shared data v1.4)
+
+- **Agreement text** comes from `../shared/legal/inspection-agreement.json` (`data/InspectionAgreement.kt`), loaded once
+  during background startup next to the EULA (`AppContainer.agreementResult`, errors logged under `VIMS-Agreement` and shown
+  in the viewer instead of a blank card). `{companyName}` is replaced with the signed-in company's name at display time.
+  `verifySharedAssets` now also requires the file.
+- **Company profile → Inspection agreement:** default card "VIMS agreement" / "All 50 states · in use · View" with
+  **Upload your own** (PDF/Word picker). After an upload: the file name, "Your agreement · in use · Use VIMS agreement"
+  (reverts and deletes the copied file) and **Replace**. Stored on the company profile (`agreementName` / `agreementFile`,
+  JSON payload, no schema change); file in `vims/companies/<companyId>/agreement.<ext>`.
+- **Viewer** ("Inspection agreement", `AgreementR(state)`): title, header form lines in a boxed mono block, body paragraphs /
+  bullets, state disclosures (all 20 from Company profile; only the inspection's state from the wizard, with "Showing <State>
+  only…" or "No additional disclosures for <State>."), closing. If the company uses its own file, a note at the top says the
+  VIMS text is for reference, with **Open your agreement** (`ACTION_VIEW` via FileProvider, `company_docs` path).
+- **Wizard step 1:** "Inspection agreement: View (shows the selected state's section)" under the State notes, and
+  **Send the report to the real estate agent** under Real estate agent email (`WizardSelections.sendToAgent`, saved on the
+  inspection). Changing the state sets it to `stateRules.<STATE>.agentCopyDefault` (unchecked for NH, checked elsewhere);
+  when that default is false the state's note shows under the checkbox instead of under the State field.
+- **Email to client:** `EXTRA_EMAIL` = client only when send-to-agent is off (CC inspector and BCC platform unchanged). The
+  Report ready note says "Goes to the client only…" or "Goes to the client and the real estate agent."
+- Screenshots: `screenshots/qa-12x-*.png`.

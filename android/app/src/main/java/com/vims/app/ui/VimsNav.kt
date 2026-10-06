@@ -99,6 +99,8 @@ import kotlinx.serialization.Serializable
 @Serializable object FeedbackAdminR
 @Serializable object ReportBccR
 @Serializable object EulaR
+/** Inspection agreement viewer: `state` = "" shows every state's disclosures (Company profile); a code shows only that state's (wizard). */
+@Serializable data class AgreementR(val state: String = "")
 /** State document viewer (`file` = asset path relative to shared/, from stateRules.<STATE>.docs). */
 @Serializable data class StateDocR(val file: String, val name: String)
 
@@ -152,6 +154,7 @@ fun VimsRoot(vm: AppViewModel, debug: DebugLaunch?) {
             composable<FeedbackAdminR> { FeedbackAdminScreen(vm, nav) }
             composable<EulaR> { com.vims.app.ui.screens.EulaScreen(vm, nav) }
             composable<ReportBccR> { com.vims.app.ui.screens.ReportBccScreen(vm, nav) }
+            composable<AgreementR> { com.vims.app.ui.screens.AgreementScreen(vm, nav, it.toRoute<AgreementR>().state) }
             composable<StateDocR> { val r = it.toRoute<StateDocR>(); com.vims.app.ui.screens.StateDocScreen(vm, nav, r.file, r.name) }
         }
 
@@ -207,6 +210,7 @@ private suspend fun applyDebug(vm: AppViewModel, nav: NavHostController, d: Debu
         "feedbackadmin" -> FeedbackAdminR
         "reportbcc" -> ReportBccR
         "eula" -> EulaR
+        "agreement" -> AgreementR(d.state.orEmpty())
         else -> HomeR
     }
     if (route != null) {

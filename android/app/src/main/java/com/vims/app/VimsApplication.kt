@@ -33,6 +33,8 @@ class AppContainer(private val app: Application) {
     val config: ChecklistConfig = ChecklistLoader.load(app)
     /** EULA loaded once at app start, off the main thread, before any screen is shown (survives into every screen / after process death via Application). */
     val eulaResult: Result<com.vims.app.data.Eula> = com.vims.app.data.Eula.load(app)
+    /** VIMS default inspection agreement (shared/legal/inspection-agreement.json), loaded here off the main thread like the EULA. */
+    val agreementResult: Result<com.vims.app.data.InspectionAgreement> = com.vims.app.data.InspectionAgreement.load(app)
     val db: VimsDatabase = VimsDatabase.open(app)
     private val roomRepo = RoomRepository(app.filesDir, db.dao())
     val repo: VimsRepository = roomRepo

@@ -80,7 +80,8 @@ data class StateDef(val code: String, val name: String)
  * `stateRules.<CODE>` (see its `_about` in vims-checklists.json):
  * type = auto-selected inspection type · note = info card under the State field · summaryDisclosure = permanent entry at
  * the top of the Summary screen and page 1 of the PDF summary · coverNotice = extra line under the cover's ownership
- * notice · docs = PDFs (paths relative to shared/) that must be given to the client with the inspection agreement.
+ * notice · docs = PDFs (paths relative to shared/) that must be given to the client with the inspection agreement ·
+ * agentCopyDefault = initial value of the wizard's "Send the report to the real estate agent" checkbox (null = true; NH = false, v1.4).
  */
 @Serializable
 data class StateRule(
@@ -89,7 +90,12 @@ data class StateRule(
     val summaryDisclosure: String? = null,
     val coverNotice: String? = null,
     val docs: List<StateDoc> = emptyList(),
-)
+    /** Raw JSON so an unexpected value (e.g. a string) can't drop the whole rule; read through [agentCopy]. */
+    val agentCopyDefault: kotlinx.serialization.json.JsonElement? = null,
+) {
+    /** Default for "Send the report to the real estate agent" in this state (true unless the rule says false). */
+    val agentCopy: Boolean get() = (agentCopyDefault as? kotlinx.serialization.json.JsonPrimitive)?.content?.trim()?.lowercase()?.let { it != "false" && it != "no" && it != "0" } ?: true
+}
 
 @Serializable
 data class StateDoc(val name: String, val file: String)

@@ -8,6 +8,7 @@ import android.os.ParcelFileDescriptor
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -47,7 +48,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -56,6 +60,7 @@ import androidx.navigation.NavHostController
 import com.vims.app.data.StateDoc
 import com.vims.app.data.WizardSelections
 import com.vims.app.ui.AppViewModel
+import com.vims.app.ui.AgreementR
 import com.vims.app.ui.StateDocR
 import com.vims.app.ui.components.FieldError
 import com.vims.app.ui.components.FieldLabel
@@ -123,7 +128,45 @@ fun StateField(vm: AppViewModel, nav: NavHostController, sel: WizardSelections, 
         }
         FieldError(err)
     }
-    if (rule?.note != null || rule?.docs?.isNotEmpty() == true) StateNoteCard(vm, nav, sel, rule.note, rule.docs, ackErr, Modifier.formField(form, STATE_ACK_KEY))
+    // A rule whose note is about the agent copy (agentCopyDefault false, e.g. NH) shows it under the agent checkbox instead.
+    val note = rule?.note?.takeIf { rule.agentCopy }
+    if (note != null || rule?.docs?.isNotEmpty() == true) StateNoteCard(vm, nav, sel, note, rule.docs, ackErr, Modifier.formField(form, STATE_ACK_KEY))
+    // "Inspection agreement: View (shows the selected state's section)" — the VIMS agreement with only this state's disclosures.
+    Row(
+        Modifier.fillMaxWidth().padding(bottom = 6.dp).heightIn(min = 44.dp).clip(RoundedCornerShape(8.dp))
+            .clickable(role = Role.Button, onClickLabel = "View inspection agreement") { nav.navigate(AgreementR(sel.state)) }.padding(horizontal = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(buildAnnotatedString {
+            append("Inspection agreement: ")
+            withStyle(SpanStyle(color = V.brand, fontWeight = FontWeight.SemiBold)) { append("View") }
+            append(" (shows the selected state’s section)")
+        }, style = T.ui(12.5.sp, color = V.ink3, lineHeight = 17.sp))
+    }
+}
+
+/**
+ * Step 1 checkbox under Real estate agent email: "Send the report to the real estate agent". Defaults to the state's
+ * `agentCopyDefault` (set when the state changes); when that default is false (NH) the state's note is shown beneath it.
+ */
+@Composable
+fun SendToAgentCheck(vm: AppViewModel, sel: WizardSelections) {
+    val rule = vm.config.stateRule(sel.state)
+    val shape = RoundedCornerShape(5.dp)
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(RoundedCornerShape(8.dp))
+            .toggleable(sel.sendToAgent, role = Role.Checkbox) { vm.setSendToAgent(it) }.padding(horizontal = 2.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Box(
+            Modifier.size(22.dp).clip(shape).background(if (sel.sendToAgent) V.brand else V.paper).border(1.5.dp, if (sel.sendToAgent) V.brand else V.ink3, shape),
+            contentAlignment = Alignment.Center,
+        ) { if (sel.sendToAgent) Icon(VIcons.checkBold, null, tint = Color.White, modifier = Modifier.size(15.dp)) }
+        Text("Send the report to the real estate agent", style = T.ui(13.5.sp, color = V.ink2, lineHeight = 18.sp), modifier = Modifier.weight(1f))
+    }
+    if (rule != null && !rule.agentCopy && rule.note != null) {
+        Text(rule.note, style = T.ui(12.sp, FontWeight.Medium, V.signalDeep, lineHeight = 16.sp), modifier = Modifier.padding(start = 2.dp, end = 2.dp, bottom = 6.dp))
+    }
 }
 
 /** Info card under the State field (prototype: card with a brand left border). */

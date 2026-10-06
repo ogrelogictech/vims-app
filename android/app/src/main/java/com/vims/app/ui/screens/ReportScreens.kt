@@ -273,6 +273,9 @@ private fun OptGrid(options: List<String>, selected: String, onPick: (String) ->
 /** The signed-in user's own email, CC'd on every emailed report when `support.ccInspector` is in the data (v1.3). */
 fun reportCc(vm: AppViewModel): String? = vm.session.value?.email?.trim()?.takeIf { vm.config.support.ccInspectorOn && it.isNotEmpty() }
 
+/** Report recipients (To): client + agent, or the client only when the inspection's send-to-agent box is unchecked. */
+fun reportTo(s: com.vims.app.data.WizardSelections): List<String> = listOfNotNull(s.clientEmail, s.agentEmail.takeIf { s.sendToAgent }).filter { it.isNotBlank() }
+
 fun shareReport(ctx: Context, vm: AppViewModel, b: InspectionBundle, file: File) {
     val uri = FileProvider.getUriForFile(ctx, "${ctx.packageName}.fileprovider", file)
     val s = b.inspection.selections
@@ -285,7 +288,8 @@ fun shareReport(ctx: Context, vm: AppViewModel, b: InspectionBundle, file: File)
     val send = Intent(Intent.ACTION_SEND).apply {
         type = "application/pdf"
         putExtra(Intent.EXTRA_STREAM, uri)
-        putExtra(Intent.EXTRA_EMAIL, listOf(s.clientEmail, s.agentEmail).filter { it.isNotBlank() }.toTypedArray())
+        // To: the client, plus the agent unless "Send the report to the real estate agent" is off (step 1; off by default in NH).
+        putExtra(Intent.EXTRA_EMAIL, reportTo(s).toTypedArray())
         // support.ccInspector (data v1.3): the signed-in inspector gets a CC (archive copy).
         reportCc(vm)?.let { putExtra(Intent.EXTRA_CC, arrayOf(it)) }
         // Platform "Report quality copy": blind-copy the report. Some share targets ignore EXTRA_BCC —
@@ -315,6 +319,11 @@ fun GeneratedScreen(vm: AppViewModel, nav: NavHostController, inspId: String) {
             val cc = reportCc(vm)
             val bcc = vm.platform.collectAsState().value.activeBcc != null
             val note = listOfNotNull(
+                when {
+                    !s.sendToAgent -> "Goes to the client only — sending to the real estate agent is off for this inspection."
+                    s.agentEmail.isNotBlank() -> "Goes to the client and the real estate agent."
+                    else -> null
+                },
                 cc?.let { "A copy goes to you ($it)." },
                 if (bcc) "A quality-review copy is blind-copied per the VIMS terms." else null,
                 if (cc != null || bcc) "Some email apps may drop copies." else null,

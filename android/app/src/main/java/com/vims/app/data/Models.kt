@@ -162,6 +162,8 @@ data class WizardSelections(
     val stateDocsAck: Boolean = false,
     /** When [stateDocsAck] was confirmed (epoch ms). */
     val stateDocsAckAt: Long? = null,
+    /** "Send the report to the real estate agent" (step 1, data v1.4). Set to the state's `agentCopyDefault` when the state changes. */
+    val sendToAgent: Boolean = true,
 ) {
     fun field(label: String): String = fields[label].orEmpty().trim()
     fun chip(label: String): String = chips[label].orEmpty()
