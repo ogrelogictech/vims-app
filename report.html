@@ -130,7 +130,7 @@
   .cvrow .cvv.lic{flex:0 0 17cqw}
   .cvphoto{border:1.25pt solid #000;overflow:hidden;background:#fff}
   .cvphoto img{width:100%;height:100%;object-fit:cover;display:block}
-  .cvfoot{text-align:center;font-weight:700;font-size:1.7cqw;line-height:1.3}
+  .cvfoot{z-index:2;text-align:center;font-weight:700;font-size:1.7cqw;line-height:1.3}
   .cvartclip{overflow:hidden;pointer-events:none}
   .cvart{position:absolute;object-fit:fill}
   /* license # beside the inspector's name on the cover */
@@ -241,13 +241,13 @@
     var art = CVR.category!=='Solid' ? COVER_ART[CVR.option] : null;
     // footer wraps into the free space beside the art (like the client's Word covers)
     var fl=0.55, fr=7.95;
-    if(art && art.rect[1]<9.95 && art.rect[1]+art.rect[3]>9.35){ if(art.rect[0]>3.5) fr=Math.max(art.rect[0]-0.05,3.6); else fl=Math.min(art.rect[0]+art.rect[2]+0.05,4.9); }
+    if(art && art.rect[1]<9.95 && art.rect[1]+art.rect[3]>9.35){ var lr=art.rect[0]-0.55, rr=7.95-(art.rect[0]+art.rect[2]); if(lr>=rr) fr=Math.max(art.rect[0]-0.05,2.55); else fl=Math.min(art.rect[0]+art.rect[2]+0.05,5.95); }
     var t4=TYPE==='4point', tx=TYPE==='texas';
     var rows = t4
       ? [['Insured / Applicant',INSP.client],['Application / Policy #',INSP.policy],['Address Inspected',INSP.address],['',INSP.city],['Actual Year Built',INSP.yearBuilt],['Date Inspected',INSP.date]]
       : [['Client Name',INSP.client],['Address of Inspection',INSP.address],['',INSP.city],['Date of Inspection',INSP.date],['Real Estate Agent',INSP.agent]];
     var y=2.62, fh='';
-    rows.forEach(function(r){ fh+='<div class="cvrow" style="top:'+inch(y)+'"><span class="cvl">'+r[0]+'</span><span class="cvv">'+r[1]+'</span></div>'; y+= r[0]===''||rows.indexOf(r)===1&&!t4 ? 0.36 : 0.47; });
+    rows.forEach(function(r){ fh+='<div class="cvrow" style="top:'+inch(y)+'"><span class="cvl">'+r[0]+'</span><span class="cvv">'+r[1]+'</span></div>'; var nxt=rows[rows.indexOf(r)+1]; y+= t4 ? (nxt&&nxt[0]===''?0.30:0.39) : (nxt&&nxt[0]===''?0.36:0.47); });
     fh+='<div class="cvrow" style="top:'+inch(y)+'"><span class="cvl">Name of Inspector</span><span class="cvv">'+INSP.inspector+'</span><span class="cvl" style="margin-left:'+inch(0.12)+'">License #</span><span class="cvv lic">'+INSP.license+'</span></div>';
     var pb=[1.2,5.1,6.08,4.15];
     return '<div class="page cover cv">'
@@ -257,8 +257,8 @@
       +'<div class="cvtitle" style="top:'+inch(1.98)+'">'+(tx?'Property Inspection Report':t4?'4-Point Inspection Report':'Inspection Report')+'</div>'
       +fh
       +'<div class="cvphoto" style="'+box(pb)+'"><img src="'+photo(0,'Front of property')+'" alt="Property"></div>'
-      +'<div class="cvfoot" style="left:'+inch(fl)+';width:'+inch(fr-fl)+';top:'+inch(9.38)+'">This inspection report is the property of '+COMPANY.name+'.<br>Any reproduction or distribution without written consent is prohibited.'+(STATE==='OR'?'<div style="font-weight:600;margin-top:'+inch(0.05)+'">'+OR_COVER+'</div>':'')+'</div>'
       +(art?'<div class="cvartclip" style="'+box([0.5,0.68,7.48,9.52])+'"><img class="cvart" src="'+art.file+'" alt="" style="'+box([art.rect[0]-0.5,art.rect[1]-0.68,art.rect[2],art.rect[3]])+'"></div>':'')
+      +'<div class="cvfoot" style="left:'+inch(fl)+';width:'+inch(fr-fl)+';top:'+inch(9.38)+'">This inspection report is the property of '+COMPANY.name+'.<br>Any reproduction or distribution without written consent is prohibited.'+(STATE==='OR'?'<div style="font-weight:600;margin-top:'+inch(0.05)+'">'+OR_COVER+'</div>':'')+'</div>'
       +'</div>';
   }
   pages.push(coverPage());
