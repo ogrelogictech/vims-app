@@ -45,7 +45,8 @@ enum DebugFlags {
 ///   -wizScroll ID              scroll wizard step 1 to a block (sendToAgent, agreementLine, State)
 ///   -ownAgreement NAME         use bundled NAME.pdf as the company's own uploaded agreement (same path as Upload your own)
 ///   -useVimsAgreement          revert the company to the VIMS agreement
-///   -agreementScroll disclosures  scroll the agreement viewer to the state disclosures
+///   -editedAgreement           give the company an edited copy of the VIMS agreement (same path as Edit → Save)
+///   -agreementScroll disclosures  scroll the agreement viewer to the state disclosures (`card`: Company profile's agreement card)
 ///   -agreementStatus           print AGREEMENTTEST (bundled agreement loaded, state keys, own file)
 ///   -agreementState XX         with -screen agreement: open the viewer from the wizard for state XX (else from Company profile)
 ///   -landscape / -portrait     rotate the iPad simulator window (review screenshots; refused in iPadOS 26 windowed mode)
@@ -159,6 +160,10 @@ enum DebugLaunch {
             store.saveProfilePhoto(img)
         }
         if has("-useVimsAgreement"), store.session != nil { store.useDefaultAgreement() }
+        // -editedAgreement: give the company an edited copy (title changed) through the same save as the editor.
+        if has("-editedAgreement"), store.session != nil, let t = store.vimsAgreementPlainText {
+            store.saveEditedAgreement(t.replacingOccurrences(of: "Inspection Agreement\n", with: "Home Inspection Agreement\n", options: .anchored))
+        }
         if let n = value("-ownAgreement"), store.session != nil {
             if let u = Bundle.main.url(forResource: n, withExtension: "pdf") { store.saveAgreement(from: u) }
             else { print("AGREEMENTTEST missing bundled \(n).pdf") }

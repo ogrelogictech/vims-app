@@ -2,7 +2,7 @@
 
 Native **iOS** build of VIMS Phase 1 (Vision Inspection Management Solutions), built screen-for-screen and
 behavior-for-behavior against the client-approved prototype (`../index.html`, `../report.html`, `../screens/`).
-Swift 5 language mode · SwiftUI + Observation · iOS 17.0+ · iPhone only · Apple frameworks only (no packages).
+Swift 5 language mode · SwiftUI + Observation · iOS 17.0+ · iPhone + iPad · Apple frameworks only (no packages).
 The Android twin lives in `../android/` and is built separately.
 
 ## Open, build, run
@@ -37,7 +37,7 @@ xcrun simctl launch --terminate-running-process "iPhone 17" com.vims.app -resetD
 
 `-screen` accepts: `login signup forgot join home splash wizard sections section drawer photos markup flag summary
 report reportReady settings company instructions manage editSection plans inspectors subscribe subscribed billing
-feedback reportBcc eula signupEula deleteAccount phase1 phase2`. Extras: `-step N` (wizard 1–4 / cover picker 1–3), `-depth high|standard|fast`,
+feedback reportBcc eula signupEula deleteAccount phase1 phase2 agreement agreementEditor`. Extras: `-step N` (wizard 1–4 / cover picker 1–3), `-depth high|standard|fast`,
 `-section NAME`, `-inspection PREFIX|TYPE` (e.g. `Texas`, `"4 Point Inspection"`), `-generate` (with
 `-screen reportReady`: regenerate the PDF first), `-group NAME` (Manage checklist), `-overview` (phase screens),
 `-trialDaysLeft N`, `-resetData` (wipes the SwiftData store + files and recreates the demo account),
@@ -215,6 +215,53 @@ SwiftUI views ──► AppStore (@Observable, @MainActor)  ──► Repository
   `CTFontManagerRegisterFontsForURL` (named instances of the variable fonts are addressed by PostScript name).
 - **Locale.** Money, numbers and dates use `Locale(identifier: "en_US")` explicitly (`Fmt` in `Theme.swift`),
   so an Indian-region simulator/device still shows `$34.95` and `Sep 28, 2026`. Light appearance is forced.
+
+## iPad
+
+Universal app (`TARGETED_DEVICE_FAMILY = 1,2`). iPhone stays portrait-only; iPad supports all four orientations
+(`INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad`), so it qualifies for multitasking / windowed apps. The iPhone
+layout is unchanged; iPad-only behavior lives in `Views/Shell/Adaptive.swift`:
+
+- **Readable column.** In regular width, `Screen`'s scrolling content (and the wizard, sign-in, EULA gate, markup tool
+  panel) is a centered column, 740 pt max (560 pt for sign-in / create account / join / reset password). Headers and
+  bars stay full width. The Photos screen uses 1100 pt and shows each photo slot as a card, 2–3 across.
+- **Documents full screen.** Report preview, the generated PDF and state documents open as a full-screen cover
+  (`documentCover`) instead of a form sheet; pages fit the width (re-fitted on rotation) and pinch-zoom to 5×.
+- **Anchored pickers.** The quick-comment dropdown (photo markup, flag a finding) and the State picker are popovers
+  hanging off their field (iPhone keeps the system menu / full-height sheet). Confirmation dialogs (Add a photo,
+  delete inspection, profile photo, remove section, use VIMS agreement) are attached to their control so the iPad
+  popover points at it. Flag a finding is one full-height form sheet; the photo library picker is page-sized.
+- **Share sheets.** Every `UIActivityViewController` goes through `ShareSheet.present(_:from:)` with a
+  `PopoverAnchor` on the tapped button (report email fallback, state-document send fallback, agreement download), so
+  it never presents without a popover source (which crashes on iPad). Mail composer and `ShareLink` are system-managed.
+- **Camera.** No camera (iPad simulator) → Add opens the photo library; the profile photo / logo dialog says so.
+- DEBUG review flags: `-openPicker` (wizard), `-openComment` (markup), `-openPreview` / `-openShare` (reportReady,
+  agreement). `-landscape` / `-portrait` request a rotation, but iPadOS 26's windowed mode refuses programmatic
+  rotation — rotate the simulator by hand (⌘← / ⌘→). Screenshots: `screenshots/ipad/{mini,13in}-*.png`.
+
+## Inspection agreement: download + company edit
+
+- **Download** (every user): the share button in the viewer's header renders exactly what the viewer shows (title, form
+  lines, body, the disclosures shown, closing; `{companyName}` filled — or the company's edited text) into a paginated
+  US Letter PDF, `Inspection-Agreement-<Company-Name>.pdf`, footer "<Company> · Inspection Agreement · Page x of n"
+  (`Report/AgreementPDF.swift`, content model `Data/Legal/AgreementContent.swift`), and opens the share sheet
+  ("Share agreement": Save to Files, Mail, AirDrop, Print). An uploaded agreement keeps its Quick Look share.
+- **Edit** (company admins, same permission as upload): the card's **Edit** opens "Edit agreement"
+  (`AgreementEditorView`, route `.agreementEditor`): a plain-text editor prefilled with the VIMS agreement (title, form
+  lines, blank-line paragraphs, "• " bullets, the disclosures heading then "State: text" per state, closing; company
+  name filled) or the company's earlier edit. Save validates (not blank, ≤ 100,000 characters, counter shown; "No
+  changes to save" when unchanged); back / Cancel with changes asks "Discard changes?". Stored on the company as
+  `CompanyProfile.agreementText` + `agreementEditedAt` (SwiftData, with the rest of the profile; TODO(backend) sync).
+  The VIMS agreement itself never changes.
+- **Which agreement is in use** (`AppStore.agreementInUse`): saving an edit replaces an uploaded file; uploading clears
+  the edit; **Use VIMS agreement** clears both (asks "Use the VIMS agreement?" first when an edit would be deleted).
+  Card: "VIMS agreement · All 50 states · in use · View · Edit" / "Edited VIMS agreement · Your edited version · in
+  use · View · Edit · Use VIMS agreement" / uploaded as before. Non-admins see View only (no Edit / Upload).
+- **Viewer** with an edited version: "Your company's edited version of the VIMS agreement.", then the text (a paragraph
+  per blank-line block, "• " lines as bullets, a short first line as the title). From the wizard it shows the full
+  edited text (it can't be filtered by state), and the wizard line reads "View (your company's edited version)".
+- DEBUG: `-screen agreementEditor [-validate]`, `-editedAgreement`, `-agreementScroll card` (Company profile).
+  Screenshots: `screenshots/32-*.png` – `36-*.png`.
 
 ## Folder map
 

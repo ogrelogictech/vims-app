@@ -168,19 +168,29 @@ struct AgreementCard: View {
             LeadIcon(symbol: "no-agreement-uploaded")
             VStack(alignment: .leading, spacing: 2) {
                 Text(title(mode)).font(VFont.ui(14, .bold)).foregroundStyle(VC.ink)
-                    .lineLimit(1).truncationMode(.middle)
-                // "All 50 states · in use · View · Edit": one line when it fits, else the links wrap under the
-                // status (real buttons, so they're easy tap targets).
-                FlowLayout(spacing: 0, lineSpacing: 0) {
-                    Text(status(mode)).font(VFont.ui(12)).foregroundStyle(VC.ink3).fixedSize()
-                    ForEach(links(mode), id: \.title) { l in
-                        HStack(spacing: 0) {
-                            dot
-                            Button(l.title, action: l.action)
-                                .buttonStyle(InlineLinkStyle())
-                                .fixedSize()
-                                .accessibilityHint(l.hint)
+                    .lineLimit(mode == .uploaded ? 1 : 2).truncationMode(.middle)
+                    .fixedSize(horizontal: false, vertical: true)
+                // "All 50 states · in use · View · Edit" on one line when it fits; otherwise the status, then the
+                // links on the line(s) below (real buttons, so they're easy tap targets).
+                let linkList = links(mode)
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 0) {
+                        statusText(mode).fixedSize()
+                        ForEach(linkList, id: \.title) { l in dot; linkButton(l) }
+                    }
+                    VStack(alignment: .leading, spacing: 0) {
+                        statusText(mode).fixedSize(horizontal: false, vertical: true)
+                        // "View · Edit", then "Use VIMS agreement" on its own line (no line starts with a dot).
+                        let main = linkList.filter { !$0.isRevert }
+                        if !main.isEmpty {
+                            HStack(spacing: 0) {
+                                ForEach(Array(main.enumerated()), id: \.element.title) { i, l in
+                                    if i > 0 { dot }
+                                    linkButton(l)
+                                }
+                            }
                         }
+                        ForEach(linkList.filter(\.isRevert), id: \.title) { linkButton($0) }
                     }
                 }
             }
@@ -198,11 +208,28 @@ struct AgreementCard: View {
         } message: { Text("Your company\u{2019}s edited version of the agreement will be deleted.") }
     }
 
-    private var dot: some View { Text(" \u{00B7} ").font(VFont.ui(12)).foregroundStyle(VC.ink3) }
+    private var dot: some View { Text(" \u{00B7} ").font(VFont.ui(12)).foregroundStyle(VC.ink3).frame(minHeight: 28) }
+
+    /// Same 28-pt line box as the links, so the baselines line up.
+    private func statusText(_ mode: AppStore.AgreementInUse) -> some View {
+        Text(status(mode)).font(VFont.ui(12)).foregroundStyle(VC.ink3).frame(minHeight: 28, alignment: .leading)
+    }
+
+    private func linkButton(_ l: CardLink) -> some View {
+        Button(l.title, action: l.action)
+            .buttonStyle(InlineLinkStyle())
+            .fixedSize()
+            .accessibilityHint(l.hint)
+    }
 }
 
 extension AgreementCard {
-    struct CardLink { let title: String; let hint: String; let action: () -> Void }
+    struct CardLink {
+        let title: String
+        let hint: String
+        let action: () -> Void
+        var isRevert: Bool { title == "Use VIMS agreement" }
+    }
 
     func title(_ mode: AppStore.AgreementInUse) -> String {
         switch mode {
@@ -289,6 +316,8 @@ struct AgreementEditorView: View {
             Button("Discard", role: .destructive) { store.back() }
             Button("Keep editing", role: .cancel) {}
         } message: { Text("Your edits to the agreement haven\u{2019}t been saved.") }
+        .onChange(of: dirty) { _, d in SwipeBack.blocked = d }
+        .onDisappear { SwipeBack.blocked = false }
         .onAppear {
             guard !loaded else { return }
             let start = store.company.agreementText ?? store.vimsAgreementPlainText ?? ""

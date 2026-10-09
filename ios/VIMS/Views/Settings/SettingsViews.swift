@@ -202,12 +202,14 @@ struct CompanyProfileView: View {
                 VTextField(label: "Review URL", text: bind(\.reviewURL), placeholder: "https://g.page/r/your-review-link", keyboard: .URL,
                            contentType: .URL, capitalization: .never, kind: .url, fieldID: "review", errors: errors)
                 SectionLabel(text: "Inspection agreement")
-                Text("Every company starts with the VIMS agreement covering all 50 states. Upload your own to use it instead.")
+                Text(store.isAdmin ? "Every company starts with the VIMS agreement covering all 50 states. Edit your company\u{2019}s copy, or upload your own to use it instead."
+                                   : "Every company starts with the VIMS agreement covering all 50 states. Your company admin can edit it or upload their own.")
                     .font(VFont.ui(12)).foregroundStyle(VC.ink3).padding(.top, -4).padding(.bottom, 10).padding(.horizontal, 2)
                     .fixedSize(horizontal: false, vertical: true)
                 AgreementCard { showImporter = true }
                     .vCard(EdgeInsets(top: 12, leading: 14, bottom: 12, trailing: 12))
                     .padding(.bottom, 12)
+                    .id("agreement-card")
                 Button { save() } label: { IconLabel("Save profile", icon: "link-my-account") }
                     .buttonStyle(.vPrimary)
             }
@@ -216,6 +218,14 @@ struct CompanyProfileView: View {
             if draft == nil { draft = store.company }
             if DebugFlags.validate { DebugFlags.validate = false; draft?.name = ""; draft?.phone = "(801) 55"; draft?.email = "office@vpi"; draft?.reviewURL = "g.page/review"; save() }
         }
+        #if DEBUG
+        .task {
+            // -agreementScroll card: scroll to the Inspection agreement card (review screenshots).
+            guard DebugLaunch.value("-agreementScroll") == "card" else { return }
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            errors.scrollTarget = "agreement-card"
+        }
+        #endif
         .fileImporter(isPresented: $showImporter,
                       allowedContentTypes: [.pdf] + ["doc", "docx"].compactMap { UTType(filenameExtension: $0) }) { result in
             if case .success(let url) = result { store.saveAgreement(from: url) }

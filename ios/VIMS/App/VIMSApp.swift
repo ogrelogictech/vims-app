@@ -161,6 +161,13 @@ struct ToastView: View {
     }
 }
 
+/// Screens with unsaved edits (Edit agreement) turn the edge-swipe back off so leaving goes through their
+/// "Discard changes?" confirmation.
+@MainActor
+enum SwipeBack {
+    static var blocked = false
+}
+
 // Keep the edge-swipe back gesture even though the system navigation bar is hidden
 // (the app draws the prototype's own blue header).
 extension UINavigationController: @retroactive UIGestureRecognizerDelegate {
@@ -170,6 +177,6 @@ extension UINavigationController: @retroactive UIGestureRecognizerDelegate {
     }
 
     public func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
-        viewControllers.count > 1
+        viewControllers.count > 1 && !SwipeBack.blocked
     }
 }
