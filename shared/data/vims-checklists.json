@@ -1,6 +1,6 @@
 {
  "_about": "VIMS shared checklist + configuration data. Single source of truth for the native iOS (SwiftUI) and Android (Kotlin/Compose) apps. Extracted from the client-approved prototype (index.html, approved Sep 15, 2026). Edit here, not in app code.",
- "version": "1.5.0",
+ "version": "1.6.0",
  "generated": "2026-10-09",
  "depths": [
   {
@@ -30762,18 +30762,30 @@
   "colors": [
    {
     "name": "Blue",
-    "from": "#2f5ec9",
-    "to": "#123047"
+    "to": "#123047",
+    "light": "#F7FAFD",
+    "mid": "#B5D2EC",
+    "deep": "#237AD4",
+    "solid": "#8DBAE9",
+    "from": "#2f5ec9"
    },
    {
     "name": "Green",
-    "from": "#3a6b4a",
-    "to": "#16351f"
+    "to": "#16351f",
+    "light": "#F7FCF9",
+    "mid": "#BCE0C6",
+    "deep": "#2F8F4E",
+    "solid": "#9BCFAA",
+    "from": "#3a6b4a"
    },
    {
     "name": "Red",
-    "from": "#a4443a",
-    "to": "#3a1512"
+    "to": "#3a1512",
+    "light": "#FDF8F7",
+    "mid": "#E8BEB9",
+    "deep": "#C73F30",
+    "solid": "#E29C94",
+    "from": "#a4443a"
    }
   ],
   "categories": {
@@ -30815,7 +30827,232 @@
    "category": "Activities",
    "option": "Mountains",
    "style": "Framed"
-  }
+  },
+  "_colorsAbout": "light/mid/deep/solid = the client's cover design (Report Cover Pages, Oct 9 2026; Blue is his exact Word fills: page #F7FAFD; Shaded gradient #F7FAFD 0-18% -> #B5D2EC 56% -> #237AD4 83-100%, top to bottom; Solid #8DBAE9; Framed glow #237AD4). Green/Red are the same design hue-shifted (client only supplied Blue). from/to kept for app UI swatches.",
+  "layout": {
+   "_about": "Client's 'Cover - Master example' (identical to 'Blue - Framed'). All coordinates in inches on a US Letter page (8.5 x 11), origin top-left. Fonts: bold serif (Times New Roman on iOS, serif on Android) like the client's Word covers.",
+   "pageBox": [
+    0.5,
+    0.68,
+    7.48,
+    9.52
+   ],
+   "framed": "pageBox filled with light, 0.75pt black border, soft outer glow in deep (~0.4in)",
+   "shaded": "pageBox filled with the light->mid->deep vertical gradient, 0.75pt black border",
+   "solid": "pageBox filled with solid, 0.75pt black border",
+   "logo": {
+    "rect": [
+     0.6,
+     0.75,
+     1.6,
+     1.1
+    ],
+    "_about": "company logo, top-left, aspect-fit"
+   },
+   "companyInfo": {
+    "rect": [
+     4.3,
+     0.8,
+     3.55,
+     1.1
+    ],
+    "_about": "company name, address, phone, email; right side, centered in its box, ~10pt"
+   },
+   "title": {
+    "text": "Inspection Report",
+    "centerY": 2.17,
+    "size": 20
+   },
+   "fields": {
+    "_about": "centered block, bold 13pt, values on an underline: Client Name; Address of Inspection (2 lines); Date of Inspection; Real Estate Agent; Name of inspector + License # on one line",
+    "top": 2.62,
+    "lineGap": 0.47,
+    "left": 1.3,
+    "right": 7.2
+   },
+   "photoBox": {
+    "rect": [
+     1.2,
+     5.1,
+     6.08,
+     4.15
+    ],
+    "border": 1.25,
+    "_about": "property photo, aspect-fill and clipped; when there is no photo draw the empty box with the small label 'Picture of Property.' to its left"
+   },
+   "footer": {
+    "centerY": 9.65,
+    "size": 11,
+    "text": "This inspection report is the property of {companyName}.\nAny reproduction or distribution without written consent is prohibited.",
+    "_about": "bold, centered; when theme art overlaps the footer area, wrap the footer into the free space beside the art (as the client's covers do)"
+   },
+   "themeArt": "drawn last, on top of everything, at covers.themeArt[option].rect, clipped to pageBox"
+  },
+  "themeArt": {
+   "Horses": {
+    "file": "covers/horses.webp",
+    "rect": [
+     3.46,
+     7.47,
+     4.84,
+     2.8
+    ]
+   },
+   "Planes": {
+    "file": "covers/planes.webp",
+    "rect": [
+     4.31,
+     6.63,
+     3.62,
+     3.45
+    ]
+   },
+   "Astronomy": {
+    "file": "covers/astronomy.webp",
+    "rect": [
+     3.67,
+     7.32,
+     4.77,
+     2.85
+    ]
+   },
+   "Science & Math": {
+    "file": "covers/science-math.webp",
+    "rect": [
+     4.91,
+     7.73,
+     3.04,
+     2.27
+    ]
+   },
+   "Mountains": {
+    "file": "covers/mountains.webp",
+    "rect": [
+     3.97,
+     7.29,
+     4.0,
+     2.76
+    ]
+   },
+   "Skiing": {
+    "file": "covers/skiing.webp",
+    "rect": [
+     4.48,
+     7.43,
+     3.65,
+     3.07
+    ]
+   },
+   "Enterprise 1799": {
+    "file": "covers/enterprise-1799.webp",
+    "rect": [
+     4.24,
+     7.13,
+     3.77,
+     2.98
+    ]
+   },
+   "Fishing": {
+    "file": "covers/fishing.webp",
+    "rect": [
+     5.47,
+     7.15,
+     2.46,
+     2.83
+    ]
+   },
+   "F1 Racing": {
+    "file": "covers/f1-racing.webp",
+    "rect": [
+     3.71,
+     6.93,
+     4.23,
+     4.07
+    ]
+   },
+   "Easter": {
+    "file": "covers/easter.webp",
+    "rect": [
+     4.67,
+     7.29,
+     3.28,
+     2.75
+    ]
+   },
+   "Christmas": {
+    "file": "covers/christmas.webp",
+    "rect": [
+     4.04,
+     6.34,
+     4.33,
+     3.75
+    ]
+   },
+   "4th of July": {
+    "file": "covers/4th-of-july.webp",
+    "rect": [
+     0.55,
+     6.38,
+     4.24,
+     3.69
+    ]
+   },
+   "Hanukkah": {
+    "file": "covers/hanukkah.webp",
+    "rect": [
+     4.69,
+     7.47,
+     3.26,
+     2.65
+    ]
+   },
+   "Passover": {
+    "file": "covers/passover.webp",
+    "rect": [
+     4.84,
+     7.7,
+     3.16,
+     2.38
+    ]
+   },
+   "Summer": {
+    "file": "covers/summer.webp",
+    "rect": [
+     4.8,
+     6.92,
+     3.15,
+     3.15
+    ]
+   },
+   "Winter": {
+    "file": "covers/winter.webp",
+    "rect": [
+     4.44,
+     6.37,
+     3.75,
+     3.75
+    ]
+   },
+   "Spring": {
+    "file": "covers/spring.webp",
+    "rect": [
+     4.24,
+     6.87,
+     3.81,
+     3.49
+    ]
+   },
+   "Fall": {
+    "file": "covers/fall.webp",
+    "rect": [
+     2.56,
+     5.61,
+     5.44,
+     4.48
+    ]
+   }
+  },
+  "themeArtNote": "Extracted from the client's Word covers (Report Cover Pages, Oct 9 2026). Summer and Christmas (pngtree) and Spring (shutterstock) contain stock-site WATERMARKS: test builds only, licensed replacements needed before store release. 'May 5th' cover was not marked Done by the client and is not included yet."
  },
  "subscription": {
   "trialDays": 30,

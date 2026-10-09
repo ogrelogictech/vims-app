@@ -4660,12 +4660,14 @@ SEC['Wind Mitigation'].itemsHigh=[
     'Seasonal':['Summer','Winter','Spring','Fall']
   };
   var cover={color:'Blue',category:'Activities',option:'Mountains',style:'Framed',step:1};
+  var COVER_ART_FILES={"Horses": "covers/horses.webp", "Planes": "covers/planes.webp", "Astronomy": "covers/astronomy.webp", "Science & Math": "covers/science-math.webp", "Mountains": "covers/mountains.webp", "Skiing": "covers/skiing.webp", "Enterprise 1799": "covers/enterprise-1799.webp", "Fishing": "covers/fishing.webp", "F1 Racing": "covers/f1-racing.webp", "Easter": "covers/easter.webp", "Christmas": "covers/christmas.webp", "4th of July": "covers/4th-of-july.webp", "Hanukkah": "covers/hanukkah.webp", "Passover": "covers/passover.webp", "Summer": "covers/summer.webp", "Winter": "covers/winter.webp", "Spring": "covers/spring.webp", "Fall": "covers/fall.webp"}; // client's cover artwork (Oct 9 2026)
   function coverGrad(){ var c=COVER_COLORS.filter(function(x){return x[0]===cover.color;})[0]||COVER_COLORS[0]; return 'linear-gradient(150deg,'+c[1]+','+c[2]+')'; }
   function coverLabel(){ return cover.color+' · '+(cover.category==='Solid'?'Solid':cover.option)+' · '+cover.style; }
   window.renderCoverPicker=function(){
     var host=document.getElementById('coverpicker'); if(!host) return;
     var opts=COVER_CATS[cover.category]||[];
-    var h='<div class="coverprev"><div class="cpimg" style="background:'+coverGrad()+'"><b>'+(cover.category==='Solid'?cover.color:cover.option)+'</b></div><div class="cpmeta"><b>'+coverLabel()+'</b><span>Tap to change color, theme, or style</span></div></div>';
+    var artf=cover.category!=='Solid'?COVER_ART_FILES[cover.option]:null;
+    var h='<div class="coverprev"><div class="cpimg" style="background:'+coverGrad()+(artf?';position:relative;overflow:hidden':'')+'">'+(artf?'<img src="'+artf+'" alt="" style="position:absolute;right:0;bottom:0;max-width:92%;max-height:92%;object-fit:contain">':'<b>'+cover.color+'</b>')+'</div><div class="cpmeta"><b>'+coverLabel()+'</b><span>Tap to change color, theme, or style</span></div></div>';
     h+='<div class="cpsteps"><div class="cs'+(cover.step===1?' on':' done')+'">1 · Color</div><div class="cs'+(cover.step===2?' on':(cover.step>2?' done':''))+'">2 · Theme</div><div class="cs'+(cover.step===3?' on':'')+'">3 · Style</div></div>';
     if(cover.step===1){
       h+='<div class="colorrow">';
@@ -4685,7 +4687,7 @@ SEC['Wind Mitigation'].itemsHigh=[
     host.innerHTML=h;
   };
   window.coverStep=function(n){ cover.step=n; renderCoverPicker(); };
-  window.coverPick=function(k,v){ cover[k]=v; if(k==='category'){ cover.option=(COVER_CATS[v]||[])[0]||''; if(v==='Solid') cover.style='Solid'; else if(cover.style==='Solid') cover.style='Framed'; } renderCoverPicker(); };
+  window.coverPick=function(k,v){ cover[k]=v; if(k==='category'){ cover.option=(COVER_CATS[v]||[])[0]||''; if(v==='Solid') cover.style='Solid'; else if(cover.style==='Solid') cover.style='Framed'; } renderCoverPicker(); var pl=document.getElementById('previewlink'); if(pl) pl.href=pl.href.replace(/([?&])cover=[^&]*/,'$1cover='+encodeURIComponent([cover.color,cover.category,cover.option,cover.style].join('|'))); };
   function reportType(){ return sel.inspType==='Texas'?'texas':sel.inspType==='4 Point Inspection'?'4point':'standard'; }
   var REPORT_PAGES={
     standard:'Cover · Property information · Beginning notes · Checklist sections with their photos · Summary',
@@ -4694,7 +4696,7 @@ SEC['Wind Mitigation'].itemsHigh=[
   };
   window.renderReportContents=function(){
     var rt=reportType(), rp=document.getElementById('reportpages'); if(rp) rp.innerHTML=REPORT_PAGES[rt];
-    var pl=document.getElementById('previewlink'); if(pl) pl.href='report.html?type='+rt+(sel.inspLicense?'&lic='+encodeURIComponent(sel.inspLicense):'')+(sel.state?'&state='+sel.state:'');
+    var pl=document.getElementById('previewlink'); if(pl) pl.href='report.html?type='+rt+(sel.inspLicense?'&lic='+encodeURIComponent(sel.inspLicense):'')+(sel.state?'&state='+sel.state:'')+'&cover='+encodeURIComponent([cover.color,cover.category,cover.option,cover.style].join('|'));
     var host=document.getElementById('reportcontents'); if(!host) return;
     var done=leafSecs().filter(function(n){return STATUS[n]==='done';});
     done.sort(function(a,b){ return secNum(a)-secNum(b) || a.localeCompare(b); });
