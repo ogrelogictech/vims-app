@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -27,6 +28,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -46,6 +48,7 @@ import com.vims.app.ui.components.Counter
 import com.vims.app.ui.components.FieldLabel
 import com.vims.app.ui.components.Hint
 import com.vims.app.ui.components.Lbl
+import com.vims.app.ui.components.LocalNoAutofill
 import com.vims.app.ui.components.MultiChips
 import com.vims.app.ui.components.PickerField
 import com.vims.app.ui.components.SingleChips
@@ -85,7 +88,9 @@ fun WizardScreen(vm: AppViewModel, nav: NavHostController, inspId: String?) {
         else nav.navigate(SectionsR(id)) { popUpTo<WizardR> { inclusive = true } }
     }
 
-    key(w.step) {
+    // Wizard fields hold the client's / agent's / property's details, never the phone owner's: no Android Autofill here
+    // (an autofill pick filled Client email AND Inspection address from the owner's saved profile).
+    CompositionLocalProvider(LocalNoAutofill provides true) { key(w.step) {
         form = rememberForm()
         VScreen(
             if (editing) "Inspection info" else "New inspection",
@@ -124,7 +129,7 @@ fun WizardScreen(vm: AppViewModel, nav: NavHostController, inspId: String?) {
                 VBtn(if (w.step == 4) (if (editing) "Update checklist" else "Build checklist") else "Next", { next() }, Modifier.weight(1f), icon = if (w.step == 4) VIcons.arrowRight else null)
             }
         }
-    }
+    } }
 }
 
 private fun List<String>.toggle(o: String) = if (o in this) this - o else this + o
@@ -174,7 +179,7 @@ private fun WizardFields(vm: AppViewModel, nav: NavHostController, defs: List<Wi
                         val tv = sel.fields[f.label].orEmpty()
                         val terr = form.check(f.label, tv) { Checks.temperature(tv) }
                         VInput(tv, { v -> vm.updateSel { it.copy(fields = it.fields + (f.label to v)) } }, Modifier.width(if (terr != null) 300.dp else 120.dp).formField(form, f.label),
-                            placeholder = f.placeholder.orEmpty(), keyboard = KeyboardType.Number, filter = Filters::temperature, error = terr)
+                            placeholder = f.placeholder.orEmpty(), keyboard = KeyboardType.Number, filter = Filters::temperature, error = terr, imeAction = ImeAction.Next)
                     }
                     SingleChips(nextDef.options.orEmpty(), sel.chip(nextDef.label), { v -> vm.updateSel { it.copy(chips = it.chips + (nextDef.label to v.orEmpty())) } }, modifier = Modifier.padding(bottom = 14.dp))
                     i += 2; continue
@@ -237,7 +242,7 @@ private fun WizardFields(vm: AppViewModel, nav: NavHostController, defs: List<Wi
                                     VInput(sel.fields[tf.key].orEmpty(), { v -> vm.updateSel { it.copy(fields = it.fields + (tf.key to v)) } },
                                         filter = wizardFilter(tf.key),
                                         placeholder = typeFieldPlaceholder(tf.key, tf.label),
-                                        caps = if (tf.key.contains("name", true)) KeyboardCapitalization.Words else KeyboardCapitalization.None)
+                                        caps = if (tf.key.contains("name", true)) KeyboardCapitalization.Words else KeyboardCapitalization.None, imeAction = ImeAction.Next)
                                 }
                             }
                         }
@@ -287,7 +292,9 @@ private fun FieldCell(vm: AppViewModel, f: WizardFieldDef, sel: WizardSelections
             "textarea" -> VInput(v, set, placeholder = f.placeholder.orEmpty(), multiline = true, filter = { Filters.base(it, 1000, multiline = true) }, error = err)
             else -> VInput(v, set, placeholder = placeholderFor(f), keyboard = keyboardFor(f, step2), error = err, filter = wizardFilter(f.label),
                 visual = if (f.type == "tel") PhoneTransform else androidx.compose.ui.text.input.VisualTransformation.None,
-                caps = if (f.label.contains("name", true) || f.label.contains("address", true)) KeyboardCapitalization.Words else KeyboardCapitalization.None)
+                caps = if (f.label.contains("name", true) || f.label.contains("address", true)) KeyboardCapitalization.Words else KeyboardCapitalization.None,
+                // Keyboard "Next" walks the form in order (Inspection address → State → Real estate agent name → …).
+                imeAction = ImeAction.Next)
         }
     }
 }

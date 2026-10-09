@@ -42,6 +42,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -57,7 +58,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.autofill.ContentDataType
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDataType
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.withStyle
@@ -67,6 +70,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -288,6 +292,14 @@ fun FieldError(error: String?) {
 }
 
 /**
+ * True inside forms whose fields hold someone else's details (the New inspection wizard: client, agent, property).
+ * Their [VInput]s opt out of Android Autofill: Compose reports every text field to the autofill service, which
+ * classifies "Client email" as an email and "Inspection address" as a street address and offers the PHONE OWNER's saved
+ * profile — picking that suggestion fills the whole dataset at once (client email AND the inspection address).
+ */
+val LocalNoAutofill = staticCompositionLocalOf { false }
+
+/**
  * Text input. Every value goes through a while-typing filter (default: no leading space, never two spaces in a row;
  * email/password strip spaces) — see util/Validation.kt. `error` turns the border red and shows the message below.
  */
@@ -297,9 +309,10 @@ fun VInput(
     keyboard: KeyboardType = KeyboardType.Text, multiline: Boolean = false, mono: Boolean = false,
     visual: VisualTransformation = VisualTransformation.None, trailing: (@Composable () -> Unit)? = null,
     minHeight: Dp = if (multiline) 84.dp else 48.dp, textSize: Float = 15f, caps: KeyboardCapitalization = KeyboardCapitalization.None,
-    error: String? = null, filter: ((String) -> String)? = null,
+    error: String? = null, filter: ((String) -> String)? = null, imeAction: ImeAction = ImeAction.Default,
 ) {
     val interaction = remember { MutableInteractionSource() }
+    val noAutofill = LocalNoAutofill.current
     val focused by interaction.collectIsFocusedAsState()
     val shape = RoundedCornerShape(11.dp)
     val style: TextStyle = if (mono) T.mono(textSize.sp, FontWeight.Medium, V.ink, 0.14.em) else T.ui(textSize.sp, color = V.ink, lineHeight = if (multiline) (textSize * 1.5f).sp else androidx.compose.ui.unit.TextUnit.Unspecified)
@@ -316,9 +329,10 @@ fun VInput(
             keyboardOptions = KeyboardOptions(
                 keyboardType = keyboard, autoCorrectEnabled = !noAuto,
                 capitalization = if (noAuto) KeyboardCapitalization.None else if (keyboard == KeyboardType.Text && caps == KeyboardCapitalization.None && !mono) KeyboardCapitalization.Sentences else caps,
+                imeAction = imeAction,
             ),
             visualTransformation = visual, cursorBrush = SolidColor(V.brand),
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().then(if (noAutofill) Modifier.semantics { contentDataType = ContentDataType.None } else Modifier),
             decorationBox = { inner ->
                 Row(
                     Modifier.fillMaxWidth().heightIn(min = minHeight).clip(shape).background(V.paper)
