@@ -154,8 +154,8 @@ SwiftUI views ──► AppStore (@Observable, @MainActor)  ──► Repository
 - **VIMS platform-owner settings** (data v1.2). The feedback email and the **Report quality copy (BCC)**
   (`support.reportBcc` default) are platform-level, not per company: stored once in SwiftData
   (`PlatformRecord` → `PlatformSettings`) and editable only by the platform owner. `Session.isPlatformOwner` is
-  true only for `PlatformOwner.email` (jeremy@visionpropertyinspections.com — TODO(backend): the server sends this
-  flag/role). Only that account sees Settings → "VIMS owner" (Report quality copy (BCC) with subtitle
+  true only when the signed-in email is in the shared `support.platformOwners` list (data v1.5; see below —
+  TODO(backend): the server sends this flag/role). Only those accounts see Settings → "VIMS owner" (Report quality copy (BCC) with subtitle
   "On · address" / "Off", and Feedback & support); other companies' admins don't, and the routes show "Not
   available" if reached. The BCC screen has the intro text, On/Off, the address (email rule; required while On)
   and Save.
@@ -182,7 +182,7 @@ SwiftUI views ──► AppStore (@Observable, @MainActor)  ──► Repository
     Phase 2 Pre-Dry Wall; `standardLayout` with `always`, `optional`, `order` tokens `Name?` / `Name×count`,
     the Utility & Function sub-group, and admin custom sections appended to their group).
   - Section entry follows `depthRules`: High Detail uses `itemsHigh`/`photoCategoriesHigh` when present, else
-    Standard items with a "Detail / measurement" box; Fast Entry shows "Items present" chips. Answers are keyed
+    Standard items with a "Detail / measurement" box; Fast Entry shows "Items reviewed" chips. Answers are keyed
     by sub-header + question so they survive admin reordering.
   - Report order uses each section's `number` (then natural name order, so Bathroom 2 < Bathroom 10).
 - **Inspection types with their own forms (data v1.1).** `Texas` (TREC REI 7-6) and `4 Point Inspection` build
@@ -341,3 +341,28 @@ payment" button are a confirmed add-on and are not built. The report therefore h
 - **Wizard step 1:** "Inspection agreement: View (shows the selected state's section)" under the State notes, and **Send the report to the real estate agent** under Real estate agent email (on by default; reset to `stateRules[state].agentCopyDefault` when the state changes — off for NH, whose note shows under it). Stored as `Inspection.sendToAgent` (nil on older inspections = on).
 - **Emailed reports:** with send-to-agent off, To = client only (CC inspector and platform BCC unchanged); the Report ready note says "client only".
 - DEBUG: `-screen agreement [-agreementState XX] [-agreementScroll disclosures]`, `-ownAgreement NAME` (bundled NAME.pdf through the same upload path), `-useVimsAgreement`, `-agreementStatus`, `-wizScroll sendToAgent|agreementLine`; `-mailSelfTest` also prints the NH/UT recipient check. Screenshots: `screenshots/qa-12x-*.png`.
+
+## Client round Oct 9 (shared data v1.5)
+
+- **VIMS owners** — `PlatformOwner` (Data/Models.swift) reads `support.platformOwners` (currently
+  `masteradmin@vimsinspect.com`), trimmed and case-insensitive; several addresses are allowed so the client always
+  has two system admins. No password is stored or seeded: the owner creates an account (or signs in) with that email
+  and their own password, and Settings then shows "VIMS owner" (Report quality copy, Feedback & support). The demo
+  account jeremy@visionpropertyinspections.com is still the demo company's owner/admin but no longer a platform owner.
+  TODO(backend): the server owns the list.
+- **Concerns dialog** — on a Standard / High Detail checklist, newly selecting an item's "Concerns" / "Concern" opens
+  the Flag-a-finding sheet titled "Concern: <item>" (same categories, quick comment, validation and iPad sizing).
+  Add finding saves "<item>: <description>" for the section (`Finding.item` keeps the item), so it shows in Summary and
+  the PDF; Cancel just closes (the option stays selected); deselecting never deletes a finding. Hidden, like the
+  flag button, on layouts without a Summary (4 Point).
+- **Wizard Return / Next** — step text fields chain with Next / Done. Return on Inspection address drops its keyboard
+  and opens the State picker with its search field focused (iPhone sheet / iPad popover); typing a name or a 2-letter
+  code ranks that state first and Return picks it; a pick moves on to the agent name. Required State + state rules
+  unchanged. Typing the client email never touches the address (each field has its own binding).
+- **Report cover** — fixed a stale binding: picking a theme category wrote the category, then its first image from an
+  old snapshot, reverting the category. The picker now writes one value and reads the live inspection; the PDF cover
+  and the saved inspection use the chosen color / theme / style.
+- **Wording** — Fast Entry and the report row say "Items reviewed" (stored as `SectionAnswers.present`).
+- **Data v1.5** (no code change): Water Feature multi-select (Landscaping / Condo High Detail), Driveway / Parking Lot
+  "Slope" + "Incline / Decline" + "Cracked / Buckling", Bushes order, Water Heater "Pilot Light".
+- Screenshots: `screenshots/oct9-*`.
