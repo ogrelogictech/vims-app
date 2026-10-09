@@ -124,11 +124,12 @@ preferred (the emulator's "goldfish" decoder renders nothing under software GPU)
 "Vision Ins**j**ection…" — pending a corrected file from the client.
 
 ### Platform-owner settings (Feedback & support, Report quality copy / BCC)
-- These are **VIMS platform** settings (Jeremy Heath owns VIMS; disclosed in the VIMS EULA), not per-company settings.
+- These are **VIMS platform** settings (disclosed in the VIMS EULA), not per-company settings.
   They are stored app-level (`PlatformSettings` in the Room `kv` table, defaults from `support.feedbackEmail` and
   `support.reportBcc` in `vims-checklists.json` v1.2) and shared by every company on the install.
-- Only the platform owner sees or edits them: `Session.platformOwner` is set on sign-in for `PlatformOwner.EMAIL`
-  (jeremy@visionpropertyinspections.com) — `TODO(backend)`: the flag comes from the server. Company admins of other
+- Only VIMS platform owners see or edit them: `Session.platformOwner` is set on sign-in / account creation when the
+  email is in `support.platformOwners` (data v1.5; trimmed, case-insensitive, several allowed — `PlatformOwners` in
+  `data/Repository.kt`) — `TODO(backend)`: the server owns the list. Company admins of other
   companies don't get the Settings rows, the screens show "Only the VIMS platform owner…", and `updatePlatform` ignores
   non-owner writes.
 - "Report quality copy (BCC)": On/Off + BCC address (email validation). Settings row subtitle "On · <address>" / "Off".
@@ -296,3 +297,33 @@ The VIMS agreement stays the default and is never changed; edits only ever apply
   updates the profile JSON and these columns in one statement. Schema: `app/schemas/.../4.json`. `TODO(backend)`: sync the
   edited agreement to the server.
 - Screenshots: `screenshots/agreement-*.png`.
+
+## Client round Oct 9 (v0.11.0)
+
+- **VIMS owners:** `support.platformOwners` (currently `masteradmin@vimsinspect.com`) replaces the hard-coded owner email.
+  No password is stored or seeded: the owner taps Create account (or Sign in) with that email and their own password and
+  gets Report quality copy + Feedback & support. The demo `jeremy@…` is still the demo company's owner/admin, no longer
+  a platform owner.
+- **Client email filled the inspection address (fixed):** Compose reports every text field to Android Autofill; on the
+  wizard, Google Autofill saw "Client email" (email) and "Inspection address" (street address) and offered the phone
+  owner's saved profile — one pick filled both. All wizard fields now opt out (`LocalNoAutofill` →
+  `contentDataType = None` in `VInput`), and keyboard **Next** walks the form in order.
+- **State type-ahead:** the State field is a real text field (the old read-only dropdown never took focus, so typed
+  letters went to the address). Tap it → every state listed (current one as placeholder); type a name or 2-letter code →
+  the list filters; tap or **Next** picks (Next then moves to Real estate agent name). Leaving with an exact / single
+  match picks it, otherwise the previous state stays. Required check and state rules (TX form, OR/LA documents, NH agent
+  copy off) unchanged.
+- **Report cover (fixed):** the choice was saved but the PDF only used it for the band color and a small tag (the theme
+  never showed; with no photo a "Front of property" placeholder replaced it). `drawCoverArt`: **Framed** = property photo
+  in a frame of the cover color with the theme as caption, **Shaded** = photo shaded in the cover color with the theme
+  title, **Solid** = the color; no photo → the theme artwork fills the area. Persists with the inspection as before.
+- **Concerns:** choosing "Concerns" / "Concern" on a Standard / High Detail item opens the Flag-a-finding sheet titled
+  "Concern: <item>" (concern subtitle, category 2 default, quick comment, empty description, same validation). Add finding
+  saves "<item>: <description>" for the section (`Finding.item` keeps the item); Cancel just closes; deselecting never
+  deletes a finding.
+- **Wording:** Fast Entry and the report row say **Items reviewed**.
+- **Data v1.5** (water feature multi-select, driveway Slope / Incline / Decline / Cracked / Buckling, bushes order, Pilot
+  Light) needs no code: it shows on checklists built from now on. Inspections built earlier keep the checklist snapshot
+  taken when they were built (`ChecklistEngine.snapshot`), so they still show the v1.4 questions.
+- Screenshots: `screenshots/oct9-*.png`.
+
