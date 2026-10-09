@@ -22,7 +22,7 @@ struct StateFieldBlock: View {
     @State private var picking = false
     @State private var preview: PreviewDoc?
     @State private var mailDraft: ReportReadyView.MailDraftItem?
-    @State private var shareURL: ReportReadyView.ShareItem?
+    @State private var sendAnchors = PopoverAnchors()
 
     var body: some View {
         let cfg = store.config
@@ -44,23 +44,30 @@ struct StateFieldBlock: View {
             .accessibilityLabel("State, required")
             .accessibilityValue(name ?? "Not selected")
             .accessibilityHint("Opens the list of states")
+            // iPhone: the full-height sheet. iPad: a popover hanging off this field.
+            .pickerPresentation(isPresented: $picking, padSize: CGSize(width: 420, height: 600)) {
+                StatePickerSheet(states: cfg.states ?? [], selected: draft.state) { code in
+                    draft.setState(code, config: cfg)
+                    errors.set(StateFieldIDs.state, nil)
+                    errors.set(StateFieldIDs.docsAck, nil)
+                    picking = false
+                }
+            }
             if let error { FieldError(text: error) }
         }
         .padding(.bottom, 13)
         .id(StateFieldIDs.state)
-        .sheet(isPresented: $picking) {
-            StatePickerSheet(states: cfg.states ?? [], selected: draft.state) { code in
-                draft.setState(code, config: cfg)
-                errors.set(StateFieldIDs.state, nil)
-                errors.set(StateFieldIDs.docsAck, nil)
-                picking = false
-            }
+        .task {
+            guard DebugFlags.openStatePicker else { return }
+            DebugFlags.openStatePicker = false
+            try? await Task.sleep(nanoseconds: 600_000_000)
+            picking = true
         }
 
         if let rule = cfg.stateRule(draft.state) {
             ruleCard(rule)
                 .padding(.top, -2).padding(.bottom, 14)
-                .sheet(item: $preview) { doc in PDFPreviewSheet(doc: doc) }
+                .documentCover(item: $preview) { doc in PDFPreviewSheet(doc: doc) }
                 .sheet(item: $mailDraft) { item in
                     MailComposeView(draft: item.draft) { result in
                         mailDraft = nil
@@ -68,9 +75,6 @@ struct StateFieldBlock: View {
                         else if result == .saved { store.toast("Saved to Drafts") }
                     }
                     .ignoresSafeArea()
-                }
-                .sheet(item: $shareURL) { item in
-                    ActivityView(items: [item.url]).presentationDetents([.medium, .large])
                 }
         }
         agreementLine
@@ -85,7 +89,9 @@ struct StateFieldBlock: View {
         link.foregroundColor = VC.brand
         link.font = VFont.ui(12.5, .semibold)
         text += link
-        text += AttributedString(" (shows the selected state\u{2019}s section)")
+        // An edited agreement can't be filtered by state, so don't promise the state's section then.
+        let edited = store.agreementInUse == .edited
+        text += AttributedString(edited ? " (your company\u{2019}s edited version)" : " (shows the selected state\u{2019}s section)")
         return Text(text)
             .font(VFont.ui(12.5)).foregroundStyle(VC.ink3)
             .fixedSize(horizontal: false, vertical: true)
@@ -98,7 +104,8 @@ struct StateFieldBlock: View {
             })
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Inspection agreement: View")
-            .accessibilityHint(draft.state == nil ? "Shows every state's section" : "Shows the selected state's section")
+            .accessibilityHint(store.agreementInUse == .edited ? "Shows your company's edited agreement"
+                               : draft.state == nil ? "Shows every state's section" : "Shows the selected state's section")
             .accessibilityAddTraits(.isLink)
             .padding(.horizontal, 2).padding(.top, -4).padding(.bottom, 14)
             .id("agreementLine")
@@ -135,6 +142,7 @@ struct StateFieldBlock: View {
                     .accessibilityLabel("View \(doc.name)")
                 Button { send(doc) } label: { IconLabel("Send to client", icon: "email-to-client", iconSize: 16) }
                     .buttonStyle(VButtonStyle(kind: .ghost, minHeight: 44))
+                    .popoverAnchor(sendAnchors[doc.file])
                     .accessibilityLabel("Send \(doc.name) to the client")
             }
             .font(VFont.ui(13.5, .semibold))
@@ -201,7 +209,7 @@ struct StateFieldBlock: View {
         } else {
             let named = FileManager.default.temporaryDirectory.appendingPathComponent("\(doc.name.replacingOccurrences(of: "/", with: "-")).pdf")
             try? FileManager.default.removeItem(at: named)
-            shareURL = .init(url: (try? FileManager.default.copyItem(at: url, to: named)) != nil ? named : url)
+            ShareSheet.present([(try? FileManager.default.copyItem(at: url, to: named)) != nil ? named : url], from: sendAnchors[doc.file])
         }
     }
 }
@@ -221,7 +229,41 @@ struct StatePickerSheet: View {
     }
 
     var body: some View {
+        if Device.isPad { popoverBody } else { sheetBody }
+    }
+
+    /// iPad popover: its own search field + list (a NavigationStack's bar doesn't lay out inside a popover).
+    private var popoverBody: some View {
+        VStack(spacing: 0) {
+            FieldBox(focused: false, minHeight: 44) {
+                HStack(spacing: 8) {
+                    ProtoIcon("search", size: 16).foregroundStyle(VC.ink3)
+                    TextField("", text: $query, prompt: Text("Search states").foregroundStyle(VC.placeholder))
+                        .autocorrectionDisabled()
+                        .accessibilityLabel("Search states")
+                }
+            }
+            .padding(12)
+            Rectangle().fill(VC.line).frame(height: 1)
+            list
+        }
+        .background(VC.paper)
+    }
+
+    private var sheetBody: some View {
         NavigationStack {
+            list
+            .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search states")
+            .navigationTitle("State")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+            }
+        }
+        .presentationDetents([.large])
+    }
+
+    private var list: some View {
             List(filtered, id: \.code) { s in
                 Button { pick(s.code) } label: {
                     HStack {
@@ -242,14 +284,6 @@ struct StatePickerSheet: View {
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
             .background(VC.paper)
-            .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search states")
-            .navigationTitle("State")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-            }
-        }
-        .presentationDetents([.large])
     }
 }
 

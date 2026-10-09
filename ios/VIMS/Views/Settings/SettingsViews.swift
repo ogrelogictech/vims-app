@@ -33,6 +33,10 @@ struct SettingsView: View {
                 .frame(minWidth: 52, minHeight: 52)
                 .accessibilityLabel("Profile photo")
                 .accessibilityHint("Take, choose or remove your profile photo")
+                // On the photo button, so on iPad the choices pop up next to it.
+                .photoSourceDialog(isPresented: $photoMenu, title: "Profile photo",
+                                   removeTitle: store.currentUser?.photoFile == nil ? nil : "Remove photo",
+                                   onImage: { store.saveProfilePhoto($0) }, onRemove: { store.removeProfilePhoto() })
                 VStack(alignment: .leading, spacing: 2) {
                     Text(store.session?.name ?? "").font(VFont.ui(15, .bold)).foregroundStyle(VC.ink)
                     Text(store.session?.email ?? "").font(VFont.ui(12.5)).foregroundStyle(VC.ink3).lineLimit(1)
@@ -41,9 +45,6 @@ struct SettingsView: View {
             }
             .vCard()
             .padding(.bottom, 12)
-            .photoSourceDialog(isPresented: $photoMenu, title: "Profile photo",
-                               removeTitle: store.currentUser?.photoFile == nil ? nil : "Remove photo",
-                               onImage: { store.saveProfilePhoto($0) }, onRemove: { store.removeProfilePhoto() })
             Button { confirmSignOut = true } label: { IconLabel("Sign out", icon: "sign-out-sync") }
                 .buttonStyle(.vGhost)
                 .signOutConfirmation(isPresented: $confirmSignOut)
@@ -254,6 +255,8 @@ struct CompanyProfileView: View {
         d.logoFile = store.company.logoFile
         d.agreementFile = store.company.agreementFile
         d.agreementName = store.company.agreementName
+        d.agreementText = store.company.agreementText
+        d.agreementEditedAt = store.company.agreementEditedAt
         d.inspectors = store.company.inspectors
         d.feedbackEmail = store.company.feedbackEmail
         d.joinCode = store.company.joinCode

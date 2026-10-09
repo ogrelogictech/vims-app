@@ -361,26 +361,84 @@ struct FindingSheet: View {
             .padding(.horizontal, 18).padding(.top, 22).padding(.bottom, 26)
         }
         .background(VC.paper)
-        .presentationDetents([.large, .medium])
+        // iPhone: the approved bottom sheet (large / medium). iPad: one full-height form sheet so nothing is cut off.
+        .presentationDetents(Device.isPad ? [.large] : [.large, .medium])
         .presentationDragIndicator(.visible)
         .presentationCornerRadius(22)
     }
 }
 
-/// Styled "select" for the 8 canned quick comments (JSON findings.quickComments).
+/// Styled "select" for the 8 canned quick comments (JSON findings.quickComments). iPhone: the system menu.
+/// iPad: a popover list with its arrow on the field (the system menu floated free over the photo there).
 struct QuickCommentMenu: View {
     @Environment(AppStore.self) private var store
     let placeholder: String
     @Binding var selection: String?
     var dark = false
     let onPick: (String) -> Void
+    @State private var showList = false
+    @State private var fieldWidth: CGFloat = 320
 
     var body: some View {
-        Menu {
-            ForEach(store.config.findings.quickComments, id: \.self) { c in
-                Button(c) { selection = c; onPick(c) }
+        if Device.isPad {
+            Button { showList = true } label: { field }
+                .buttonStyle(.plain)
+                .background(GeometryReader { g in
+                    Color.clear
+                        .onAppear { fieldWidth = g.size.width }
+                        .onChange(of: g.size.width) { _, w in fieldWidth = w }
+                })
+                .popover(isPresented: $showList, arrowEdge: .bottom) { list.presentationCompactAdaptation(.popover) }
+                .task {
+                    guard dark, DebugFlags.openCommentList else { return }
+                    DebugFlags.openCommentList = false
+                    try? await Task.sleep(nanoseconds: 900_000_000)
+                    showList = true
+                }
+                .accessibilityLabel(placeholder)
+                .accessibilityValue(selection ?? "None")
+        } else {
+            Menu {
+                ForEach(store.config.findings.quickComments, id: \.self) { c in
+                    Button(c) { selection = c; onPick(c) }
+                }
+            } label: { field }
+            .accessibilityLabel(placeholder)
+        }
+    }
+
+    private var list: some View {
+        let comments = store.config.findings.quickComments
+        return ScrollView {
+            VStack(spacing: 0) {
+                ForEach(Array(comments.enumerated()), id: \.offset) { i, c in
+                    Button {
+                        selection = c
+                        onPick(c)
+                        showList = false
+                    } label: {
+                        HStack(spacing: 10) {
+                            Text(c).font(VFont.ui(15)).foregroundStyle(VC.ink)
+                                .multilineTextAlignment(.leading)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            if c == selection { ProtoIcon("check", size: 16, lineWidth: 2.4).foregroundStyle(VC.brand) }
+                        }
+                        .padding(.horizontal, 16).padding(.vertical, 12)
+                        .frame(minHeight: 48)
+                        .overlay(alignment: .bottom) { if i < comments.count - 1 { Rectangle().fill(VC.line2).frame(height: 1) } }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(PressableStyle())
+                    .accessibilityAddTraits(c == selection ? .isSelected : [])
+                }
             }
-        } label: {
+        }
+        .frame(width: max(fieldWidth, 320))
+        .frame(minHeight: 200, idealHeight: min(CGFloat(comments.count) * 49 + 4, 460), maxHeight: 460)
+        .background(VC.paper)
+    }
+
+    private var field: some View {
             HStack {
                 Text(selection ?? placeholder)
                     .font(VFont.ui(dark ? 13 : 15))
@@ -395,7 +453,6 @@ struct QuickCommentMenu: View {
             .background(dark ? Color.white.opacity(0.1) : VC.paper)
             .clipShape(RoundedRectangle(cornerRadius: dark ? 9 : 11, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: dark ? 9 : 11, style: .continuous).stroke(dark ? Color.white.opacity(0.18) : VC.line, lineWidth: 1))
-        }
-        .accessibilityLabel(placeholder)
+            .contentShape(Rectangle())
     }
 }

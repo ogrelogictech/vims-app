@@ -35,7 +35,9 @@ enum ProtoIconSet {
         "report-bcc": ["M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z", "m22 6-10 7L2 6", "M16 17h6M19 14v6"],
         // Not in the prototype (it used native date/select inputs); drawn in the same style.
         "calendar": ["M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z", "M16 2v4M8 2v4M3 10h18"],
-        "select": ["m7 15 5 5 5-5M7 9l5-5 5 5"]
+        "select": ["m7 15 5 5 5-5M7 9l5-5 5 5"],
+        // iPad State picker popover's search field.
+        "search": ["M11 4a7 7 0 1 1 0 14a7 7 0 1 1 0-14z", "m20 20-4-4"]
     ]
 
     private static var cache: [String: CGPath] = [:]

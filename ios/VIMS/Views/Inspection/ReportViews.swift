@@ -154,7 +154,7 @@ struct ReportView: View {
                 if let s = DebugFlags.coverStep { coverStep = s; DebugFlags.coverStep = nil }
                 Task { await estimate() }
             }
-            .sheet(item: $preview) { doc in PDFPreviewSheet(doc: doc) }
+            .documentCover(item: $preview) { doc in PDFPreviewSheet(doc: doc) }
         }
     }
 
@@ -358,11 +358,10 @@ struct ReportReadyView: View {
     let inspectionID: UUID
     @State private var preview: PreviewDoc?
     @State private var mailDraft: MailDraftItem?
-    @State private var shareURL: ShareItem?
+    @State private var emailAnchor = PopoverAnchor()
     private let canSendMail = MFMailComposeViewController.canSendMail()
 
     struct MailDraftItem: Identifiable { let id = UUID(); let draft: ReportMailDraft }
-    struct ShareItem: Identifiable { let id = UUID(); let url: URL }
 
     var body: some View {
         if let insp = store.inspection(inspectionID) {
@@ -378,6 +377,7 @@ struct ReportReadyView: View {
                         .buttonStyle(.vPrimary)
                         Button { emailReport(insp, url) } label: { IconLabel("Email to client", icon: "email-to-client") }
                             .buttonStyle(.vGhost)
+                            .popoverAnchor(emailAnchor)
                         Text(mailNote)
                             .font(VFont.ui(12)).foregroundStyle(VC.ink3).multilineTextAlignment(.center)
                             .fixedSize(horizontal: false, vertical: true)
@@ -389,16 +389,19 @@ struct ReportReadyView: View {
                     Button("Back to inspections") { store.goHome() }.buttonStyle(.vGhost)
                 }
             }
-            .sheet(item: $preview) { doc in PDFPreviewSheet(doc: doc) }
+            .documentCover(item: $preview) { doc in PDFPreviewSheet(doc: doc) }
+            .task {
+                guard DebugFlags.openPreview || DebugFlags.openShare, let url = store.reportURL(inspectionID) else { return }
+                try? await Task.sleep(nanoseconds: 700_000_000)
+                if DebugFlags.openPreview { DebugFlags.openPreview = false; preview = PreviewDoc(url: url, title: "\(insp.addressLine1) report") }
+                if DebugFlags.openShare { DebugFlags.openShare = false; emailReport(insp, url) }
+            }
             .sheet(item: $mailDraft) { item in
                 MailComposeView(draft: item.draft) { result in
                     mailDraft = nil
                     if result == .sent { store.toast("Report emailed") } else if result == .saved { store.toast("Saved to Drafts") }
                 }
                 .ignoresSafeArea()
-            }
-            .sheet(item: $shareURL) { item in
-                ActivityView(items: [item.url]).presentationDetents([.medium, .large])
             }
         }
     }
@@ -428,7 +431,7 @@ struct ReportReadyView: View {
             let named = FileManager.default.temporaryDirectory.appendingPathComponent("Inspection Report - \(insp.addressLine1).pdf")
             try? FileManager.default.removeItem(at: named)
             let shared = (try? FileManager.default.copyItem(at: url, to: named)) != nil ? named : url
-            shareURL = ShareItem(url: shared)
+            ShareSheet.present([shared], from: emailAnchor)
         }
     }
 }
@@ -464,7 +467,7 @@ struct PDFPreviewSheet: View {
                 .accessibilityLabel("Share PDF")
             }
             .padding(.horizontal, 12).padding(.vertical, 12)
-            .background(VC.hdr)
+            .background(VC.hdr.ignoresSafeArea(edges: .top))   // full-screen cover on iPad: blue under the status bar
             PDFKitView(url: doc.url)
         }
         .background(Color(hex: 0x0C1119))
@@ -474,7 +477,7 @@ struct PDFPreviewSheet: View {
 struct PDFKitView: UIViewRepresentable {
     let url: URL
     func makeUIView(context: Context) -> PDFView {
-        let v = PDFView()
+        let v = FitWidthPDFView()
         v.autoScales = true
         v.displayMode = .singlePageContinuous
         v.backgroundColor = UIColor(hex: 0x0C1119)
@@ -483,5 +486,21 @@ struct PDFKitView: UIViewRepresentable {
     }
     func updateUIView(_ v: PDFView, context: Context) {
         if v.document?.documentURL != url { v.document = PDFDocument(url: url) }
+    }
+}
+
+/// Pages fit the view's width (re-fitted on rotation / iPad window resize) and pinch-zoom up to 5×.
+final class FitWidthPDFView: PDFView {
+    private var fittedWidth: CGFloat = 0
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        guard document != nil, bounds.width > 0, abs(bounds.width - fittedWidth) > 0.5 else { return }
+        fittedWidth = bounds.width
+        let fit = scaleFactorForSizeToFit
+        guard fit > 0 else { return }
+        minScaleFactor = fit
+        maxScaleFactor = fit * 5
+        scaleFactor = fit
     }
 }

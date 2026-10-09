@@ -4,6 +4,8 @@ struct HeaderAction: Identifiable {
     var id: String { symbol }
     let symbol: String
     let label: String
+    /// Set when the action opens a popover (the share sheet), so it points at this button on iPad.
+    var anchor: PopoverAnchor? = nil
     let action: () -> Void
 }
 
@@ -51,7 +53,7 @@ struct AppHeader: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 HStack(spacing: 7) {
-                    ForEach(actions) { a in HeaderButton(symbol: a.symbol, label: a.label, action: a.action) }
+                    ForEach(actions) { a in HeaderButton(symbol: a.symbol, label: a.label, action: a.action).popoverAnchor(a.anchor) }
                 }
             }
             .padding(.horizontal, 12)
@@ -110,6 +112,8 @@ struct Screen<Content: View>: View {
     var scroll = true
     /// When set, the screen scrolls to the first field with an error after a submit.
     var errors: FormErrors? = nil
+    /// iPad (regular width): the scrolling content is a centered column this wide; the header stays full width.
+    var maxContentWidth: CGFloat = PadLayout.readableWidth
     @ViewBuilder var content: () -> Content
 
     var body: some View {
@@ -122,6 +126,7 @@ struct Screen<Content: View>: View {
                             .padding(.horizontal, 16)
                             .padding(.top, 16)
                             .padding(.bottom, 34)
+                            .readableColumn(maxContentWidth)
                     }
                     .scrollDismissesKeyboard(.interactively)
                     .onChange(of: errors?.scrollTarget) { _, target in

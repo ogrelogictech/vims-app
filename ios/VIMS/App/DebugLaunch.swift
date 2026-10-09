@@ -19,6 +19,11 @@ enum DebugFlags {
     static var wizardStates: [String]?
     /// Screenshot jumps (-screen / -skipLogin) skip the EULA gate unless -eulaGate or -eulaVersion is given.
     static var skipEulaGate = false
+    /// iPad review screenshots: open the State picker / quick-comment list / PDF preview / share sheet on arrival.
+    static var openStatePicker = false
+    static var openCommentList = false
+    static var openPreview = false
+    static var openShare = false
 }
 
 #if DEBUG
@@ -43,6 +48,12 @@ enum DebugFlags {
 ///   -agreementScroll disclosures  scroll the agreement viewer to the state disclosures
 ///   -agreementStatus           print AGREEMENTTEST (bundled agreement loaded, state keys, own file)
 ///   -agreementState XX         with -screen agreement: open the viewer from the wizard for state XX (else from Company profile)
+///   -landscape / -portrait     rotate the iPad simulator window (review screenshots; refused in iPadOS 26 windowed mode)
+///   -openPicker                with -screen wizard: open the State picker
+///   -openComment               with -screen markup: open the quick-comment list
+///   -openPreview               with -screen reportReady / report: open the PDF preview
+///   -openShare                 with -screen reportReady: Email to client (share sheet without Mail);
+///                              with -screen agreement: Download (agreement PDF share sheet)
 ///   -validate                  submit the form once so its validation errors show
 ///   -skipLogin                 sign in as the demo owner
 ///   -noSplash                  don't show the free-look splash
@@ -50,6 +61,7 @@ enum DebugFlags {
 ///   -screen NAME               login signup forgot join home splash wizard sections section drawer photos
 ///                              markup flag summary report reportReady settings company instructions manage
 ///                              editSection plans inspectors subscribe subscribed billing feedback phase1 phase2
+///                              agreement agreementEditor
 ///   -step N                    wizard step (1–4) / cover picker step (1–3)
 ///   -depth high|standard|fast  checklist depth for the demo inspection
 ///   -section NAME              section to open (default Roof / Outside Utilities for high)
@@ -63,6 +75,14 @@ enum DebugLaunch {
         return args[i + 1]
     }
     static func has(_ key: String) -> Bool { args.contains(key) }
+
+    /// -landscape / -portrait: rotate the iPad simulator's window for review screenshots (iPhone stays portrait).
+    @MainActor
+    static func applyOrientation() {
+        let mask: UIInterfaceOrientationMask? = has("-landscape") ? .landscapeRight : has("-portrait") ? .portrait : nil
+        guard let mask, let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene else { return }
+        scene.requestGeometryUpdate(.iOS(interfaceOrientations: mask)) { print("ORIENTATION failed: \($0)") }
+    }
 
     static func prepareStorage() {
         if has("-resetData") { SwiftDataRepository.wipeStore(); FileStore().wipeAll() }
@@ -157,13 +177,17 @@ enum DebugLaunch {
         }
         if screen == "menu" { DebugFlags.openMenu = true }
         if has("-validate") { DebugFlags.validate = true }
+        if has("-openPicker") { DebugFlags.openStatePicker = true }
+        if has("-openComment") { DebugFlags.openCommentList = true }
+        if has("-openPreview") { DebugFlags.openPreview = true }
+        if has("-openShare") { DebugFlags.openShare = true }
         if let g = value("-group") { DebugFlags.adminGroup = g }
         // Screens that don't need an inspection.
         let general: [String: [Route]] = [
             "signup": [.signup], "forgot": [.forgot], "join": [.join], "wizard": [.wizard(editing: nil)],
             "settings": [.settings], "company": [.settings, .company], "instructions": [.settings, .instructions],
             "plans": [.settings, .plans], "subscribe": [.subscribe], "billing": [.settings, .billing],
-            "feedback": [.settings, .feedbackAdmin], "agreement": value("-agreementState").map { [.wizard(editing: nil), .agreement(state: $0)] } ?? [.settings, .company, .agreement(state: nil)], "eula": [.settings, .eula], "deleteAccount": [.settings, .deleteAccount], "signupEula": [.signup, .eula], "reportBcc": [.settings, .reportBcc], "inspectors": [.settings, .inspectors], "manage": [.settings, .manageChecklist]
+            "feedback": [.settings, .feedbackAdmin], "agreement": value("-agreementState").map { [.wizard(editing: nil), .agreement(state: $0)] } ?? [.settings, .company, .agreement(state: nil)], "agreementEditor": [.settings, .company, .agreementEditor], "eula": [.settings, .eula], "deleteAccount": [.settings, .deleteAccount], "signupEula": [.signup, .eula], "reportBcc": [.settings, .reportBcc], "inspectors": [.settings, .inspectors], "manage": [.settings, .manageChecklist]
         ]
         if let r = general[screen] {
             if screen == "wizard" { DebugFlags.wizardStep = value("-step").flatMap(Int.init) }

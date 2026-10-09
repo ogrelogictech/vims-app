@@ -65,6 +65,7 @@ struct LoginView: View {
                             .padding(.top, 6)
                     }
                     .padding(.horizontal, 18).padding(.vertical, 24)
+                    .readableColumn(PadLayout.formWidth)
                 }
             }
             .scrollDismissesKeyboard(.interactively)
@@ -117,7 +118,7 @@ struct SignupView: View {
     @State private var busy = false
 
     var body: some View {
-        Screen(title: "Create account", actions: [], errors: errors) {
+        Screen(title: "Create account", actions: [], errors: errors, maxContentWidth: PadLayout.formWidth) {
             SectionLabel(text: "Your details", top: 2)
                 .overlay(alignment: .bottomTrailing) { RequiredHint().fixedSize().padding(.bottom, 4) }
             VTextField(label: "Full name", text: $name, placeholder: "Jeremy Heath", contentType: .name, capitalization: .words,
@@ -187,7 +188,7 @@ struct ForgotPasswordView: View {
     @State private var errors = FormErrors()
 
     var body: some View {
-        Screen(title: "Reset password", errors: errors) {
+        Screen(title: "Reset password", errors: errors, maxContentWidth: PadLayout.formWidth) {
             Text("Enter your email and we'll send a reset link.")
                 .font(VFont.ui(14)).foregroundStyle(VC.ink2).lineSpacing(3)
                 .padding(.top, 4).padding(.bottom, 16)
@@ -225,7 +226,7 @@ struct JoinCompanyView: View {
     @State private var busy = false
 
     var body: some View {
-        Screen(title: "Join a company", errors: errors) {
+        Screen(title: "Join a company", errors: errors, maxContentWidth: PadLayout.formWidth) {
             Text("Enter the company code your inspection company shared with you. Your account will be linked to their license and billing.")
                 .font(VFont.ui(14)).foregroundStyle(VC.ink2).lineSpacing(3)
                 .padding(.top, 4).padding(.bottom, 16)

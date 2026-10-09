@@ -47,6 +47,7 @@ struct WizardView: View {
                         .padding(.top, 22)
                     }
                     .padding(.horizontal, 16).padding(.bottom, 34)
+                    .readableColumn()
                 }
                 .scrollDismissesKeyboard(.interactively)
                 #if DEBUG

@@ -20,6 +20,9 @@ struct PhotosView: View {
     @State private var showCamera = false
     @State private var showLibrary = false
     @State private var viewer: ViewerTarget?
+    @Environment(\.horizontalSizeClass) private var sizeClass
+
+    private var regular: Bool { sizeClass == .regular }
 
     private var cameraAvailable: Bool { UIImagePickerController.isSourceTypeAvailable(.camera) }
 
@@ -29,14 +32,28 @@ struct PhotosView: View {
             let existing = insp.photos[section] ?? [:]
             let extra = existing.keys.filter { !cats.contains($0) && !(existing[$0]?.isEmpty ?? true) }.sorted()
             Screen(title: store.catalog.isPhotosOnly(section) ? section : "\(section) photos", subtitle: insp.addressLine1,
-                   actions: [HeaderAction(symbol: "hdr-sections", label: "Sections") { store.popToSections(inspectionID) }, store.homeAction()]) {
+                   actions: [HeaderAction(symbol: "hdr-sections", label: "Sections") { store.popToSections(inspectionID) }, store.homeAction()],
+                   maxContentWidth: 1100) {
                 let photosOnly = store.catalog.isPhotosOnly(section)
                 Text(md((photosOnly ? "These pictures print on the picture pages after the checklist. " : "") + "Tap **Add** to capture a photo, tap a photo to mark it up or flag it, or tap **×** to delete one."))
                     .font(VFont.ui(13)).foregroundStyle(VC.ink3)
                     .padding(.top, 2).padding(.bottom, 14)
                     .fixedSize(horizontal: false, vertical: true)
-                ForEach(cats + extra, id: \.self) { cat in
-                    categoryBlock(cat, photos: existing[cat] ?? [])
+                if regular {
+                    // iPad: each photo slot is a card, laid out side by side (2–3 across), so a slot with one or two
+                    // photos doesn't leave a mostly empty full-width row.
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 330), spacing: 14, alignment: .top)], spacing: 14) {
+                        ForEach(cats + extra, id: \.self) { cat in
+                            categoryBlock(cat, photos: existing[cat] ?? [])
+                                .vCard(EdgeInsets(top: 13, leading: 14, bottom: 14, trailing: 14))
+                        }
+                    }
+                    .padding(.bottom, 16)
+                } else {
+                    ForEach(cats + extra, id: \.self) { cat in
+                        categoryBlock(cat, photos: existing[cat] ?? [])
+                            .padding(.bottom, 16)
+                    }
                 }
                 if photosOnly {
                     Button { store.finishPictures(inspectionID, section) } label: {
@@ -44,16 +61,13 @@ struct PhotosView: View {
                     }
                     .buttonStyle(.vPrimary)
                     .padding(.top, 6)
+                    .readableColumn()
                 } else {
                     Button("Done") { store.back() }
                         .buttonStyle(.vPrimary)
                         .padding(.top, 6)
+                        .readableColumn()
                 }
-            }
-            .confirmationDialog("Add a photo", isPresented: $showSourceDialog, titleVisibility: .visible) {
-                Button("Take photo") { showCamera = true }
-                Button("Choose from library") { showLibrary = true }
-                Button("Cancel", role: .cancel) { captureCategory = nil }
             }
             .fullScreenCover(isPresented: $showCamera) {
                 CameraPicker { img in handleCaptured(img) }
@@ -62,6 +76,7 @@ struct PhotosView: View {
             .sheet(isPresented: $showLibrary) {
                 LibraryPicker { img in handleCaptured(img) }
                     .ignoresSafeArea()
+                    .padPageSheet()
             }
             .fullScreenCover(item: $viewer) { t in
                 PhotoMarkupView(inspectionID: inspectionID, section: section, category: t.category, photoID: t.photoID,
@@ -118,9 +133,16 @@ struct PhotosView: View {
                 }
                 .buttonStyle(ChipPressStyle())
                 .accessibilityLabel("Add photo to \(cat)")
+                // On the Add tile itself, so on iPad the choice pops up next to the tapped tile.
+                .confirmationDialog("Add a photo", isPresented: Binding(get: { showSourceDialog && captureCategory == cat },
+                                                                         set: { if !$0 { showSourceDialog = false } }),
+                                    titleVisibility: .visible) {
+                    Button("Take photo") { showCamera = true }
+                    Button("Choose from library") { showLibrary = true }
+                    Button("Cancel", role: .cancel) { captureCategory = nil }
+                }
             }
         }
-        .padding(.bottom, 16)
     }
 
     /// Presenting a full-screen cover while the keyboard is still animating away can leave it with a
@@ -383,6 +405,7 @@ struct PhotoMarkupView: View {
                 }
             }
             .padding(.horizontal, 14).padding(.top, 12).padding(.bottom, 18)
+            .readableColumn()   // iPad: tools stay a compact centered panel under the full-width photo
             .background(Color(hex: 0x12181F).ignoresSafeArea(edges: .bottom))
         }
         .background(Color(hex: 0x0B0F15).ignoresSafeArea())

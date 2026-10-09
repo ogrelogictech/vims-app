@@ -88,6 +88,7 @@ struct PhotoSourceDialog: ViewModifier {
             }
             .sheet(isPresented: $showLibrary) {
                 LibraryPicker { img in if let img { onImage(img) } }
+                    .padPageSheet()
             }
     }
 }

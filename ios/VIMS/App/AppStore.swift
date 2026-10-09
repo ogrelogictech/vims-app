@@ -18,6 +18,8 @@ enum Route: Hashable {
     /// VIMS default inspection agreement viewer: nil = every state's disclosures (Company profile),
     /// a code = only that state's section (wizard step 1).
     case agreement(state: String?)
+    /// Company admins: edit this company's copy of the VIMS agreement.
+    case agreementEditor
 }
 
 @MainActor
@@ -734,6 +736,33 @@ final class AppStore {
         return UIImage(contentsOfFile: files.url(for: f).path)
     }
 
+    /// Which agreement the company uses: the VIMS default, its edited copy of it, or its own uploaded file.
+    enum AgreementInUse: Equatable { case vims, edited, uploaded }
+
+    var agreementInUse: AgreementInUse {
+        if state.company.agreementFile != nil { return .uploaded }
+        if let t = state.company.agreementText, !t.isEmpty { return .edited }
+        return .vims
+    }
+
+    /// The full VIMS agreement as plain text with this company's name filled in — what "Edit" starts from.
+    var vimsAgreementPlainText: String? {
+        InspectionAgreement.bundled.map {
+            AgreementContent.vims($0, company: company.name, stateCode: nil, stateName: { self.config.stateName($0) ?? $0 }).plainText
+        }
+    }
+
+    /// "Edit agreement" → Save: the edited text becomes this company's agreement and replaces an uploaded file.
+    /// TODO(backend): PUT the edited agreement (text + editedAt) to the company record.
+    func saveEditedAgreement(_ text: String) {
+        if let old = state.company.agreementFile { files.deleteFile(old) }
+        state.company.agreementFile = nil
+        state.company.agreementName = nil
+        state.company.agreementText = text
+        state.company.agreementEditedAt = Date()
+        toast("Your edited agreement is now in use")
+    }
+
     func saveAgreement(from url: URL) {
         let access = url.startAccessingSecurityScopedResource()
         defer { if access { url.stopAccessingSecurityScopedResource() } }
@@ -741,6 +770,9 @@ final class AppStore {
         if let old = state.company.agreementFile { files.deleteFile(old) }
         state.company.agreementFile = files.saveFile(data, folder: companyFolder, name: url.lastPathComponent)
         state.company.agreementName = url.lastPathComponent
+        // An uploaded file replaces an edited copy of the VIMS agreement.
+        state.company.agreementText = nil
+        state.company.agreementEditedAt = nil
         toast("Your agreement is now in use")
     }
 
@@ -751,11 +783,13 @@ final class AppStore {
         return FileManager.default.fileExists(atPath: url.path) ? url : nil
     }
 
-    /// "Use VIMS agreement": drop the uploaded file and go back to the VIMS default agreement.
+    /// "Use VIMS agreement": drop the uploaded file and/or the edited copy and go back to the VIMS default agreement.
     func useDefaultAgreement() {
         if let old = state.company.agreementFile { files.deleteFile(old) }
         state.company.agreementFile = nil
         state.company.agreementName = nil
+        state.company.agreementText = nil
+        state.company.agreementEditedAt = nil
         toast("Using the VIMS agreement")
     }
 }

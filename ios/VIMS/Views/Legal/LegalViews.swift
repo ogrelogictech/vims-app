@@ -93,6 +93,7 @@ struct EULAGateView: View {
                     EULABody(doc: store.eula)
                 }
                 .padding(.horizontal, 16).padding(.top, 16).padding(.bottom, 20)
+                .readableColumn()
             }
             #if DEBUG
             .task {
@@ -112,6 +113,7 @@ struct EULAGateView: View {
                     .signOutConfirmation(isPresented: $confirmSignOut)
             }
             .padding(.horizontal, 16).padding(.top, 12).padding(.bottom, 6)
+            .readableColumn()
             .background(VC.paper.ignoresSafeArea(edges: .bottom))
             .overlay(alignment: .top) { Rectangle().fill(VC.line).frame(height: 1) }
         }

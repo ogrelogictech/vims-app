@@ -95,6 +95,9 @@ struct RootView: View {
             }
         }
         .animation(.easeOut(duration: 0.25), value: store.toastMessage)
+        #if DEBUG
+        .task { DebugLaunch.applyOrientation() }
+        #endif
     }
 
     @ViewBuilder
@@ -125,6 +128,8 @@ struct RootView: View {
         case .reportBcc: if store.isPlatformOwner { ReportBccView() } else { OwnerOnlyView() }
         case .eula: EULAView()
         case .agreement(let st): InspectionAgreementView(stateCode: st)
+        // Same permission as uploading an agreement (company admins).
+        case .agreementEditor: if store.isAdmin { AgreementEditorView() } else { OwnerOnlyView(message: "Only company admins can edit the agreement") }
         case .deleteAccount: DeleteAccountView()
         }
     }
@@ -132,9 +137,10 @@ struct RootView: View {
 
 struct OwnerOnlyView: View {
     @Environment(AppStore.self) private var store
+    var message = "This setting is managed by the VIMS platform owner."
     var body: some View {
         Screen(title: "Not available", actions: [store.homeAction()]) {
-            HintText(text: "This setting is managed by the VIMS platform owner.").padding(.top, 8)
+            HintText(text: message).padding(.top, 8)
         }
     }
 }

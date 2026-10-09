@@ -6,16 +6,33 @@ import QuickLook
 
 /// "Inspection agreement" screen. `stateCode == nil` (Company profile) lists every state's disclosure;
 /// a code (wizard step 1) shows only that state's entry, or "No additional disclosures for <State>."
+/// A company using its edited copy sees that text instead (in full — it can't be filtered by state).
+/// The header's share button downloads exactly what's shown as a PDF (every user).
 struct InspectionAgreementView: View {
     @Environment(AppStore.self) private var store
     let stateCode: String?
     @State private var quickLook: URL?
     @State private var jump = FormErrors()     // only used for the DEBUG -agreementScroll jump
+    @State private var shareAnchor = PopoverAnchor()
+
+    /// What's on screen (and in the download): the edited copy, else the VIMS agreement; nil if it can't be loaded.
+    private var content: AgreementContent? {
+        if store.agreementInUse == .edited, let text = store.company.agreementText {
+            return .edited(text, company: store.company.name)
+        }
+        return InspectionAgreement.bundled.map {
+            AgreementContent.vims($0, company: store.company.name, stateCode: stateCode, stateName: stateName)
+        }
+    }
 
     var body: some View {
-        Screen(title: "Inspection agreement", subtitle: store.company.name, actions: [store.homeAction()], errors: jump) {
-            if let doc = InspectionAgreement.bundled {
-                content(doc)
+        let content = content
+        Screen(title: "Inspection agreement", subtitle: store.company.name,
+               actions: (content == nil ? [] : [HeaderAction(symbol: "upload-logo-png", label: "Download agreement PDF", anchor: shareAnchor) { download() }])
+                        + [store.homeAction()],
+               errors: jump) {
+            if let content {
+                document(content)
             } else {
                 Text("The VIMS inspection agreement couldn't be loaded.")
                     .font(VFont.ui(13)).foregroundStyle(VC.ink2)
@@ -27,39 +44,39 @@ struct InspectionAgreementView: View {
         #if DEBUG
         .task {
             // -agreementScroll disclosures: scroll to the state disclosures (review screenshots).
-            guard DebugLaunch.value("-agreementScroll") != nil else { return }
+            // -openShare: tap Download (share-sheet anchor check on iPad).
             try? await Task.sleep(nanoseconds: 500_000_000)
-            jump.scrollTarget = "agreement-disclosures"
+            if DebugLaunch.value("-agreementScroll") != nil { jump.scrollTarget = "agreement-disclosures" }
+            if DebugFlags.openShare { DebugFlags.openShare = false; download() }
         }
         #endif
     }
 
-    private func fill(_ t: String) -> String { InspectionAgreement.fill(t, company: store.company.name) }
     private func stateName(_ code: String) -> String { store.config.stateName(code) ?? code }
 
-    @ViewBuilder
-    private func content(_ doc: InspectionAgreement) -> some View {
+    /// Renders what's shown into "Inspection-Agreement-<Company>.pdf" and opens the share sheet
+    /// (Save to Files, Mail, AirDrop, Print). On iPad the sheet points at the header button.
+    private func download() {
+        guard let content, let url = AgreementPDF.write(content, company: store.company.name) else {
+            store.toast("Couldn't create the agreement PDF"); return
+        }
+        ShareSheet.present([url], from: shareAnchor, title: "Share agreement")
+    }
+
+    private func document(_ content: AgreementContent) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            if let own = store.company.agreementName, store.company.agreementFile != nil {
-                ownNotice(own)
+            switch store.agreementInUse {
+            case .uploaded:
+                if let own = store.company.agreementName { ownNotice(own) }
+            case .edited:
+                Text("Your company\u{2019}s edited version of the VIMS agreement.")
+                    .font(VFont.ui(13)).foregroundStyle(VC.signalDeep).lineSpacing(3)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.bottom, 14)
+            case .vims:
+                EmptyView()
             }
-            Text(fill(doc.title))
-                .font(VFont.display(18, .heavy)).foregroundStyle(VC.ink)
-                .accessibilityAddTraits(.isHeader)
-                .padding(.bottom, 10)
-            Text(doc.formLines.map(fill).joined(separator: "\n"))
-                .font(VFont.mono(11.5)).foregroundStyle(VC.ink2)
-                .lineSpacing(5)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 12).padding(.vertical, 10)
-                .background(VC.paper2)
-                .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).stroke(VC.line, lineWidth: 1))
-                .padding(.bottom, 12)
-            ForEach(Array(doc.body.enumerated()), id: \.offset) { _, b in block(b) }
-            disclosures(doc)
-            ForEach(Array(doc.closing.enumerated()), id: \.offset) { _, b in block(b) }
+            ForEach(Array(content.blocks.enumerated()), id: \.offset) { _, b in block(b) }
         }
         .textSelection(.enabled)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -83,42 +100,49 @@ struct InspectionAgreementView: View {
     }
 
     @ViewBuilder
-    private func disclosures(_ doc: InspectionAgreement) -> some View {
-        let all = doc.disclosureStates
-        let shown = stateCode.map { code in all.filter { $0 == code } } ?? all
-        Text(doc.stateDisclosuresHeading)
-            .font(VFont.display(14, .bold)).foregroundStyle(VC.brandDeep)
-            .accessibilityAddTraits(.isHeader)
-            .padding(.top, 14).padding(.bottom, 8)
-            .id("agreement-disclosures")
-        if let code = stateCode, shown.isEmpty {
-            paragraph("No additional disclosures for \(stateName(code)).", color: VC.ink3)
-        }
-        ForEach(shown, id: \.self) { code in
-            (Text("\(stateName(code)): ").font(VFont.ui(13, .bold)).foregroundColor(VC.ink)
-             + Text(fill(doc.stateDisclosures[code] ?? "")))
+    private func block(_ b: AgreementContent.Block) -> some View {
+        switch b {
+        case .title(let t):
+            Text(t)
+                .font(VFont.display(18, .heavy)).foregroundStyle(VC.ink)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
+                .padding(.bottom, 10)
+        case .form(let lines):
+            Text(lines.joined(separator: "\n"))
+                .font(VFont.mono(11.5)).foregroundStyle(VC.ink2)
+                .lineSpacing(5)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 12).padding(.vertical, 10)
+                .background(VC.paper2)
+                .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).stroke(VC.line, lineWidth: 1))
+                .padding(.bottom, 12)
+        case .paragraph(let t, let lead):
+            paragraph(t, color: lead ? VC.ink : VC.ink2)   // lead → ink color (prototype)
+        case .bullet(let t):
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text("\u{2022}").font(VFont.ui(13)).foregroundStyle(VC.ink2)
+                paragraph(t, color: VC.ink2, bottom: 0)
+            }
+            .padding(.leading, 4).padding(.bottom, 9)
+        case .heading(let t):
+            Text(t)
+                .font(VFont.display(14, .bold)).foregroundStyle(VC.brandDeep)
+                .accessibilityAddTraits(.isHeader)
+                .padding(.top, 14).padding(.bottom, 8)
+                .id("agreement-disclosures")
+        case .disclosure(let state, let text):
+            (Text("\(state): ").font(VFont.ui(13, .bold)).foregroundColor(VC.ink) + Text(text))
                 .font(VFont.ui(13)).foregroundStyle(VC.ink2).lineSpacing(4)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.bottom, 9)
-        }
-        if let code = stateCode, !shown.isEmpty, shown.count < all.count {
-            Text("Showing \(stateName(code)) only. The full agreement lists \(all.count) states.")
+        case .note(let t):
+            Text(t)
                 .font(VFont.ui(12)).foregroundStyle(VC.ink3)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.bottom, 9)
-        }
-    }
-
-    @ViewBuilder
-    private func block(_ b: InspectionAgreement.Block) -> some View {
-        if b.isBullet {
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text("\u{2022}").font(VFont.ui(13)).foregroundStyle(VC.ink2)
-                paragraph(fill(b.text), color: VC.ink2, bottom: 0)
-            }
-            .padding(.leading, 4).padding(.bottom, 9)
-        } else {
-            paragraph(fill(b.text), color: (b.lead ?? false) ? VC.ink : VC.ink2)   // lead → ink color (prototype)
         }
     }
 
@@ -131,46 +155,172 @@ struct InspectionAgreementView: View {
     }
 }
 
-/// Company profile → "Inspection agreement" card: VIMS agreement by default, or the company's own upload.
+/// Company profile → "Inspection agreement" card: the VIMS agreement by default, the company's edited copy of it,
+/// or its own upload. Edit / Upload / Replace / Use VIMS agreement are for company admins only.
 struct AgreementCard: View {
     @Environment(AppStore.self) private var store
     let upload: () -> Void
+    @State private var confirmRevert = false
 
     var body: some View {
-        let own = store.company.agreementFile != nil ? store.company.agreementName : nil
+        let mode = store.agreementInUse
         HStack(spacing: 12) {
             LeadIcon(symbol: "no-agreement-uploaded")
             VStack(alignment: .leading, spacing: 2) {
-                Text(own ?? "VIMS agreement").font(VFont.ui(14, .bold)).foregroundStyle(VC.ink)
+                Text(title(mode)).font(VFont.ui(14, .bold)).foregroundStyle(VC.ink)
                     .lineLimit(1).truncationMode(.middle)
-                // "All 50 states · in use · View" / "Your agreement · in use · Use VIMS agreement": one line when it
-                // fits, else the link drops under the status (a real button, so it's an easy tap target).
-                ViewThatFits(in: .horizontal) {
-                    HStack(spacing: 0) { status(own != nil); Text(" \u{00B7} ").font(VFont.ui(12)).foregroundStyle(VC.ink3); link(own != nil) }
-                    VStack(alignment: .leading, spacing: 0) { status(own != nil); link(own != nil) }
+                // "All 50 states · in use · View · Edit": one line when it fits, else the links wrap under the
+                // status (real buttons, so they're easy tap targets).
+                FlowLayout(spacing: 0, lineSpacing: 0) {
+                    Text(status(mode)).font(VFont.ui(12)).foregroundStyle(VC.ink3).fixedSize()
+                    ForEach(links(mode), id: \.title) { l in
+                        HStack(spacing: 0) {
+                            dot
+                            Button(l.title, action: l.action)
+                                .buttonStyle(InlineLinkStyle())
+                                .fixedSize()
+                                .accessibilityHint(l.hint)
+                        }
+                    }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            Button(own == nil ? "Upload your own" : "Replace") { upload() }
-                .buttonStyle(VButtonStyle(kind: .ghost, minHeight: 44, fullWidth: false))
-                .fixedSize()
+            if store.isAdmin {
+                Button(mode == .uploaded ? "Replace" : "Upload your own") { upload() }
+                    .buttonStyle(VButtonStyle(kind: .ghost, minHeight: 44, fullWidth: false))
+                    .fixedSize()
+            }
+        }
+        // Going back to the VIMS agreement deletes an edited version, so ask first (an upload just switches back).
+        .confirmationDialog("Use the VIMS agreement?", isPresented: $confirmRevert, titleVisibility: .visible) {
+            Button("Use VIMS", role: .destructive) { store.useDefaultAgreement() }
+            Button("Cancel", role: .cancel) {}
+        } message: { Text("Your company\u{2019}s edited version of the agreement will be deleted.") }
+    }
+
+    private var dot: some View { Text(" \u{00B7} ").font(VFont.ui(12)).foregroundStyle(VC.ink3) }
+}
+
+extension AgreementCard {
+    struct CardLink { let title: String; let hint: String; let action: () -> Void }
+
+    func title(_ mode: AppStore.AgreementInUse) -> String {
+        switch mode {
+        case .vims: return "VIMS agreement"
+        case .edited: return "Edited VIMS agreement"
+        case .uploaded: return store.company.agreementName ?? "Your agreement"
+        }
+    }
+
+    func status(_ mode: AppStore.AgreementInUse) -> String {
+        switch mode {
+        case .vims: return "All 50 states \u{00B7} in use"
+        case .edited: return "Your edited version \u{00B7} in use"
+        case .uploaded: return "Your agreement \u{00B7} in use"
+        }
+    }
+
+    func links(_ mode: AppStore.AgreementInUse) -> [CardLink] {
+        let view = CardLink(title: "View", hint: mode == .edited ? "Opens your edited agreement" : "Opens the VIMS agreement") {
+            store.push(.agreement(state: nil))
+        }
+        let edit = CardLink(title: "Edit", hint: "Edit your company\u{2019}s copy of the agreement") { store.push(.agreementEditor) }
+        let revert = CardLink(title: "Use VIMS agreement", hint: "Switches back to the VIMS agreement") {
+            if mode == .edited { confirmRevert = true } else { store.useDefaultAgreement() }
+        }
+        switch mode {
+        case .vims: return store.isAdmin ? [view, edit] : [view]
+        case .edited: return store.isAdmin ? [view, edit, revert] : [view]
+        case .uploaded: return store.isAdmin ? [revert] : []
         }
     }
 }
 
-extension AgreementCard {
-    func status(_ own: Bool) -> some View {
-        Text(own ? "Your agreement \u{00B7} in use" : "All 50 states \u{00B7} in use")
-            .font(VFont.ui(12)).foregroundStyle(VC.ink3).fixedSize()
+/// Company admins: "Edit agreement" — the company's copy of the VIMS agreement as plain text (the VIMS text with the
+/// company name filled in, or their earlier edit). Saving makes it the company's agreement; the VIMS agreement
+/// itself never changes for anyone else.
+struct AgreementEditorView: View {
+    @Environment(AppStore.self) private var store
+    @State private var text = ""
+    @State private var original = ""
+    @State private var loaded = false
+    @State private var errors = FormErrors()
+    @State private var confirmDiscard = false
+    @FocusState private var focused: Bool
+
+    private var dirty: Bool { loaded && text != original }
+
+    var body: some View {
+        Screen(title: "Edit agreement", subtitle: store.company.name,
+               onLeading: { leave() }, actions: [], scroll: false) {
+            VStack(alignment: .leading, spacing: 0) {
+                Text("Your company\u{2019}s copy of the VIMS agreement. Separate paragraphs with a blank line and start a line with \u{2022} for a bullet. The VIMS agreement itself doesn\u{2019}t change.")
+                    .font(VFont.ui(12.5)).foregroundStyle(VC.ink3).lineSpacing(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.bottom, 10)
+                FieldBox(focused: focused, minHeight: 200, error: errors["text"] != nil) {
+                    TextEditor(text: $text)
+                        .font(VFont.ui(14)).foregroundStyle(VC.ink)
+                        .scrollContentBackground(.hidden)
+                        .focused($focused)
+                        .padding(.horizontal, -5).padding(.vertical, -8)   // TextEditor's own inset
+                        .frame(maxHeight: .infinity)
+                        .accessibilityLabel("Agreement text")
+                        .onChange(of: text) { _, _ in if errors["text"] != nil { errors.clear() } }
+                }
+                .frame(maxHeight: .infinity)
+                HStack {
+                    if let e = errors["text"] { FieldError(text: e) }
+                    Spacer(minLength: 8)
+                    Text("\(Fmt.grouped(Double(text.count))) / \(Fmt.grouped(Double(AgreementContent.maxEditedLength)))")
+                        .font(VFont.mono(11)).foregroundStyle(text.count > AgreementContent.maxEditedLength ? VC.c1 : VC.ink3)
+                }
+                .padding(.top, 6).padding(.bottom, 10)
+                HStack(spacing: 10) {
+                    Button("Cancel") { leave() }.buttonStyle(.vGhost)
+                    Button { save() } label: { IconLabel("Save agreement", icon: "link-my-account") }
+                        .buttonStyle(.vPrimary)
+                }
+            }
+            .padding(.horizontal, 16).padding(.top, 14).padding(.bottom, 12)
+            .readableColumn()
+        }
+        .confirmationDialog("Discard changes?", isPresented: $confirmDiscard, titleVisibility: .visible) {
+            Button("Discard", role: .destructive) { store.back() }
+            Button("Keep editing", role: .cancel) {}
+        } message: { Text("Your edits to the agreement haven\u{2019}t been saved.") }
+        .onAppear {
+            guard !loaded else { return }
+            let start = store.company.agreementText ?? store.vimsAgreementPlainText ?? ""
+            text = start
+            original = start
+            loaded = true
+            #if DEBUG
+            // -validate: try to save an empty agreement once (error state for review screenshots).
+            if DebugFlags.validate { DebugFlags.validate = false; text = ""; save() }
+            #endif
+        }
     }
 
-    func link(_ own: Bool) -> some View {
-        Button(own ? "Use VIMS agreement" : "View") {
-            if own { store.useDefaultAgreement() } else { store.push(.agreement(state: nil)) }
+    private func leave() {
+        focused = false
+        if dirty { confirmDiscard = true } else { store.back() }
+    }
+
+    private func save() {
+        // Same messages as Android.
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { errors.set("text", "Enter the agreement text"); return }
+        if text.count > AgreementContent.maxEditedLength {
+            errors.set("text", "Keep the agreement under \(Fmt.grouped(Double(AgreementContent.maxEditedLength))) characters (now \(Fmt.grouped(Double(text.count))))")
+            return
         }
-        .buttonStyle(InlineLinkStyle())
-        .fixedSize()
-        .accessibilityHint(own ? "Switches back to the VIMS agreement" : "Opens the VIMS agreement")
+        errors.clear()
+        focused = false
+        if text == original { store.toast("No changes to save"); return }
+        store.saveEditedAgreement(trimmed)
+        original = text
+        store.back()
     }
 }
 

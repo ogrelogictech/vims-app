@@ -93,11 +93,5 @@ struct MailComposeView: UIViewControllerRepresentable {
     }
 }
 
-/// Share-sheet fallback when Mail isn't set up. The share sheet can't carry a BCC.
-struct ActivityView: UIViewControllerRepresentable {
-    let items: [Any]
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: items, applicationActivities: nil)
-    }
-    func updateUIViewController(_ vc: UIActivityViewController, context: Context) {}
-}
+// Share-sheet fallback when Mail isn't set up: ShareSheet.present (Views/Shell/Adaptive.swift), which gives the
+// iPad popover its anchor. The share sheet can't carry a BCC.

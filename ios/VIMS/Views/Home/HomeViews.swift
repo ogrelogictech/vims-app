@@ -68,16 +68,10 @@ struct HomeView: View {
             } else if today.isEmpty {
                 Text("No inspections scheduled today.").font(VFont.ui(13)).foregroundStyle(VC.ink3).padding(.bottom, 10)
             }
-            ForEach(today) { insp in
-                InspectionRow(insp: insp, timeLead: true) { open(insp) }
-                    .contextMenu { deleteButton(insp) }
-            }
+            ForEach(today) { insp in row(insp, timeLead: true) }
             if !recent.isEmpty {
                 SectionLabel(text: "Recent")
-                ForEach(recent) { insp in
-                    InspectionRow(insp: insp, timeLead: false) { open(insp) }
-                        .contextMenu { deleteButton(insp) }
-                }
+                ForEach(recent) { insp in row(insp, timeLead: false) }
             }
 
             Button { store.push(.wizard(editing: nil)) } label: {
@@ -92,15 +86,22 @@ struct HomeView: View {
             .buttonStyle(.vGhost)
             .padding(.top, 10)
         }
-        .confirmationDialog("Delete this inspection?", isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),
-                            titleVisibility: .visible) {
-            Button("Delete inspection", role: .destructive) {
-                if let p = pendingDelete { store.deleteInspection(p.id); store.toast("Inspection deleted") }
-                pendingDelete = nil
+    }
+
+    /// The delete confirmation hangs off its own row, so on iPad the popover points at that inspection.
+    private func row(_ insp: Inspection, timeLead: Bool) -> some View {
+        InspectionRow(insp: insp, timeLead: timeLead) { open(insp) }
+            .contextMenu { deleteButton(insp) }
+            .confirmationDialog("Delete this inspection?",
+                                isPresented: Binding(get: { pendingDelete?.id == insp.id }, set: { if !$0 { pendingDelete = nil } }),
+                                titleVisibility: .visible) {
+                Button("Delete inspection", role: .destructive) {
+                    if let p = pendingDelete { store.deleteInspection(p.id); store.toast("Inspection deleted") }
+                    pendingDelete = nil
+                }
+            } message: {
+                Text("This removes \(insp.addressLine1), its photos, and its report from this device.")
             }
-        } message: {
-            Text("This removes \(pendingDelete?.addressLine1 ?? "it"), its photos, and its report from this device.")
-        }
     }
 
     private func open(_ insp: Inspection) {
@@ -228,7 +229,7 @@ struct TrialSplashView: View {
                     .padding(.top, 10)
             }
             .padding(.horizontal, 22).padding(.vertical, 26)
-            .frame(maxWidth: 320)
+            .frame(maxWidth: Device.isPad ? 400 : 320)
             .background(VC.paper)
             .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
             .shadow(color: .black.opacity(0.5), radius: 35, y: 30)

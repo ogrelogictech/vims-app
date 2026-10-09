@@ -285,6 +285,10 @@ struct CompanyProfile: Codable, Hashable {
     var logoFile: String?                 // relative path, nil = bundled VIMS logo
     var agreementFile: String?            // relative path
     var agreementName: String?
+    /// The company's edited copy of the VIMS agreement (plain text, Company profile → Edit). Only ever this company's
+    /// copy — the VIMS agreement itself never changes. nil = not edited. TODO(backend): sync to the company record.
+    var agreementText: String?
+    var agreementEditedAt: Date?
     var feedbackEmail: String
     var inspectors: [Inspector]
 }

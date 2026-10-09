@@ -145,7 +145,14 @@ struct EditSectionView: View {
                     Button(role: .destructive) { confirmRemove = true } label: {
                         IconLabel("Remove this section", icon: "trash").foregroundStyle(VC.c1)
                     }
-                    .buttonStyle(.vGhost).padding(.top, 10)
+                    .buttonStyle(.vGhost)
+                    .confirmationDialog("Remove “\(sectionName)”?", isPresented: $confirmRemove, titleVisibility: .visible) {
+                        Button("Remove section", role: .destructive) {
+                            store.removeCustomSection(sectionName)
+                            store.back()
+                        }
+                    } message: { Text("It won't appear in new inspections. Existing inspections keep their answers.") }
+                    .padding(.top, 10)
                 }
             }
         }
@@ -156,12 +163,6 @@ struct EditSectionView: View {
             items = (def?.items ?? []).map { EditItem(item: $0) }
             if DebugFlags.validate, !items.isEmpty { DebugFlags.validate = false; items[0].item.q = ""; save() }
         }
-        .confirmationDialog("Remove “\(sectionName)”?", isPresented: $confirmRemove, titleVisibility: .visible) {
-            Button("Remove section", role: .destructive) {
-                store.removeCustomSection(sectionName)
-                store.back()
-            }
-        } message: { Text("It won't appear in new inspections. Existing inspections keep their answers.") }
     }
 
     private func commitTier() {
