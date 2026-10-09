@@ -107,7 +107,7 @@ import kotlinx.serialization.Serializable
 @Serializable data class StateDocR(val file: String, val name: String)
 
 /** Debug-only launch options (adb `--es screen …`), used to open any screen directly for screenshots. */
-data class DebugLaunch(val screen: String, val insp: String?, val section: String?, val cat: String?, val photo: String?, val depth: String?, val splash: Boolean, val step: Int = 1, val coverStep: Int = 1, val eulaVersion: String? = null, val state: String? = null)
+data class DebugLaunch(val screen: String, val insp: String?, val section: String?, val cat: String?, val photo: String?, val depth: String?, val splash: Boolean, val step: Int = 1, val coverStep: Int = 1, val eulaVersion: String? = null, val state: String? = null, val cover: String? = null, val inspType: String? = null, val generate: Boolean = false)
 
 fun NavHostController.back() { if (!popBackStack()) goHome() }
 fun NavHostController.goHome() = navigate(HomeR) { popUpTo(0) { inclusive = true } }
@@ -180,6 +180,8 @@ private suspend fun applyDebug(vm: AppViewModel, nav: NavHostController, d: Debu
     if (d.screen != "login") vm.debugSignIn()
     d.depth?.let { vm.debugSetDepth(id, it) }
     d.state?.let { vm.debugSetState(id, it) }
+    d.cover?.let { vm.debugSetCover(id, it) }
+    d.inspType?.let { vm.debugSetInspType(id, it) }
     vm.debugWizardStep = d.step
     d.eulaVersion?.let { vm.debugEulaVersion = it }
     vm.debugCoverStep = d.coverStep
@@ -220,6 +222,8 @@ private suspend fun applyDebug(vm: AppViewModel, nav: NavHostController, d: Debu
     if (route != null) {
         nav.navigate(HomeR) { popUpTo(0) { inclusive = true } }
         if (route != HomeR) nav.navigate(route)
+        // --ez generate true: (re)build the PDF now and open the in-app preview (cover QA).
+        if (d.generate) vm.generateReport(id, markDone = false) { nav.navigate(PdfR(id)) }
     } else {
         nav.navigate(LoginR) { popUpTo(0) { inclusive = true } }
     }

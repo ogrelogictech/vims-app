@@ -69,9 +69,10 @@ dependencies {
     implementation(libs.core.splashscreen)
 }
 
-// Fail the build (instead of shipping a blank EULA screen / a dead "View" button) if a required shared/ asset is missing
-// from the checkout: the EULA, icons, checklist data, the state documents, and every PDF referenced by
-// stateRules.<STATE>.docs in vims-checklists.json (paths relative to shared/).
+// Fail the build (instead of shipping a blank EULA screen / a dead "View" button / a cover without its artwork) if a
+// required shared/ asset is missing from the checkout: the EULA, icons, checklist data, the state documents, every PDF
+// referenced by stateRules.<STATE>.docs and every cover artwork in covers.themeArt (v1.6) in vims-checklists.json
+// (paths relative to shared/).
 val verifySharedAssets = tasks.register("verifySharedAssets") {
     val shared = rootProject.file("../shared")
     val checklist = File(shared, "data/vims-checklists.json")
@@ -84,8 +85,10 @@ val verifySharedAssets = tasks.register("verifySharedAssets") {
     doLast {
         val docs = if (checklist.isFile) {
             @Suppress("UNCHECKED_CAST")
-            val rules = (groovy.json.JsonSlurper().parse(checklist) as Map<String, Any?>)["stateRules"] as? Map<String, Any?> ?: emptyMap()
-            rules.values.filterIsInstance<Map<*, *>>().flatMap { r -> (r["docs"] as? List<*>).orEmpty().mapNotNull { (it as? Map<*, *>)?.get("file") as? String } }
+            val data = groovy.json.JsonSlurper().parse(checklist) as Map<String, Any?>
+            val rules = data["stateRules"] as? Map<String, Any?> ?: emptyMap()
+            val art = ((data["covers"] as? Map<*, *>)?.get("themeArt") as? Map<*, *>).orEmpty().values.mapNotNull { (it as? Map<*, *>)?.get("file") as? String }
+            rules.values.filterIsInstance<Map<*, *>>().flatMap { r -> (r["docs"] as? List<*>).orEmpty().mapNotNull { (it as? Map<*, *>)?.get("file") as? String } } + art
         } else emptyList()
         val missing = (required + docs).distinct().map { File(shared, it) }.filter { !it.isFile || it.length() == 0L }
         if (missing.isNotEmpty()) throw GradleException("Missing shared assets (pull shared/): " + missing.joinToString())

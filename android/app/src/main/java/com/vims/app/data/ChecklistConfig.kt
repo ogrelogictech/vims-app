@@ -230,10 +230,62 @@ data class CoversDef(
     val styles: List<String> = emptyList(),
     val solidStyle: String = "Solid",
     @SerialName("default") val defaultCover: CoverChoice = CoverChoice(),
+    /** Data v1.6: the client's cover design (positions in inches on US Letter, origin top-left). */
+    val layout: CoverLayoutDef = CoverLayoutDef(),
+    /** Data v1.6: theme option → its artwork (asset path under shared/) and where it sits on the cover, in inches. */
+    val themeArt: Map<String, ThemeArtDef> = emptyMap(),
+) {
+    fun art(cover: CoverChoice): ThemeArtDef? = if (cover.category == "Solid") null else themeArt[cover.option]
+}
+
+/**
+ * A cover color. light / mid / deep / solid = the client's cover fills (v1.6: Framed page fill + glow, Shaded gradient,
+ * Solid fill); from / to = the app's UI swatch gradient.
+ */
+@Serializable
+data class CoverColorDef(
+    val name: String,
+    val from: String,
+    val to: String,
+    val light: String = "#F7FAFD",
+    val mid: String = "#B5D2EC",
+    val deep: String = "#237AD4",
+    val solid: String = "#8DBAE9",
+)
+
+/** `covers.layout` (v1.6), all in inches on a US Letter page; defaults = the client's "Cover - Master example". */
+@Serializable
+data class CoverLayoutDef(
+    val pageBox: List<Float> = listOf(0.5f, 0.68f, 7.48f, 9.52f),
+    val logo: CoverRectDef = CoverRectDef(listOf(0.6f, 0.75f, 1.6f, 1.1f)),
+    val companyInfo: CoverRectDef = CoverRectDef(listOf(4.3f, 0.8f, 3.55f, 1.1f)),
+    val title: CoverTitleDef = CoverTitleDef(),
+    val fields: CoverFieldsDef = CoverFieldsDef(),
+    val photoBox: CoverPhotoBoxDef = CoverPhotoBoxDef(),
+    val footer: CoverFooterDef = CoverFooterDef(),
 )
 
 @Serializable
-data class CoverColorDef(val name: String, val from: String, val to: String)
+data class CoverRectDef(val rect: List<Float> = emptyList())
+
+@Serializable
+data class CoverTitleDef(val text: String = "Inspection Report", val centerY: Float = 2.17f, val size: Float = 20f)
+
+@Serializable
+data class CoverFieldsDef(val top: Float = 2.62f, val lineGap: Float = 0.47f, val left: Float = 1.3f, val right: Float = 7.2f)
+
+@Serializable
+data class CoverPhotoBoxDef(val rect: List<Float> = listOf(1.2f, 5.1f, 6.08f, 4.15f), val border: Float = 1.25f)
+
+@Serializable
+data class CoverFooterDef(
+    val centerY: Float = 9.65f,
+    val size: Float = 11f,
+    val text: String = "This inspection report is the property of {companyName}.\nAny reproduction or distribution without written consent is prohibited.",
+)
+
+@Serializable
+data class ThemeArtDef(val file: String, val rect: List<Float>)
 
 @Serializable
 data class SubscriptionDef(

@@ -598,6 +598,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         it.copy(selections = it.selections.copy(state = state.uppercase(), stateDocsAck = docs, stateDocsAckAt = if (docs) System.currentTimeMillis() else null,
             sendToAgent = config.stateRule(state)?.agentCopy ?: true))
     }
+    /** Debug-only helper (cover QA): set an inspection's cover from "Color|Category|Option|Style" (Solid category → Solid style). */
+    fun debugSetCover(id: String, spec: String) = repo.updateInspection(id) {
+        val p = spec.split("|")
+        val cat = p.getOrNull(1).orEmpty().ifBlank { "Activities" }
+        it.copy(cover = CoverChoice(p.getOrNull(0).orEmpty().ifBlank { "Blue" }, cat, if (cat == "Solid") "" else p.getOrNull(2).orEmpty(),
+            if (cat == "Solid") config.covers.solidStyle else p.getOrNull(3).orEmpty().ifBlank { "Framed" }))
+    }
+    /** Debug-only helper (cover QA): set an inspection's type (e.g. Texas, 4 Point Inspection) to pick the report layout. */
+    fun debugSetInspType(id: String, type: String) = repo.updateInspection(id) { it.copy(selections = it.selections.copy(inspType = type)) }
     suspend fun debugSignIn() {
         if (session.value != null) return
         val r = container.auth.signIn(com.vims.app.demo.DemoSeed.DEMO_EMAIL, com.vims.app.demo.DemoSeed.DEMO_PASSWORD)

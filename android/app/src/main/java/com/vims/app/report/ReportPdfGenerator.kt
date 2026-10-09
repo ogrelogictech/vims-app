@@ -15,10 +15,11 @@ import android.graphics.pdf.PdfDocument
 import android.text.Layout
 import android.text.StaticLayout
 import android.text.TextPaint
+import android.text.TextUtils
 import com.vims.app.data.ChecklistConfig
 import com.vims.app.data.ChecklistEngine
 import com.vims.app.data.CompanyProfile
-import com.vims.app.data.CoverChoice
+import com.vims.app.data.CoverLayoutDef
 import com.vims.app.data.InspectionBundle
 import com.vims.app.data.ItemDef
 import com.vims.app.data.Photo
@@ -283,28 +284,81 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
         finishPage()
     }
 
-    private fun coverColors(): Pair<Int, Int> {
-        val c = config.covers.colors.firstOrNull { it.name == b.inspection.cover.color } ?: config.covers.colors.firstOrNull()
-        return (c?.from?.let { Color.parseColor(it) } ?: BRAND) to (c?.to?.let { Color.parseColor(it) } ?: BRAND_DEEP)
-    }
+    // ------------------------------------------------------------------ cover (client's design, data v1.6 covers.layout)
 
+    /** Inches on the US Letter page → canvas units (the canvas is 850 × 1100 = 100 units per inch). */
+    private fun inch(v: Float) = v * 100f
+    /** Points → canvas units. */
+    private fun pt(v: Float) = v * 100f / 72f
+    private fun List<Float>.inches(fallback: List<Float>): RectF {
+        val r = if (size >= 4) this else fallback
+        return RectF(inch(r[0]), inch(r[1]), inch(r[0] + r[2]), inch(r[1] + r[3]))
+    }
+    private val serif: Typeface = Typeface.create(Typeface.SERIF, Typeface.NORMAL)
+    private val serifBold: Typeface = Typeface.create(Typeface.SERIF, Typeface.BOLD)
+    private fun ellipsize(t: String, p: TextPaint, w: Float): String = TextUtils.ellipsize(t, p, w.coerceAtLeast(0f), TextUtils.TruncateAt.END).toString()
+
+    /**
+     * The client's report cover ("Cover - Master example", Oct 9 2026; report.html coverPage() is the reference):
+     * page box in the chosen color and style (Framed = light fill + black border + soft glow in deep; Shaded = light→mid→deep
+     * gradient; Solid = solid fill), logo top-left, company info top-right, title, fields on underlines (bold serif labels),
+     * property photo box, the theme artwork at its position (clipped to the page box), and the ownership footer (wrapped beside
+     * the artwork when the art reaches the footer band). Everything is placed in inches from covers.layout.
+     */
     private fun cover() {
         startPage(header = false)
         val sel = b.inspection.selections
+        val cfg = config.covers
+        val lay = cfg.layout
         val cover = b.inspection.cover
-        val (cFrom, cTo) = coverColors()
-        // top: brand + company block
-        brandBlock(46f, 40f, 64f, 24f, 13f, Color.parseColor("#7C8A55"), plex600)
-        addrBlock(PW - 46f, 40f, 12.5f, 11.5f, 18.4f)
-        y = 40f + maxOf(64f, 12.5f + addrLines().size * 18.4f) + 26f
-        val h1 = tp(archivo800, 26f).apply { textAlign = Paint.Align.CENTER }
+        val pal = cfg.colors.firstOrNull { it.name == cover.color } ?: cfg.colors.firstOrNull()
+        val light = Color.parseColor(pal?.light ?: "#F7FAFD"); val mid = Color.parseColor(pal?.mid ?: "#B5D2EC")
+        val deep = Color.parseColor(pal?.deep ?: "#237AD4"); val solid = Color.parseColor(pal?.solid ?: "#8DBAE9")
+        val style = if (cover.category == "Solid") cfg.solidStyle else cover.style
+        val box = lay.pageBox.inches(CoverLayoutDef().pageBox)
+
+        // page box
+        when (style) {
+            "Shaded" -> cv.drawRect(box, Paint().apply {
+                shader = LinearGradient(0f, box.top, 0f, box.bottom, intArrayOf(light, light, mid, deep, deep), floatArrayOf(0f, .18f, .56f, .83f, 1f), Shader.TileMode.CLAMP)
+            })
+            cfg.solidStyle -> cv.drawRect(box, fill(solid))
+            else -> { coverGlow(box, deep); cv.drawRect(box, fill(light)) }
+        }
+        cv.drawRect(box, stroke(Color.BLACK, pt(.75f)))
+
+        // logo (aspect-fit, top-left) + company info (centered in its box)
+        val lr = lay.logo.rect.inches(CoverLayoutDef().logo.rect)
+        logo?.let { l ->
+            val s = minOf(lr.width() / l.width, lr.height() / l.height)
+            cv.drawBitmap(l, null, RectF(lr.left, lr.top, lr.left + l.width * s, lr.top + l.height * s), Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG))
+        } ?: drawLogo(lr.left, lr.top, minOf(lr.width(), lr.height()))
+        val ir = lay.companyInfo.rect.inches(CoverLayoutDef().companyInfo.rect)
+        run {
+            val pn = tp(serifBold, pt(10.5f), Color.BLACK).apply { textAlign = Paint.Align.CENTER }
+            val pl = tp(serif, pt(9.5f), Color.BLACK).apply { textAlign = Paint.Align.CENTER }
+            var ty = ir.top + pn.textSize
+            cv.drawText(ellipsize(company.name, pn, ir.width()), ir.centerX(), ty, pn)
+            // name, address, phone, email (the client's company block)
+            val parts = company.address.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+            val addr = if (parts.size >= 3) listOf(parts.dropLast(2).joinToString(", "), parts.takeLast(2).joinToString(", ")) else listOf(company.address).filter { it.isNotBlank() }
+            (addr + listOf(company.phone, company.email).filter { it.isNotBlank() }).forEach {
+                ty += pt(9.5f) * 1.42f
+                if (ty <= ir.bottom + pt(6f)) cv.drawText(ellipsize(it, pl, ir.width()), ir.centerX(), ty, pl)
+            }
+        }
+
+        // title
+        val tSize = pt(lay.title.size)
         cv.drawText(when (layoutKind) {
             ChecklistConfig.LAYOUT_TEXAS -> "Property Inspection Report"
             ChecklistConfig.LAYOUT_FOUR_POINT -> "4-Point Inspection Report"
-            else -> "Inspection Report"
-        }, PW / 2, y + 24f, h1)
-        y += 26f + 18f + 6f
-        val rows = if (layoutKind == ChecklistConfig.LAYOUT_FOUR_POINT) listOf(
+            else -> lay.title.text
+        }, PW / 2, inch(lay.title.centerY) + tSize * .35f, tp(serifBold, tSize, Color.BLACK).apply { textAlign = Paint.Align.CENTER })
+
+        // fields: bold labels, values on an underline; the second address line and the line after it sit closer (0.36 in)
+        val four = layoutKind == ChecklistConfig.LAYOUT_FOUR_POINT
+        val rows = if (four) listOf(
             "Insured / Applicant" to sel.field("insuredName").ifBlank { sel.clientName }, "Application / Policy #" to sel.field("policyNumber"),
             "Address Inspected" to sel.street, "" to sel.cityLine, "Actual Year Built" to sel.field("Year of construction"),
             "Date Inspected" to Fmt.slash(sel.date),
@@ -312,112 +366,138 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
             "Client Name" to sel.clientName, "Address of Inspection" to sel.street, "" to sel.cityLine,
             "Date of Inspection" to Fmt.slash(sel.date), "Real Estate Agent" to sel.agentName,
         )
-        val fl = tp(plex700, 15f); val fv = tp(plex400, 20f)
-        fun fit(t: String, w: Float): String { var x = t; while (x.isNotEmpty() && fv.measureText(x) > w) x = x.dropLast(1); return x }
-        rows.forEach { (l, v) ->
-            val lw = if (l.isEmpty()) 0f else fl.measureText(l) + 12f
-            if (l.isNotEmpty()) cv.drawText(l, 60f, y + 20f, fl)
-            val vx = 60f + lw
-            var text = v
-            while (text.isNotEmpty() && fv.measureText(text) > PW - 60f - vx) text = text.dropLast(1)
-            cv.drawText(text, vx, y + 20f, fv)
-            cv.drawRect(vx, y + 26f, PW - 60f, y + 27f, fill(Color.parseColor("#9FB0C2")))
-            y += 27f + 15f
+        val f = lay.fields
+        val pr0 = lay.photoBox.rect.inches(CoverLayoutDef().photoBox.rect)
+        // 4-Point has one more row: 0.39 / 0.30 in gaps so the inspector line (~4.78 in) stays above the photo box (5.1 in).
+        val near = if (four) .30f else .36f
+        val gap = if (four) .39f else f.lineGap
+        val gaps = rows.mapIndexed { i, (l, _) -> l.isEmpty() || rows.getOrNull(i + 1)?.first?.isEmpty() == true }
+        val fs = pt(13f)
+        val pl = tp(serifBold, fs, Color.BLACK); val pv = tp(serif, fs, Color.BLACK)
+        val left = inch(f.left); val right = inch(f.right); val sp = inch(.085f); val pad = inch(.05f)
+        val rule = fill(Color.BLACK); val ruleH = pt(.75f)
+        fun valueLine(v: String, x0: Float, x1: Float, base: Float) {
+            cv.drawText(ellipsize(v.ifBlank { "—" }, pv, x1 - x0 - pad * 2), x0 + pad, base, pv)
+            cv.drawRect(x0, base + fs * .3f, x1, base + fs * .3f + ruleH, rule)
         }
-        // Name of Inspector with License # to its right (every report type)
+        var top = f.top
+        rows.forEachIndexed { i, (l, v) ->
+            val base = inch(top) + fs * .9f
+            val vx = if (l.isEmpty()) left else { cv.drawText(l, left, base, pl); left + pl.measureText(l) + sp }
+            valueLine(v, vx, right, base)
+            top += if (gaps[i]) near else gap
+        }
+        // Name of Inspector with License # on the same line (every report type)
+        val inspBase = inch(top) + fs * .9f
         run {
-            val lw = fl.measureText("Name of Inspector") + 12f
-            val licLabelW = fl.measureText("License #")
-            val licValX = PW - 60f - 150f
-            val licLabelX = licValX - 12f - licLabelW
-            cv.drawText("Name of Inspector", 60f, y + 20f, fl)
-            cv.drawText(fit(company.inspectorName, licLabelX - 22f - (60f + lw)), 60f + lw, y + 20f, fv)
-            cv.drawRect(60f + lw, y + 26f, licLabelX - 10f, y + 27f, fill(Color.parseColor("#9FB0C2")))
-            cv.drawText("License #", licLabelX, y + 20f, fl)
-            cv.drawText(fit(inspectorLicense(), 150f), licValX, y + 20f, fv)
-            cv.drawRect(licValX, y + 26f, PW - 60f, y + 27f, fill(Color.parseColor("#9FB0C2")))
-            y += 27f + 15f
+            val licW = inch(1.445f)
+            val licX = right - licW
+            val licLabel = "License #"
+            val licLabelX = licX - sp - pl.measureText(licLabel)
+            cv.drawText("Name of Inspector", left, inspBase, pl)
+            valueLine(company.inspectorName, left + pl.measureText("Name of Inspector") + sp, licLabelX - inch(.12f) - sp, inspBase)
+            cv.drawText(licLabel, licLabelX, inspBase, pl)
+            valueLine(inspectorLicense(), licX, right, inspBase)
         }
-        // cover art band (bottom)
-        val notice = layout("This inspection report is the property of ${company.name.ifBlank { "the inspection company" }}. Any reproduction or distribution without written consent is prohibited.",
-            tp(archivo700, 15f, Color.WHITE), PW * .5f, Layout.Alignment.ALIGN_CENTER, 1.25f)
-        // stateRules.<STATE>.coverNotice (e.g. Oregon): extra semibold line under the ownership notice, every layout.
-        val stateNotice = config.stateRule(b.inspection.selections.state)?.coverNotice?.let {
-            layout(it, tp(plex600, 12.5f, Color.WHITE), PW * .5f, Layout.Alignment.ALIGN_CENTER, 1.25f)
+
+        // theme art + footer: when the art's visible pixels reach the footer band, the footer wraps into the wider free side
+        // beside them (as on the client's covers), at least 3.3 in wide. Measured from the artwork's alpha, not its rect:
+        // the rects include transparent margins (Horses starts at 3.46 in but its first pixels are at 4.2 in).
+        val art = cfg.art(cover)
+        val artRect = art?.rect?.takeIf { it.size >= 4 }
+        val artBmp = if (artRect != null) art?.file?.let { themeArt(it) } else null
+        var fl = .55f; var fr = 7.95f
+        val ext = if (artBmp != null && artRect != null) artBandExtent(artBmp, artRect, lay.footer.centerY - .3f, lay.footer.centerY + .3f) else null
+        if (ext != null) {
+            val minW = 3.3f
+            val leftFree = ext.first - .1f - fl; val rightFree = fr - (ext.second + .1f)
+            if (leftFree >= rightFree) fr = fl + maxOf(leftFree, minW) else fl = fr - maxOf(rightFree, minW)
         }
-        val bandH = notice.height + (stateNotice?.let { it.height + 6f } ?: 0f) + 44f
-        val bandTop = PH - bandH
-        // property photo area
-        val imgTop = y + 22f - 15f
-        val imgRect = RectF(60f, imgTop, PW - 60f, bandTop - 22f)
+        val footW = inch(fr - fl)
+        val footText = lay.footer.text.replace("{companyName}", company.name.ifBlank { "the inspection company" })
+        val notice = layout(footText, tp(serifBold, pt(lay.footer.size), Color.BLACK), footW, Layout.Alignment.ALIGN_CENTER, 1.18f)
+        // stateRules.<STATE>.coverNotice (e.g. Oregon): extra line under the ownership notice, every layout.
+        val stateNotice = config.stateRule(sel.state)?.coverNotice?.let {
+            layout(it, tp(serifBold, pt(lay.footer.size - 1.5f), Color.BLACK), footW, Layout.Alignment.ALIGN_CENTER, 1.12f)
+        }
+        val footH = notice.height + (stateNotice?.let { it.height + inch(.06f) } ?: 0f)
+        val footTop = (inch(lay.footer.centerY) - footH / 2).coerceAtMost(box.bottom - inch(.06f) - footH)
+
+        // property photo (center-crop, clipped); without one, the empty box with the client's "Picture of Property." label
+        val pr = RectF(pr0.left, maxOf(pr0.top, inspBase + fs * .3f + inch(.2f)), pr0.right, minOf(pr0.bottom, footTop - inch(.08f)))
         val photo = coverPhoto()
-        drawCoverArt(cover, photo, imgRect, cFrom, cTo)
-        photo?.recycle()
-        cv.drawRect(0f, bandTop, PW, PH, Paint().apply { shader = LinearGradient(0f, bandTop, PW, PH, cFrom, cTo, Shader.TileMode.CLAMP) })
-        cv.drawLayout(notice, 40f, bandTop + 20f)
-        stateNotice?.let { cv.drawLayout(it, 40f, bandTop + 20f + notice.height + 6f) }
-        val ap = tp(plex400, 12f, Color.parseColor("#CFE0FF")).apply { textAlign = Paint.Align.RIGHT }
-        cv.drawText("Cover artwork", PW - 34f, bandTop + bandH - 44f, ap)
-        val tag = cover.tag()
-        val tagP = tp(plex400, 10f, Color.WHITE)
-        val tw = tagP.measureText(tag) + 18f
-        val tr = RectF(PW - 34f - tw, bandTop + bandH - 36f, PW - 34f, bandTop + bandH - 18f)
-        cv.drawRoundRect(tr, 9f, 9f, fill(Color.argb(41, 255, 255, 255)))
-        cv.drawText(tag, tr.left + 9f, tr.bottom - 5.5f, tagP)
+        if (photo != null) {
+            cv.drawRect(pr, fill(Color.WHITE))
+            cv.save(); cv.clipRect(pr); drawCover(photo, pr); cv.restore()
+            photo.recycle()
+        } else {
+            val lab = layout("Picture of\nProperty.", tp(serif, pt(8.5f), Color.BLACK), pr.left - box.left - inch(.1f))
+            cv.drawLayout(lab, box.left + inch(.05f), pr.top)
+        }
+        cv.drawRect(pr, stroke(Color.BLACK, pt(lay.photoBox.border)))
+
+        // theme artwork at its position, clipped to the page box (over the photo box, as designed)
+        if (artBmp != null && artRect != null) {
+            cv.save(); cv.clipRect(box)
+            cv.drawBitmap(artBmp, null, RectF(inch(artRect[0]), inch(artRect[1]), inch(artRect[0] + artRect[2]), inch(artRect[1] + artRect[3])), Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG))
+            cv.restore()
+            artBmp.recycle()
+        }
+        // footer last, so it stays readable where it has to overlap the art's edge (the client's covers do the same)
+        cv.drawLayout(notice, inch(fl), footTop)
+        stateNotice?.let { cv.drawLayout(it, inch(fl), footTop + notice.height + inch(.06f)) }
     }
 
     /**
-     * The cover artwork the inspector picked on Generate report (Color → Theme → Style): the chosen color, the theme's
-     * name as the artwork title (like the in-app preview tile), and the style — Framed: the property photo inside a
-     * frame in the cover color with the theme as its caption; Shaded: the photo shaded in the cover color with the theme
-     * over it; Solid: the color alone. Without a property photo the theme artwork fills the area (it used to fall back to
-     * a "Front of property" placeholder, and with a photo the theme only showed in the small tag in the bottom band).
+     * Horizontal extent, in page inches, of the artwork's visible pixels between page heights [y0, y1] — a column counts
+     * when over 8% of its pixels in that band are mostly opaque (ignores stray sparks and soft edges). Null if none.
      */
-    private fun drawCoverArt(cover: CoverChoice, photo: Bitmap?, r: RectF, cFrom: Int, cTo: Int) {
-        val grad = Paint(Paint.ANTI_ALIAS_FLAG).apply { shader = LinearGradient(r.left, r.top, r.right, r.bottom, cFrom, cTo, Shader.TileMode.CLAMP) }
-        val title = cover.artLabel()
-        val kicker = if (cover.category == "Solid") "" else cover.category.uppercase(Locale.US)
-        fun fitted(text: String, paint: TextPaint, w: Float): String { var t = text; while (t.isNotEmpty() && paint.measureText(t) > w) t = t.dropLast(1); return t }
-        when {
-            cover.category == "Solid" || cover.style == config.covers.solidStyle -> {
-                cv.drawRoundRect(r, 6f, 6f, grad)
-                val p = tp(archivo800, 34f, Color.WHITE).apply { textAlign = Paint.Align.CENTER }
-                cv.drawText(fitted(title, p, r.width() - 40f), r.centerX(), r.centerY() + 12f, p)
+    private fun artBandExtent(bmp: Bitmap, r: List<Float>, y0: Float, y1: Float): Pair<Float, Float>? {
+        val top = maxOf(y0, r[1]); val bot = minOf(y1, r[1] + r[3])
+        if (bot <= top || bmp.width == 0 || bmp.height == 0) return null
+        val r0 = ((top - r[1]) / r[3] * bmp.height).toInt().coerceIn(0, bmp.height - 1)
+        val rows = (((bot - r[1]) / r[3] * bmp.height).toInt() - r0).coerceIn(1, bmp.height - r0)
+        val w = bmp.width
+        val px = IntArray(w * rows).also { bmp.getPixels(it, 0, w, 0, r0, w, rows) }
+        var first = -1; var last = -1
+        for (c in 0 until w) {
+            var n = 0
+            for (row in 0 until rows) if ((px[row * w + c] ushr 24) > 128) n++
+            if (n > rows * .08f) { if (first < 0) first = c; last = c }
+        }
+        if (first < 0) return null
+        return r[0] + first.toFloat() / w * r[2] to r[0] + (last + 1f) / w * r[2]
+    }
+
+    /**
+     * Framed style's soft outer glow (CSS `box-shadow: 0 0 0.32in 0.06in deep`): nested translucent layers from the
+     * outside in, each alpha chosen so the composited opacity follows the Gaussian edge profile. Vector, no raster.
+     */
+    private fun coverGlow(box: RectF, color: Int) {
+        val spread = inch(.06f); val sigma = inch(.16f); val step = 2f
+        fun target(d: Float): Float = (.5 * erfc((d - spread) / (sigma * Math.sqrt(2.0).toFloat()))).toFloat()
+        var prev = 0f
+        var e = spread + sigma * 3f
+        while (e > 0f) {
+            val t = target(e - step / 2).coerceIn(0f, .99f)
+            val a = if (prev >= 1f) 0f else 1f - (1f - t) / (1f - prev)
+            if (a > 0f) {
+                val r = RectF(box.left - e, box.top - e, box.right + e, box.bottom + e)
+                cv.drawRoundRect(r, e, e, fill((color and 0x00FFFFFF) or ((a * 255).toInt().coerceIn(0, 255) shl 24)))
             }
-            cover.style == "Shaded" -> {
-                cv.save(); cv.clipPath(Path().apply { addRoundRect(r, 6f, 6f, Path.Direction.CW) })
-                if (photo != null) drawCover(photo, r) else cv.drawRect(r, grad)
-                // Shade in the cover color, strongest at the bottom where the artwork title sits.
-                cv.drawRect(r, Paint().apply {
-                    shader = LinearGradient(0f, r.top + r.height() * .3f, 0f, r.bottom, (cFrom and 0x00FFFFFF) or (0x1F shl 24), (cTo and 0x00FFFFFF) or (0xE0 shl 24), Shader.TileMode.CLAMP)
-                })
-                cv.restore()
-                cv.drawRoundRect(r, 6f, 6f, stroke(LINE, 1f))
-                val tpTitle = tp(archivo800, 30f, Color.WHITE)
-                cv.drawText(fitted(title, tpTitle, r.width() - 48f), r.left + 24f, r.bottom - 26f, tpTitle)
-                if (kicker.isNotEmpty()) cv.drawText(kicker, r.left + 25f, r.bottom - 66f, tp(mono, 10.5f, Color.parseColor("#F2C869")).apply { letterSpacing = .14f })
-            }
-            else -> { // Framed
-                val cap = 50f
-                cv.drawRoundRect(r, 6f, 6f, grad)
-                val inner = RectF(r.left + 12f, r.top + 12f, r.right - 12f, r.bottom - cap)
-                if (photo != null) {
-                    cv.save(); cv.clipPath(Path().apply { addRoundRect(inner, 3f, 3f, Path.Direction.CW) }); drawCover(photo, inner); cv.restore()
-                } else {
-                    cv.drawRoundRect(inner, 3f, 3f, fill(Color.argb(31, 255, 255, 255)))
-                    val p = tp(archivo800, 30f, Color.WHITE).apply { textAlign = Paint.Align.CENTER }
-                    cv.drawText(fitted(title, p, inner.width() - 40f), inner.centerX(), inner.centerY() + 10f, p)
-                }
-                cv.drawRoundRect(inner, 3f, 3f, stroke(Color.argb(217, 255, 255, 255), 1.5f))
-                // Caption strip of the frame: the theme (artwork) title, its category on the right.
-                val tpTitle = tp(archivo800, 19f, Color.WHITE)
-                val kp = tp(mono, 10f, Color.parseColor("#F2C869")).apply { textAlign = Paint.Align.RIGHT; letterSpacing = .14f }
-                val kw = if (kicker.isEmpty()) 0f else kp.measureText(kicker) + 16f
-                cv.drawText(fitted(title, tpTitle, inner.width() - kw - 4f), inner.left + 2f, r.bottom - 18f, tpTitle)
-                if (kicker.isNotEmpty()) cv.drawText(kicker, inner.right - 2f, r.bottom - 19f, kp)
-            }
+            prev = t; e -= step
         }
     }
+
+    /** Complementary error function (Abramowitz & Stegun 7.1.26). */
+    private fun erfc(x: Float): Double {
+        val z = Math.abs(x.toDouble()); val t = 1.0 / (1.0 + .3275911 * z)
+        val y = t * (.254829592 + t * (-.284496736 + t * (1.421413741 + t * (-1.453152027 + t * 1.061405429)))) * Math.exp(-z * z)
+        return if (x >= 0) y else 2.0 - y
+    }
+
+    /** A theme artwork from shared/covers (WebP with transparency), or null if the asset is missing. */
+    private fun themeArt(file: String): Bitmap? = try { am.open(file).use { BitmapFactory.decodeStream(it) } } catch (_: Exception) { null }
 
     private fun inspectorLicense(): String = b.inspection.selections.license.ifBlank { company.license }
 

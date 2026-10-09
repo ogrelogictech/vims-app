@@ -77,7 +77,8 @@ class MainActivity : ComponentActivity() {
         parseDebug(intent)?.let { debug = it }
     }
 
-    /** Debug builds only: `adb shell am start -n com.vims.app/.MainActivity --es screen summary [--es insp ID] [--es section Roof] [--es depth high] [--ez splash true]`. */
+    /** Debug builds only: `adb shell am start -n com.vims.app/.MainActivity --es screen summary [--es insp ID] [--es section Roof] [--es depth high] [--ez splash true]`;
+     *  cover QA: `--es cover 'Blue|Holidays|4th of July|Shaded' --es inspType Texas --ez generate true`. */
     private fun parseDebug(i: Intent?): DebugLaunch? {
         if (!BuildConfig.DEBUG || i == null) return null
         val screen = i.getStringExtra("screen") ?: return null
@@ -85,7 +86,8 @@ class MainActivity : ComponentActivity() {
             screen = screen, insp = i.getStringExtra("insp"), section = i.getStringExtra("section"), cat = i.getStringExtra("cat"),
             photo = i.getStringExtra("photo"), depth = i.getStringExtra("depth"), splash = i.getBooleanExtra("splash", false),
             step = i.getIntExtra("step", 1), coverStep = i.getIntExtra("coverStep", 1), eulaVersion = i.getStringExtra("eulaVersion"),
-            state = i.getStringExtra("state"),
+            state = i.getStringExtra("state"), cover = i.getStringExtra("cover"), inspType = i.getStringExtra("inspType"),
+            generate = i.getBooleanExtra("generate", false),
         )
     }
 }

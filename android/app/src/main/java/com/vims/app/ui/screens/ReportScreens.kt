@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -190,12 +191,28 @@ fun Busy(text: String) {
 @Composable
 fun CoverPicker(vm: AppViewModel, cover: CoverChoice, step: Int, onStep: (Int) -> Unit, onChange: (CoverChoice) -> Unit) {
     val cfg = vm.config.covers
+    // Theme artwork (shared/covers, data v1.6) for the preview tile, decoded off the main thread.
+    val ctx = LocalContext.current
+    val artFile = cfg.art(cover)?.file
+    val art by produceState<ImageBitmap?>(null, artFile) {
+        value = artFile?.let { f ->
+            withContext(Dispatchers.IO) {
+                try { ctx.assets.open(f).use { android.graphics.BitmapFactory.decodeStream(it, null, android.graphics.BitmapFactory.Options().apply { inSampleSize = 2 }) }?.asImageBitmap() } catch (_: Exception) { null }
+            }
+        }
+    }
     // preview
     Row(Modifier.padding(bottom = 14.dp).fillMaxWidth().vCard().clickable(role = Role.Button) { onStep(1) }.padding(13.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(13.dp)) {
-        Box(Modifier.width(78.dp).height(104.dp).clip(RoundedCornerShape(9.dp)).background(coverBrush(vm, cover.color)).padding(8.dp), contentAlignment = Alignment.BottomStart) {
-            // Fixed-size art tile: keep the label's size stable under large system font scales.
-            val fs = androidx.compose.ui.platform.LocalDensity.current.fontScale
-            Text(cover.artLabel(), style = T.display((11f / fs).sp, FontWeight.Bold, Color.White, lineHeight = (12.7f / fs).sp))
+        Box(Modifier.width(78.dp).height(104.dp).clip(RoundedCornerShape(9.dp)).background(coverBrush(vm, cover.color))) {
+            // The chosen theme's artwork in the corner of the color tile (like the prototype's .coverprev); Solid shows the color name.
+            val a = art
+            if (artFile != null && a != null) {
+                Image(a, "${cover.option} cover artwork", Modifier.align(Alignment.BottomEnd).fillMaxWidth(.92f).fillMaxHeight(.92f), alignment = Alignment.BottomEnd, contentScale = ContentScale.Fit)
+            } else if (artFile == null) {
+                // Fixed-size art tile: keep the label's size stable under large system font scales.
+                val fs = androidx.compose.ui.platform.LocalDensity.current.fontScale
+                Text(cover.artLabel(), style = T.display((11f / fs).sp, FontWeight.Bold, Color.White, lineHeight = (12.7f / fs).sp), modifier = Modifier.align(Alignment.BottomStart).padding(8.dp))
+            }
         }
         Column(Modifier.weight(1f)) {
             Text(cover.label(), style = T.ui(15.sp, FontWeight.Bold))
