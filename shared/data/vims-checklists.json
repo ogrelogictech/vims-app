@@ -1,7 +1,7 @@
 {
  "_about": "VIMS shared checklist + configuration data. Single source of truth for the native iOS (SwiftUI) and Android (Kotlin/Compose) apps. Extracted from the client-approved prototype (index.html, approved Sep 15, 2026). Edit here, not in app code.",
- "version": "1.4.0",
- "generated": "2026-09-29",
+ "version": "1.5.0",
+ "generated": "2026-10-09",
  "depths": [
   {
    "id": "high",
@@ -19,7 +19,7 @@
  "depthRules": {
   "high": "Use itemsHigh + photoCategoriesHigh when the section has them; otherwise show Standard items with an optional 'Detail / measurement' text input under each chip line.",
   "standard": "Show items + photoCategories.",
-  "fast": "No line-by-line. Show the Standard item questions as tappable 'Items present' chips, then Overall condition + Comments."
+  "fast": "No line-by-line. Show the Standard item questions as tappable 'Items reviewed' chips, then Overall condition + Comments."
  },
  "itemTypes": {
   "single": "one option (tap again to deselect)",
@@ -388,7 +388,7 @@
     },
     {
      "q": "Water Feature",
-     "type": "single",
+     "type": "multi",
      "options": [
       "N/A",
       "Water fall",
@@ -526,14 +526,27 @@
      ]
     },
     {
-     "q": "Level",
+     "q": "Slope",
      "type": "single",
      "options": [
-      "Soft slop",
-      "Steep Slop",
+      "Soft slope",
+      "Steep slope"
+     ]
+    },
+    {
+     "q": "Incline / Decline",
+     "type": "single",
+     "options": [
       "Incline",
-      "Decline",
-      "Cracked/Buckling"
+      "Decline"
+     ]
+    },
+    {
+     "q": "Cracked / Buckling",
+     "type": "single",
+     "options": [
+      "Yes",
+      "No"
      ]
     },
     {
@@ -581,8 +594,8 @@
      "type": "single",
      "options": [
       "None",
-      "Shaggy",
       "Trimmed",
+      "Shaggy",
       "Over Grown"
      ]
     },
@@ -9817,7 +9830,7 @@
     },
     {
      "q": "Water Feature",
-     "type": "single",
+     "type": "multi",
      "options": [
       "N/A",
       "Water fall",
@@ -9955,14 +9968,27 @@
      ]
     },
     {
-     "q": "Level",
+     "q": "Slope",
      "type": "single",
      "options": [
-      "Soft slop",
-      "Steep Slop",
+      "Soft slope",
+      "Steep slope"
+     ]
+    },
+    {
+     "q": "Incline / Decline",
+     "type": "single",
+     "options": [
       "Incline",
-      "Decline",
-      "Cracked/Buckling"
+      "Decline"
+     ]
+    },
+    {
+     "q": "Cracked / Buckling",
+     "type": "single",
+     "options": [
+      "Yes",
+      "No"
      ]
     },
     {
@@ -10010,8 +10036,8 @@
      "type": "single",
      "options": [
       "None",
-      "Shaggy",
       "Trimmed",
+      "Shaggy",
       "Over Grown"
      ]
     },
@@ -23674,7 +23700,7 @@
      ]
     },
     {
-     "q": "Pilot",
+     "q": "Pilot Light",
      "type": "single",
      "options": [
       "Standing",
@@ -23804,7 +23830,7 @@
      "placeholder": "date"
     },
     {
-     "q": "Pilot",
+     "q": "Pilot Light",
      "type": "single",
      "options": [
       "Standing",
@@ -30827,7 +30853,11 @@
   },
   "ccInspector": {
    "_about": "Every report emailed from the app is CC'd to the signed-in inspector's own email (archive copy), alongside To = client (+agent) and BCC = platform report-quality address when on."
-  }
+  },
+  "platformOwners": [
+   "masteradmin@vimsinspect.com"
+  ],
+  "_platformOwnersAbout": "VIMS platform owners (system admins): accounts with these emails (case-insensitive) see the VIMS owner settings (Report quality copy, Feedback & support). Add a second address to always have at least two. No passwords are stored here: the owner signs up/signs in with this email and their own password. TODO(backend): the server owns this list."
  },
  "sample": {
   "_about": "Demo data used by the prototype; for previews/tests only.",
