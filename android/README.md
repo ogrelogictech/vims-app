@@ -35,6 +35,7 @@ adb shell am start -S -n com.vims.app/.MainActivity --es screen section --es sec
 #   screen: login signup forgot join home wizard sections section photos camera markup finding summary report
 #           generated pdf settings company instructions admin editsec plans inspectors subscribe substarted billing feedbackadmin
 #           eula agreement (inspection agreement; add --es state NH to show only that state's disclosures)
+#           agreementedit (Edit agreement; company admins only)
 #   --es insp demo-ridgeline   --es section "'Outside Utilities'"   --es photo demo-p0   --es cat "North Side"
 #   --es depth high|standard|fast (rewrites that inspection's depth)   --ei step 1-4 (wizard)   --ei coverStep 1-3
 #   --ez splash true (show the free-look splash)   --ez video true (play the launch video too)
@@ -264,3 +265,34 @@ per-inspector rate, trial length, and feedback email come from `vims-checklists.
 - **Email to client:** `EXTRA_EMAIL` = client only when send-to-agent is off (CC inspector and BCC platform unchanged). The
   Report ready note says "Goes to the client only…" or "Goes to the client and the real estate agent."
 - Screenshots: `screenshots/qa-12x-*.png`.
+
+## Inspection agreement: Download + company Edit (v0.10.0)
+
+The VIMS agreement stays the default and is never changed; edits only ever apply to that one company's copy.
+
+- **Download (every user):** the viewer's top bar has a download action. It prints exactly what the viewer shows (title,
+  form lines, body, the state disclosures shown, closing; company name filled in; viewer-only notes skipped) into a
+  paginated US Letter PDF with `PdfDocument` (`report/AgreementPdf.kt`: same fonts as the report, lines split across pages,
+  "Company · Inspection Agreement / Page x of n" footer), saved as `cache/agreement/Inspection-Agreement-<Company-Name>.pdf`.
+  A chooser offers **Share PDF** (`ACTION_SEND` via FileProvider, `agreement_pdf` cache path) and **Save to device**
+  (`ACTION_CREATE_DOCUMENT`). When the company uses an uploaded file the viewer still shows the VIMS text for reference
+  (and downloads that), and **Open your agreement** is unchanged.
+- **Edit (company admins only — same permission as Upload / Use VIMS agreement, which are now admin-only too):** the card
+  shows **Edit**, which opens "Edit agreement" (`AgreementEditR`): one large text field prefilled with the company's edited
+  version, or the whole VIMS agreement as plain text (`InspectionAgreement.plainText`: title, form lines, paragraphs
+  separated by blank lines, bullets "• ", the disclosures heading then one "State name: text" paragraph per state, closing)
+  with the company name filled in. Save checks not blank / at most 100,000 characters; leaving with unsaved changes (header
+  back, Cancel, system back) asks "Discard changes?". The draft survives rotation (kept in the ViewModel, not in saved state).
+- **Which agreement is in use:** saving an edit clears an uploaded file (and deletes it); uploading a file clears the edit;
+  **Use VIMS agreement** clears both (asks first when an edited version would be removed).
+- **Card states:** VIMS default → "VIMS agreement" / "All 50 states · in use · View · Edit"; edited → "Edited VIMS
+  agreement" / "Your edited version · in use · View · Edit · Use VIMS agreement"; uploaded → as before. Inspectors see View only.
+- **Viewer with an edited version:** a note "Your company's edited version of the VIMS agreement." and the edited text
+  (`AgreementText.pieces`: a paragraph per blank-line block, "• " lines as bullets). From the wizard with a state selected
+  the whole edited text is shown (it can't be filtered by state).
+- **Storage — Room v4:** `MIGRATION_3_4` adds two nullable columns to `companies` (`agreementText TEXT`,
+  `agreementEditedAt INTEGER`); existing rows keep all data and read as "not edited". They are not part of `profileJson`
+  (`CompanyProfile.agreementText/agreementEditedAt` are `@Transient`, filled in by `RoomRepository`); every company write
+  updates the profile JSON and these columns in one statement. Schema: `app/schemas/.../4.json`. `TODO(backend)`: sync the
+  edited agreement to the server.
+- Screenshots: `screenshots/agreement-*.png`.
