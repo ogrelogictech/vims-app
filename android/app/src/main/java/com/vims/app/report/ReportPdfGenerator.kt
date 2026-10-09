@@ -18,6 +18,7 @@ import android.text.TextPaint
 import com.vims.app.data.ChecklistConfig
 import com.vims.app.data.ChecklistEngine
 import com.vims.app.data.CompanyProfile
+import com.vims.app.data.CoverChoice
 import com.vims.app.data.InspectionBundle
 import com.vims.app.data.ItemDef
 import com.vims.app.data.Photo
@@ -62,6 +63,7 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
     private val plex400 = variable("fonts/IBMPlexSans-Variable.ttf", 400)
     private val plex600 = variable("fonts/IBMPlexSans-Variable.ttf", 600)
     private val plex700 = variable("fonts/IBMPlexSans-Variable.ttf", 700)
+    private val mono: Typeface = try { Typeface.createFromAsset(am, "fonts/IBMPlexMono-Medium.ttf") } catch (_: Exception) { Typeface.MONOSPACE }
 
     private fun tp(tf: Typeface, size: Float, color: Int = INK) = TextPaint(Paint.ANTI_ALIAS_FLAG).apply { typeface = tf; textSize = size; this.color = color }
     private fun fill(color: Int) = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color; style = Paint.Style.FILL }
@@ -349,20 +351,7 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
         val imgTop = y + 22f - 15f
         val imgRect = RectF(60f, imgTop, PW - 60f, bandTop - 22f)
         val photo = coverPhoto()
-        val clip = Path().apply { addRoundRect(imgRect, 6f, 6f, Path.Direction.CW) }
-        when {
-            cover.category == "Solid" || photo == null -> {
-                cv.drawRoundRect(imgRect, 6f, 6f, Paint(Paint.ANTI_ALIAS_FLAG).apply { shader = LinearGradient(imgRect.left, imgRect.top, imgRect.right, imgRect.bottom, cFrom, cTo, Shader.TileMode.CLAMP) })
-                val p = tp(archivo800, 30f, Color.WHITE).apply { textAlign = Paint.Align.CENTER }
-                cv.drawText(if (photo == null && cover.category != "Solid") "Front of property" else cover.artLabel(), imgRect.centerX(), imgRect.centerY() + 10f, p)
-            }
-            else -> {
-                cv.save(); cv.clipPath(clip); drawCover(photo, imgRect)
-                if (cover.style == "Shaded") cv.drawRect(imgRect, Paint().apply { shader = LinearGradient(0f, imgRect.centerY(), 0f, imgRect.bottom, Color.TRANSPARENT, (cTo and 0x00FFFFFF) or (0xB0 shl 24), Shader.TileMode.CLAMP) })
-                cv.restore()
-            }
-        }
-        if (cover.style == "Framed") cv.drawRoundRect(imgRect, 6f, 6f, stroke(cFrom, 5f)) else cv.drawRoundRect(imgRect, 6f, 6f, stroke(LINE, 1f))
+        drawCoverArt(cover, photo, imgRect, cFrom, cTo)
         photo?.recycle()
         cv.drawRect(0f, bandTop, PW, PH, Paint().apply { shader = LinearGradient(0f, bandTop, PW, PH, cFrom, cTo, Shader.TileMode.CLAMP) })
         cv.drawLayout(notice, 40f, bandTop + 20f)
@@ -375,6 +364,59 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
         val tr = RectF(PW - 34f - tw, bandTop + bandH - 36f, PW - 34f, bandTop + bandH - 18f)
         cv.drawRoundRect(tr, 9f, 9f, fill(Color.argb(41, 255, 255, 255)))
         cv.drawText(tag, tr.left + 9f, tr.bottom - 5.5f, tagP)
+    }
+
+    /**
+     * The cover artwork the inspector picked on Generate report (Color → Theme → Style): the chosen color, the theme's
+     * name as the artwork title (like the in-app preview tile), and the style — Framed: the property photo inside a
+     * frame in the cover color with the theme as its caption; Shaded: the photo shaded in the cover color with the theme
+     * over it; Solid: the color alone. Without a property photo the theme artwork fills the area (it used to fall back to
+     * a "Front of property" placeholder, and with a photo the theme only showed in the small tag in the bottom band).
+     */
+    private fun drawCoverArt(cover: CoverChoice, photo: Bitmap?, r: RectF, cFrom: Int, cTo: Int) {
+        val grad = Paint(Paint.ANTI_ALIAS_FLAG).apply { shader = LinearGradient(r.left, r.top, r.right, r.bottom, cFrom, cTo, Shader.TileMode.CLAMP) }
+        val title = cover.artLabel()
+        val kicker = if (cover.category == "Solid") "" else cover.category.uppercase(Locale.US)
+        fun fitted(text: String, paint: TextPaint, w: Float): String { var t = text; while (t.isNotEmpty() && paint.measureText(t) > w) t = t.dropLast(1); return t }
+        when {
+            cover.category == "Solid" || cover.style == config.covers.solidStyle -> {
+                cv.drawRoundRect(r, 6f, 6f, grad)
+                val p = tp(archivo800, 34f, Color.WHITE).apply { textAlign = Paint.Align.CENTER }
+                cv.drawText(fitted(title, p, r.width() - 40f), r.centerX(), r.centerY() + 12f, p)
+            }
+            cover.style == "Shaded" -> {
+                cv.save(); cv.clipPath(Path().apply { addRoundRect(r, 6f, 6f, Path.Direction.CW) })
+                if (photo != null) drawCover(photo, r) else cv.drawRect(r, grad)
+                // Shade in the cover color, strongest at the bottom where the artwork title sits.
+                cv.drawRect(r, Paint().apply {
+                    shader = LinearGradient(0f, r.top + r.height() * .3f, 0f, r.bottom, (cFrom and 0x00FFFFFF) or (0x1F shl 24), (cTo and 0x00FFFFFF) or (0xE0 shl 24), Shader.TileMode.CLAMP)
+                })
+                cv.restore()
+                cv.drawRoundRect(r, 6f, 6f, stroke(LINE, 1f))
+                val tpTitle = tp(archivo800, 30f, Color.WHITE)
+                cv.drawText(fitted(title, tpTitle, r.width() - 48f), r.left + 24f, r.bottom - 26f, tpTitle)
+                if (kicker.isNotEmpty()) cv.drawText(kicker, r.left + 25f, r.bottom - 66f, tp(mono, 10.5f, Color.parseColor("#F2C869")).apply { letterSpacing = .14f })
+            }
+            else -> { // Framed
+                val cap = 50f
+                cv.drawRoundRect(r, 6f, 6f, grad)
+                val inner = RectF(r.left + 12f, r.top + 12f, r.right - 12f, r.bottom - cap)
+                if (photo != null) {
+                    cv.save(); cv.clipPath(Path().apply { addRoundRect(inner, 3f, 3f, Path.Direction.CW) }); drawCover(photo, inner); cv.restore()
+                } else {
+                    cv.drawRoundRect(inner, 3f, 3f, fill(Color.argb(31, 255, 255, 255)))
+                    val p = tp(archivo800, 30f, Color.WHITE).apply { textAlign = Paint.Align.CENTER }
+                    cv.drawText(fitted(title, p, inner.width() - 40f), inner.centerX(), inner.centerY() + 10f, p)
+                }
+                cv.drawRoundRect(inner, 3f, 3f, stroke(Color.argb(217, 255, 255, 255), 1.5f))
+                // Caption strip of the frame: the theme (artwork) title, its category on the right.
+                val tpTitle = tp(archivo800, 19f, Color.WHITE)
+                val kp = tp(mono, 10f, Color.parseColor("#F2C869")).apply { textAlign = Paint.Align.RIGHT; letterSpacing = .14f }
+                val kw = if (kicker.isEmpty()) 0f else kp.measureText(kicker) + 16f
+                cv.drawText(fitted(title, tpTitle, inner.width() - kw - 4f), inner.left + 2f, r.bottom - 18f, tpTitle)
+                if (kicker.isNotEmpty()) cv.drawText(kicker, inner.right - 2f, r.bottom - 19f, kp)
+            }
+        }
     }
 
     private fun inspectorLicense(): String = b.inspection.selections.license.ifBlank { company.license }
