@@ -495,6 +495,10 @@ struct VTextField: View {
     var trailing: String? = nil
     /// Mandatory field (same as its `.req` validation rule) → red " *" after the label.
     var required = false
+    /// Return-key chain (wizard): this field takes focus when `focus.target` names it; `onSubmit` runs on Return.
+    var focus: FocusChain? = nil
+    var returnKey: UIReturnKeyType? = nil
+    var onSubmit: (() -> Void)? = nil
     @State private var focused = false
 
     private var shownError: String? { error ?? fieldID.flatMap { errors?[$0] } }
@@ -512,7 +516,9 @@ struct VTextField: View {
                                       keyboard: keyboard, contentType: contentType,
                                       caps: kind == .email || kind == .url ? .never : capitalization,
                                       autocorrect: !noAutocorrect, accessibilityLabel: label ?? placeholder,
-                                      onFocus: { focused = $0 })
+                                      onFocus: { focused = $0 }, onSubmit: onSubmit, returnKey: returnKey,
+                                      focusRequested: focus != nil && focus?.target == (fieldID ?? label),
+                                      onFocusTaken: { [focus] in focus?.target = nil })
                     if let trailing, !trailing.isEmpty {
                         Text(trailing).font(VFont.mono(11, .semibold)).foregroundStyle(VC.brandDeep)
                             .padding(.horizontal, 7).padding(.vertical, 3)

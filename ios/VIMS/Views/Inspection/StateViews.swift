@@ -19,7 +19,11 @@ struct StateFieldBlock: View {
     @Environment(AppStore.self) private var store
     @Binding var draft: Inspection
     let errors: FormErrors
+    /// Wizard Return / Next chain: Return on Inspection address opens this picker; a pick moves on to `nextField`.
+    var focus: FocusChain? = nil
+    var nextField: String? = nil
     @State private var picking = false
+    @State private var picked = false
     @State private var preview: PreviewDoc?
     @State private var mailDraft: ReportReadyView.MailDraftItem?
     @State private var sendAnchors = PopoverAnchors()
@@ -50,6 +54,7 @@ struct StateFieldBlock: View {
                     draft.setState(code, config: cfg)
                     errors.set(StateFieldIDs.state, nil)
                     errors.set(StateFieldIDs.docsAck, nil)
+                    picked = true
                     picking = false
                 }
             }
@@ -57,6 +62,23 @@ struct StateFieldBlock: View {
         }
         .padding(.bottom, 13)
         .id(StateFieldIDs.state)
+        // Return on Inspection address → open the picker (its search field takes the keyboard).
+        .onChange(of: focus?.target) { _, target in
+            guard target == StateFieldIDs.state else { return }
+            focus?.target = nil
+            endEditing()
+            picking = true
+        }
+        // A state was picked → move on to the next field once the sheet / popover has gone.
+        .onChange(of: picking) { _, open in
+            guard !open, picked else { return }
+            picked = false
+            guard let next = nextField, let focus else { return }
+            Task {
+                try? await Task.sleep(nanoseconds: 450_000_000)
+                focus.target = next
+            }
+        }
         .task {
             guard DebugFlags.openStatePicker else { return }
             DebugFlags.openStatePicker = false
@@ -220,12 +242,35 @@ struct StatePickerSheet: View {
     let selected: String?
     let pick: (String) -> Void
     @State private var query = ""
+    /// The search field has the keyboard as soon as the picker opens (iPhone: the bar's search field).
+    @State private var searchActive = false
+    @FocusState private var searchFocused: Bool
     @Environment(\.dismiss) private var dismiss
 
-    private var filtered: [StateDef] {
-        let q = query.trimmingCharacters(in: .whitespaces)
+    /// Typing a 2-letter code or a name jumps that state to the top: exact code / name, then names starting with
+    /// the text, then a word starting with it ("york" → New York), then names containing it. Return picks the top one.
+    private var filtered: [StateDef] { Self.matches(states, query) }
+
+    static func matches(_ states: [StateDef], _ query: String) -> [StateDef] {
+        let q = query.trimmingCharacters(in: .whitespaces).lowercased()
         guard !q.isEmpty else { return states }
-        return states.filter { $0.name.localizedCaseInsensitiveContains(q) || $0.code.caseInsensitiveCompare(q) == .orderedSame }
+        func rank(_ s: StateDef) -> Int? {
+            let name = s.name.lowercased()
+            if s.code.lowercased() == q || name == q { return 0 }
+            if name.hasPrefix(q) { return 1 }
+            if name.split(separator: " ").contains(where: { $0.hasPrefix(q) }) { return 2 }
+            if name.contains(q) { return 3 }
+            return nil
+        }
+        return states.enumerated()
+            .compactMap { i, s in rank(s).map { (s, $0, i) } }
+            .sorted { ($0.1, $0.2) < ($1.1, $1.2) }
+            .map(\.0)
+    }
+
+    private func pickTop() {
+        guard !query.trimmingCharacters(in: .whitespaces).isEmpty, let top = filtered.first else { return }
+        pick(top.code)
     }
 
     var body: some View {
@@ -240,6 +285,10 @@ struct StatePickerSheet: View {
                     ProtoIcon("search", size: 16).foregroundStyle(VC.ink3)
                     TextField("", text: $query, prompt: Text("Search states").foregroundStyle(VC.placeholder))
                         .autocorrectionDisabled()
+                        .textInputAutocapitalization(.words)
+                        .submitLabel(.done)
+                        .focused($searchFocused)
+                        .onSubmit(pickTop)
                         .accessibilityLabel("Search states")
                 }
             }
@@ -248,12 +297,24 @@ struct StatePickerSheet: View {
             list
         }
         .background(VC.paper)
+        .onAppear { searchFocused = true }
+        .task {
+            // Again once the popover has finished presenting, in case the first request came too early.
+            try? await Task.sleep(nanoseconds: 350_000_000)
+            searchFocused = true
+        }
     }
 
     private var sheetBody: some View {
         NavigationStack {
             list
-            .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search states")
+            .searchable(text: $query, isPresented: $searchActive, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search states")
+            .onSubmit(of: .search, pickTop)
+            .onAppear { searchActive = true }
+            .task {
+                try? await Task.sleep(nanoseconds: 350_000_000)
+                searchActive = true
+            }
             .navigationTitle("State")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

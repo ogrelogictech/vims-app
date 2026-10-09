@@ -1,10 +1,19 @@
 import SwiftUI
 import UIKit
+import Observation
 
 enum Caps { case never, words, sentences, characters
     var uiKit: UITextAutocapitalizationType {
         switch self { case .never: return .none; case .words: return .words; case .sentences: return .sentences; case .characters: return .allCharacters }
     }
+}
+
+/// Return / Next focus chain for a form of `VTextField`s: setting `target` to a field id moves the keyboard there
+/// (the field clears it once focused). Non-text stops (the wizard's State picker) watch it too.
+@MainActor
+@Observable
+final class FocusChain {
+    var target: String?
 }
 
 /// Single-line text input that filters/formats every keystroke synchronously (UITextField delegate),
@@ -28,6 +37,11 @@ struct FilteredTextField: UIViewRepresentable {
     var accessibilityLabel: String? = nil
     var onFocus: ((Bool) -> Void)? = nil
     var onSubmit: (() -> Void)? = nil
+    /// Return key label; nil = Done when `onSubmit` is set, else the default.
+    var returnKey: UIReturnKeyType? = nil
+    /// A form's focus chain asks this field to take the keyboard (see `FocusChain`); `onFocusTaken` clears the request.
+    var focusRequested = false
+    var onFocusTaken: (() -> Void)? = nil
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -58,6 +72,13 @@ struct FilteredTextField: UIViewRepresentable {
         context.coordinator.parent = self
         configure(tf)
         if tf.text != text { tf.text = text }
+        if focusRequested {
+            let taken = onFocusTaken
+            DispatchQueue.main.async {
+                if tf.window != nil, !tf.isFirstResponder { tf.becomeFirstResponder() }
+                taken?()
+            }
+        }
     }
 
     private func configure(_ tf: UITextField) {
@@ -71,7 +92,7 @@ struct FilteredTextField: UIViewRepresentable {
         tf.autocorrectionType = autocorrect ? .default : .no
         tf.spellCheckingType = autocorrect ? .default : .no
         if tf.isSecureTextEntry != secure { tf.isSecureTextEntry = secure }
-        tf.returnKeyType = onSubmit == nil ? .default : .done
+        tf.returnKeyType = returnKey ?? (onSubmit == nil ? .default : .done)
         tf.accessibilityLabel = accessibilityLabel ?? placeholder
     }
 

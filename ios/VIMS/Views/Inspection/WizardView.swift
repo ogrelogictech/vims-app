@@ -8,6 +8,8 @@ struct WizardView: View {
     @State private var draft: Inspection?
     @State private var step = 1
     @State private var errors = FormErrors()
+    /// Return / Next moves through the step's text fields (Inspection address → State picker → agent name).
+    @State private var focus = FocusChain()
     /// Earliest selectable inspection date: today, or the saved date when editing an older inspection.
     @State private var minDate = Calendar.current.startOfDay(for: Date())
 
@@ -24,8 +26,8 @@ struct WizardView: View {
                         StepsBar(count: w.steps.count, current: step)
                         if draft != nil {
                             switch step {
-                            case 1: EntryList(entries: w.step1, draft: draftBinding, errors: errors, pairText: false, minDate: minDate)
-                            case 2: EntryList(entries: w.step2, draft: draftBinding, errors: errors, pairText: true, minDate: minDate)
+                            case 1: EntryList(entries: w.step1, draft: draftBinding, errors: errors, focus: focus, pairText: false, minDate: minDate)
+                            case 2: EntryList(entries: w.step2, draft: draftBinding, errors: errors, focus: focus, pairText: true, minDate: minDate)
                             case 3: areas
                             default: tests
                             }
@@ -265,8 +267,21 @@ private struct EntryList: View {
     let entries: [WizardEntry]
     @Binding var draft: Inspection
     let errors: FormErrors
+    let focus: FocusChain
     let pairText: Bool
     var minDate: Date? = nil
+
+    /// The step's single-line text fields in screen order — the Return / Next chain. With the v1.3 State field,
+    /// Return on "Inspection address" opens the State picker instead, and picking a state moves on to the next one.
+    private var chain: [String] {
+        entries.filter { $0.kind == "field" && ["text", "email", "tel"].contains($0.type ?? "text") }.map(\.label)
+    }
+    private var addressHasState: Bool { WizardRules.hasStateField(store.config) }
+
+    private func nextField(after label: String) -> String? {
+        guard let i = chain.firstIndex(of: label), i + 1 < chain.count else { return nil }
+        return chain[i + 1]
+    }
 
     var body: some View {
         let groups = grouped()
@@ -328,7 +343,7 @@ private struct EntryList: View {
                 field(e, bottom: 13)
                 // v1.3: required State right after Inspection address (list + rules from the shared JSON).
                 if e.label == "Inspection address", WizardRules.hasStateField(store.config) {
-                    StateFieldBlock(draft: $draft, errors: errors)
+                    StateFieldBlock(draft: $draft, errors: errors, focus: focus, nextField: nextField(after: e.label))
                 }
             case "dynamic": dynamic(e)
             default: chips(e)
@@ -366,13 +381,32 @@ private struct EntryList: View {
                        contentType: e.type == "email" ? .emailAddress : e.type == "tel" ? .telephoneNumber : (isAddress ? .fullStreetAddress : nil),
                        capitalization: e.type == "email" ? .never : (kind == .license ? .characters : .words),
                        bottom: bottom, kind: kind ?? .plain(max: isAddress ? 120 : nil), fieldID: e.label, errors: errors,
-                       required: WizardRules.rule(for: e.label, type: e.type)?.required ?? false)
+                       required: WizardRules.rule(for: e.label, type: e.type)?.required ?? false,
+                       focus: focus, returnKey: returnKey(e.label), onSubmit: { submit(e.label) })
             if e.label == "Real estate agent email" {
                 Text("Client & agent emails are used to send the finished report.")
                     .font(VFont.ui(12)).foregroundStyle(VC.ink3)
                     .padding(.horizontal, 2).padding(.top, -2).padding(.bottom, 6)
                 agentCopy
             }
+        }
+    }
+
+    private func returnKey(_ label: String) -> UIReturnKeyType {
+        (label == "Inspection address" && addressHasState) || nextField(after: label) != nil ? .next : .done
+    }
+
+    /// Return / Next: Inspection address → the State picker (search focused); otherwise the next text field.
+    private func submit(_ label: String) {
+        if label == "Inspection address", addressHasState {
+            // Drop the address keyboard right away (inside the Return key event), so nothing typed while the
+            // picker opens can land back in the address (the Android bug); the picker's search field takes over.
+            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+            focus.target = StateFieldIDs.state
+        } else if let n = nextField(after: label) {
+            focus.target = n
+        } else {
+            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
         }
     }
 
