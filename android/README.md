@@ -38,6 +38,7 @@ adb shell am start -S -n com.vims.app/.MainActivity --es screen section --es sec
 #           agreementedit (Edit agreement; company admins only)
 #   --es insp demo-ridgeline   --es section "'Outside Utilities'"   --es photo demo-p0   --es cat "North Side"
 #   --es depth high|standard|fast (rewrites that inspection's depth)   --ei step 1-4 (wizard)   --ei coverStep 1-3
+#   cover QA: --es cover "'Blue|Holidays|4th of July|Shaded'"  --es inspType Texas|"'4 Point Inspection'"  --ez generate true (builds the PDF, opens the preview)
 #   --ez splash true (show the free-look splash)   --ez video true (play the launch video too)
 ```
 Debug launches sign in as the demo account when nobody is signed in, and skip the splash video.
@@ -327,3 +328,25 @@ The VIMS agreement stays the default and is never changed; edits only ever apply
   taken when they were built (`ChecklistEngine.snapshot`), so they still show the v1.4 questions.
 - Screenshots: `screenshots/oct9-*.png`.
 
+
+## Client cover designs (v0.12.0, data v1.6)
+
+- **PDF cover = the client's design** (Report Cover Pages, Oct 9; `report.html` `coverPage()` is the reference). Laid
+  out in inches from `covers.layout`: page box (**Framed** = light fill + 0.75pt black border + soft glow in `deep`, drawn
+  as vector layers following the CSS box-shadow profile; **Shaded** = light 0–18% → mid 56% → deep 83–100% vertical
+  gradient; **Solid** = `solid` fill), company logo top-left, company block top-right (name, address, phone, email),
+  title (Inspection Report / Property Inspection Report for Texas / 4-Point Inspection Report), bold serif field labels
+  with values on underlines (empty values print "—"; License # beside Name of Inspector; 4-Point keeps its own rows with
+  0.39 / 0.30 in gaps so the block ends above the photo), property photo box (center-crop, 1.25pt border; no photo →
+  empty box + "Picture of Property."), the theme artwork (`covers.themeArt`, WebP from `shared/covers`) at its position
+  clipped to the page box, then the ownership footer. Fonts: `Typeface.SERIF` (bold) like his Word covers.
+- **Footer wrap:** measured from the artwork's opaque pixels in the footer band (not its rect, which has transparent
+  margins: Horses' rect starts at 3.46 in, its pixels at 4.2 in), the footer goes on the side with more room (min 3.3 in)
+  and is drawn after the art so it is never hidden (Fall, 4th of July). The Oregon `coverNotice` stays under it; when it
+  makes the footer taller, the photo box gets shorter.
+- **Cover picker:** the preview tile shows the chosen theme's artwork in its corner (Solid shows the color name). Flow and
+  persistence unchanged.
+- `verifySharedAssets` now also fails the build if a `covers.themeArt` file is missing. The 18 artworks add 1.6 MB of
+  assets; a report with theme art is ~0.7–0.9 MB larger (Android's PDF writer stores bitmaps losslessly).
+- Theme art note (from the data): Summer, Christmas and Spring contain stock-site watermarks — test builds only.
+- Screenshots: `screenshots/oct9-cover-*.png`; sample PDFs regenerated.
