@@ -101,7 +101,10 @@ struct ReportView: View {
                    actions: [HeaderAction(symbol: "hdr-sections", label: "Sections") { store.popToSections(inspectionID) }, store.homeAction()]) {
                 metaCard(insp)
                 SectionLabel(text: "Report cover")
-                CoverPicker(cover: Binding(get: { insp.cover }, set: { c in store.update(inspectionID) { $0.cover = c } }), step: $coverStep)
+                // Reads the live cover (not this render's `insp` snapshot): a pick that changes several parts at once
+                // (category → its first image + style) used to write back the stale category / image.
+                CoverPicker(cover: Binding(get: { store.inspection(inspectionID)?.cover ?? insp.cover },
+                                           set: { c in store.update(inspectionID) { $0.cover = c } }), step: $coverStep)
 
                 SectionLabel(text: "Report pages")
                 Text(Self.reportPages[store.catalog.reportLayout(for: insp.inspType)] ?? "")
@@ -281,9 +284,12 @@ struct CoverPicker: View {
             case 2:
                 SectionLabel(text: "Category", top: 2)
                 optionGrid(store.config.coverCategoryOrder, selected: cover.category) { cat in
-                    cover.category = cat
-                    cover.option = covers.categories[cat]?.first ?? ""
-                    if cat == "Solid" { cover.style = covers.solidStyle } else if cover.style == covers.solidStyle { cover.style = covers.styles.first ?? "Framed" }
+                    // One write for the whole change (category + its first image + style).
+                    var c = cover
+                    c.category = cat
+                    c.option = covers.categories[cat]?.first ?? ""
+                    if cat == "Solid" { c.style = covers.solidStyle } else if c.style == covers.solidStyle { c.style = covers.styles.first ?? "Framed" }
+                    cover = c
                 }
                 let opts = covers.categories[cover.category] ?? []
                 if !opts.isEmpty {

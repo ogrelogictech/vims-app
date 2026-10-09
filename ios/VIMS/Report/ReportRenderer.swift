@@ -125,7 +125,7 @@ struct ReportData {
             let a = insp.answers[name] ?? SectionAnswers()
             var rows: [ReportRow] = []
             if insp.depth == .fast {
-                if !a.present.isEmpty { rows.append(ReportRow(kind: .line("Items present", a.present.joined(separator: ", ")))) }
+                if !a.present.isEmpty { rows.append(ReportRow(kind: .line("Items reviewed", a.present.joined(separator: ", ")))) }
             } else {
                 let items = ItemKeys.keyed(cat.items(name, depth: insp.depth).items)
                 var pendingHeader: String?
