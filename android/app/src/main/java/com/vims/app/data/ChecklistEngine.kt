@@ -119,7 +119,7 @@ class ChecklistEngine(val config: ChecklistConfig, val edits: ChecklistEdits) {
     companion object {
         fun number(defs: Map<String, SectionDef>, name: String): Int = defs[baseName(name)]?.number ?: 99
 
-        /** Items to render for a section at a depth (Fast Entry renders its own "Items present" chips). */
+        /** Items to render for a section at a depth (Fast Entry renders its own "Items reviewed" chips). */
         fun itemsFor(def: SectionDef, depth: String): List<ItemDef> =
             if (def.form == null && depth == "high" && def.itemsHigh != null) def.itemsHigh else def.items
 

@@ -492,7 +492,7 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
         }
         var any = false
         if (depth == "fast") {
-            if (a.present.isNotEmpty()) { row("Items present", a.present.joinToString(", ")); any = true }
+            if (a.present.isNotEmpty()) { row("Items reviewed", a.present.joinToString(", ")); any = true }
         } else if (def != null) {
             val keyed = ChecklistEngine.keyed(ChecklistEngine.itemsFor(def, depth))
             val detail = ChecklistEngine.showDetailInput(def, depth)
