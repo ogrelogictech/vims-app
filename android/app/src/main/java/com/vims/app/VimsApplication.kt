@@ -36,7 +36,7 @@ class AppContainer(private val app: Application) {
     /** VIMS default inspection agreement (shared/legal/inspection-agreement.json), loaded here off the main thread like the EULA. */
     val agreementResult: Result<com.vims.app.data.InspectionAgreement> = com.vims.app.data.InspectionAgreement.load(app)
     val db: VimsDatabase = VimsDatabase.open(app)
-    private val roomRepo = RoomRepository(app.filesDir, db.dao())
+    private val roomRepo = RoomRepository(app.filesDir, db.dao(), com.vims.app.data.PlatformOwners(config.support.platformOwners))
     val repo: VimsRepository = roomRepo
     val auth: AuthService = LocalAuthService(db.dao(), config)
     val subscriptions: SubscriptionService = LocalSubscriptionService()

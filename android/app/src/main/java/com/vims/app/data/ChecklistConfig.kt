@@ -248,6 +248,8 @@ data class SupportDef(
     val reportBcc: ReportBccDef = ReportBccDef(),
     /** Data v1.3: every emailed report is CC'd to the signed-in inspector's own email (present = on). */
     val ccInspector: JsonObject? = null,
+    /** Data v1.5: VIMS platform owners (system admins) by email — see [com.vims.app.data.PlatformOwners]. */
+    val platformOwners: List<String> = emptyList(),
 ) {
     val ccInspectorOn: Boolean get() = ccInspector != null
 }

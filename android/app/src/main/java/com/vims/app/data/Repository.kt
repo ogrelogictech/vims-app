@@ -73,7 +73,7 @@ interface VimsRepository {
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class RoomRepository(filesDir: File, private val dao: VimsDao) : VimsRepository {
+class RoomRepository(filesDir: File, private val dao: VimsDao, private val owners: PlatformOwners = PlatformOwners(emptyList())) : VimsRepository {
     override val root: File = File(filesDir, "vims").apply { mkdirs() }
     private val json = ChecklistLoader.json
     private val writer = Dispatchers.IO.limitedParallelism(1)
@@ -126,8 +126,8 @@ class RoomRepository(filesDir: File, private val dao: VimsDao) : VimsRepository 
         val user = dao.user(session.userId)
         val co = dao.company(session.companyId)
         if (user == null || co == null) { clearMemory(); return@withContext }
-        // TODO(backend): the platform-owner flag comes from the server; locally it is the VIMS owner's account.
-        @Suppress("NAME_SHADOWING") val session = session.copy(platformOwner = PlatformOwner.isOwner(user.email), eulaVersion = user.eulaVersion)
+        // TODO(backend): the platform-owner flag comes from the server; locally it is `support.platformOwners` in the shared JSON.
+        @Suppress("NAME_SHADOWING") val session = session.copy(platformOwner = owners.isOwner(user.email), eulaVersion = user.eulaVersion)
         val ins = dao.inspectionsFor(user.id)
         val answers = dao.answersFor(user.id).groupBy { it.inspectionId }
         val photos = dao.photosFor(user.id).groupBy { it.inspectionId }
@@ -282,8 +282,14 @@ class RoomRepository(filesDir: File, private val dao: VimsDao) : VimsRepository 
     companion object { const val KEY_SESSION = "session"; const val KEY_PLATFORM = "platformSettings" }
 }
 
-/** The VIMS platform owner (Jeremy Heath owns VIMS). TODO(backend): replace with a server-provided flag. */
-object PlatformOwner {
-    const val EMAIL = "jeremy@visionpropertyinspections.com"
-    fun isOwner(email: String): Boolean = email.trim().equals(EMAIL, ignoreCase = true)
+/**
+ * VIMS platform owners (system admins) = `support.platformOwners` in vims-checklists.json (data v1.5), matched
+ * case-insensitively on the trimmed email. Several addresses are allowed so there are always at least two system admins.
+ * No password is stored or seeded for them: the owner creates an account / signs in with that email and their own
+ * password, and gets the VIMS owner settings (Report quality copy, Feedback & support).
+ * TODO(backend): the server owns this list and sends the flag with the session.
+ */
+class PlatformOwners(emails: List<String>) {
+    private val set: Set<String> = emails.map { it.trim().lowercase(java.util.Locale.US) }.filter { it.isNotEmpty() }.toSet()
+    fun isOwner(email: String): Boolean = email.trim().lowercase(java.util.Locale.US) in set
 }
