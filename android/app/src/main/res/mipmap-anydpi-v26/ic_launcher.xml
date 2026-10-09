@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
     <background android:drawable="@color/ic_launcher_background" />
-    <foreground android:drawable="@mipmap/ic_launcher_foreground" />
+    <!-- The Oct 7 artwork has almost no padding: inset 6% so the mark sits inside the 66dp safe zone at the old icon's size
+         (otherwise the chimney / checkmark tip touch the circle mask). -->
+    <foreground>
+        <inset android:drawable="@mipmap/ic_launcher_foreground" android:inset="6%" />
+    </foreground>
 </adaptive-icon>
