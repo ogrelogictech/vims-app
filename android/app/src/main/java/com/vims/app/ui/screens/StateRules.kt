@@ -55,6 +55,21 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.autofill.ContentDataType
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.semantics.contentDataType
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.TextFieldValue
+import com.vims.app.data.StateDef
+import com.vims.app.util.Filters
 import androidx.core.content.FileProvider
 import androidx.navigation.NavHostController
 import com.vims.app.data.StateDoc
@@ -82,13 +97,20 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-/* State rules (vims-checklists.json v1.3 `states` + `stateRules`) — wizard step 1 State field, the state's note card,
+/* State rules (vims-checklists.json v1.3 `states` + `stateRules`) — wizard step 1 State type-ahead, the state's note card,
  * required state documents (View / Send to client / "Provided to the client…" acknowledgment) and the in-app viewer. */
 
 const val STATE_KEY = "State"
 const val STATE_ACK_KEY = "stateDocsAck"
 
-/** Required "State" dropdown (right after Inspection address) + the selected state's note card and documents. */
+/**
+ * Required "State" type-ahead (right after Inspection address) + the selected state's note card and documents.
+ * It is a real text field, so the keyboard types into it (before, the read-only dropdown never took focus and the typed
+ * letters landed in the still-focused address line). Tapping it clears the box (the current state stays as the
+ * placeholder) and lists every state; typing a name or 2-letter code filters the list; tap or keyboard Next picks the
+ * best match and Next moves on to the following field. Leaving with an exact / single match picks it, otherwise the
+ * previous state is kept.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StateField(vm: AppViewModel, nav: NavHostController, sel: WizardSelections, form: FormState) {
@@ -99,29 +121,74 @@ fun StateField(vm: AppViewModel, nav: NavHostController, sel: WizardSelections, 
     val ackErr = form.check(STATE_ACK_KEY, "${sel.state}:${sel.stateDocsAck}") {
         if (cfg.stateRule(sel.state)?.docs.orEmpty().isNotEmpty() && !sel.stateDocsAck) "Confirm the required state notice was given to the client" else null
     }
+    val focus = LocalFocusManager.current
+    val selectedName = if (sel.state.isBlank()) "" else cfg.stateName(sel.state)
+    var focused by remember { mutableStateOf(false) }
     var open by remember { mutableStateOf(false) }
+    var query by remember { mutableStateOf(TextFieldValue(selectedName)) }
+    // Not focused: shows the chosen state's name (also after a pick or an edit-inspection load). Focused: starts empty
+    // (current state as the placeholder) — set here, after the tap that focused it has placed its cursor in the old text.
+    LaunchedEffect(selectedName, focused) { query = TextFieldValue(if (focused) "" else selectedName); if (focused) open = true }
+    val matches = remember(query.text, focused) { if (focused) stateMatches(cfg.states, query.text) else cfg.states }
+    fun pick(code: String) { if (code != sel.state) vm.setInspState(code); query = TextFieldValue(cfg.stateName(code)); open = false }
+    /** Exact name / code first, then the only (or, for Next, the first) remaining match. */
+    fun typedMatch(first: Boolean): String? {
+        val t = query.text.trim()
+        if (t.isEmpty()) return null
+        cfg.states.firstOrNull { it.code.equals(t, true) || it.name.equals(t, true) }?.let { return it.code }
+        return if (first || matches.size == 1) matches.firstOrNull()?.code else null
+    }
+    val shape = RoundedCornerShape(11.dp)
     Column(Modifier.padding(bottom = 13.dp).formField(form, STATE_KEY)) {
         FieldLabel("State", required = true)
-        ExposedDropdownMenuBox(expanded = open, onExpandedChange = { open = it }) {
-            val shape = RoundedCornerShape(11.dp)
-            Row(
-                Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth().heightIn(min = 48.dp).clip(shape).background(V.paper)
-                    .border(if (err != null || open) (if (open) 2.dp else 1.5.dp) else 1.dp, if (err != null && !open) V.c1 else if (open) V.brand else V.line, shape)
-                    .semantics { role = Role.DropdownList }.padding(horizontal = 14.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                val name = if (sel.state.isBlank()) "" else cfg.stateName(sel.state)
-                Text(name.ifEmpty { "Select the property’s state…" }, style = T.ui(15.sp, color = if (name.isEmpty()) V.placeholder else V.ink),
-                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                Icon(VIcons.chevDown, null, tint = V.ink, modifier = Modifier.size(16.dp))
-            }
-            ExposedDropdownMenu(expanded = open, onDismissRequest = { open = false }, containerColor = V.paper) {
-                cfg.states.forEach { st ->
+        ExposedDropdownMenuBox(expanded = open && focused, onExpandedChange = { open = it }) {
+            BasicTextField(
+                value = query,
+                onValueChange = { v -> query = v.copy(text = Filters.base(v.text, 40)); open = true },
+                singleLine = true,
+                textStyle = T.ui(15.sp, color = V.ink),
+                cursorBrush = SolidColor(V.brand),
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, autoCorrectEnabled = false, imeAction = ImeAction.Next),
+                keyboardActions = KeyboardActions(onNext = {
+                    typedMatch(first = true)?.let { pick(it) }
+                    open = false
+                    focus.moveFocus(FocusDirection.Next)
+                }),
+                modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable).fillMaxWidth()
+                    .semantics { contentDataType = ContentDataType.None }
+                    .onFocusChanged { f ->
+                        if (f.isFocused == focused) return@onFocusChanged
+                        focused = f.isFocused
+                        if (!f.isFocused) { typedMatch(first = false)?.let { pick(it) }; open = false }
+                    },
+                decorationBox = { inner ->
+                    Row(
+                        Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(shape).background(V.paper)
+                            .border(if (focused || err != null) (if (err != null && !focused) 1.5.dp else 2.dp) else 1.dp, if (err != null && !focused) V.c1 else if (focused) V.brand else V.line, shape)
+                            .padding(start = 14.dp, end = 12.dp, top = 12.dp, bottom = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(Modifier.weight(1f)) {
+                            if (query.text.isEmpty()) Text(
+                                if (focused && selectedName.isNotEmpty()) selectedName else if (focused) "Type the state or its 2-letter code" else "Select the property’s state…",
+                                style = T.ui(15.sp, color = V.placeholder), maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            )
+                            inner()
+                        }
+                        Icon(VIcons.chevDown, null, tint = V.ink, modifier = Modifier.padding(start = 8.dp).size(16.dp))
+                    }
+                },
+            )
+            ExposedDropdownMenu(expanded = open && focused, onDismissRequest = { open = false }, containerColor = V.paper) {
+                if (matches.isEmpty()) {
+                    DropdownMenuItem(text = { Text("No state matches “${query.text.trim()}”", style = T.ui(14.sp, color = V.ink3)) }, onClick = {}, enabled = false)
+                }
+                matches.forEach { st ->
                     val on = st.code == sel.state
                     DropdownMenuItem(
                         text = { Text(st.name, style = T.ui(14.5.sp, if (on) FontWeight.Bold else FontWeight.Normal, if (on) V.brandDeep else V.ink)) },
-                        onClick = { open = false; vm.setInspState(st.code) },
-                        trailingIcon = if (on) ({ Icon(VIcons.check, null, tint = V.brand, modifier = Modifier.size(16.dp)) }) else null,
+                        onClick = { pick(st.code); focus.clearFocus() },
+                        trailingIcon = if (on) ({ Icon(VIcons.check, null, tint = V.brand, modifier = Modifier.size(16.dp)) }) else ({ Text(st.code, style = T.mono(12.sp, color = V.ink3)) }),
                     )
                 }
             }
@@ -143,6 +210,16 @@ fun StateField(vm: AppViewModel, nav: NavHostController, sel: WizardSelections, 
             append(" (shows the selected state’s section)")
         }, style = T.ui(12.5.sp, color = V.ink3, lineHeight = 17.sp))
     }
+}
+
+/** Type-ahead order: 2-letter code, then names starting with the text, then any word of the name ("York", "Dakota"). */
+fun stateMatches(states: List<StateDef>, text: String): List<StateDef> {
+    val t = text.trim()
+    if (t.isEmpty()) return states
+    val code = states.filter { it.code.equals(t, true) }
+    val prefix = states.filter { it.name.startsWith(t, true) }
+    val word = states.filter { st -> st.name.split(' ').any { it.startsWith(t, true) } }
+    return (code + prefix + word).distinct()
 }
 
 /**
