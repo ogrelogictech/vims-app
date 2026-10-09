@@ -487,21 +487,25 @@ private fun DarkInput(value: String, onChange: (String) -> Unit, placeholder: St
 /* ================================================================ Flag a finding (bottom sheet) */
 
 @Composable
-fun FindingSheet(visible: Boolean, vm: AppViewModel, initialText: String, onCancel: () -> Unit, onAdd: (Int, String) -> Unit) {
+fun FindingSheet(
+    visible: Boolean, vm: AppViewModel, initialText: String, onCancel: () -> Unit, onAdd: (Int, String) -> Unit,
+    title: String = "Flag a finding",
+    subtitle: String = "Pick a category and add a note. It's added to the summary and the report automatically.",
+) {
     Box(Modifier.fillMaxSize()) {
         AnimatedVisibility(visible, enter = fadeIn(), exit = fadeOut()) {
             Box(Modifier.fillMaxSize().background(Color(0x990A0F16)).clickable(remember { MutableInteractionSource() }, null, onClick = onCancel))
         }
         AnimatedVisibility(visible, modifier = Modifier.align(Alignment.BottomCenter), enter = slideInVertically { it / 3 } + fadeIn(), exit = slideOutVertically { it / 3 } + fadeOut()) {
             var cat by rememberSaveable { mutableIntStateOf(2) }
-            var text by rememberSaveable(initialText) { mutableStateOf(initialText) }
+            var text by rememberSaveable(initialText, title) { mutableStateOf(initialText) }
             var descErr by remember { mutableStateOf(false) }
             Column(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp)).background(V.paper).imePadding().navigationBarsPadding()
                     .verticalScroll(rememberScrollState()).padding(start = 18.dp, end = 18.dp, top = 20.dp, bottom = 26.dp),
             ) {
-                Text("Flag a finding", style = T.display(18.sp, FontWeight.Bold), modifier = Modifier.padding(bottom = 4.dp))
-                Text("Pick a category and add a note. It's added to the summary and the report automatically.", style = T.ui(13.sp, color = V.ink3, lineHeight = 18.sp), modifier = Modifier.padding(bottom = 16.dp))
+                Text(title, style = T.display(18.sp, FontWeight.Bold), modifier = Modifier.padding(bottom = 4.dp))
+                Text(subtitle, style = T.ui(13.sp, color = V.ink3, lineHeight = 18.sp), modifier = Modifier.padding(bottom = 16.dp))
                 Row(Modifier.padding(bottom = 14.dp), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                     vm.config.findings.categories.forEach { c ->
                         val on = cat == c.id

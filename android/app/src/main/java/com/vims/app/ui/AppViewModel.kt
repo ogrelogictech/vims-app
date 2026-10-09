@@ -319,8 +319,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     /* ------------------------------------------------------------------ findings */
 
-    fun addFinding(id: String, cat: Int, text: String, section: String, photoId: String?) {
-        repo.updateFindings(id) { it + Finding(UUID.randomUUID().toString(), cat, text.trim().ifEmpty { "Finding noted" }, section, photoId) }
+    fun addFinding(id: String, cat: Int, text: String, section: String, photoId: String?, item: String? = null) {
+        repo.updateFindings(id) { it + Finding(UUID.randomUUID().toString(), cat, text.trim().ifEmpty { "Finding noted" }, section, photoId, item = item) }
         if (photoId != null) repo.updatePhotos(id) { l -> l.map { if (it.id == photoId) it.copy(flag = cat) else it } }
         touch(id)
         toast("Finding added to summary")

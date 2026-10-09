@@ -1,5 +1,6 @@
 package com.vims.app.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -119,6 +120,9 @@ fun SectionScreen(vm: AppViewModel, nav: NavHostController, inspId: String, name
     val keyed = remember(def, depth) { if (def == null) emptyList() else ChecklistEngine.keyed(ChecklistEngine.itemsFor(def, depth)) }
     val detail = def != null && ChecklistEngine.showDetailInput(def, depth)
     fun edit(f: (SectionAnswers) -> SectionAnswers) = vm.editSection(inspId, name, f)
+    // Choosing "Concerns" / "Concern" on an item opens the Flag-a-finding sheet for that item (client request Oct 9).
+    var concernItem by rememberSaveable { mutableStateOf<String?>(null) }
+    BackHandler(enabled = concernItem != null) { concernItem = null }
 
     VScreen(
         name, b.inspection.selections.street, net(vm), backAction(nav),
@@ -126,6 +130,15 @@ fun SectionScreen(vm: AppViewModel, nav: NavHostController, inspId: String, name
         scroll = false,
         overlay = {
             SectionsDrawer(drawer, b, name, onClose = { drawer = false }, onLink = { drawer = false; nav.openLink(it, inspId) }, onSection = { drawer = false; nav.openSection(inspId, it) })
+            // Cancel only closes it (the option stays selected); Add saves "<item>: <description>" as a finding for this section.
+            val item = concernItem
+            FindingSheet(
+                visible = item != null, vm = vm, initialText = "",
+                title = "Concern: ${item.orEmpty()}",
+                subtitle = "Describe the concern for this item and pick a category. It's added to the summary and the report automatically.",
+                onCancel = { concernItem = null },
+                onAdd = { cat, text -> if (item != null) vm.addFinding(inspId, cat, "$item: ${text.trim()}", name, null, item = item); concernItem = null },
+            )
         },
     ) {
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 34.dp)) {
@@ -134,14 +147,14 @@ fun SectionScreen(vm: AppViewModel, nav: NavHostController, inspId: String, name
                 val quick = def?.items.orEmpty().filter { it.q != null }.map { it.q!! }.distinct()
                 if (quick.isNotEmpty()) item(key = "present") {
                     Column {
-                        Lbl("Items present", first = true)
+                        Lbl("Items reviewed", first = true)
                         MultiChips(quick, a.present, { q -> edit { it.copy(present = if (q in it.present) it.present - q else it.present + q) } })
                     }
                 }
             } else {
                 itemsIndexed(keyed, key = { i, p -> p.first ?: "h$i" }) { _, (key, it) ->
                     if (key == null) LiHead(it.header.orEmpty())
-                    else ItemCard(key, it, a, detail, ctx, ::edit)
+                    else ItemCard(key, it, a, detail, ctx, ::edit) { q -> concernItem = q }
                 }
             }
             item(key = "overall") {
@@ -171,15 +184,21 @@ fun SectionScreen(vm: AppViewModel, nav: NavHostController, inspId: String, name
 }
 
 @Composable
-private fun ItemCard(key: String, it: ItemDef, a: SectionAnswers, detail: Boolean, ctx: android.content.Context, edit: ((SectionAnswers) -> SectionAnswers) -> Unit) {
+private fun ItemCard(key: String, it: ItemDef, a: SectionAnswers, detail: Boolean, ctx: android.content.Context, edit: ((SectionAnswers) -> SectionAnswers) -> Unit, onConcern: (String) -> Unit) {
     val q = it.q.orEmpty()
     val input = a.inputs[key].orEmpty()
     val setInput: (String) -> Unit = { v -> edit { s -> s.copy(inputs = s.inputs + (key to v)) } }
     LiCard(q) {
         when (it.type) {
-            "single" -> SingleChips(it.options.orEmpty(), a.values[key]?.firstOrNull(), { v -> edit { s -> s.copy(values = s.values + (key to listOfNotNull(v))) } })
+            "single" -> SingleChips(it.options.orEmpty(), a.values[key]?.firstOrNull(), { v ->
+                edit { s -> s.copy(values = s.values + (key to listOfNotNull(v))) }
+                // Selecting (not deselecting) Concern(s) asks for the concern; deselecting never deletes a finding.
+                if (v != null && v != a.values[key]?.firstOrNull() && isConcern(v)) onConcern(q)
+            })
             "multi" -> MultiChips(it.options.orEmpty(), a.values[key].orEmpty(), { o ->
+                val on = o !in a.values[key].orEmpty()
                 edit { s -> val cur = s.values[key].orEmpty(); s.copy(values = s.values + (key to if (o in cur) cur - o else cur + o)) }
+                if (on && isConcern(o)) onConcern(q)
             })
             "date" -> PickerField(if (input.isBlank()) "" else Fmt.date(input), "Select date", VIcons.calendar, { pickDate(ctx, input, onPick = setInput) })
             "time" -> PickerField(if (input.isBlank()) "" else Fmt.time(input), "Select time", VIcons.clock, { pickTime(ctx, input, setInput) })
@@ -194,3 +213,6 @@ private fun ItemCard(key: String, it: ItemDef, a: SectionAnswers, detail: Boolea
         }
     }
 }
+
+/** Standard / High Detail "Concerns" / "Concern" option (opens the concern finding sheet). */
+private fun isConcern(option: String) = option.trim().matches(Regex("Concerns?", RegexOption.IGNORE_CASE))

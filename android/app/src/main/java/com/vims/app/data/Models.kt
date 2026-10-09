@@ -272,7 +272,7 @@ data class SectionAnswers(
     val values: Map<String, List<String>> = emptyMap(),
     /** num/text/date/time answers and optional High Detail "Detail / measurement" notes, per item key. */
     val inputs: Map<String, String> = emptyMap(),
-    /** Fast Entry "Items present" chips. */
+    /** Fast Entry "Items reviewed" chips (labelled "Items present" before data v1.5). */
     val present: List<String> = emptyList(),
     val overall: String? = null,
     val comments: String = "",
@@ -303,6 +303,8 @@ data class Finding(
     val section: String,
     val photoId: String? = null,
     val createdAt: Long = System.currentTimeMillis(),
+    /** Checklist item question a "Concern(s)" finding was raised from (Standard / High Detail item), else null. */
+    val item: String? = null,
 )
 
 /** Everything stored for one inspection. `defs` is the checklist snapshot taken when the checklist was built. */
