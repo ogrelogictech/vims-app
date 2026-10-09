@@ -5,6 +5,36 @@ import android.content.Context
 import android.content.Intent
 import android.webkit.MimeTypeMap
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.window.Dialog
+import com.vims.app.data.AgreementPiece
+import com.vims.app.data.AgreementText
+import com.vims.app.ui.back
+import com.vims.app.ui.components.BtnRow
+import com.vims.app.ui.components.ChooserRow
+import com.vims.app.ui.components.ConfirmDialog
+import com.vims.app.ui.components.HdrAction
+import com.vims.app.ui.components.Hint
+import com.vims.app.util.Checks
+import com.vims.app.util.Filters
+import com.vims.app.util.formField
+import com.vims.app.util.rememberForm
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -149,19 +179,53 @@ private fun ColumnScope.GateButtons(vm: AppViewModel, onSignOut: () -> Unit) {
 /* ------------------------------------------------------------------ inspection agreement */
 
 /**
- * "Inspection agreement" viewer (VIMS default agreement from inspection-agreement.json): title, header form lines in a
- * boxed mono block, body paragraphs / bullets, state disclosures (all states when [state] is blank — Company profile;
- * only that state's entry from the wizard), then the closing. If the company uses its own uploaded agreement, a note at
- * the top says the VIMS text is shown for reference and offers to open their file.
+ * "Inspection agreement" viewer. VIMS default agreement (inspection-agreement.json): title, header form lines in a boxed
+ * mono block, body paragraphs / bullets, state disclosures (all states when [state] is blank — Company profile; only that
+ * state's entry from the wizard), then the closing. A company's edited version is shown whole instead (it can't be
+ * filtered by state), under a short note. If the company uses its own uploaded agreement, a note at the top says the VIMS
+ * text is shown for reference and offers to open their file. The top bar's Download prints what's shown to a PDF
+ * (Share / Save to device) — every user can download.
  */
 @Composable
 fun AgreementScreen(vm: AppViewModel, nav: NavHostController, state: String) {
     val company by vm.company.collectAsState()
     val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
     val a = vm.agreement
+    val edited = company.editedAgreement
     val sub = if (state.isBlank()) "All 50 states" else vm.config.stateName(state)
-    VScreen("Inspection agreement", sub, net(vm), backAction(nav)) {
-        val ownName = company.agreementName?.takeIf { company.agreementFile != null }
+    var pdf by remember { mutableStateOf<AppViewModel.AgreementPdfFile?>(null) }
+    var sheet by remember { mutableStateOf(false) }
+    var busy by remember { mutableStateOf(false) }
+    val saveAs = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { uri ->
+        val f = pdf?.file
+        if (uri != null && f != null) vm.saveAgreementPdf(f, uri)
+    }
+    val download = HdrAction(VIcons.download, "Download PDF") {
+        if (!busy) {
+            busy = true
+            scope.launch {
+                val r = vm.buildAgreementPdf(state)
+                busy = false
+                if (r == null) vm.toast("Could not create the PDF") else { pdf = r; sheet = true }
+            }
+        }
+    }
+    val canDownload = edited != null || a.isValid
+    pdf?.takeIf { sheet }?.let { f ->
+        Dialog(onDismissRequest = { sheet = false }) {
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(V.paper).padding(vertical = 14.dp)) {
+                Text("Download agreement", style = T.display(17.sp, FontWeight.Bold), modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 2.dp))
+                Text("${f.file.name} · ${f.pages} page${if (f.pages == 1) "" else "s"}", style = T.ui(12.5.sp, color = V.ink3, lineHeight = 17.sp),
+                    modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 8.dp))
+                ChooserRow(VIcons.share, "Share PDF") { sheet = false; shareAgreementPdf(ctx, vm, f.file) }
+                ChooserRow(VIcons.download, "Save to device") { sheet = false; saveAs.launch(f.file.name) }
+                ChooserRow(null, "Cancel", V.ink3) { sheet = false }
+            }
+        }
+    }
+    VScreen("Inspection agreement", sub, net(vm), backAction(nav), if (canDownload) listOf(download) else emptyList()) {
+        val ownName = company.uploadedAgreement
         if (ownName != null) {
             AccentCard(V.signal, Modifier.padding(bottom = 12.dp)) {
                 Text(buildAnnotatedString {
@@ -179,7 +243,11 @@ fun AgreementScreen(vm: AppViewModel, nav: NavHostController, state: String) {
                 }
             }
         }
-        if (!a.isValid) {
+        if (edited != null) {
+            AccentCard(V.brand, Modifier.padding(bottom = 12.dp)) {
+                Text("Your company's edited version of the VIMS agreement.", style = T.ui(13.sp, color = V.ink2, lineHeight = 19.sp))
+            }
+        } else if (!a.isValid) {
             Column(Modifier.fillMaxWidth().vCard(border = V.c1).padding(16.dp)) {
                 Text("The inspection agreement couldn't be loaded", style = T.ui(14.sp, FontWeight.Bold, V.c1))
                 Text("Please reinstall or update VIMS. If this keeps happening, contact support.", style = T.ui(13.sp, color = V.ink2, lineHeight = 19.sp), modifier = Modifier.padding(top = 6.dp))
@@ -187,50 +255,129 @@ fun AgreementScreen(vm: AppViewModel, nav: NavHostController, state: String) {
             }
             return@VScreen
         }
-        val name = company.name
-        fun f(t: String) = com.vims.app.data.InspectionAgreement.fill(t, name)
+        val pieces = remember(company, state) { vm.agreementPieces(company, state) }
         Column(Modifier.fillMaxWidth().vCard().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp)) {
-            Text(f(a.title), style = T.display(18.sp, FontWeight.ExtraBold, lineHeight = 22.sp), modifier = Modifier.padding(bottom = 10.dp))
-            // Lines 1–2 are the page's "Company Name Company Logo" / title placeholders (the prototype skips them too).
-            val form = a.header.drop(2)
-            if (form.isNotEmpty()) {
-                Text(form.joinToString("\n") { f(it) }, style = T.mono(11.5.sp, color = V.ink2).copy(lineHeight = 20.sp),
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp).clip(RoundedCornerShape(9.dp)).background(V.paper2)
-                        .border(1.dp, V.line, RoundedCornerShape(9.dp)).padding(horizontal = 12.dp, vertical = 10.dp))
-            }
-            a.body.forEach { AgreementBlockText(it, ::f) }
-            Text(f(a.stateDisclosuresHeading), style = T.display(14.sp, FontWeight.Bold, V.brandDeep), modifier = Modifier.padding(top = 14.dp, bottom = 8.dp))
-            val all = a.disclosures
-            val code = state.trim().uppercase()
-            val shown = if (code.isEmpty()) all else all.filterKeys { it == code }
-            if (code.isNotEmpty() && shown.isEmpty()) AgreementPara("No additional disclosures for ${vm.config.stateName(code)}.", V.ink3)
-            shown.forEach { (k, v) ->
-                Text(buildAnnotatedString {
-                    withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = V.ink)) { append("${vm.config.stateName(k)}:") }
-                    append(" "); append(f(v))
-                }, style = T.ui(13.sp, color = V.ink2, lineHeight = 20.sp), modifier = Modifier.padding(bottom = 9.dp))
-            }
-            if (code.isNotEmpty() && shown.isNotEmpty() && shown.size < all.size) {
-                Text("Showing ${vm.config.stateName(code)} only. The full agreement lists ${all.size} states.", style = T.ui(11.5.sp, color = V.ink3, lineHeight = 16.sp), modifier = Modifier.padding(bottom = 9.dp))
-            }
-            a.closing.forEach { AgreementBlockText(it, ::f) }
+            pieces.forEach { AgreementPieceView(it) }
         }
     }
 }
 
+/** One [AgreementPiece] as the viewer shows it ([com.vims.app.report.AgreementPdf] prints the same list). */
 @Composable
-private fun AgreementBlockText(b: com.vims.app.data.AgreementBlock, f: (String) -> String) {
-    if (b.t == "li") {
-        Row(Modifier.padding(start = 4.dp, bottom = 9.dp)) {
+private fun AgreementPieceView(p: AgreementPiece) {
+    when (p) {
+        is AgreementPiece.Title -> Text(p.text, style = T.display(18.sp, FontWeight.ExtraBold, lineHeight = 22.sp), modifier = Modifier.padding(bottom = 10.dp))
+        is AgreementPiece.Form -> Text(p.lines.joinToString("\n"), style = T.mono(11.5.sp, color = V.ink2).copy(lineHeight = 20.sp),
+            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp).clip(RoundedCornerShape(9.dp)).background(V.paper2)
+                .border(1.dp, V.line, RoundedCornerShape(9.dp)).padding(horizontal = 12.dp, vertical = 10.dp))
+        is AgreementPiece.Para -> AgreementPara(p.text, if (p.lead) V.ink else if (p.muted) V.ink3 else V.ink2, if (p.lead) FontWeight.SemiBold else FontWeight.Normal)
+        is AgreementPiece.Bullet -> Row(Modifier.padding(start = 4.dp, bottom = 9.dp)) {
             Text("•", style = T.ui(13.sp, color = V.ink2, lineHeight = 20.sp), modifier = Modifier.width(12.dp))
-            Text(f(b.text), style = T.ui(13.sp, color = V.ink2, lineHeight = 20.sp), modifier = Modifier.weight(1f))
+            Text(p.text, style = T.ui(13.sp, color = V.ink2, lineHeight = 20.sp), modifier = Modifier.weight(1f))
         }
-    } else AgreementPara(f(b.text), if (b.lead) V.ink else V.ink2, if (b.lead) FontWeight.SemiBold else FontWeight.Normal)
+        is AgreementPiece.Heading -> Text(p.text, style = T.display(14.sp, FontWeight.Bold, V.brandDeep), modifier = Modifier.padding(top = 14.dp, bottom = 8.dp))
+        is AgreementPiece.Disclosure -> Text(buildAnnotatedString {
+            withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = V.ink)) { append("${p.state}:") }
+            append(" "); append(p.text)
+        }, style = T.ui(13.sp, color = V.ink2, lineHeight = 20.sp), modifier = Modifier.padding(bottom = 9.dp))
+        is AgreementPiece.Note -> Text(p.text, style = T.ui(11.5.sp, color = V.ink3, lineHeight = 16.sp), modifier = Modifier.padding(bottom = 9.dp))
+    }
 }
 
 @Composable
 private fun AgreementPara(t: String, color: Color = V.ink2, weight: FontWeight = FontWeight.Normal) {
     Text(t, style = T.ui(13.sp, weight, color, lineHeight = 20.sp), modifier = Modifier.padding(bottom = 9.dp))
+}
+
+/** Download → Share PDF: ACTION_SEND with the generated agreement PDF (FileProvider, cache/agreement/). */
+fun shareAgreementPdf(ctx: Context, vm: AppViewModel, f: java.io.File) {
+    val uri = FileProvider.getUriForFile(ctx, "${ctx.packageName}.fileprovider", f)
+    val name = vm.company.value.name
+    val send = Intent(Intent.ACTION_SEND).apply {
+        type = "application/pdf"
+        putExtra(Intent.EXTRA_STREAM, uri)
+        putExtra(Intent.EXTRA_SUBJECT, if (name.isBlank()) "Inspection agreement" else "Inspection agreement — $name")
+        clipData = android.content.ClipData.newRawUri(f.name, uri)
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    if (com.vims.app.BuildConfig.DEBUG) android.util.Log.d("VIMS-Share", "ACTION_SEND agreement pdf uri=$uri file=${f.name} bytes=${f.length()}")
+    try { ctx.startActivity(Intent.createChooser(send, "Share agreement")) } catch (_: ActivityNotFoundException) { vm.toast("No app available to share the PDF") }
+}
+
+/**
+ * Edit agreement (company admins only — same permission as Upload): the company's own copy of the agreement as plain
+ * text, prefilled with their edited version or the whole VIMS agreement (company name filled in). Paragraphs are
+ * separated by blank lines; lines starting with "• " are bullets. Save stores it on the company record and makes it the
+ * agreement in use (an uploaded file is cleared). Leaving with unsaved changes (header back, Cancel, system back) asks first.
+ */
+@Composable
+fun AgreementEditScreen(vm: AppViewModel, nav: NavHostController) {
+    val session by vm.session.collectAsState()
+    if (session?.isAdmin == false) {
+        LaunchedEffect(Unit) { vm.toast("Only company admins can edit the agreement"); nav.back() }
+        return
+    }
+    val key = rememberSaveable { java.util.UUID.randomUUID().toString() }
+    val initial = remember { vm.agreementEditorText() }
+    val draft = remember(key) { vm.agreementDrafts.getOrPut(key) { mutableStateOf(TextFieldValue(initial)) } }
+    val text = draft.value.text
+    val dirty = text != initial
+    var ask by remember { mutableStateOf(false) }
+    val form = rememberForm()
+    val max = AgreementText.MAX_CHARS
+    val err = form.check("text", text) { Checks.agreement(text, max) }
+    fun leave() { vm.agreementDrafts.remove(key); nav.back() }
+    fun close() { if (dirty) ask = true else leave() }
+    fun save() {
+        if (!form.submit()) return
+        if (!dirty) { vm.toast("No changes to save"); leave(); return }
+        vm.saveAgreementText(text.trim())
+        leave()
+    }
+    BackHandler(enabled = dirty) { ask = true }
+    if (ask) ConfirmDialog(
+        "Discard changes?", "Your edits to the agreement haven't been saved.", "Discard",
+        onConfirm = { ask = false; leave() }, onDismiss = { ask = false }, danger = true,
+    )
+    VScreen("Edit agreement", companyName(vm), net(vm), HdrAction(VIcons.back, "Back") { close() }, scroll = false) {
+        Column(Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 12.dp)) {
+            Hint("Your company's copy of the VIMS agreement. Separate paragraphs with a blank line and start a line with **•** for a bullet. The VIMS agreement itself doesn't change.",
+                Modifier.padding(start = 2.dp, bottom = 10.dp), size = 12.5f)
+            AgreementTextField(draft.value, { v ->
+                val t = Filters.agreement(v.text, max)
+                draft.value = if (t == v.text) v else v.copy(text = t, selection = TextRange(v.selection.start.coerceAtMost(t.length), v.selection.end.coerceAtMost(t.length)))
+            }, err != null, Modifier.weight(1f).formField(form, "text"))
+            Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Box(Modifier.weight(1f)) { FieldError(err) }
+                Text("${String.format(java.util.Locale.US, "%,d", text.length)} / ${String.format(java.util.Locale.US, "%,d", max)}",
+                    style = T.mono(11.sp, color = if (text.length > max) V.c1 else V.ink3), modifier = Modifier.padding(top = 6.dp, end = 2.dp))
+            }
+            BtnRow {
+                VBtn("Cancel", { close() }, Modifier.weight(1f), BtnKind.Ghost)
+                VBtn("Save", { save() }, Modifier.weight(1f), icon = VIcons.check)
+            }
+        }
+    }
+}
+
+/** Large multi-line field for the agreement text: fills the space it's given and scrolls inside (VInput's look). */
+@Composable
+private fun AgreementTextField(value: TextFieldValue, onChange: (TextFieldValue) -> Unit, error: Boolean, modifier: Modifier) {
+    val interaction = remember { MutableInteractionSource() }
+    val focused by interaction.collectIsFocusedAsState()
+    val shape = RoundedCornerShape(11.dp)
+    BasicTextField(
+        value, onChange, modifier.fillMaxWidth(), textStyle = T.ui(14.sp, color = V.ink, lineHeight = 21.sp), interactionSource = interaction,
+        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, autoCorrectEnabled = true),
+        cursorBrush = SolidColor(V.brand),
+        decorationBox = { inner ->
+            Box(
+                Modifier.fillMaxSize().clip(shape).background(V.paper)
+                    .border(if (focused || error) (if (error && !focused) 1.5.dp else 2.dp) else 1.dp, if (error) V.c1 else if (focused) V.brand else V.line, shape)
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+            ) { inner() }
+        },
+    )
 }
 
 /** Opens the company's own uploaded agreement (PDF / Word) in another app via FileProvider. */

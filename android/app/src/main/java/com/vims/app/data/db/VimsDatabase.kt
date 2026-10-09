@@ -32,6 +32,10 @@ data class CompanyEntity(
     val accountJson: String,
     val editsJson: String,
     val createdAt: Long,
+    /** The company's edited copy of the VIMS agreement (plain text), or null = not edited (v4). TODO(backend): sync to the server. */
+    val agreementText: String? = null,
+    /** When [agreementText] was saved (epoch ms), or null (v4). */
+    val agreementEditedAt: Long? = null,
 )
 
 @Entity(
@@ -110,6 +114,9 @@ interface VimsDao {
     @Query("SELECT * FROM companies WHERE code = :code LIMIT 1") suspend fun companyByCode(code: String): CompanyEntity?
     @Insert(onConflict = OnConflictStrategy.ABORT) suspend fun insertCompany(c: CompanyEntity)
     @Query("UPDATE companies SET profileJson = :json WHERE id = :id") suspend fun updateCompanyProfile(id: String, json: String)
+    /** Profile JSON + the edited agreement in one statement, so clearing an upload and saving an edit can't half-apply. */
+    @Query("UPDATE companies SET profileJson = :json, agreementText = :agreementText, agreementEditedAt = :agreementEditedAt WHERE id = :id")
+    suspend fun updateCompanyRecord(id: String, json: String, agreementText: String?, agreementEditedAt: Long?)
     @Query("UPDATE companies SET accountJson = :json WHERE id = :id") suspend fun updateCompanyAccount(id: String, json: String)
     @Query("UPDATE companies SET editsJson = :json WHERE id = :id") suspend fun updateCompanyEdits(id: String, json: String)
 
@@ -148,7 +155,7 @@ interface VimsDao {
 
 @Database(
     entities = [CompanyEntity::class, UserEntity::class, InspectionEntity::class, AnswerEntity::class, PhotoEntity::class, FindingEntity::class, KvEntity::class],
-    version = 3, exportSchema = true,
+    version = 4, exportSchema = true,
 )
 abstract class VimsDatabase : RoomDatabase() {
     abstract fun dao(): VimsDao
@@ -167,7 +174,15 @@ abstract class VimsDatabase : RoomDatabase() {
             override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) { db.execSQL("ALTER TABLE users ADD COLUMN photoFile TEXT") }
         }
 
+        /** v4: the company's edited inspection agreement (nullable columns; existing rows keep everything and read as "not edited"). */
+        val MIGRATION_3_4 = object : androidx.room.migration.Migration(3, 4) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE companies ADD COLUMN agreementText TEXT")
+                db.execSQL("ALTER TABLE companies ADD COLUMN agreementEditedAt INTEGER")
+            }
+        }
+
         fun open(context: Context): VimsDatabase =
-            Room.databaseBuilder(context, VimsDatabase::class.java, "vims.db").addMigrations(MIGRATION_1_2, MIGRATION_2_3).build()
+            Room.databaseBuilder(context, VimsDatabase::class.java, "vims.db").addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4).build()
     }
 }

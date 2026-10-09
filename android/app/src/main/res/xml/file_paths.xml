@@ -8,4 +8,6 @@
     <cache-path name="state_docs" path="state-docs/" />
     <!-- Company's own uploaded inspection agreement (Company profile → View your file) -->
     <files-path name="company_docs" path="vims/companies/" />
+    <!-- Inspection agreement viewer → Download: the generated PDF (Share / Save to device) -->
+    <cache-path name="agreement_pdf" path="agreement/" />
 </paths>

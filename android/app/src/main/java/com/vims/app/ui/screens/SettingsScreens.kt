@@ -256,25 +256,41 @@ fun CompanyScreen(vm: AppViewModel, nav: NavHostController) {
         Text("Add the URL where clients can leave a review of the inspection. It's included with the report so clients can rate you.", style = T.ui(12.sp, color = V.ink3, lineHeight = 16.sp), modifier = Modifier.padding(start = 2.dp, bottom = 9.dp))
         VField("Review URL", p.reviewUrl, { v -> set { it.copy(reviewUrl = v) } }, Modifier.formField(form, "url"), placeholder = "https://g.page/r/your-review-link", keyboard = KeyboardType.Uri, error = urlErr)
         Lbl("Inspection agreement")
-        Text("Every company starts with the VIMS agreement covering all 50 states. Upload your own to use it instead.", style = T.ui(12.sp, color = V.ink3, lineHeight = 16.sp), modifier = Modifier.padding(start = 2.dp, bottom = 10.dp))
+        // Edit / Upload / Use VIMS agreement: company admins only. Everyone can View (and download from the viewer).
+        val admin = vm.session.collectAsState().value?.isAdmin != false
+        Text(if (admin) "Every company starts with the VIMS agreement covering all 50 states. Upload your own to use it instead." else "Every company starts with the VIMS agreement covering all 50 states.",
+            style = T.ui(12.sp, color = V.ink3, lineHeight = 16.sp), modifier = Modifier.padding(start = 2.dp, bottom = 10.dp))
+        var askRevert by rememberSaveable { mutableStateOf(false) }
+        if (askRevert) com.vims.app.ui.components.ConfirmDialog(
+            "Use the VIMS agreement?", "Your edited version will be removed and the VIMS agreement will be in use again.", "Use VIMS",
+            onConfirm = { askRevert = false; vm.useDefaultAgreement() }, onDismiss = { askRevert = false }, danger = true,
+        )
         VCard {
-            // Default: the VIMS agreement (View). Own upload: its file name (Use VIMS agreement reverts). Stored on the company row.
-            val own = saved.agreementName?.takeIf { saved.agreementFile != null }
+            // Default: the VIMS agreement (View · Edit). Edited: "Edited VIMS agreement" (View · Edit · Use VIMS agreement).
+            // Own upload: its file name (Use VIMS agreement reverts). Stored on the company row.
+            val own = saved.uploadedAgreement
+            val edited = saved.editedAgreement != null
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 LeadIcon(VIcons.fileAgreement)
                 Column(Modifier.weight(1f)) {
-                    Text(own ?: "VIMS agreement", style = T.ui(14.sp, FontWeight.Bold), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    val link = if (own != null) "Use VIMS agreement" else "View"
+                    Text(own ?: if (edited) "Edited VIMS agreement" else "VIMS agreement", style = T.ui(14.sp, FontWeight.Bold), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    val links = buildList<Pair<String, () -> Unit>> {
+                        if (own == null || !admin) add("View" to { nav.navigate(com.vims.app.ui.AgreementR("")) })
+                        if (own == null && admin) add("Edit" to { nav.navigate(com.vims.app.ui.AgreementEditR) })
+                        if ((own != null || edited) && admin) add("Use VIMS agreement" to { if (edited) askRevert = true else vm.useDefaultAgreement() })
+                    }
                     Text(buildAnnotatedString {
-                        append(if (own != null) "Your agreement · in use · " else "All 50 states · in use · ")
-                        withLink(LinkAnnotation.Clickable("agreement", TextLinkStyles(SpanStyle(color = V.brand, fontWeight = FontWeight.SemiBold))) {
-                            if (own != null) vm.useDefaultAgreement() else nav.navigate(com.vims.app.ui.AgreementR(""))
-                        }) { append(link) }
+                        append(if (own != null) "Your agreement · in use" else if (edited) "Your edited version · in use" else "All 50 states · in use")
+                        links.forEach { (label, onClick) ->
+                            append(" · ")
+                            // Non-breaking spaces keep a link on one line ("Use VIMS agreement" wraps as a whole).
+                            withLink(LinkAnnotation.Clickable(label, TextLinkStyles(SpanStyle(color = V.brand, fontWeight = FontWeight.SemiBold))) { onClick() }) { append(label.replace(' ', '\u00A0')) }
+                        }
                     }, style = T.ui(12.sp, color = V.ink3, lineHeight = 22.sp))
                 }
             }
             // Full-width under the name so "Upload your own" never wraps on narrow phones.
-            VBtn(if (own != null) "Replace" else "Upload your own", { docPicker.launch(arrayOf("application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")) },
+            if (admin) VBtn(if (own != null) "Replace" else "Upload your own", { docPicker.launch(arrayOf("application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")) },
                 Modifier.padding(top = 12.dp), BtnKind.Ghost, icon = VIcons.upload, minHeight = 48.dp)
         }
         VBtn("Save profile", { if (form.submit()) vm.saveCompany(p.copy(logoFile = saved.logoFile, agreementName = saved.agreementName, agreementFile = saved.agreementFile)) }, icon = VIcons.check)

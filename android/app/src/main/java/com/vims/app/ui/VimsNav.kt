@@ -101,6 +101,8 @@ import kotlinx.serialization.Serializable
 @Serializable object EulaR
 /** Inspection agreement viewer: `state` = "" shows every state's disclosures (Company profile); a code shows only that state's (wizard). */
 @Serializable data class AgreementR(val state: String = "")
+/** Edit agreement (company admins): the company's own copy of the VIMS agreement as plain text. */
+@Serializable object AgreementEditR
 /** State document viewer (`file` = asset path relative to shared/, from stateRules.<STATE>.docs). */
 @Serializable data class StateDocR(val file: String, val name: String)
 
@@ -155,6 +157,7 @@ fun VimsRoot(vm: AppViewModel, debug: DebugLaunch?) {
             composable<EulaR> { com.vims.app.ui.screens.EulaScreen(vm, nav) }
             composable<ReportBccR> { com.vims.app.ui.screens.ReportBccScreen(vm, nav) }
             composable<AgreementR> { com.vims.app.ui.screens.AgreementScreen(vm, nav, it.toRoute<AgreementR>().state) }
+            composable<AgreementEditR> { com.vims.app.ui.screens.AgreementEditScreen(vm, nav) }
             composable<StateDocR> { val r = it.toRoute<StateDocR>(); com.vims.app.ui.screens.StateDocScreen(vm, nav, r.file, r.name) }
         }
 
@@ -211,6 +214,7 @@ private suspend fun applyDebug(vm: AppViewModel, nav: NavHostController, d: Debu
         "reportbcc" -> ReportBccR
         "eula" -> EulaR
         "agreement" -> AgreementR(d.state.orEmpty())
+        "agreementedit" -> AgreementEditR
         else -> HomeR
     }
     if (route != null) {

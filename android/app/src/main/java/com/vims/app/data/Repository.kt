@@ -142,7 +142,7 @@ class RoomRepository(filesDir: File, private val dao: VimsDao) : VimsRepository 
                 defs = dec(defsSer, e.defsJson, emptyMap()),
             )
         }.associateBy { it.id }
-        _company.value = dec(CompanyProfile.serializer(), co.profileJson, CompanyProfile())
+        _company.value = dec(CompanyProfile.serializer(), co.profileJson, CompanyProfile()).copy(agreementText = co.agreementText, agreementEditedAt = co.agreementEditedAt)
         _account.value = dec(AccountState.serializer(), co.accountJson, AccountState())
         _edits.value = dec(ChecklistEdits.serializer(), co.editsJson, ChecklistEdits())
         _settings.value = dec(AppSettings.serializer(), user.settingsJson, AppSettings())
@@ -213,7 +213,9 @@ class RoomRepository(filesDir: File, private val dao: VimsDao) : VimsRepository 
         val c = cid ?: return; _account.update(f); val v = enc(AccountState.serializer(), _account.value); write { dao.updateCompanyAccount(c, v) }
     }
     override fun updateCompany(f: (CompanyProfile) -> CompanyProfile) {
-        val c = cid ?: return; _company.update(f); val v = enc(CompanyProfile.serializer(), _company.value); write { dao.updateCompanyProfile(c, v) }
+        val c = cid ?: return; _company.update(f); val p = _company.value; val v = enc(CompanyProfile.serializer(), p)
+        // The edited agreement lives in its own columns (not in profileJson). TODO(backend): sync the edited agreement to the server.
+        write { dao.updateCompanyRecord(c, v, p.agreementText, p.agreementEditedAt) }
     }
     override fun updateSettings(f: (AppSettings) -> AppSettings) {
         val u = uid ?: return; _settings.update(f); val v = enc(AppSettings.serializer(), _settings.value); write { dao.updateUserSettings(u, v) }

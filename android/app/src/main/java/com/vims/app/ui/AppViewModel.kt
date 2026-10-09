@@ -364,7 +364,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun setAutoSync(on: Boolean) = repo.updateSettings { it.copy(autoSync = on) }
     fun syncNow() = viewModelScope.launch { container.sync.syncNow(); toast("Synced to portal") }
 
-    fun saveCompany(p: CompanyProfile) { repo.updateCompany { p }; toast("Company profile saved") }
+    /** Saves the profile form; the logo and agreement (upload / edit) are managed by their own actions and kept as they are. */
+    fun saveCompany(p: CompanyProfile) {
+        repo.updateCompany { cur -> p.copy(logoFile = cur.logoFile, agreementName = cur.agreementName, agreementFile = cur.agreementFile, agreementText = cur.agreementText, agreementEditedAt = cur.agreementEditedAt) }
+        toast("Company profile saved")
+    }
 
     /* ---- profile photo (per user, never the company logo) ---- */
     val userPhoto: StateFlow<String?> = repo.userPhoto
@@ -420,6 +424,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val logoVersion = MutableStateFlow(0)
 
     fun importAgreement(uri: Uri, name: String) = viewModelScope.launch {
+        if (!isAdmin) return@launch
         val ext = name.substringAfterLast('.', "pdf")
         val ok = withContext(Dispatchers.IO) {
             try {
@@ -430,7 +435,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val rel = File(repo.companyDir(), "agreement.$ext").relativeTo(getApplication<Application>().filesDir).path
         if (ok) {
             val old = company.value.agreementFile
-            repo.updateCompany { it.copy(agreementName = name, agreementFile = rel) }
+            // An upload replaces an edited agreement as the one in use.
+            repo.updateCompany { it.copy(agreementName = name, agreementFile = rel, agreementText = null, agreementEditedAt = null) }
             if (old != null && old != rel) withContext(Dispatchers.IO) { File(filesDir, old).delete() }
             toast("Your agreement is now in use")
         } else toast("Could not read that file")
@@ -439,12 +445,58 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** The company's own uploaded agreement file, or null when it uses the VIMS agreement. */
     fun ownAgreementFile(): File? = company.value.agreementFile?.takeIf { company.value.agreementName != null }?.let { File(filesDir, it) }
 
-    /** "Use VIMS agreement": back to the default agreement; the uploaded file is removed from the device. */
+    /** "Use VIMS agreement": back to the default agreement; the uploaded file and any edited text are removed from the device. */
     fun useDefaultAgreement() = viewModelScope.launch {
+        if (!isAdmin) return@launch
         val old = company.value.agreementFile
-        repo.updateCompany { it.copy(agreementName = null, agreementFile = null) }
+        repo.updateCompany { it.copy(agreementName = null, agreementFile = null, agreementText = null, agreementEditedAt = null) }
         if (old != null) withContext(Dispatchers.IO) { File(filesDir, old).delete() }
         toast("Using the VIMS agreement")
+    }
+
+    /**
+     * Edit agreement → Save (admins only): the company's edited copy becomes the agreement in use and replaces an uploaded
+     * file. The VIMS agreement itself never changes. TODO(backend): sync the edited agreement to the server.
+     */
+    fun saveAgreementText(text: String) = viewModelScope.launch {
+        if (!isAdmin) return@launch
+        val old = company.value.agreementFile
+        repo.updateCompany { it.copy(agreementText = text, agreementEditedAt = System.currentTimeMillis(), agreementName = null, agreementFile = null) }
+        if (old != null) withContext(Dispatchers.IO) { File(filesDir, old).delete() }
+        toast("Your edited agreement is now in use")
+    }
+
+    /** What the agreement viewer shows: the company's edited text (whole, never filtered by state), else the VIMS agreement. */
+    fun agreementPieces(c: CompanyProfile, state: String): List<com.vims.app.data.AgreementPiece> =
+        c.editedAgreement?.let { com.vims.app.data.AgreementText.pieces(it) } ?: agreement.pieces(c.name, state, config::stateName)
+
+    /** Editor prefill: the company's edited version, else the whole VIMS agreement as plain text with the company name filled in. */
+    fun agreementEditorText(): String = company.value.let { c -> c.editedAgreement ?: agreement.plainText(c.name, config::stateName) }
+
+    /** Unsaved editor text by editor visit, kept here (not in saved instance state — it can be ~100 KB) across rotation. */
+    val agreementDrafts = HashMap<String, androidx.compose.runtime.MutableState<androidx.compose.ui.text.input.TextFieldValue>>()
+
+    data class AgreementPdfFile(val file: File, val pages: Int)
+
+    /** Download: renders what the viewer shows into cache/agreement/Inspection-Agreement-<Company-Name>.pdf (shared via FileProvider). */
+    suspend fun buildAgreementPdf(state: String): AgreementPdfFile? = withContext(Dispatchers.IO) {
+        val c = company.value
+        val dir = File(getApplication<Application>().cacheDir, "agreement")
+        val f = File(dir, agreementPdfName(c.name))
+        try {
+            dir.listFiles()?.forEach { it.delete() } // only the latest download is kept
+            AgreementPdfFile(f, com.vims.app.report.AgreementPdf(getApplication()).write(agreementPieces(c, state), c.name, f))
+        } catch (t: Throwable) {
+            android.util.Log.e("VIMS-Agreement", "Could not build the agreement PDF", t); null
+        }
+    }
+
+    /** Save to device: copies the generated PDF to the document the user picked (ACTION_CREATE_DOCUMENT). */
+    fun saveAgreementPdf(src: File, uri: Uri) = viewModelScope.launch {
+        val ok = withContext(Dispatchers.IO) {
+            try { getApplication<Application>().contentResolver.openOutputStream(uri, "w")?.use { out -> src.inputStream().use { it.copyTo(out) } } != null } catch (_: Exception) { false }
+        }
+        toast(if (ok) "Saved ${src.name}" else "Could not save the PDF")
     }
 
     fun saveFeedbackEmail(email: String): Boolean {
@@ -531,6 +583,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     val isAdmin: Boolean get() = session.value?.role != Role.INSPECTOR
+
+    companion object {
+        /** "Inspection-Agreement-<Company-Name>.pdf" (letters and digits kept, everything else becomes "-"). */
+        fun agreementPdfName(company: String): String =
+            "Inspection-Agreement" + company.replace(Regex("[^A-Za-z0-9]+"), "-").trim('-').let { if (it.isEmpty()) "" else "-$it" } + ".pdf"
+    }
 
     /** Debug-only helper (screenshots): force an inspection's depth. */
     fun debugSetDepth(id: String, depth: String) = repo.updateInspection(id) { it.copy(selections = it.selections.copy(depth = depth)) }

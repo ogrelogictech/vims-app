@@ -74,6 +74,11 @@ object Filters {
     fun sectionName(v: String) = base(v, 60)
     fun question(v: String) = base(v, 120)
     fun option(v: String) = base(v, 60)
+    /**
+     * Edit agreement: tabs → spaces and Windows line breaks → "\n" only — spacing and blank lines are kept as typed
+     * (form lines rely on them). Length is checked on Save ([Checks.agreement]); this only stops runaway pastes.
+     */
+    fun agreement(v: String, max: Int): String = v.replace("\r\n", "\n").replace('\r', '\n').replace('\t', ' ').take(max * 2)
 }
 
 enum class CardBrand(val label: String) {
@@ -136,6 +141,11 @@ object Checks {
         else -> null
     }
     fun question(v: String): String? = if (v.trim().isEmpty()) "Enter the question text" else null
+    fun agreement(v: String, max: Int): String? = when {
+        v.isBlank() -> "Enter the agreement text"
+        v.length > max -> "Keep the agreement under ${String.format(Locale.US, "%,d", max)} characters (now ${String.format(Locale.US, "%,d", v.length)})"
+        else -> null
+    }
     fun option(v: String, existing: List<String>): String? = when {
         v.trim().isEmpty() -> "Enter an option"
         existing.any { it.equals(v.trim(), ignoreCase = true) } -> "That option is already on this question"

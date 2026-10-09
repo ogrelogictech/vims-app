@@ -113,7 +113,20 @@ data class CompanyProfile(
     val logoFile: String? = null,
     val agreementName: String? = null,
     val agreementFile: String? = null,
-)
+    /**
+     * The company's edited copy of the VIMS agreement as plain text (Company profile → Edit), or null. Never part of
+     * profileJson: stored in its own `companies.agreementText` / `agreementEditedAt` columns (DB v4) and filled in by
+     * [RoomRepository]. At most one of the edit and the upload ([agreementFile]) is in use; setting one clears the other.
+     */
+    @kotlinx.serialization.Transient val agreementText: String? = null,
+    /** When [agreementText] was last saved (epoch ms). */
+    @kotlinx.serialization.Transient val agreementEditedAt: Long? = null,
+) {
+    /** The company's own uploaded agreement file name, or null. */
+    val uploadedAgreement: String? get() = agreementName?.takeIf { agreementFile != null }
+    /** The edited agreement text in use, or null (an upload always wins over a stale edit). */
+    val editedAgreement: String? get() = agreementText?.takeIf { it.isNotBlank() && uploadedAgreement == null }
+}
 
 @Serializable
 data class AppSettings(

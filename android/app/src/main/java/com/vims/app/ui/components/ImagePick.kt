@@ -84,8 +84,9 @@ fun rememberImageChooser(title: String, canRemove: Boolean, onImage: (Uri) -> Un
     return remember { ImageChooser { visible = true } }
 }
 
+/** One row of a chooser dialog (icon + label, 52dp tall). */
 @Composable
-private fun ChooserRow(icon: ImageVector?, label: String, color: Color = V.ink, onClick: () -> Unit) {
+fun ChooserRow(icon: ImageVector?, label: String, color: Color = V.ink, onClick: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().heightIn(min = 52.dp).clickable(role = Role.Button, onClick = onClick).padding(horizontal = 20.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
