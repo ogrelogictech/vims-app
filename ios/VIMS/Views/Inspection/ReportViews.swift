@@ -294,7 +294,7 @@ struct CoverPicker: View {
                 let opts = covers.categories[cover.category] ?? []
                 if !opts.isEmpty {
                     SectionLabel(text: "Image")
-                    optionGrid(opts, selected: cover.option) { cover.option = $0 }
+                    optionGrid(opts, selected: cover.option, art: { covers.themeArt?[$0] }) { cover.option = $0 }
                 }
                 HStack(spacing: 10) {
                     Button("Back") { step = 1 }.buttonStyle(.vGhost)
@@ -309,12 +309,18 @@ struct CoverPicker: View {
         }
     }
 
-    private func optionGrid(_ options: [String], selected: String, pick: @escaping (String) -> Void) -> some View {
+    private func optionGrid(_ options: [String], selected: String, art: @escaping (String) -> ThemeArtDef? = { _ in nil },
+                            pick: @escaping (String) -> Void) -> some View {
         LazyVGrid(columns: [GridItem(.flexible(), spacing: 9), GridItem(.flexible(), spacing: 9)], spacing: 9) {
             ForEach(options, id: \.self) { o in
                 let on = o == selected
                 Button { pick(o) } label: {
-                    HStack {
+                    HStack(spacing: 8) {
+                        if let img = art(o).flatMap({ CoverArtImages.image($0) }) {
+                            Image(uiImage: img).resizable().aspectRatio(contentMode: .fit)
+                                .frame(width: 34, height: 30)
+                                .accessibilityHidden(true)
+                        }
                         Text(o).font(VFont.ui(13.5, .semibold)).foregroundStyle(on ? VC.brandDeep : VC.ink2)
                             .multilineTextAlignment(.leading)
                         Spacer(minLength: 4)
@@ -332,6 +338,8 @@ struct CoverPicker: View {
     }
 }
 
+/// Cover swatch: the color's gradient with the chosen theme artwork in the corner (bottom-right, or bottom-left for
+/// art the client places on the left such as 4th of July), like the prototype's .coverprev. Solid shows the color name.
 struct CoverArt: View {
     @Environment(AppStore.self) private var store
     let cover: CoverChoice
@@ -339,20 +347,26 @@ struct CoverArt: View {
     var fontSize: CGFloat = 11
 
     var body: some View {
-        let c = store.config.covers.colors.first { $0.name == cover.color } ?? store.config.covers.colors[0]
-        ZStack(alignment: .bottomLeading) {
+        let covers = store.config.covers
+        let c = covers.colors.first { $0.name == cover.color } ?? covers.colors[0]
+        let art = covers.art(for: cover)
+        let leftArt = (art?.rect.first ?? 4) < 3.5
+        let img = art.flatMap { CoverArtImages.image($0) }
+        ZStack(alignment: img == nil ? .bottomLeading : (leftArt ? .bottomLeading : .bottomTrailing)) {
             LinearGradient(colors: [Color(hexString: c.from), Color(hexString: c.to)], startPoint: .topLeading, endPoint: .bottomTrailing)
-            if cover.style == "Framed" {
-                RoundedRectangle(cornerRadius: 4).stroke(Color.white.opacity(0.7), lineWidth: 1.5).padding(7)
-            } else if cover.style == "Shaded" {
-                LinearGradient(colors: [.clear, .black.opacity(0.35)], startPoint: .top, endPoint: .bottom)
+            if let img {
+                Image(uiImage: img).resizable().aspectRatio(contentMode: .fit)
+                    .frame(maxWidth: size.width * 0.92, maxHeight: size.height * 0.92,
+                           alignment: leftArt ? .bottomLeading : .bottomTrailing)
+            } else {
+                Text(cover.artLabel).font(VFont.display(fontSize, .bold)).foregroundStyle(.white)
+                    .shadow(color: .black.opacity(0.5), radius: 2, y: 1)
+                    .padding(8)
             }
-            Text(cover.artLabel).font(VFont.display(fontSize, .bold)).foregroundStyle(.white)
-                .shadow(color: .black.opacity(0.5), radius: 2, y: 1)
-                .padding(8)
         }
         .frame(width: size.width, height: size.height)
         .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+        .accessibilityElement(children: .ignore)
         .accessibilityLabel("Cover preview: \(cover.label)")
     }
 }

@@ -268,7 +268,8 @@ layout is unchanged; iPad-only behavior lives in `Views/Shell/Adaptive.swift`:
 ```
 ios/
   VIMS.xcodeproj           file-system-synchronized groups: VIMS/, ../shared/data, ../shared/fonts,
-                           ../shared/media (splash video), ../shared/icons (README.md excluded)
+                           ../shared/media (splash video), ../shared/icons (README.md excluded),
+                           ../shared/legal, ../shared/covers (report cover theme artwork)
   VIMS-Info.plist          partial Info.plist merged into the generated one (white status bar text, launch color)
   VIMS/
     App/        VIMSApp.swift (entry, RootView, routes), AppStore.swift (state + actions), DebugLaunch.swift
@@ -366,3 +367,21 @@ payment" button are a confirmed add-on and are not built. The report therefore h
 - **Data v1.5** (no code change): Water Feature multi-select (Landscaping / Condo High Detail), Driveway / Parking Lot
   "Slope" + "Incline / Decline" + "Cracked / Buckling", Bushes order, Water Heater "Pilot Light".
 - Screenshots: `screenshots/oct9-*`.
+
+### Report covers from the client's designs (shared data v1.6)
+
+- **PDF cover** (`Writer.cover()` in `Report/ReportRenderer.swift`) follows `covers.layout` (inches on US Letter) and
+  `report.html` `coverPage()`: page box with **Framed** (light fill, 0.75pt black border, soft `deep` glow),
+  **Shaded** (light 0–18% → mid 56% → deep 83–100%, top to bottom) or **Solid** fill; logo top-left; company block
+  top-right; title (Inspection Report / Property Inspection Report / 4-Point Inspection Report); bold Times New Roman
+  labels with values on underlines (4-Point keeps its own rows, with slightly tighter gaps so they end above the
+  photo); the property photo aspect-filled in a 1.25pt box, or an empty box with "Picture of Property."; the
+  ownership footer (+ the Oregon `coverNotice`). The theme artwork (`covers.themeArt`, `shared/covers/*.webp`, a
+  new synchronized group `SharedCovers`) is drawn at its rect over the page and photo, clipped to the page box.
+  The footer wraps beside the art's **visible pixels** in the footer band (the larger free side), and its text is
+  drawn in front so wide art (Fall) never hides it, as on the client's Fall and 4th of July covers.
+- **Cover picker**: the preview swatch shows the chosen artwork in its corner (bottom-left for left-hand art such as
+  4th of July), like the prototype's `.coverprev`; Theme → Image options show a small thumbnail of each artwork.
+- DEBUG: `-cover "Color|Category|Option|Style"` sets the inspection's cover (e.g. with `-screen reportReady -generate`).
+- Screenshots: `screenshots/oct9-cover-*.png` (client Word cover / prototype / iOS PDF page 1 side by side;
+  picker; iPad preview). Summer, Christmas and Spring artwork still carry stock-site watermarks (`themeArtNote`).

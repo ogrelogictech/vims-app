@@ -40,6 +40,7 @@ enum DebugFlags {
 ///   -eulaStatus                print each local account's accepted EULA version to the console
 ///   -mailSelfTest              print the report email draft (to/CC/BCC/subject/attachment) + state-document drafts
 ///   -state XX                  set the chosen inspection's property state (OK summary disclosure, OR cover notice)
+///   -cover "C|Cat|Opt|Style"   set the chosen inspection's report cover (e.g. "Blue|Holidays|4th of July|Shaded")
 ///   -wizState TX[,UT]          pick those states in order when the wizard opens (prints STATETEST lines)
 ///   -ackStateDocs              with -wizState: tick "Provided to the client with the inspection agreement"
 ///   -wizScroll ID              scroll wizard step 1 to a block (sendToAgent, agreementLine, State)
@@ -215,6 +216,11 @@ enum DebugLaunch {
         let id = ridge.id
         // -state XX: set the property state on that inspection (summary disclosure / cover notice checks).
         if let st = value("-state") { store.update(id, markDirty: false) { $0.state = st; $0.stateDocsAck = nil } }
+        // -cover "Color|Category|Option|Style": the report cover on that inspection (PDF cover checks).
+        if let cv = value("-cover") {
+            let p = cv.split(separator: "|", omittingEmptySubsequences: false).map(String.init)
+            if p.count == 4 { store.update(id, markDirty: false) { $0.cover = CoverChoice(color: p[0], category: p[1], option: p[2], style: p[3]) } }
+        }
         if let d = value("-depth"), let depth = Depth(rawValue: d) { store.update(id, markDirty: false) { $0.depth = depth } }
         let depth = store.inspection(id)?.depth ?? .standard
         let section = value("-section") ?? (ridge.leafSections.contains("Roof") ? (depth == .high ? "Outside Utilities" : "Roof") : (ridge.leafSections.first ?? "Roof"))

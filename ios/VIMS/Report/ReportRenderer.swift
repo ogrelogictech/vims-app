@@ -38,8 +38,9 @@ struct ReportData {
     var agent: String
     var inspector: String
     var cover: CoverChoice
-    var coverFrom: UIColor
-    var coverTo: UIColor
+    var coverPalette: CoverPalette
+    var coverArt: ThemeArtDef?
+    var coverLayout: CoverLayoutDef
     var coverPhoto: URL?
     var propertyInfo: [(String, String)]
     var services: [String]
@@ -187,8 +188,9 @@ struct ReportData {
             agent: insp.field("Real estate agent name").isEmpty ? "—" : insp.field("Real estate agent name"),
             inspector: inspectorName,
             cover: insp.cover,
-            coverFrom: UIColor(hexString: colorDef.from),
-            coverTo: UIColor(hexString: colorDef.to),
+            coverPalette: CoverPalette(colorDef),
+            coverArt: cfg.covers.art(for: insp.cover),
+            coverLayout: cfg.covers.layout ?? .fallback,
             coverPhoto: coverPhoto,
             propertyInfo: info,
             services: insp.tests,
@@ -235,6 +237,54 @@ struct ReportData {
             }
         }
         return data
+    }
+}
+
+/// The client's cover fills for one cover color (covers.colors light/mid/deep/solid; older data falls back to from/to).
+struct CoverPalette {
+    let light: UIColor, mid: UIColor, deep: UIColor, solid: UIColor
+
+    init(_ c: CoverColorDef) {
+        light = UIColor(hexString: c.light ?? "#FFFFFF")
+        mid = UIColor(hexString: c.mid ?? c.from)
+        deep = UIColor(hexString: c.deep ?? c.from)
+        solid = UIColor(hexString: c.solid ?? c.from)
+    }
+}
+
+/// Theme artwork images (shared/covers/*.webp, bundled), decoded once and reused by the PDF cover and the picker.
+enum CoverArtImages {
+    private static let cache = NSCache<NSString, UIImage>()
+
+    static func image(_ art: ThemeArtDef) -> UIImage? {
+        if let hit = cache.object(forKey: art.file as NSString) { return hit }
+        guard let url = art.bundleURL, let img = UIImage(contentsOfFile: url.path) else { return nil }
+        cache.setObject(img, forKey: art.file as NSString)
+        return img
+    }
+
+    /// Horizontal extent (inches on the page) of the artwork's visible pixels between two page y's (inches),
+    /// so the footer can wrap beside what is actually drawn rather than the art's whole rectangle.
+    static func visibleSpan(_ art: ThemeArtDef, top: Double, bottom: Double) -> (min: Double, max: Double)? {
+        guard art.rect.count == 4, let cg = image(art)?.cgImage else { return nil }
+        let r = art.rect
+        let y0 = max(top, r[1]), y1 = min(bottom, r[1] + r[3])
+        guard y1 > y0 else { return nil }
+        let w = 240, h = max(Int(Double(w) * r[3] / max(r[2], 0.01)), 1)
+        guard let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w,
+                                  space: CGColorSpaceCreateDeviceGray(), bitmapInfo: CGImageAlphaInfo.alphaOnly.rawValue),
+              let raw = ctx.data else { return nil }
+        ctx.draw(cg, in: CGRect(x: 0, y: 0, width: w, height: h))
+        let px = raw.bindMemory(to: UInt8.self, capacity: ctx.bytesPerRow * h)
+        let stride = ctx.bytesPerRow
+        // bitmap row 0 is the top of the image
+        let rowA = Int((y0 - r[1]) / r[3] * Double(h)), rowB = min(Int(ceil((y1 - r[1]) / r[3] * Double(h))), h)
+        var lo = w, hi = -1
+        for row in rowA..<rowB {
+            for col in 0..<w where px[row * stride + col] > 40 { lo = min(lo, col); hi = max(hi, col) }
+        }
+        guard hi >= lo else { return nil }
+        return (r[0] + Double(lo) / Double(w) * r[2], r[0] + Double(hi + 1) / Double(w) * r[2])
     }
 }
 
@@ -531,27 +581,84 @@ enum ReportRenderer {
 
         // MARK: pages
 
+        // MARK: cover — the client's design ("Cover - Master example", Oct 9 2026; covers.layout, report.html coverPage())
+
+        /// Times New Roman like the client's Word covers (bold for labels, title, footer).
+        func times(_ size: CGFloat, bold: Bool = false) -> UIFont {
+            UIFont(name: bold ? "TimesNewRomanPS-BoldMT" : "TimesNewRomanPSMT", size: size)
+                ?? UIFont(descriptor: UIFont.systemFont(ofSize: size, weight: bold ? .bold : .regular).fontDescriptor.withDesign(.serif)
+                          ?? UIFont.systemFont(ofSize: size).fontDescriptor, size: size)
+        }
+
+        /// One line, cut with an ellipsis when it does not fit (cover field values).
+        func oneLine(_ s: String, _ font: UIFont, x: CGFloat, y: CGFloat, w: CGFloat, align: NSTextAlignment = .left) {
+            let p = NSMutableParagraphStyle()
+            p.alignment = align
+            p.lineBreakMode = .byTruncatingTail
+            (s as NSString).draw(in: CGRect(x: x, y: y, width: max(w, 0), height: font.lineHeight + 2),
+                                 withAttributes: [.font: font, .foregroundColor: UIColor.black, .paragraphStyle: p])
+        }
+
         func cover() {
             ctx.beginPage()
             page += 1
-            let W = ReportRenderer.pageSize.width, H = ReportRenderer.pageSize.height
-            // top brand
-            logoMark(CGRect(x: 34, y: 30, width: 48, height: 48))
-            let (b1, b2) = brandParts
-            text(b1, VFont.uDisplay(17, .heavy), brandDeep, x: 92, y: 34, w: 250)
-            if !b2.isEmpty { text(b2, VFont.uUI(9.5, .semibold), UIColor(hex: 0x7C8A55), x: 92, y: 55, w: 250) }
-            var ay: CGFloat = 32
-            ay += text(d.companyName, VFont.uUI(9.2, .semibold), ink, x: W - 34 - 240, y: ay, w: 240, align: .right, lineSpacing: 1)
-            for l in d.companyAddressLines + [d.companyEmail] where !l.isEmpty {
-                ay += text(l, VFont.uUI(8.4), ink2, x: W - 34 - 240, y: ay, w: 240, align: .right, lineSpacing: 1)
+            let L = d.coverLayout, pal = d.coverPalette
+            func inch(_ v: Double) -> CGFloat { CGFloat(v * 72) }
+            func rect(_ a: [Double]) -> CGRect {
+                a.count == 4 ? CGRect(x: inch(a[0]), y: inch(a[1]), width: inch(a[2]), height: inch(a[3])) : .zero
             }
+            let W = ReportRenderer.pageSize.width
+            let box = rect(L.pageBox)
+
+            // page box: Framed = light + soft deep glow, Shaded = light→mid→deep top to bottom, Solid = solid fill
+            switch d.cover.style {
+            case "Shaded":
+                cg.saveGState()
+                UIBezierPath(rect: box).addClip()
+                let colors = [pal.light, pal.light, pal.mid, pal.deep, pal.deep].map(\.cgColor) as CFArray
+                if let g = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: [0, 0.18, 0.56, 0.83, 1]) {
+                    cg.drawLinearGradient(g, start: CGPoint(x: box.midX, y: box.minY), end: CGPoint(x: box.midX, y: box.maxY), options: [])
+                }
+                cg.restoreGState()
+            case "Solid":
+                fill(box, pal.solid)
+            default:
+                // CSS box-shadow 0 0 0.32in 0.06in deep: only the blurred shadow is wanted, so the shape is drawn
+                // off the page and its shadow offset back under the box.
+                let far: CGFloat = 4000
+                cg.saveGState()
+                cg.setShadow(offset: CGSize(width: far, height: 0), blur: inch(0.32), color: pal.deep.cgColor)
+                fill(box.insetBy(dx: -inch(0.06), dy: -inch(0.06)).offsetBy(dx: -far, dy: 0), pal.deep)
+                cg.restoreGState()
+                fill(box, pal.light)
+            }
+            stroke(box, .black, width: 0.75)
+
+            // company logo (top-left, aspect-fit) and company info (top-right, centered in its box)
+            let logoR = rect(L.logo.rect)
+            if let logo = d.logo {
+                let s = logo.size
+                let k = min(logoR.width / max(s.width, 1), logoR.height / max(s.height, 1))
+                logo.draw(in: CGRect(x: logoR.minX, y: logoR.minY, width: s.width * k, height: s.height * k))
+            } else {
+                let side = min(logoR.width, logoR.height) * 0.8
+                logoMark(CGRect(x: logoR.minX + 4, y: logoR.minY + 4, width: side, height: side))
+            }
+            let infoR = rect(L.companyInfo.rect)
+            var iy = infoR.minY
+            iy += text(d.companyName, times(10.5, bold: true), .black, x: infoR.minX, y: iy, w: infoR.width, align: .center, lineSpacing: 1)
+            for l in d.companyAddressLines + [d.companyPhone, d.companyEmail] where !l.isEmpty && iy < infoR.maxY - 9 {
+                iy += text(l, times(9.5), .black, x: infoR.minX, y: iy, w: infoR.width, align: .center, lineSpacing: 1)
+            }
+
             // title
-            let title = d.layout == .texas ? "Property Inspection Report" : d.layout == .fourPoint ? "4-Point Inspection Report" : "Inspection Report"
-            text(title, VFont.uDisplay(19, .heavy), ink, x: 0, y: 108, w: W, align: .center)
-            // fields
-            var fy: CGFloat = 146
-            let fx: CGFloat = 50, fw = W - 100
-            let rows: [(String, String)] = d.layout == .fourPoint ? [
+            let title = d.layout == .texas ? "Property Inspection Report" : d.layout == .fourPoint ? "4-Point Inspection Report" : L.title.text
+            let tf = times(CGFloat(L.title.size), bold: true)
+            oneLine(title, tf, x: 0, y: inch(L.title.centerY) - tf.lineHeight / 2, w: W, align: .center)
+
+            // fields: bold labels, values on an underline. The address continuation (and the row after it) sit closer.
+            let four = d.layout == .fourPoint
+            let rows: [(String, String)] = four ? [
                 ("Insured / Applicant", d.insuredName.isEmpty ? d.clientName : d.insuredName),
                 ("Application / Policy #", d.policyNumber.isEmpty ? "—" : d.policyNumber),
                 ("Address Inspected", d.addressLine1), ("", d.addressRest),
@@ -560,70 +667,97 @@ enum ReportRenderer {
                 ("Client Name", d.clientName), ("Address of Inspection", d.addressLine1), ("", d.addressRest),
                 ("Date of Inspection", d.date), ("Real Estate Agent", d.agent)
             ]
-            for (l, v) in rows {
-                let lw: CGFloat = l.isEmpty ? 0 : (l as NSString).size(withAttributes: [.font: VFont.uUI(11, .bold)]).width + 9
-                if !l.isEmpty { text(l, VFont.uUI(11, .bold), ink, x: fx, y: fy + 4, w: lw) }
-                text(v, VFont.uUI(14), ink, x: fx + lw, y: fy, w: fw - lw)
-                hline(fy + 20, x: fx + lw, w: fw - lw, UIColor(hex: 0x9FB0C2), width: 0.8)
-                fy += 28
+            let lf = times(13, bold: true), vf = times(13)
+            let fx = inch(L.fields.left), fr = inch(L.fields.right)
+            // 4-Point has one more row than the client's master; tighten its gaps so the block still ends above the photo.
+            let gap = inch(four ? L.fields.lineGap * 0.83 : L.fields.lineGap)
+            let shortGap = gap * 0.766   // 0.36in for the 0.47in master gap
+            let pad: CGFloat = 3.6       // value inset from the start of its underline
+            func underline(_ x: CGFloat, _ w: CGFloat, _ rowY: CGFloat) {
+                hline(rowY + lf.lineHeight + 1.2, x: x, w: w, .black, width: 0.75)
             }
-            // Name of Inspector + License # (all report types)
-            do {
-                let lf = VFont.uUI(11, .bold)
-                let nl = ("Name of Inspector" as NSString).size(withAttributes: [.font: lf]).width + 9
-                let ll = ("License #" as NSString).size(withAttributes: [.font: lf]).width + 9
-                let licW: CGFloat = 108
-                let nameW = fw - nl - ll - licW - 10
-                text("Name of Inspector", lf, ink, x: fx, y: fy + 4, w: nl)
-                text(d.inspector, VFont.uUI(14), ink, x: fx + nl, y: fy, w: nameW)
-                hline(fy + 20, x: fx + nl, w: nameW, UIColor(hex: 0x9FB0C2), width: 0.8)
-                let lx = fx + nl + nameW + 10
-                text("License #", lf, ink, x: lx, y: fy + 4, w: ll)
-                text(d.license, VFont.uUI(14), ink, x: lx + ll, y: fy, w: licW)
-                hline(fy + 20, x: lx + ll, w: licW, UIColor(hex: 0x9FB0C2), width: 0.8)
-                fy += 28
-            }
-            // image area — the bottom band grows when a state cover notice (Oregon) is printed under the ownership notice
-            let ownership = "This inspection report is the property of \(d.companyName). Any reproduction or distribution without written consent is prohibited."
-            let noticeW = W * 0.58
-            let ownershipH = measure(ownership, VFont.uDisplay(10.5, .bold), w: noticeW, lineSpacing: 3)
-            let coverNoticeH = d.coverNotice.isEmpty ? 0 : measure(d.coverNotice, VFont.uUI(9.2, .semibold), w: noticeW, lineSpacing: 2) + 6
-            let bandH: CGFloat = max(92, 22 + ownershipH + coverNoticeH + 18)
-            let img = CGRect(x: 50, y: fy + 14, width: W - 100, height: H - bandH - 16 - (fy + 14))
-            let photo = d.coverPhoto.flatMap { loadImage($0, maxPixel: 1800) }
-            switch d.cover.style {
-            case "Solid":
-                gradient(img, d.coverFrom, d.coverTo, radius: 5)
-                text(d.cover.artLabel, VFont.uDisplay(26, .heavy), .white, x: img.minX, y: img.midY - 18, w: img.width, align: .center)
-            case "Shaded":
-                if let photo { image(photo, fill: img, radius: 5) } else { gradient(img, d.coverFrom, d.coverTo, radius: 5) }
-                cg.saveGState()
-                UIBezierPath(roundedRect: img, cornerRadius: 5).addClip()
-                gradient(img, d.coverFrom.withAlphaComponent(0.15), d.coverTo.withAlphaComponent(0.75))
-                cg.restoreGState()
-                text(d.cover.artLabel, VFont.uDisplay(15, .heavy), .white, x: img.minX + 16, y: img.maxY - 34, w: img.width - 32)
-            default: // Framed
-                gradient(img, d.coverFrom, d.coverTo, radius: 5)
-                let inner = img.insetBy(dx: 12, dy: 12)
-                if let photo { image(photo, fill: inner, radius: 3) } else {
-                    fill(inner, UIColor.white.withAlphaComponent(0.12), radius: 3)
-                    text(d.cover.artLabel, VFont.uDisplay(22, .heavy), .white, x: inner.minX, y: inner.midY - 14, w: inner.width, align: .center)
+            var fy = inch(L.fields.top)
+            for (i, (l, v)) in rows.enumerated() {
+                var vx = fx
+                if !l.isEmpty {
+                    oneLine(l, lf, x: fx, y: fy, w: fr - fx)
+                    vx = fx + (l as NSString).size(withAttributes: [.font: lf]).width + 5
                 }
-                stroke(inner, UIColor.white.withAlphaComponent(0.85), radius: 3, width: 1.5)
+                underline(vx, fr - vx, fy)
+                oneLine(v, vf, x: vx + pad, y: fy, w: fr - vx - pad * 2)
+                let nextIsCont = i + 1 < rows.count && rows[i + 1].0.isEmpty
+                fy += (l.isEmpty || nextIsCont) ? shortGap : gap
             }
-            // bottom band
-            let band = CGRect(x: 0, y: H - bandH, width: W, height: bandH)
-            gradient(band, d.coverFrom, d.coverTo)
-            text(ownership, VFont.uDisplay(10.5, .bold), .white, x: 40, y: band.minY + 22, w: noticeW, lineSpacing: 3)
-            if !d.coverNotice.isEmpty {
-                text(d.coverNotice, VFont.uUI(9.2, .semibold), .white, x: 40, y: band.minY + 22 + ownershipH + 6, w: noticeW, lineSpacing: 2)
+            do {   // Name of Inspector + License # on one line (all report types)
+                let licW = inch(1.445)
+                let nl = ("Name of Inspector" as NSString).size(withAttributes: [.font: lf]).width + 5
+                let ll = ("License #" as NSString).size(withAttributes: [.font: lf]).width + 5
+                let lx = fr - licW - ll
+                let nameEnd = lx - inch(0.12)
+                oneLine("Name of Inspector", lf, x: fx, y: fy, w: nl)
+                underline(fx + nl, nameEnd - fx - nl, fy)
+                oneLine(d.inspector, vf, x: fx + nl + pad, y: fy, w: nameEnd - fx - nl - pad * 2)
+                oneLine("License #", lf, x: lx, y: fy, w: ll)
+                underline(lx + ll, licW, fy)
+                oneLine(d.license, vf, x: lx + ll + pad, y: fy, w: licW - pad * 2)
             }
-            text("Cover artwork", VFont.uUI(8.5), UIColor(hex: 0xCFE0FF), x: W - 40 - 200, y: band.minY + 26, w: 200, align: .right)
-            let tag = d.cover.label
-            let tw = (tag as NSString).size(withAttributes: [.font: VFont.uUI(7.5)]).width + 14
-            let tagR = CGRect(x: W - 40 - tw, y: band.minY + 42, width: tw, height: 15)
-            fill(tagR, UIColor.white.withAlphaComponent(0.16), radius: 7.5)
-            text(tag, VFont.uUI(7.5), .white, x: tagR.minX, y: tagR.minY + 2.5, w: tw, align: .center)
+
+            // footer: ownership notice (+ the state's cover notice, e.g. Oregon). When the theme art reaches the footer
+            // band it wraps into the free space beside the art's visible pixels (the larger side), like the client's covers.
+            let art = d.coverArt
+            var fl = 0.55, frr = 7.95
+            if let a = art, let span = CoverArtImages.visibleSpan(a, top: 9.35, bottom: 9.95) {
+                if span.min - fl >= frr - span.max { frr = max(span.min - 0.05, 3.6) } else { fl = min(span.max + 0.05, 4.9) }
+            }
+            let footX = inch(fl), footW = inch(frr - fl)
+            let ownership = L.footer.text.replacingOccurrences(of: "{companyName}", with: d.companyName)
+            let ff = times(CGFloat(L.footer.size), bold: true), nf = times(9.5, bold: true)
+            let ownH = measureCentered(ownership, ff, w: footW)
+            let noticeH = d.coverNotice.isEmpty ? 0 : measureCentered(d.coverNotice, nf, w: footW) + 4
+            let footH = ownH + noticeH
+            let footY = min(inch(L.footer.centerY) - footH / 2, box.maxY - 6 - footH)
+
+            // property photo: aspect-fill and clipped; the box gives way when a long footer (Oregon notice) needs the room
+            var pb = rect(L.photoBox.rect)
+            if pb.maxY > footY - 5 { pb.size.height = max(footY - 5 - pb.minY, pb.height * 0.6) }
+            if let photo = d.coverPhoto.flatMap({ loadImage($0, maxPixel: 1800) }) {
+                fill(pb, .white)
+                image(photo, fill: pb)
+            } else {
+                text("Picture of\nProperty.", times(9), .black, x: box.minX + 4, y: pb.minY + 1, w: pb.minX - box.minX - 8, lineSpacing: 0)
+            }
+            let bw = CGFloat(L.photoBox.border)
+            stroke(pb, .black, width: bw)
+
+            // theme artwork over the page and the photo box, clipped to the page box
+            if let a = art, a.rect.count == 4, let img = CoverArtImages.image(a) {
+                cg.saveGState()
+                UIBezierPath(rect: box).addClip()
+                img.draw(in: rect(a.rect))
+                cg.restoreGState()
+            }
+            // the footer text stays in front where wide art still reaches it (the client's Fall / 4th of July covers)
+            textCentered(ownership, ff, x: footX, y: footY, w: footW)
+            if !d.coverNotice.isEmpty { textCentered(d.coverNotice, nf, x: footX, y: footY + ownH + 4, w: footW) }
+        }
+
+        private func centeredAttr(_ s: String, _ font: UIFont) -> NSAttributedString {
+            let p = NSMutableParagraphStyle()
+            p.alignment = .center
+            p.lineBreakMode = .byWordWrapping
+            p.lineHeightMultiple = 1.08
+            return NSAttributedString(string: s, attributes: [.font: font, .foregroundColor: UIColor.black, .paragraphStyle: p])
+        }
+
+        func measureCentered(_ s: String, _ font: UIFont, w: CGFloat) -> CGFloat {
+            ceil(centeredAttr(s, font).boundingRect(with: CGSize(width: w, height: .greatestFiniteMagnitude),
+                                                    options: [.usesLineFragmentOrigin, .usesFontLeading], context: nil).height)
+        }
+
+        func textCentered(_ s: String, _ font: UIFont, x: CGFloat, y: CGFloat, w: CGFloat) {
+            let a = centeredAttr(s, font)
+            a.draw(with: CGRect(x: x, y: y, width: w, height: measureCentered(s, font, w: w) + 2),
+                   options: [.usesLineFragmentOrigin, .usesFontLeading], context: nil)
         }
 
         func propertyInformation() {

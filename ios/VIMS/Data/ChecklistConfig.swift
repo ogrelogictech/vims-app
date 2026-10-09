@@ -255,7 +255,17 @@ struct FindingsDef: Decodable {
 
 struct FindingCategoryDef: Decodable, Hashable { let id: Int; let label: String; let note: String }
 
-struct CoverColorDef: Decodable, Hashable { let name: String; let from: String; let to: String }
+/// from/to: app UI swatch gradient. light/mid/deep/solid (v1.6): the client's cover design fills —
+/// page fill (Framed), Shaded gradient stops, Framed glow (deep), Solid fill.
+struct CoverColorDef: Decodable, Hashable {
+    let name: String
+    let from: String
+    let to: String
+    let light: String?
+    let mid: String?
+    let deep: String?
+    let solid: String?
+}
 
 struct CoversDef: Decodable {
     let colors: [CoverColorDef]
@@ -263,6 +273,49 @@ struct CoversDef: Decodable {
     let styles: [String]
     let solidStyle: String
     let `default`: CoverDefault
+    /// v1.6: the client's cover layout (inches on US Letter) and the theme artwork per image option.
+    let layout: CoverLayoutDef?
+    let themeArt: [String: ThemeArtDef]?
+
+    /// The theme artwork for a cover choice (nil for the Solid category or an unknown option).
+    func art(for c: CoverChoice) -> ThemeArtDef? {
+        c.category == "Solid" ? nil : themeArt?[c.option]
+    }
+}
+
+/// `covers.layout` — the client's "Cover - Master example". Every rect is [x, y, w, h] in inches, origin top-left.
+struct CoverLayoutDef: Decodable {
+    struct Box: Decodable { let rect: [Double] }
+    struct Title: Decodable { let text: String; let centerY: Double; let size: Double }
+    struct Fields: Decodable { let top: Double; let lineGap: Double; let left: Double; let right: Double }
+    struct PhotoBox: Decodable { let rect: [Double]; let border: Double }
+    struct Footer: Decodable { let centerY: Double; let size: Double; let text: String }
+
+    var pageBox: [Double] = [0.5, 0.68, 7.48, 9.52]
+    var logo = Box(rect: [0.6, 0.75, 1.6, 1.1])
+    var companyInfo = Box(rect: [4.3, 0.8, 3.55, 1.1])
+    var title = Title(text: "Inspection Report", centerY: 2.17, size: 20)
+    var fields = Fields(top: 2.62, lineGap: 0.47, left: 1.3, right: 7.2)
+    var photoBox = PhotoBox(rect: [1.2, 5.1, 6.08, 4.15], border: 1.25)
+    var footer = Footer(centerY: 9.65, size: 11,
+                        text: "This inspection report is the property of {companyName}.\nAny reproduction or distribution without written consent is prohibited.")
+
+    static let fallback = CoverLayoutDef()
+    init() {}
+}
+
+/// `covers.themeArt[option]` — a transparent artwork (shared/covers/*.webp) placed at `rect` (inches) on the cover.
+struct ThemeArtDef: Decodable, Hashable {
+    let file: String
+    let rect: [Double]
+
+    /// shared/covers is a synchronized group, so the file is copied into the app bundle.
+    var bundleURL: URL? {
+        let base = ((file as NSString).lastPathComponent as NSString).deletingPathExtension
+        let ext = (file as NSString).pathExtension.isEmpty ? "webp" : (file as NSString).pathExtension
+        return Bundle.main.url(forResource: base, withExtension: ext)
+            ?? Bundle.main.url(forResource: base, withExtension: ext, subdirectory: "covers")
+    }
 }
 
 struct CoverDefault: Decodable { let color: String; let category: String; let option: String; let style: String }
