@@ -49,7 +49,7 @@ struct SectionAnswers: Codable, Hashable {
     var choices: [String: [String]] = [:]   // item key -> selected options
     var text: [String: String] = [:]        // item key -> text/num/date/time value
     var detail: [String: String] = [:]      // item key -> "Detail / measurement" (High Detail fallback)
-    var present: [String] = []              // Fast Entry "Items present"
+    var present: [String] = []              // Fast Entry "Items reviewed" (stored as `present` for saved data)
     var overall: String?
     var comments: String = ""
 
@@ -77,6 +77,9 @@ struct Finding: Codable, Hashable, Identifiable {
     var section: String
     var photoID: UUID?
     var createdAt: Date = Date()
+    /// The checklist item a "Concern(s)" answer was flagged on (its question), nil for a section / photo finding.
+    /// Optional so findings saved before it still decode. TODO(backend): sync with the finding.
+    var item: String? = nil
 }
 
 // MARK: - Cover
@@ -368,10 +371,22 @@ struct PlatformSettings: Codable, Hashable {
     }
 }
 
-/// Who owns the VIMS platform (Jeremy). TODO(backend): the server returns an isPlatformOwner flag / role.
+/// VIMS platform owners (system admins) — the shared JSON `support.platformOwners` list (data v1.5), several
+/// allowed so the client always has at least two. Matched case-insensitively after trimming. No password is
+/// stored or seeded for these accounts: the owner creates an account / signs in with the email and their own
+/// password, and gets the VIMS owner settings when the email is listed.
+/// TODO(backend): the server owns this list and returns an isPlatformOwner flag / role with the session.
 enum PlatformOwner {
-    static let email = "jeremy@visionpropertyinspections.com"
-    static func isOwner(email: String) -> Bool { email.caseInsensitiveCompare(Self.email) == .orderedSame }
+    static func normalized(_ email: String) -> String { email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+
+    static func emails(_ config: ChecklistConfig) -> [String] {
+        (config.support.platformOwners ?? []).map(normalized).filter { !$0.isEmpty }
+    }
+
+    static func isOwner(email: String, config: ChecklistConfig) -> Bool {
+        let e = normalized(email)
+        return !e.isEmpty && emails(config).contains(e)
+    }
 }
 
 struct Session: Codable, Hashable {

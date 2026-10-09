@@ -288,6 +288,8 @@ struct SupportDef: Decodable {
     let reportBcc: ReportBccDef?
     /// v1.3: present → every emailed report is CC'd to the signed-in inspector's own email.
     let ccInspector: CCInspectorDef?
+    /// v1.5: VIMS platform owner emails (case-insensitive) — see `PlatformOwner`. TODO(backend): server-owned.
+    let platformOwners: [String]?
 }
 
 struct CCInspectorDef: Decodable {}

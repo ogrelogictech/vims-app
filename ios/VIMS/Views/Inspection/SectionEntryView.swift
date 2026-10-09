@@ -10,7 +10,8 @@ struct SectionEntryView: View {
     @State private var answers = SectionAnswers()
     @State private var loaded = false
     @State private var drawerOpen = false
-    @State private var showFinding = false
+    /// The finding sheet: "Flag a finding" for the section, or a concern on one checklist item.
+    @State private var findingPrompt: FindingPrompt?
     @State private var errors = FormErrors()
 
     var body: some View {
@@ -41,9 +42,18 @@ struct SectionEntryView: View {
             .onChange(of: answers) { _, new in
                 if loaded { store.setAnswers(inspectionID, section, new) }
             }
-            .sheet(isPresented: $showFinding) {
-                FindingSheet(section: section) { cat, text in
-                    store.addFinding(inspectionID, category: cat, text: text, section: section)
+            .sheet(item: $findingPrompt) { prompt in
+                switch prompt {
+                case .flag:
+                    FindingSheet(section: section) { cat, text in
+                        store.addFinding(inspectionID, category: cat, text: text, section: section)
+                    }
+                case .concern(let item):
+                    // Client Oct 9: choosing "Concerns" / "Concern" on a Standard / High Detail item opens this.
+                    FindingSheet(section: section, title: "Concern: \(item)",
+                                 subtitle: "Describe the concern for this item and pick a category. It's added to the summary and the report automatically.") { cat, text in
+                        store.addFinding(inspectionID, category: cat, text: text, section: section, item: item)
+                    }
                 }
             }
         }
@@ -67,7 +77,7 @@ struct SectionEntryView: View {
         if depth == .fast {
             let questions = (store.catalog.section(section)?.items ?? []).compactMap(\.q)
             if !questions.isEmpty {
-                SectionLabel(text: "Items present", top: 2)
+                SectionLabel(text: "Items reviewed", top: 2)
                 ChipGroup(options: questions, selection: $answers.present, single: false)
             }
         } else {
@@ -78,7 +88,8 @@ struct SectionEntryView: View {
                         HeaderBand(text: h, first: idx == 0)
                     } else {
                         ItemCard(item: k.item, key: k.id, answers: $answers, errors: errors,
-                                 showDetail: depth == .high && !resolved.usingHigh)
+                                 showDetail: depth == .high && !resolved.usingHigh,
+                                 onConcern: insp.hasSummary ? { q in findingPrompt = .concern(q) } : nil)
                     }
                 }
             }
@@ -97,7 +108,7 @@ struct SectionEntryView: View {
 
         let secFindings = insp.findings.filter { $0.section == section }
         if insp.hasSummary {
-            Button { showFinding = true } label: {
+            Button { findingPrompt = .flag } label: {
                 IconLabel(secFindings.isEmpty ? "Flag a finding" : "Flag a finding · \(secFindings.count) flagged", icon: "flag")
             }
             .buttonStyle(VButtonStyle(kind: .ghost, minHeight: 46))
@@ -155,6 +166,17 @@ struct SectionEntryView: View {
     private func replaceSection(_ next: String) {
         if case .section = store.path.last { store.path.removeLast() }
         store.path.append(store.sectionRoute(inspectionID, next))
+    }
+}
+
+enum FindingPrompt: Identifiable, Hashable {
+    case flag
+    case concern(String)
+    var id: String {
+        switch self {
+        case .flag: return "flag"
+        case .concern(let q): return "concern:\(q)"
+        }
     }
 }
 
@@ -217,6 +239,13 @@ struct ItemCard: View {
     @Binding var answers: SectionAnswers
     var errors: FormErrors? = nil
     var showDetail = false
+    /// Called with the item's question when "Concerns" / "Concern" is newly selected (opens the concern sheet).
+    var onConcern: ((String) -> Void)? = nil
+
+    static func isConcern(_ option: String) -> Bool {
+        let o = option.trimmingCharacters(in: .whitespaces)
+        return o == "Concern" || o == "Concerns"
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -227,7 +256,14 @@ struct ItemCard: View {
             switch item.kind {
             case .single, .multi:
                 ChipGroup(options: item.options ?? [],
-                          selection: Binding(get: { answers.choices[key] ?? [] }, set: { answers.choices[key] = $0.isEmpty ? nil : $0 }),
+                          selection: Binding(get: { answers.choices[key] ?? [] }, set: { new in
+                              let old = answers.choices[key] ?? []
+                              answers.choices[key] = new.isEmpty ? nil : new
+                              // Deselecting never removes a finding; Cancel in the sheet keeps the option selected.
+                              if let onConcern, let q = item.q, new.contains(where: { Self.isConcern($0) && !old.contains($0) }) {
+                                  onConcern(q)
+                              }
+                          }),
                           single: item.kind == .single)
                 if showDetail {
                     VTextField(text: textBinding(\.detail), placeholder: "Detail / measurement (optional)", bottom: 0)
@@ -303,14 +339,19 @@ struct FindingSheet: View {
     @Environment(AppStore.self) private var store
     @Environment(\.dismiss) private var dismiss
     let section: String
+    var title = "Flag a finding"
+    var subtitle = "Pick a category and add a note. It's added to the summary and the report automatically."
     let onAdd: (Int, String) -> Void
 
     @State private var category = 2
     @State private var text: String
     @State private var quick: String?
 
-    init(section: String, initialText: String = "", onAdd: @escaping (Int, String) -> Void) {
+    init(section: String, initialText: String = "", title: String? = nil, subtitle: String? = nil,
+         onAdd: @escaping (Int, String) -> Void) {
         self.section = section
+        if let title { self.title = title }
+        if let subtitle { self.subtitle = subtitle }
         self.onAdd = onAdd
         _text = State(initialValue: initialText)
     }
@@ -318,8 +359,9 @@ struct FindingSheet: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                Text("Flag a finding").font(VFont.display(18, .bold)).foregroundStyle(VC.ink).padding(.bottom, 4)
-                Text("Pick a category and add a note. It's added to the summary and the report automatically.")
+                Text(title).font(VFont.display(18, .bold)).foregroundStyle(VC.ink).padding(.bottom, 4)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(subtitle)
                     .font(VFont.ui(13)).foregroundStyle(VC.ink3).padding(.bottom, 16)
                     .fixedSize(horizontal: false, vertical: true)
                 HStack(spacing: 9) {

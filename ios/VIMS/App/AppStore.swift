@@ -195,7 +195,7 @@ final class AppStore {
         let me = c.profile.inspectors.first { $0.id == u.id || $0.email.caseInsensitiveCompare(u.email) == .orderedSame }
         let blank = DemoSeed.emptyState(config: config)
         state = AppState(session: Session(name: u.name, email: u.email, inspectorID: me?.id ?? u.id, isAdmin: me?.isAdmin ?? false,
-                                         isPlatformOwner: PlatformOwner.isOwner(email: u.email)),
+                                         isPlatformOwner: PlatformOwner.isOwner(email: u.email, config: config)),
                          company: c.profile, subscription: c.subscription, overrides: c.overrides,
                          settings: u.settings ?? blank.settings, seededAt: nil)
         inspections = repo.inspections(userID: u.id)
@@ -464,10 +464,14 @@ final class AppStore {
 
     // MARK: Findings
 
-    func addFinding(_ id: UUID, category: Int, text: String, section: String, photo: (String, UUID)? = nil) {
-        let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    /// `item`: a checklist item's question when the finding comes from its "Concern(s)" answer — the text is then
+    /// "<item>: <description>" (prototype `saveFinding`), and the item is kept on the finding.
+    func addFinding(_ id: UUID, category: Int, text: String, section: String, photo: (String, UUID)? = nil, item: String? = nil) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        var t = trimmed.isEmpty ? "Finding noted" : trimmed
+        if let item { t = "\(item): \(t)" }
         update(id) { insp in
-            insp.findings.append(Finding(category: category, text: t.isEmpty ? "Finding noted" : t, section: section, photoID: photo?.1))
+            insp.findings.append(Finding(category: category, text: t, section: section, photoID: photo?.1, item: item))
             if let (cat, pid) = photo, let i = insp.photos[section]?[cat]?.firstIndex(where: { $0.id == pid }) {
                 insp.photos[section]?[cat]?[i].flag = category
             }
