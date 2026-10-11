@@ -101,6 +101,8 @@ object VIcons {
     val flag by lazy { s("flag") { icon("flag", "M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z", "M4 22v-7") } }
     val undo by lazy { s("clear-stamp-button") { icon("undo", "M9 14 4 9l5-5", "M4 9h11a5 5 0 0 1 5 5v1a5 5 0 0 1-5 5H9") } }
     val trash by lazy { icon("trash", "M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14") }
+    /** "⋯" more options (row overflow menus). */
+    val more by lazy { icon("more", c(5f, 12f, 1f), c(12f, 12f, 1f), c(19f, 12f, 1f), stroke = 2.4f) }
     val copy by lazy { icon("copy", r(9f, 9f, 13f, 13f, 2f), "M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1") }
     val clock by lazy { s("free-trial-days") { icon("clock", "M12 8v4l3 2", c(12f, 12f, 9f)) } }
     val clockFull by lazy { icon("clockFull", c(12f, 12f, 10f), "M12 6v6l4 2") }

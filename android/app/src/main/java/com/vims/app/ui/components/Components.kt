@@ -3,6 +3,7 @@ package com.vims.app.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -525,10 +526,13 @@ fun LeadInitials(initials: String, size: Dp = 44.dp, circle: Boolean = false) {
 fun ListRow(
     title: String, subtitle: String? = null, onClick: (() -> Unit)? = null, lead: (@Composable () -> Unit)? = null,
     end: (@Composable RowScope.() -> Unit)? = null, chevron: Boolean = false, modifier: Modifier = Modifier, titleMaxLines: Int = 1,
+    onLongClick: (() -> Unit)? = null, onLongClickLabel: String? = null, endPadding: Dp = 15.dp,
 ) {
     var m = modifier.padding(bottom = 10.dp).fillMaxWidth().vCard()
-    if (onClick != null) m = m.clickable(role = Role.Button, onClick = onClick)
-    Row(m.padding(horizontal = 15.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(13.dp)) {
+    if (onClick != null && onLongClick != null) {
+        m = m.combinedClickable(role = Role.Button, onLongClickLabel = onLongClickLabel, onLongClick = onLongClick, onClick = onClick)
+    } else if (onClick != null) m = m.clickable(role = Role.Button, onClick = onClick)
+    Row(m.padding(start = 15.dp, end = endPadding, top = 14.dp, bottom = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(13.dp)) {
         lead?.invoke()
         Column(Modifier.weight(1f)) {
             Text(title, style = T.ui(15.sp, FontWeight.SemiBold, V.ink), maxLines = titleMaxLines, overflow = TextOverflow.Ellipsis)

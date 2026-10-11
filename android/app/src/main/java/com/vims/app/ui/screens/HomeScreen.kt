@@ -149,14 +149,14 @@ fun HomeScreen(vm: AppViewModel, nav: NavHostController) {
         }
         Lbl("Today · ${Fmt.dayHeader(today)}")
         if (todays.isEmpty()) Text("No inspections scheduled today.", style = T.ui(13.sp, color = V.ink3), modifier = Modifier.padding(bottom = 10.dp))
-        todays.forEach { InspectionRow(it, nav, showTime = true) }
+        todays.forEach { InspectionRow(vm, it, nav, showTime = true) }
         if (upcoming.isNotEmpty()) {
             Lbl("Upcoming")
-            upcoming.forEach { InspectionRow(it, nav, showTime = true, showDate = true) }
+            upcoming.forEach { InspectionRow(vm, it, nav, showTime = true, showDate = true) }
         }
         if (recent.isNotEmpty()) {
             Lbl("Recent")
-            recent.forEach { InspectionRow(it, nav, showTime = false) }
+            recent.forEach { InspectionRow(vm, it, nav, showTime = false) }
         }
         VBtn("New inspection", { nav.navigate(WizardR()) }, Modifier.padding(top = 14.dp), icon = VIcons.plus)
         VBtn("Settings", { nav.navigate(SettingsR) }, Modifier.padding(top = 10.dp), BtnKind.Ghost, icon = VIcons.settings)
@@ -237,7 +237,7 @@ private fun Stat(n: String, label: String, modifier: Modifier) {
 }
 
 @Composable
-private fun InspectionRow(b: InspectionBundle, nav: NavHostController, showTime: Boolean, showDate: Boolean = false) {
+private fun InspectionRow(vm: AppViewModel, b: InspectionBundle, nav: NavHostController, showTime: Boolean, showDate: Boolean = false) {
     val s = b.inspection.selections
     val city = shortCity(s.cityLine)
     val sub = if (showTime) {
@@ -245,12 +245,17 @@ private fun InspectionRow(b: InspectionBundle, nav: NavHostController, showTime:
     } else {
         "${Fmt.shortDate(s.date)} · ${if (b.inspection.status == InspStatus.DONE) "Report sent" else propertyLabel(s.structure)}"
     }
+    val title = s.street.ifBlank { "Untitled inspection" }
+    // "⋯" menu (Save or share report · Delete inspection); long-pressing the row opens the same menu.
+    var menu by androidx.compose.runtime.saveable.rememberSaveable(b.id) { androidx.compose.runtime.mutableStateOf(false) }
     ListRow(
-        title = s.street.ifBlank { "Untitled inspection" }, subtitle = sub, onClick = { nav.navigate(SectionsR(b.id)) },
+        title = title, subtitle = sub, onClick = { nav.navigate(SectionsR(b.id)) },
+        onLongClick = { menu = true }, onLongClickLabel = "More options",
         lead = {
             if (showTime) { val (t, ap) = Fmt.timeParts(s.time); LeadTime(t, ap) } else LeadIcon(VIcons.fileLines)
         },
-        end = { statusPill(b) },
+        end = { statusPill(b); InspectionMoreButton(vm, b, title, menu) { menu = it } },
+        endPadding = 4.dp, // the 48dp "⋯" target carries its own whitespace
     )
 }
 

@@ -112,6 +112,7 @@ fun SectionsScreen(vm: AppViewModel, nav: NavHostController, inspId: String) {
         }
         if (b.inspection.hasSummary) VBtn("Review summary", { nav.navigate(SummaryR(inspId)) }, Modifier.padding(top = 8.dp), BtnKind.Signal, icon = VIcons.reviewSummary)
         VBtn("Generate report", { nav.navigate(ReportR(inspId)) }, Modifier.padding(top = if (b.inspection.hasSummary) 10.dp else 8.dp), icon = VIcons.file)
+        DeleteInspectionButton(vm, nav, b, Modifier.padding(top = 22.dp))
     }
 }
 

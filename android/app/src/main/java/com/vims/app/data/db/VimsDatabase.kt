@@ -142,6 +142,19 @@ interface VimsDao {
     @Transaction
     suspend fun replaceFindings(id: String, userId: String, f: List<FindingEntity>) { deleteFindings(id, userId); insertFindings(f) }
 
+    @Query("DELETE FROM section_answers WHERE inspectionId = :id AND userId = :userId") suspend fun deleteAnswers(id: String, userId: String)
+    @Query("DELETE FROM inspections WHERE id = :id AND userId = :userId") suspend fun deleteInspectionRow(id: String, userId: String): Int
+
+    /**
+     * Deletes one inspection owned by [userId] (answers, photos and findings too — explicitly, in addition to the FK cascade).
+     * Returns false when no inspection with that id belongs to that user (nothing is touched).
+     */
+    @Transaction
+    suspend fun deleteInspection(id: String, userId: String): Boolean {
+        deleteAnswers(id, userId); deletePhotos(id, userId); deleteFindings(id, userId)
+        return deleteInspectionRow(id, userId) > 0
+    }
+
     @Transaction
     suspend fun putBundle(i: InspectionEntity, a: List<AnswerEntity>, p: List<PhotoEntity>, f: List<FindingEntity>) {
         upsertInspection(i); upsertAnswers(a); replacePhotos(i.id, i.userId, p); replaceFindings(i.id, i.userId, f)

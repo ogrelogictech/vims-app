@@ -63,6 +63,11 @@ interface VimsRepository {
     /** The signed-in user's own profile photo (relative to filesDir), or null → initials. */
     val userPhoto: StateFlow<String?>
     fun setUserPhoto(relative: String?)
+    /**
+     * Deletes one of the signed-in inspector's own inspections from this device: the Room rows (answers, photos, findings)
+     * and its files (vims/users/<userId>/inspections/<id>/ — photos/ and report/). Returns false when it isn't theirs.
+     */
+    suspend fun deleteInspection(id: String): Boolean
     /** Deletes the signed-in user (and, for a sole owner, the company). Returns an error message when blocked. */
     suspend fun deleteAccount(): String?
 
@@ -197,6 +202,26 @@ class RoomRepository(filesDir: File, private val dao: VimsDao, private val owner
         dao.deleteKv(KEY_SESSION)
         clearMemory()
         null
+    }
+
+    override suspend fun deleteInspection(id: String): Boolean {
+        val u = uid ?: return false
+        // Only the inspector who owns it: the in-memory map holds the signed-in user's inspections only, and the DAO
+        // deletes by (id, userId). TODO(backend): once the VIMS server is live, reports are retained server-side
+        // (reports 3 years, agreements 5 years), so deleting here only frees space on this device.
+        val b = _inspections.value[id] ?: return false
+        _inspections.update { it - id }
+        // On the serial writer, so every write already queued for this inspection lands first and nothing re-creates it.
+        return withContext(writer) {
+            val ok = dao.deleteInspection(id, u)
+            val userDir = File(root, "users/$u").canonicalFile
+            fun inUserDir(f: File) = f.canonicalFile.let { it.path.startsWith(userDir.path + File.separator) }
+            // Files referenced from the data (photos, generated report) — normally inside the folder below.
+            (b.photos.map { photoFile(it) } + listOfNotNull(b.inspection.reportFile?.let { File(root.parentFile, it) }))
+                .filter { inUserDir(it) }.forEach { it.delete() }
+            File(userDir, "inspections/$id").takeIf { inUserDir(it) }?.deleteRecursively()
+            ok
+        }
     }
 
     override suspend fun acceptEula(version: String) = withContext(writer) {

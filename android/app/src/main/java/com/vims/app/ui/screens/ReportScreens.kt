@@ -320,6 +320,19 @@ fun shareReport(ctx: Context, vm: AppViewModel, b: InspectionBundle, file: File)
     try { ctx.startActivity(Intent.createChooser(send, "Send report")) } catch (_: Exception) { vm.toast("No app available to send the report") }
 }
 
+/** Save or share the report PDF (Drive, Files, email to yourself…) — no client recipients prefilled. */
+fun saveOrShareReport(ctx: Context, vm: AppViewModel, b: InspectionBundle, file: File) {
+    val uri = FileProvider.getUriForFile(ctx, "${ctx.packageName}.fileprovider", file)
+    val send = Intent(Intent.ACTION_SEND).apply {
+        type = "application/pdf"
+        putExtra(Intent.EXTRA_STREAM, uri)
+        putExtra(Intent.EXTRA_SUBJECT, "Inspection report — ${b.inspection.selections.street}")
+        clipData = android.content.ClipData.newRawUri(file.name, uri)
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    try { ctx.startActivity(Intent.createChooser(send, "Save or share report")) } catch (_: Exception) { vm.toast("No app available to save the report") }
+}
+
 @Composable
 fun GeneratedScreen(vm: AppViewModel, nav: NavHostController, inspId: String) {
     val all by vm.inspections.collectAsState()
@@ -348,6 +361,7 @@ fun GeneratedScreen(vm: AppViewModel, nav: NavHostController, inspId: String) {
             if (note.isNotEmpty()) Text(note, style = T.ui(11.5.sp, color = V.ink3, lineHeight = 15.sp), textAlign = TextAlign.Center, modifier = Modifier.padding(top = 8.dp))
             VBtn("Preview PDF", { nav.navigate(PdfR(inspId)) }, Modifier.padding(top = 10.dp), BtnKind.Ghost, VIcons.preview)
             VBtn("Back to inspections", { nav.goHome() }, Modifier.padding(top = 10.dp), BtnKind.Ghost)
+            DeleteInspectionButton(vm, nav, b, Modifier.padding(top = 10.dp))
         }
     }
 }

@@ -358,6 +358,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun reportFile(id: String): File? = bundle(id)?.inspection?.reportFile?.let { File(getApplication<Application>().filesDir, it) }?.takeIf { it.exists() }
 
+    /**
+     * Deletes one of the signed-in inspector's own inspections (checklist, photos, report) from this device.
+     * TODO(backend): once the VIMS server is live, reports are retained server-side (reports 3 yrs, agreements 5 yrs),
+     * so this only frees device space.
+     */
+    fun deleteInspection(id: String) = viewModelScope.launch {
+        toast(if (repo.deleteInspection(id)) "Inspection deleted" else "Only the inspector who owns this inspection can delete it")
+    }
+
     /* ------------------------------------------------------------------ settings / company / admin */
 
     fun setDefaultDepth(depth: String) = repo.updateSettings { it.copy(defaultDepth = depth) }
