@@ -37,7 +37,9 @@ enum ProtoIconSet {
         "calendar": ["M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z", "M16 2v4M8 2v4M3 10h18"],
         "select": ["m7 15 5 5 5-5M7 9l5-5 5 5"],
         // iPad State picker popover's search field.
-        "search": ["M11 4a7 7 0 1 1 0 14a7 7 0 1 1 0-14z", "m20 20-4-4"]
+        "search": ["M11 4a7 7 0 1 1 0 14a7 7 0 1 1 0-14z", "m20 20-4-4"],
+        // Home inspection rows' "More options" (⋯) button: three r=1 dots, like the prototype's line icons.
+        "more": ["M5 11a1 1 0 1 1 0 2a1 1 0 1 1 0-2z", "M12 11a1 1 0 1 1 0 2a1 1 0 1 1 0-2z", "M19 11a1 1 0 1 1 0 2a1 1 0 1 1 0-2z"]
     ]
 
     private static var cache: [String: CGPath] = [:]

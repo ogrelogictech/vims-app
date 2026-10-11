@@ -385,3 +385,24 @@ payment" button are a confirmed add-on and are not built. The report therefore h
 - DEBUG: `-cover "Color|Category|Option|Style"` sets the inspection's cover (e.g. with `-screen reportReady -generate`).
 - Screenshots: `screenshots/oct9-cover-*.png` (client Word cover / prototype / iOS PDF page 1 side by side;
   picker; iPad preview). Summer, Christmas and Spring artwork still carry stock-site watermarks (`themeArtNote`).
+
+## Deleting inspections (client feedback Oct 11)
+
+A tester couldn't find a way to delete current or old inspections to free device storage (only a hidden long-press
+menu existed). Now (`Views/Inspection/DeleteInspection.swift`):
+
+- **Home**: every inspection row has a visible **⋯** button (44 pt, VoiceOver "More options for <address>") with
+  **Save or share report** (only when the report PDF exists → share sheet with "Inspection Report - <address>.pdf":
+  Save to Files, Mail, AirDrop…) and **Delete inspection**. Long-press on the row shows the same items.
+- **Inside an inspection**: a red ghost **Delete inspection** button at the bottom of the Sections overview (under
+  Generate report) and on Report ready (under Back to inspections). Deleting from inside returns to Home first.
+- **One confirmation everywhere**: "Delete this inspection?" — "This permanently removes <address>, its checklist,
+  photos and report from this device. Some states require inspection reports to be kept for 3–5 years — save or
+  email the report first." **Save report first** (only with a report; opens the share sheet and keeps the
+  inspection), **Delete inspection** (destructive), Cancel (iOS 26 shows the dialog as a popover anchored to the
+  tapped control and hides Cancel — tapping outside cancels). Toast "Inspection deleted".
+- `AppStore.deleteInspection` removes the record, the photos folder, the report PDF and the share-sheet copy, and
+  cancels any pending debounced save (which could otherwise write the record back). Only the signed-in owner's
+  inspections are listed and the repository re-checks the owner. TODO(backend): once the VIMS server is live,
+  reports are retained server-side (reports 3 years, agreements 5 years), so deleting only frees device space.
+- Screenshots: `screenshots/oct11-delete-*.png` (iPhone 17 01–10, 19; iPad mini 11–18).

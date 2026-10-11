@@ -5,6 +5,7 @@ import SwiftUI
 struct HomeView: View {
     @Environment(AppStore.self) private var store
     @State private var pendingDelete: Inspection?
+    @State private var moreAnchors = PopoverAnchors()
     @State private var menuOpen = false
 
     var body: some View {
@@ -88,29 +89,25 @@ struct HomeView: View {
         }
     }
 
-    /// The delete confirmation hangs off its own row, so on iPad the popover points at that inspection.
+    /// Each row has a visible ⋯ More options button (Save or share report · Delete inspection) with the same items on
+    /// long-press. The delete confirmation hangs off that row's ⋯ button, so on iPad the popover points at it.
     private func row(_ insp: Inspection, timeLead: Bool) -> some View {
-        InspectionRow(insp: insp, timeLead: timeLead) { open(insp) }
-            .contextMenu { deleteButton(insp) }
-            .confirmationDialog("Delete this inspection?",
-                                isPresented: Binding(get: { pendingDelete?.id == insp.id }, set: { if !$0 { pendingDelete = nil } }),
-                                titleVisibility: .visible) {
-                Button("Delete inspection", role: .destructive) {
-                    if let p = pendingDelete { store.deleteInspection(p.id); store.toast("Inspection deleted") }
-                    pendingDelete = nil
-                }
-            } message: {
-                Text("This removes \(insp.addressLine1), its photos, and its report from this device.")
+        let anchor = moreAnchors[insp.id.uuidString]
+        let onDelete = { pendingDelete = insp }
+        return InspectionRow(insp: insp, timeLead: timeLead, trailingInset: 31) { open(insp) }
+            .contextMenu { InspectionMenuItems(insp: insp, anchor: anchor, onDelete: onDelete) }
+            .overlay(alignment: .trailing) {
+                InspectionMoreButton(insp: insp, anchor: anchor, onDelete: onDelete)
+                    .deleteInspectionConfirmation(insp, isPresented: Binding(get: { pendingDelete?.id == insp.id },
+                                                                             set: { if !$0 { pendingDelete = nil } }),
+                                                  anchor: anchor)
+                    .padding(.trailing, 2)
             }
+            .padding(.bottom, 10)
     }
 
     private func open(_ insp: Inspection) {
         store.push(.sections(insp.id))
-    }
-
-    @ViewBuilder
-    private func deleteButton(_ insp: Inspection) -> some View {
-        Button(role: .destructive) { pendingDelete = insp } label: { IconLabel("Delete inspection", icon: "trash") }
     }
 }
 
@@ -134,12 +131,14 @@ struct InspectionRow: View {
     @Environment(AppStore.self) private var store
     let insp: Inspection
     let timeLead: Bool
+    /// Room on the right for Home's overlaid ⋯ More options button.
+    var trailingInset: CGFloat = 0
     let action: () -> Void
 
     var body: some View {
         let st = store.homeStatus(insp)
         Button(action: action) {
-            RowView(title: insp.addressLine1, subtitle: subtitle(st)) {
+            RowView(title: insp.addressLine1, subtitle: subtitle(st), trailingInset: trailingInset) {
                 if timeLead {
                     VStack(spacing: 1) {
                         Text(Fmt.date(insp.scheduled, "h:mm")).font(VFont.mono(15, .semibold)).foregroundStyle(VC.brandDeep)
@@ -161,7 +160,6 @@ struct InspectionRow: View {
             }
         }
         .buttonStyle(ChipPressStyle())
-        .padding(.bottom, 10)
         .accessibilityHint("Opens the inspection checklist")
     }
 

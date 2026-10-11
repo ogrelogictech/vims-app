@@ -354,9 +354,45 @@ final class AppStore {
         return insp.id
     }
 
+    /// Deletes one of the signed-in inspector's inspections from this device: the record, its photos folder, its
+    /// report PDF and any readable-name copy made for the share sheet. Only the owner can delete — `inspections`
+    /// only ever holds the signed-in user's own, and the repository re-checks the owner before deleting.
+    /// TODO(backend): once the VIMS server is live, reports are retained server-side (reports 3 years, agreements
+    /// 5 years), so deleting here only frees device space; an inspection that never synced is gone for good, so
+    /// the confirmation should say so (or sync first) when `needsSync` is still set.
     func deleteInspection(_ id: UUID) {
+        guard let insp = inspection(id), let uid = currentUser?.id else { return }
+        inspectionSaveTasks[id]?.cancel()      // a pending debounced save would write the record back
+        inspectionSaveTasks[id] = nil
         inspections.removeAll { $0.id == id }
-        if let uid = currentUser?.id { repo.deleteInspection(id: id, userID: uid) }
+        repo.deleteInspection(id: id, userID: uid)
+        try? FileManager.default.removeItem(at: Self.shareCopyURL(insp))
+    }
+
+    // MARK: Report sharing
+
+    /// Where the share-sheet copy of a report goes (the stored PDF is named by inspection id).
+    static func shareCopyURL(_ insp: Inspection) -> URL {
+        FileManager.default.temporaryDirectory.appendingPathComponent("Inspection Report - \(insp.addressLine1).pdf")
+    }
+
+    /// A copy of the report PDF with a readable file name for the share sheet (the stored file if copying fails).
+    func shareableReportURL(_ id: UUID) -> URL? {
+        guard let insp = inspection(id), let url = reportURL(id) else { return nil }
+        let named = Self.shareCopyURL(insp)
+        try? FileManager.default.removeItem(at: named)
+        return (try? FileManager.default.copyItem(at: url, to: named)) != nil ? named : url
+    }
+
+    /// "Save or share report": the share sheet with the PDF (Save to Files, Mail, AirDrop…), a popover on `anchor` on iPad.
+    /// `afterDismiss` waits for a menu / confirmation dialog to finish closing so the sheet can present.
+    func shareReport(_ id: UUID, from anchor: PopoverAnchor?, afterDismiss: Bool = false) {
+        guard let url = shareableReportURL(id) else { toast("The report PDF is missing"); return }
+        guard afterDismiss else { ShareSheet.present([url], from: anchor); return }
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 450_000_000)
+            ShareSheet.present([url], from: anchor)
+        }
     }
 
     /// Default answers: forms have no Overall condition row, so no preselected overall.

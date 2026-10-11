@@ -7,6 +7,8 @@ struct SectionsOverviewView: View {
     let inspectionID: UUID
     @State private var open: Set<String> = []
     @State private var didInit = false
+    @State private var confirmDelete = false
+    @State private var deleteAnchor = PopoverAnchor()
 
     var body: some View {
         if let insp = store.inspection(inspectionID) {
@@ -54,6 +56,12 @@ struct SectionsOverviewView: View {
                 }
                 Button { store.push(.report(inspectionID)) } label: { IconLabel("Generate report", icon: "file") }
                     .buttonStyle(.vPrimary).padding(.top, insp.hasSummary ? 10 : 8)
+                // Red ghost button like Settings → Delete account; asks first, then returns to Home.
+                Button { confirmDelete = true } label: { IconLabel("Delete inspection", icon: "trash") }
+                    .buttonStyle(VButtonStyle(kind: .ghost, tint: VC.c1))
+                    .popoverAnchor(deleteAnchor)
+                    .deleteInspectionConfirmation(insp, isPresented: $confirmDelete, anchor: deleteAnchor, leave: true)
+                    .padding(.top, 22)
             }
             .onAppear {
                 if !didInit {

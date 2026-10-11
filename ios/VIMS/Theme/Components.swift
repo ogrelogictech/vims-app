@@ -323,6 +323,8 @@ struct Chevron: View {
 struct RowView<Lead: View, Trailing: View>: View {
     let title: String
     var subtitle: String? = nil
+    /// Extra room on the right for a control overlaid on the row (Home's ⋯ More options button).
+    var trailingInset: CGFloat = 0
     @ViewBuilder var lead: () -> Lead
     @ViewBuilder var trailing: () -> Trailing
     @Environment(\.dynamicTypeSize) private var typeSize
@@ -340,7 +342,8 @@ struct RowView<Lead: View, Trailing: View>: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             if !stacked { trailing() }
         }
-        .padding(.horizontal, 15)
+        .padding(.leading, 15)
+        .padding(.trailing, 15 + trailingInset)
         .padding(.vertical, 14)
         .frame(maxWidth: .infinity, minHeight: 44)
         .background(VC.paper)

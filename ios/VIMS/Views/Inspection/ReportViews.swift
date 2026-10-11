@@ -379,6 +379,8 @@ struct ReportReadyView: View {
     @State private var preview: PreviewDoc?
     @State private var mailDraft: MailDraftItem?
     @State private var emailAnchor = PopoverAnchor()
+    @State private var confirmDelete = false
+    @State private var deleteAnchor = PopoverAnchor()
     private let canSendMail = MFMailComposeViewController.canSendMail()
 
     struct MailDraftItem: Identifiable { let id = UUID(); let draft: ReportMailDraft }
@@ -407,6 +409,11 @@ struct ReportReadyView: View {
                             .font(VFont.ui(13)).foregroundStyle(VC.c1)
                     }
                     Button("Back to inspections") { store.goHome() }.buttonStyle(.vGhost)
+                    Button { confirmDelete = true } label: { IconLabel("Delete inspection", icon: "trash") }
+                        .buttonStyle(VButtonStyle(kind: .ghost, tint: VC.c1))
+                        .popoverAnchor(deleteAnchor)
+                        .deleteInspectionConfirmation(insp, isPresented: $confirmDelete, anchor: deleteAnchor, leave: true)
+                        .padding(.top, 12)
                 }
             }
             .documentCover(item: $preview) { doc in PDFPreviewSheet(doc: doc) }
@@ -448,10 +455,7 @@ struct ReportReadyView: View {
             mailDraft = MailDraftItem(draft: store.reportMailDraft(insp, pdf: url))
         } else {
             // Share a copy with a readable file name (the stored PDF is named by inspection id).
-            let named = FileManager.default.temporaryDirectory.appendingPathComponent("Inspection Report - \(insp.addressLine1).pdf")
-            try? FileManager.default.removeItem(at: named)
-            let shared = (try? FileManager.default.copyItem(at: url, to: named)) != nil ? named : url
-            ShareSheet.present([shared], from: emailAnchor)
+            ShareSheet.present([store.shareableReportURL(insp.id) ?? url], from: emailAnchor)
         }
     }
 }
