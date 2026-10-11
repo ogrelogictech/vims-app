@@ -350,3 +350,22 @@ The VIMS agreement stays the default and is never changed; edits only ever apply
   assets; a report with theme art is ~0.7–0.9 MB larger (Android's PDF writer stores bitmaps losslessly).
 - Theme art note (from the data): Summer, Christmas and Spring contain stock-site watermarks — test builds only.
 - Screenshots: `screenshots/oct9-cover-*.png`; sample PDFs regenerated.
+
+
+## Delete an inspection (v0.13.0)
+
+Client feedback (Oct 11): a tester couldn't find a way to delete current or old inspections to free device storage.
+- **Home:** every inspection row has a trailing **⋯** (48dp, "More options for <address>"); long-pressing the row opens
+  the same menu — **Save or share report** (only when the report PDF exists; plain share sheet via the FileProvider, no
+  client recipients) and **Delete inspection** (red).
+- **Inside an inspection:** a red ghost **Delete inspection** button at the bottom of Sections and of Report ready;
+  deleting returns to Home with the inspection's back stack cleared.
+- **Same confirmation everywhere:** "Delete this inspection?" with the 3–5 year retention reminder; **Save report first**
+  (when a report exists — shares it, does not delete), **Delete inspection**, **Cancel**. Toast "Inspection deleted".
+- `VimsRepository.deleteInspection(id)`: only the signed-in owner's inspection (memory map + DAO `WHERE id AND userId`);
+  runs on the serial writer after queued writes; deletes answers / photos / findings rows (explicitly + FK cascade), the
+  photo files and report PDF it references, and `vims/users/<userId>/inspections/<id>/` (paths checked to stay inside
+  the user's folder). Other inspections and other users' data are untouched.
+- `TODO(backend)`: once the VIMS server is live, reports are retained server-side (reports 3 yrs, agreements 5 yrs), so
+  deleting only frees device space.
+- Screenshots: `screenshots/oct11-delete-*.png`. Test APK: `../../VIMS-Android-test-v0.13.0-2026-10-11.apk`.
