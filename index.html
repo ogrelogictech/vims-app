@@ -325,6 +325,17 @@
   .plan .tag{font-family:var(--fm);font-size:9px;background:var(--paper-3);color:var(--ink-3);padding:2px 6px;border-radius:6px;display:block;margin-top:4px}
   .binforow{display:flex;justify-content:space-between;padding:12px 15px;border-bottom:1px solid var(--line-2);font-size:14px}
   .binforow:last-child{border-bottom:0}.binforow b{color:var(--ink)}
+  /* inspection row "more" menu + delete (client request Oct 11) */
+  .rowwrap{position:relative}
+  .rowwrap>.row{padding-right:52px}
+  .rowmore{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:44px;height:44px;border:0;background:none;border-radius:10px;color:var(--ink-3);cursor:pointer;display:grid;place-items:center;margin-top:-5px}
+  .rowmore:focus-visible{outline:2px solid var(--brand)}
+  .rowmore svg{width:20px;height:20px}
+  .rowmenu{position:absolute;right:8px;top:calc(50% + 18px);z-index:30;background:var(--paper);border:1px solid var(--line);border-radius:12px;box-shadow:0 18px 40px -14px rgba(0,0,0,.45);padding:6px;min-width:210px;display:none}
+  .rowmenu.on{display:block}
+  .rowmenu button{display:flex;align-items:center;gap:9px;width:100%;border:0;background:none;padding:11px 12px;border-radius:9px;font-family:inherit;font-size:14px;color:var(--ink);cursor:pointer;text-align:left}
+  .rowmenu button.danger{color:#c0392b}
+  .rowmenu button svg{width:17px;height:17px}
   .rev{position:absolute;right:12px;bottom:14px;z-index:90}
   .rev-btn{width:46px;height:46px;border-radius:50%;background:#ffff61;color:#5a4405;border:0;box-shadow:0 8px 20px -6px rgba(0,0,0,.5);cursor:pointer;display:grid;place-items:center}
   .rev-btn svg{width:22px;height:22px}
@@ -720,6 +731,14 @@
     <div class="dh"><b>Checklist sections</b><span id="drawer-addr">1428 Ridgeline Dr</span></div>
     <div class="dl" id="drawernav"></div>
   </aside>
+
+  <div class="modal" id="delmodal">
+    <div class="sheet">
+      <h3>Delete this inspection?</h3>
+      <p class="sub" id="deltext"></p>
+      <div class="btnrow" style="margin-top:4px;flex-wrap:wrap"><button class="btn ghost" id="delsave" onclick="delSaveFirst()">Save report first</button><button class="btn ghost" onclick="closeDel()">Cancel</button><button class="btn primary" style="background:#c0392b;border-color:#c0392b" onclick="confirmDel()">Delete inspection</button></div>
+    </div>
+  </div>
 
   <div class="modal" id="findmodal">
     <div class="sheet">
@@ -4962,6 +4981,32 @@ SEC['Wind Mitigation'].itemsHigh=[
   var tmo; window.toast=function(msg){ var t=document.getElementById('toast'); document.getElementById('toasttext').textContent=msg; t.classList.add('on'); clearTimeout(tmo); tmo=setTimeout(function(){t.classList.remove('on');},1900); };
 
   var SCREENS=[['s-login','Sign in'],['s-signup','Create account'],['s-forgot','Reset password'],['s-join','Join a company (code)'],['s-home','Inspections (home)'],['s-subscribe','Subscribe'],['s-billing','Plan & billing'],['s-inspectors','Inspectors'],['s-new','New inspection (wizard)'],['s-sections','Sections overview'],['s-section','Section entry'],['s-photos','Photos'],['s-summary','Summary'],['s-report','Report / cover'],['s-generated','Report ready'],['s-payment','Collect payment'],['s-paid','Payment received'],['s-settings','Settings'],['s-admin','Manage checklist'],['s-plans','Plans & pricing (admin)'],['s-company','Company profile'],['s-instructions','How VIMS works'],['s-feedbackadmin','Feedback & support (admin)'],['s-reportbcc','Report quality copy · BCC (admin)'],['s-eula','End User License Agreement'],['s-agreementdoc','Inspection agreement (VIMS default)']];
+
+  // Delete an inspection from Home (⋯ menu). Client request Oct 11: inspections must be removable to free device space.
+  var delTarget=null;
+  function wrapHomeRows(){
+    document.querySelectorAll('#s-home > button.row').forEach(function(r){
+      var m=(r.getAttribute('onclick')||'').match(/openInspection\('(.+?)'\)/); if(!m) return;
+      var addr=m[1], hasReport=/Report (sent|ready)|Done/i.test(r.textContent);
+      var w=document.createElement('div'); w.className='rowwrap'; r.parentNode.insertBefore(w,r); w.appendChild(r);
+      var b=document.createElement('button'); b.className='rowmore'; b.setAttribute('aria-label','More options for '+addr);
+      b.innerHTML='<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>';
+      var mn=document.createElement('div'); mn.className='rowmenu';
+      mn.innerHTML=(hasReport?'<button data-a="share"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13"/></svg>Save or share report</button>':'')
+        +'<button data-a="del" class="danger"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>Delete inspection</button>';
+      b.onclick=function(e){ e.stopPropagation(); var on=mn.classList.contains('on'); document.querySelectorAll('.rowmenu.on').forEach(function(x){x.classList.remove('on');}); if(!on) mn.classList.add('on'); };
+      mn.onclick=function(e){ e.stopPropagation(); var a=e.target.closest('button'); if(!a) return; mn.classList.remove('on');
+        if(a.dataset.a==='share') toast('Report PDF ready to save or share');
+        else openDel(w,addr,hasReport); };
+      w.appendChild(b); w.appendChild(mn);
+    });
+    document.addEventListener('click',function(){ document.querySelectorAll('.rowmenu.on').forEach(function(x){x.classList.remove('on');}); });
+  }
+  function openDel(w,addr,hasReport){ delTarget=w; document.getElementById('deltext').textContent='This permanently removes '+addr+', its checklist, photos and report from this device. Some states require inspection reports to be kept for 3–5 years — save or email the report first.'; document.getElementById('delsave').style.display=hasReport?'':'none'; document.getElementById('delmodal').classList.add('on'); }
+  window.closeDel=function(){ document.getElementById('delmodal').classList.remove('on'); delTarget=null; };
+  window.delSaveFirst=function(){ document.getElementById('delmodal').classList.remove('on'); toast('Report PDF ready to save or share'); };
+  window.confirmDel=function(){ if(delTarget) delTarget.remove(); closeDel(); toast('Inspection deleted'); };
+  wrapHomeRows();
   window.toggleRev=function(){ document.getElementById('revmenu').classList.toggle('on'); };
   function closeRev(){ document.getElementById('revmenu').classList.remove('on'); }
   (function(){ var m=document.getElementById('revmenu'); m.innerHTML='<div class="rt">Jump to screen</div>'; SCREENS.forEach(function(s){ var b=document.createElement('button'); b.textContent=s[1]; b.onclick=function(){ if(s[0]==='s-section'){openSection(curSection);return;} if(s[0]==='s-photos'){renderPhotos(curSection);} go(s[0]); }; m.appendChild(b); }); })();
