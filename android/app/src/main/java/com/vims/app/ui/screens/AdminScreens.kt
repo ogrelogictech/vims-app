@@ -233,7 +233,7 @@ private fun EdItem(it: ItemDef, index: Int, count: Int, showErrors: Boolean, onC
                 }
                 com.vims.app.ui.components.FieldError(optErr)
             } else {
-                Text("${when (it.type) { "num" -> "Number"; "date" -> "Date"; "time" -> "Time"; else -> "Text" }} input", style = T.mono(11.sp, color = V.ink3), modifier = Modifier.padding(top = 8.dp))
+                Text(if (it.isAirReading) "Air reading · level${it.unit?.let { u -> " ($u)" }.orEmpty()} + 1–6 rating" else "${when (it.type) { "num" -> "Number"; "date" -> "Date"; "time" -> "Time"; else -> "Text" }} input", style = T.mono(11.sp, color = V.ink3), modifier = Modifier.padding(top = 8.dp))
             }
         }
     }

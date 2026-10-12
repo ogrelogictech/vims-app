@@ -151,7 +151,7 @@ object DemoSeed {
     /** Deterministic sample answers: first option on each line (completed) or on the first few lines (in progress). */
     private fun demoAnswers(b: InspectionBundle, section: String, status: String): SectionAnswers {
         val def = b.defs[com.vims.app.data.baseName(section)] ?: return SectionAnswers(status = status)
-        val keyed = ChecklistEngine.keyed(ChecklistEngine.itemsFor(def, b.inspection.selections.depth)).filter { it.first != null && it.second.isChoice }
+        val keyed = ChecklistEngine.keyed(ChecklistEngine.itemsFor(def, b.inspection.selections.depth)).filter { it.first != null && (it.second.isChoice || it.second.isAirReading) && !it.second.options.isNullOrEmpty() }
         val take = if (status == SecStatus.DONE) keyed else keyed.take(1)
         return SectionAnswers(
             status = status,

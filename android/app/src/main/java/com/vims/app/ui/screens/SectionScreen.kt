@@ -30,10 +30,12 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
+import com.vims.app.data.AirQualityDef
 import com.vims.app.data.ChecklistEngine
 import com.vims.app.data.ItemDef
 import com.vims.app.data.SectionAnswers
@@ -119,6 +121,7 @@ fun SectionScreen(vm: AppViewModel, nav: NavHostController, inspId: String, name
     val listState = rememberLazyListState()
     val keyed = remember(def, depth) { if (def == null) emptyList() else ChecklistEngine.keyed(ChecklistEngine.itemsFor(def, depth)) }
     val detail = def != null && ChecklistEngine.showDetailInput(def, depth)
+    val actionPrefix = (def?.airQuality ?: AirQualityDef()).actionPrefix
     fun edit(f: (SectionAnswers) -> SectionAnswers) = vm.editSection(inspId, name, f)
     // Choosing "Concerns" / "Concern" on an item opens the Flag-a-finding sheet for that item (client request Oct 9).
     var concernItem by rememberSaveable { mutableStateOf<String?>(null) }
@@ -154,7 +157,7 @@ fun SectionScreen(vm: AppViewModel, nav: NavHostController, inspId: String, name
             } else {
                 itemsIndexed(keyed, key = { i, p -> p.first ?: "h$i" }) { _, (key, it) ->
                     if (key == null) LiHead(it.header.orEmpty())
-                    else ItemCard(key, it, a, detail, ctx, ::edit) { q -> concernItem = q }
+                    else ItemCard(key, it, a, detail, ctx, actionPrefix, ::edit) { q -> concernItem = q }
                 }
             }
             item(key = "overall") {
@@ -184,7 +187,8 @@ fun SectionScreen(vm: AppViewModel, nav: NavHostController, inspId: String, name
 }
 
 @Composable
-private fun ItemCard(key: String, it: ItemDef, a: SectionAnswers, detail: Boolean, ctx: android.content.Context, edit: ((SectionAnswers) -> SectionAnswers) -> Unit, onConcern: (String) -> Unit) {
+private fun ItemCard(key: String, it: ItemDef, a: SectionAnswers, detail: Boolean, ctx: android.content.Context, actionPrefix: String, edit: ((SectionAnswers) -> SectionAnswers) -> Unit, onConcern: (String) -> Unit) {
+    if (it.isAirReading) { AirReadingCard(key, it, a, actionPrefix, edit); return }
     val q = it.q.orEmpty()
     val input = a.inputs[key].orEmpty()
     val setInput: (String) -> Unit = { v -> edit { s -> s.copy(inputs = s.inputs + (key to v)) } }
@@ -210,6 +214,31 @@ private fun ItemCard(key: String, it: ItemDef, a: SectionAnswers, detail: Boolea
         }
         if (detail && it.isChoice) {
             VInput(input, setInput, Modifier.padding(top = 9.dp), placeholder = "Detail / measurement (optional)", minHeight = 44.dp, textSize = 13f)
+        }
+    }
+}
+
+/**
+ * Indoor Air Quality reading (data v1.7 `airReading`): optional "Level (<unit>)" on the decimal keypad + 1–6 rating chips
+ * (tap again to deselect), then the reference levels and the corrective action in small text (prototype `it.t==='air'`).
+ * Stored under the item key: rating in `values`, level in `inputs` (see SectionAnswers).
+ */
+@Composable
+private fun AirReadingCard(key: String, it: ItemDef, a: SectionAnswers, actionPrefix: String, edit: ((SectionAnswers) -> SectionAnswers) -> Unit) {
+    val level = a.inputs[key].orEmpty()
+    val unit = it.unit.orEmpty()
+    LiCard(it.q.orEmpty()) {
+        VInput(level, { v -> edit { s -> s.copy(inputs = s.inputs + (key to v)) } },
+            placeholder = if (unit.isBlank()) "Level measured" else "Level ($unit)", keyboard = KeyboardType.Decimal,
+            filter = { v -> Filters.decimal(v) }, error = Checks.level(level), imeAction = ImeAction.Done)
+        SingleChips(it.options.orEmpty().ifEmpty { (1..6).map { n -> "$n" } }, a.airRating(key), { v ->
+            edit { s -> s.copy(values = s.values + (key to listOfNotNull(v))) }
+        }, modifier = Modifier.padding(top = 10.dp))
+        val ref = it.reference.orEmpty().trim()
+        val act = it.action.orEmpty().trim()
+        if (ref.isNotEmpty() || act.isNotEmpty()) {
+            Text(listOfNotNull(ref.ifEmpty { null }, act.ifEmpty { null }?.let { x -> actionPrefix + x }).joinToString("\n"),
+                style = T.ui(11.5.sp, color = V.ink3, lineHeight = 16.sp), modifier = Modifier.padding(top = 9.dp))
         }
     }
 }

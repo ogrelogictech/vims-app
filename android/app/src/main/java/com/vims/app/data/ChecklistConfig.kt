@@ -119,9 +119,28 @@ data class SectionDef(
     val form: String? = null,
     /** Picture page only: opening it goes straight to the photo screen. */
     val photosOnly: Boolean = false,
+    /** Data v1.7 (Indoor Air Quality): the report prints this section's `airReading` items as the client's readings table. */
+    val airQuality: AirQualityDef? = null,
 )
 
-/** One checklist line. Either a sub-section header band (`header`) or a question (`q` + `type`). */
+/**
+ * `sections[].airQuality` (data v1.7): legend (top-right of the table), rating → word, the two value column heads and the
+ * prefix of each reading's corrective-action line. Defaults = the client's Oct 12 2026 form.
+ */
+@Serializable
+data class AirQualityDef(
+    val legend: String = "1 & 2 Good · 3 Mild · 4 Moderate · 5 Severe · 6 Serious",
+    val ratings: Map<String, String> = emptyMap(),
+    val columns: List<String> = listOf("Level Measured", "Air Quality Rating"),
+    val actionPrefix: String = "Corrective action if needed — ",
+)
+
+/**
+ * One checklist line. Either a sub-section header band (`header`) or a question (`q` + `type`).
+ * Types: single · multi · num · text · date · time · airReading (v1.7); an unknown type is shown as a text input.
+ * `airReading` also carries [code], [unit], [reference] and [action] for the Indoor Air Quality report table;
+ * its answer is stored as described on [SectionAnswers] (rating in `values`, level in `inputs`).
+ */
 @Serializable
 data class ItemDef(
     val q: String? = null,
@@ -129,9 +148,18 @@ data class ItemDef(
     val options: List<String>? = null,
     val header: String? = null,
     val placeholder: String? = null,
+    val code: String? = null,
+    val unit: String? = null,
+    val reference: String? = null,
+    val action: String? = null,
 ) {
     val isHeader: Boolean get() = header != null
     val isChoice: Boolean get() = type == "single" || type == "multi"
+    val isAirReading: Boolean get() = type == TYPE_AIR_READING
+
+    companion object {
+        const val TYPE_AIR_READING = "airReading"
+    }
 }
 
 @Serializable

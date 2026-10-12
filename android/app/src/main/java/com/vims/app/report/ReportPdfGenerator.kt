@@ -16,6 +16,7 @@ import android.text.Layout
 import android.text.StaticLayout
 import android.text.TextPaint
 import android.text.TextUtils
+import com.vims.app.data.AirQualityDef
 import com.vims.app.data.ChecklistConfig
 import com.vims.app.data.ChecklistEngine
 import com.vims.app.data.CompanyProfile
@@ -579,6 +580,9 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
             "date" -> if (input.isBlank()) "" else Fmt.date(input)
             "time" -> if (input.isBlank()) "" else Fmt.time(input)
             "num", "text" -> input
+            // airReading outside a section with an `airQuality` table: "<level> <unit> · Rating <n>"
+            ItemDef.TYPE_AIR_READING -> listOfNotNull(a.airLevel(key).ifBlank { null }?.let { l -> listOf(l, it.unit.orEmpty()).filter { x -> x.isNotBlank() }.joinToString(" ") },
+                a.airRating(key)?.let { r -> "Rating $r" }).joinToString(" · ")
             else -> if (detail && input.isNotBlank()) listOf(chips, input).filter { s -> s.isNotBlank() }.joinToString(" — ") else chips
         }
         return v.ifBlank { null }
@@ -618,10 +622,21 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
         } else if (def != null) {
             val keyed = ChecklistEngine.keyed(ChecklistEngine.itemsFor(def, depth))
             val detail = ChecklistEngine.showDetailInput(def, depth)
+            val aq = def.airQuality
             var pendingHeader: String? = null
-            keyed.forEach { (key, it) ->
-                if (key == null) { pendingHeader = it.header; return@forEach }
-                val v = answerText(key, it, a, detail) ?: return@forEach
+            var i = 0
+            while (i < keyed.size) {
+                val (key, it) = keyed[i]
+                if (key == null) { pendingHeader = it.header; i++; continue }
+                if (aq != null && it.isAirReading) {
+                    // A run of readings prints as the client's IAQ table; its legend replaces the "Readings (…)" band.
+                    val run = keyed.drop(i).takeWhile { p -> p.first != null && p.second.isAirReading }.map { p -> p.first!! to p.second }
+                    pendingHeader = null
+                    airQualityTable(num, section, aq, run, a)
+                    any = true; i += run.size; continue
+                }
+                i++
+                val v = answerText(key, it, a, detail) ?: continue
                 pendingHeader?.let { h -> band(h); pendingHeader = null }
                 row(it.q.orEmpty(), v, if (a.values[key].orEmpty().any { o -> o.equals("Concerns", true) || o.equals("Fail", true) }) 2 else 0)
                 any = true
@@ -654,6 +669,80 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
                 cv.drawLayout(l, PADX + 22f, y + 4f)
                 y += l.height + 12f
             }
+        }
+    }
+
+    /**
+     * Indoor Air Quality readings table (data v1.7 `airQuality`, the client's "Indoor air quality report - Updated" form;
+     * report.html `.aqhead` / `.aqrow`): legend top-right, "Level Measured" / "Air Quality Rating" column heads, then per
+     * reading "<code> – <name>" | level + unit on an underline | rating (bold), and under it the reference levels (left)
+     * and the corrective action (right) in small text. Unanswered readings still print with a blank underline and rating,
+     * like the paper form. A reading never splits across pages; the column heads repeat after a page break.
+     */
+    private fun airQualityTable(num: Int, section: String, aq: AirQualityDef, rows: List<Pair<String, ItemDef>>, a: SectionAnswers) {
+        val nameW = CW * .36f
+        val lvL = PADX + CW * .37f; val lvR = lvL + CW * .15f
+        val rtL = PADX + CW * .53f; val rtR = rtL + CW * .15f
+        val headP = tp(plex600, 11f, INK2).apply { textAlign = Paint.Align.CENTER }
+        val legendP = tp(plex600, 10.5f, INK).apply { textAlign = Paint.Align.RIGHT }
+        val legend = aq.legend.split("·").map { it.trim() }.filter { it.isNotEmpty() }.joinToString("    ")
+        val cols = aq.columns.ifEmpty { AirQualityDef().columns }
+        val nameP = tp(plex400, 13f, INK); val lvP = tp(plex400, 12.5f, INK).apply { textAlign = Paint.Align.CENTER }
+        val rtP = tp(plex700, 14f, INK).apply { textAlign = Paint.Align.CENTER }
+        val subP = tp(plex400, 10f, INK2)
+        val legendInline = legendP.measureText(legend) <= PADX + CW - (rtR + 14f)
+        val headH = if (legendInline || legend.isEmpty()) 26f else 44f
+        fun heads() {
+            if (!legendInline && legend.isNotEmpty()) { cv.drawText(legend, PADX + CW, y + 12f, legendP); y += 18f }
+            val base = y + 14f
+            cols.getOrNull(0)?.let { cv.drawText(it, (lvL + lvR) / 2, base, headP) }
+            cols.getOrNull(1)?.let { cv.drawText(it, (rtL + rtR) / 2, base, headP) }
+            if (legendInline && legend.isNotEmpty()) cv.drawText(legend, PADX + CW, base, legendP)
+            y += 26f
+            cv.drawRect(PADX, y - 1f, PADX + CW, y, fill(LINE))
+        }
+        fun label(it: ItemDef): CharSequence {
+            val q = it.q.orEmpty(); val code = it.code.orEmpty().trim()
+            val sb = android.text.SpannableStringBuilder()
+            val rest = when {
+                code.isEmpty() -> { sb.append(q); return sb }
+                q.startsWith(code) -> q.removePrefix(code)
+                else -> " – $q"
+            }
+            sb.append(code); sb.setSpan(android.text.style.StyleSpan(Typeface.BOLD), 0, code.length, 0)
+            sb.append(rest)
+            return sb
+        }
+        val layouts = rows.map { (key, it) ->
+            val ref = it.reference.orEmpty().trim(); val act = it.action.orEmpty().trim()
+            Triple(layout(label(it), nameP, nameW),
+                layout(ref.ifEmpty { " " }, subP, CW * .5f - 12f),
+                layout(if (act.isEmpty()) " " else aq.actionPrefix + act, subP, CW * .46f, Layout.Alignment.ALIGN_OPPOSITE)) to key
+        }
+        fun rowH(l: Triple<StaticLayout, StaticLayout, StaticLayout>) = 10f + maxOf(l.first.height.toFloat(), 22f) + 5f + maxOf(l.second.height, l.third.height) + 9f
+        y += 8f
+        // keep the column heads with the first reading
+        ensure(headH + (layouts.firstOrNull()?.let { rowH(it.first) } ?: 0f)) { secTitle(num, "$section (cont.)") }
+        heads()
+        layouts.forEachIndexed { idx, (l, key) ->
+            val it = rows[idx].second
+            val h = rowH(l)
+            ensure(h) { secTitle(num, "$section (cont.)"); heads() }
+            val top = y + 10f
+            cv.drawLayout(l.first, PADX + 6f, top)
+            val base = top + l.first.getLineBaseline(0)
+            val level = a.airLevel(key)
+            if (level.isNotEmpty()) {
+                val t = listOf(level, it.unit.orEmpty()).filter { x -> x.isNotBlank() }.joinToString(" ")
+                cv.drawText(ellipsize(t, lvP, lvR - lvL - 8f), (lvL + lvR) / 2, base, lvP)
+            }
+            cv.drawRect(lvL + 14f, base + 4f, lvR - 14f, base + 5f, fill(INK3))
+            a.airRating(key)?.let { r -> cv.drawText(r, (rtL + rtR) / 2, base, rtP) }
+            val subTop = top + maxOf(l.first.height.toFloat(), 22f) + 5f
+            cv.drawLayout(l.second, PADX + 6f, subTop)
+            cv.drawLayout(l.third, PADX + CW - 6f - l.third.width, subTop)
+            cv.drawRect(PADX, y + h - 1f, PADX + CW, y + h, fill(LINE2))
+            y += h
         }
     }
 

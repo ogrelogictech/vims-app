@@ -121,6 +121,9 @@ object Checks {
     }
     fun positive(v: String, label: String = "a number"): String? =
         if (v.isEmpty()) null else if ((v.replace(",", "").toDoubleOrNull() ?: 0.0) <= 0.0) "Enter $label greater than 0" else null
+    /** Indoor Air Quality "Level measured": optional, any number ≥ 0 (0 ppm CO is a valid reading). */
+    fun level(v: String): String? =
+        if (v.isEmpty()) null else if ((v.toDoubleOrNull() ?: -1.0) < 0.0) "Enter a number of 0 or more, like 0.03" else null
     fun temperature(v: String): String? {
         if (v.isEmpty() || v == "-") return if (v == "-") "Enter a temperature" else null
         val t = v.toIntOrNull() ?: return "Enter a temperature"

@@ -265,12 +265,20 @@ data class Inspection(
     val hasSummary: Boolean get() = groups.any { it.link == "summary" }
 }
 
+/** "3", "3 Mild", "1 Good" → rating digit (see [SectionAnswers.airRating]). */
+private val airRatingRx = Regex("^([1-6])(\\D.*)?$")
+
 @Serializable
 data class SectionAnswers(
     val status: String = SecStatus.TODO,
     /** Chip selections per item key (single → at most one value). */
     val values: Map<String, List<String>> = emptyMap(),
-    /** num/text/date/time answers and optional High Detail "Detail / measurement" notes, per item key. */
+    /**
+     * num/text/date/time answers and optional High Detail "Detail / measurement" notes, per item key.
+     * `airReading` (data v1.7, Indoor Air Quality) uses both maps under its one key: the 1–6 rating in [values]
+     * (a single chip, like `single`) and the optional "Level measured" number in [inputs] (plain decimal text, unit not
+     * stored). Read them through [airRating] / [airLevel]; no schema change was needed.
+     */
     val inputs: Map<String, String> = emptyMap(),
     /** Fast Entry "Items reviewed" chips (labelled "Items present" before data v1.5). */
     val present: List<String> = emptyList(),
@@ -278,6 +286,16 @@ data class SectionAnswers(
     val comments: String = "",
 ) {
     val hasContent: Boolean get() = values.any { it.value.isNotEmpty() } || inputs.any { it.value.isNotBlank() } || present.isNotEmpty() || comments.isNotBlank()
+
+    /**
+     * `airReading` rating "1"…"6", or null. Answers saved by the pre-v1.7 single-choice IAQ lines ("1 Good", "3 Mild", "2")
+     * map to their leading digit; anything else is ignored.
+     */
+    fun airRating(key: String): String? =
+        values[key]?.firstOrNull()?.trim()?.let { airRatingRx.find(it)?.groupValues?.get(1) }
+
+    /** `airReading` "Level measured" (decimal text without the unit), or "" when not measured or not a valid number (e.g. "."). */
+    fun airLevel(key: String): String = inputs[key].orEmpty().trim().takeIf { (it.toDoubleOrNull() ?: -1.0) >= 0.0 }.orEmpty()
 }
 
 @Serializable
