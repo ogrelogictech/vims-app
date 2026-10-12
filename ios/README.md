@@ -108,8 +108,9 @@ SwiftUI views ──► AppStore (@Observable, @MainActor)  ──► Repository
 - **Launch splash.** `Views/Shell/VideoSplash.swift` plays `shared/media/vims-splash.mp4` once, muted,
   **aspect-fit** (the whole 9:16 frame incl. the tagline is visible on every phone), tap to skip. The letterbox
   bands above/below are the video's own top/bottom edge colors, sampled from a frame at launch (defaults measured
-  from the current file), so the frame blends in. With Reduce Motion on it shows the last frame for ~1 s. (The
-  tagline misspelling is in the supplied video and is left as is.)
+  from the current file), so the frame blends in; on iPad (wider than 9:16, either orientation) the bands sit left and
+  right of the frame, each a top-to-bottom gradient of that edge's colors. It always plays to the end (the safety
+  timeout is the video's length + 3 s). With Reduce Motion on it shows the last frame for ~1 s.
 - **Company identity vs. personal photo.** `CompanyLogoBadge` shows the company's logo (or initials) only in
   company contexts: Company profile and the PDF cover / page headers. Company profile → Upload/Change logo offers
   Take photo, Choose from library and Remove logo (`PhotoSourceDialog`; with no camera, Take photo opens the
@@ -227,10 +228,22 @@ layout is unchanged; iPad-only behavior lives in `Views/Shell/Adaptive.swift`:
 - **Readable column.** In regular width, `Screen`'s scrolling content (and the wizard, sign-in, EULA gate, markup tool
   panel) is a centered column, 740 pt max (560 pt for sign-in / create account / join / reset password). Headers and
   bars stay full width. The Photos screen uses 1100 pt and shows each photo slot as a card, 2–3 across.
+- **Landscape (wide windows, Oct 12).** When the window is at least 1100 pt wide (11"/13" and mini in landscape) the
+  column grows to 80 % of the window, capped at 1080 pt (forms 680, documents 900; `PadLayout.columnWidth`, window
+  width from `measuresWindowWidth()` at the root, `WideLayout` to ask), and screens use two columns where it helps:
+  sign-in is a blue brand panel beside the form; the EULA gate keeps the agreement at a reading width with I agree /
+  Sign out in a side panel; Home lists inspections beside the counts and actions; the wizard puts fields two per row
+  (Client name | phone, email | address, State | agent name, agent email | license #, Date | Time, the two notes) and
+  step 2's numbers four per row; Sections shows the groups beside progress and the report buttons; checklist lines
+  sit two per row (each row as tall as its taller card; header bands and air readings stay full width); Summary shows
+  the three categories side by side; Generate report puts the cover beside the contents; Settings and Inspectors
+  split into two columns. Portrait (≤ 1032 pt) and iPhone are unchanged.
 - **Documents full screen.** Report preview, the generated PDF and state documents open as a full-screen cover
   (`documentCover`) instead of a form sheet; pages fit the width (re-fitted on rotation) and pinch-zoom to 5×.
-- **Anchored pickers.** The quick-comment dropdown (photo markup, flag a finding) and the State picker are popovers
-  hanging off their field (iPhone keeps the system menu / full-height sheet). Confirmation dialogs (Add a photo,
+- **Pickers.** The quick-comment list (photo markup, flag a finding) is a popover hanging off its field on iPad and a
+  titled sheet on iPhone; both show every comment in full, wrapped, with a checkmark on the current one. The State
+  picker is a form-sized sheet on iPad (Cancel, focused search field, list — 6 rows above the landscape keyboard on
+  13", 8+ in portrait), the full-height sheet on iPhone. Confirmation dialogs (Add a photo,
   delete inspection, profile photo, remove section, use VIMS agreement) are attached to their control so the iPad
   popover points at it. Flag a finding is one full-height form sheet; the photo library picker is page-sized.
 - **Share sheets.** Every `UIActivityViewController` goes through `ShareSheet.present(_:from:)` with a
@@ -239,7 +252,24 @@ layout is unchanged; iPad-only behavior lives in `Views/Shell/Adaptive.swift`:
 - **Camera.** No camera (iPad simulator) → Add opens the photo library; the profile photo / logo dialog says so.
 - DEBUG review flags: `-openPicker` (wizard), `-openComment` (markup), `-openPreview` / `-openShare` (reportReady,
   agreement). `-landscape` / `-portrait` request a rotation, but iPadOS 26's windowed mode refuses programmatic
-  rotation — rotate the simulator by hand (⌘← / ⌘→). Screenshots: `screenshots/ipad/{mini,13in}-*.png`.
+  rotation. Use the **VIMSUITests** target instead (below), which rotates the device for real.
+  Screenshots: `screenshots/ipad/{mini,13in}-*.png`, `screenshots/oct12-ipad-*.png`.
+- **Review screenshots in any orientation** (`VIMSUITests/ReviewScreenshots.swift`, shared scheme `VIMS`): a UI test
+  that reads a JSON plan, launches the app with DEBUG arguments per shot, sets `XCUIDevice.shared.orientation`,
+  optionally taps / types, and writes `<out>/<name>.png` (also attached to the result):
+
+  ```bash
+  # plan.json: {"out": "/abs/dir", "shots": [{"name": "13in-land-home", "orientation": "landscape",
+  #             "args": ["-skipLogin", "-screen", "home", "-noSplash"], "wait": 2.5, "steps": [{"tapAt": [0.5, 0.3]}]}]}
+  xcodebuild -project VIMS.xcodeproj -scheme VIMS -destination 'platform=iOS Simulator,name=iPad Pro 13-inch (M5)' \
+    -derivedDataPath build/DerivedData build-for-testing
+  TEST_RUNNER_VIMS_SHOT_PLAN=/abs/plan.json xcodebuild -project VIMS.xcodeproj -scheme VIMS \
+    -destination 'platform=iOS Simulator,name=iPad Pro 13-inch (M5)' -derivedDataPath build/DerivedData \
+    test-without-building -only-testing:VIMSUITests/ReviewScreenshots/testPlan
+  ```
+
+  Without the variable the test is skipped. Steps: `tap` (label / identifier), `tapAt` ([x, y] fractions), `type`,
+  `swipeUp` / `swipeDown`, `wait`, `shot`.
 
 ## Inspection agreement: download + company edit
 
@@ -249,8 +279,9 @@ layout is unchanged; iPad-only behavior lives in `Views/Shell/Adaptive.swift`:
   (`Report/AgreementPDF.swift`, content model `Data/Legal/AgreementContent.swift`), and opens the share sheet
   ("Share agreement": Save to Files, Mail, AirDrop, Print). An uploaded agreement keeps its Quick Look share.
 - **Edit** (company admins, same permission as upload): the card's **Edit** opens "Edit agreement"
-  (`AgreementEditorView`, route `.agreementEditor`): a plain-text editor prefilled with the VIMS agreement (title, form
-  lines, blank-line paragraphs, "• " bullets, the disclosures heading then "State: text" per state, closing; company
+  (`AgreementEditorView`, route `.agreementEditor`): the agreement's **form block is locked** (Oct 12) — shown read-only
+  above the editor, boxed like the viewer ("Form fields · Locked") — and a plain-text editor prefilled with the VIMS
+  agreement's wording (title, blank-line paragraphs, "• " bullets, the disclosures heading then "State: text" per state, closing; company
   name filled) or the company's earlier edit. Save validates (not blank, ≤ 100,000 characters, counter shown; "No
   changes to save" when unchanged); back / Cancel with changes asks "Discard changes?". Stored on the company as
   `CompanyProfile.agreementText` + `agreementEditedAt` (SwiftData, with the rest of the profile; TODO(backend) sync).
@@ -262,7 +293,8 @@ layout is unchanged; iPad-only behavior lives in `Views/Shell/Adaptive.swift`:
 - **Viewer** with an edited version: "Your company's edited version of the VIMS agreement.", then the text (a paragraph
   per blank-line block, "• " lines as bullets, a short first line as the title). From the wizard it shows the full
   edited text (it can't be filtered by state), and the wizard line reads "View (your company's edited version)".
-- DEBUG: `-screen agreementEditor [-validate]`, `-editedAgreement`, `-agreementScroll card` (Company profile).
+- DEBUG: `-screen agreementEditor [-validate]`, `-editedAgreement`, `-legacyEditedAgreement`, `-agreementStatus`,
+  `-agreementScroll card` (Company profile).
   Screenshots: `screenshots/32-*.png` – `36-*.png`.
 
 ## Folder map
@@ -432,3 +464,39 @@ menu existed). Now (`Views/Inspection/DeleteInspection.swift`):
 - Screenshots: `screenshots/oct12-iaq-*.png` (1–2 iPhone entry, 3 Standard PDF page, 4 High Detail PDF page,
   5 table across a page break, 6 PDF from migrated pre-v1.7 answers, 7 migrated entry + Fast Entry,
   8 iPad High Detail entry, 9 level validation).
+
+## QA round Oct 12 (iPad Pro 13" + iPhone 17)
+
+1. **iPad landscape.** Wide windows get a wider column and two-column layouts (see iPad → Landscape). Portrait,
+   iPad mini portrait and iPhone are unchanged. Verified with the new UI-test screenshot harness in real landscape
+   on the 13" and the mini.
+2. **State picker on iPad** is a form-sized sheet (`presentationSizing(.form)` on iOS 18+, the default iPad form
+   sheet on iOS 17) with its own Cancel / title bar, focused search field and the list; with the keyboard up the
+   13" shows the search field and 6 states in landscape, 8+ in portrait. iPhone unchanged.
+3. **Quick comments show in full.** `QuickCommentMenu` (photo markup "Comment", Flag a finding / Concern "Quick
+   comment") opens a list of all eight comments, wrapped, checkmark on the current one: a titled sheet on iPhone
+   (the system menu truncated "Item to monitor, if condition deteriorates contact a qualified profe…"), the popover
+   on iPad. Picking fills the field as before; the field itself now wraps a long pick (up to 3 lines).
+4. **Date / time checklist items** (shared v1.7.1: IAQ High Detail Date → `date`, Time → `time`; Termite "Date of
+   inspection" and Wind Mitigation "Inspection date" → `date`). `ItemKind.date/.time` render `OptionalDateField`:
+   the value in the same gray pill as the wizard's Date / Time; one tap anywhere on the field opens the calendar
+   (or the time wheels) in a popover anchored to the field — no keyboard — and fills today / now like the wizard;
+   × clears. Stored like the wizard ("yyyy-MM-dd", "HH:mm"); the PDF prints "October 12, 2026" / "10:15 AM".
+   Answers typed when these were text fields ("October 12, 2026", "10/12/26", "10:15 AM"…) are still read
+   (`Fmt.answerDate` / `answerTime`), and anything unreadable prints as typed.
+5. **Inspection agreement form block locked.** "Edit agreement" shows the agreement's form lines (`formLines`:
+   Clients Name ____, Phone #, …, the ☐ lines, fees) read-only above the editor; only the wording (title, body, state
+   disclosures, closing) is editable. `AgreementContent.edited(_:company:form:)` always puts the locked block right
+   after the title, so the viewer and the PDF show it unchanged. Text saved before the lock that still holds form
+   lines (possibly with field names deleted) is cleaned on display, in the PDF and in the editor
+   (`AgreementContent.strippingFormLines`), so the block never shows twice. No fill-in or tappable boxes (e-sign
+   add-on, deferred).
+6. **Updated splash video** (6.6 s, 720×1280, 50 fps): plays to its end (verified: ended at 6.58 of 6.58 s on
+   iPhone 17 and iPad Pro 13"; the old fixed 8 s safety timer was replaced by the video's length + 3 s, since the
+   first frame can take ~1 s on a cold launch), fits, and the edge bands blend: above/below on iPhone, left/right
+   (gradient) on iPad in both orientations. Default edge colors re-measured from the new file.
+
+Screenshots: `screenshots/oct12-*.png` — `ipad-01…18` 13" (landscape 01–13, portrait 14–18), `ipad-19…26` iPad mini
+(landscape 19–22, portrait 23–26), `state-01…04`, `comment-01…04`, `date-01…05` (05 = the IAQ PDF page),
+`agreement-01…04` (04 = the PDF from a pre-lock edit, form block once), `iphone-01…04` (unchanged iPhone screens),
+`splash-01…04`.
