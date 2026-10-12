@@ -1,6 +1,6 @@
 {
  "_about": "VIMS shared checklist + configuration data. Single source of truth for the native iOS (SwiftUI) and Android (Kotlin/Compose) apps. Extracted from the client-approved prototype (index.html, approved Sep 15, 2026). Edit here, not in app code.",
- "version": "1.7.0",
+ "version": "1.7.1",
  "generated": "2026-10-12",
  "depths": [
   {
@@ -26466,8 +26466,7 @@
     },
     {
      "q": "Date of inspection",
-     "type": "text",
-     "placeholder": "date"
+     "type": "date"
     },
     {
      "q": "Property address",
@@ -26873,13 +26872,11 @@
     },
     {
      "q": "Date",
-     "type": "text",
-     "placeholder": "date"
+     "type": "date"
     },
     {
      "q": "Time",
-     "type": "text",
-     "placeholder": "time"
+     "type": "time"
     },
     {
      "q": "Property address",
@@ -27781,8 +27778,7 @@
     },
     {
      "q": "Inspection date",
-     "type": "text",
-     "placeholder": "date"
+     "type": "date"
     },
     {
      "q": "Owner name",
