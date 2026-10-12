@@ -34,7 +34,8 @@ struct SectionEntryView: View {
             }
             .onAppear {
                 if !loaded {
-                    answers = store.answers(inspectionID, section)
+                    // Pre-v1.7 Indoor Air Quality choices ("1 Good"…) become the matching reading's rating.
+                    answers = store.answers(inspectionID, section).migratingLegacyAirRatings(keyedItems(insp))
                     loaded = true
                 }
                 if DebugFlags.openDrawer { DebugFlags.openDrawer = false; drawerOpen = true }
@@ -89,6 +90,7 @@ struct SectionEntryView: View {
                     } else {
                         ItemCard(item: k.item, key: k.id, answers: $answers, errors: errors,
                                  showDetail: depth == .high && !resolved.usingHigh,
+                                 airQuality: store.catalog.section(section)?.airQuality,
                                  onConcern: insp.hasSummary ? { q in findingPrompt = .concern(q) } : nil)
                     }
                 }
@@ -126,15 +128,27 @@ struct SectionEntryView: View {
             .padding(.top, 10)
     }
 
+    /// The answer-keyed items shown for this inspection's depth (forms ignore depth).
+    private func keyedItems(_ insp: Inspection) -> [KeyedItem] {
+        let depth: Depth = store.catalog.isForm(section) ? .standard : insp.depth
+        return ItemKeys.keyed(store.catalog.items(section, depth: depth).items)
+    }
+
     /// `num` items: digits + one "." while typing, > 0 when entered (docs/validation-rules.md).
+    /// `airReading` levels: same filter, optional, 0 or more (a CO reading is often 0 ppm).
     private func valid() -> Bool {
         guard let insp = store.inspection(inspectionID) else { return true }
         let isForm = store.catalog.isForm(section)
         let depth: Depth = isForm ? .standard : insp.depth
         guard depth != .fast else { return true }
-        let keyed = ItemKeys.keyed(store.catalog.items(section, depth: depth).items)
-        let fields: [(id: String, value: String, rule: FieldRule)] = keyed.filter { $0.item.kind == .num }
-            .map { ($0.id, answers.text[$0.id] ?? "", .opt(.decimal, $0.item.q ?? "Value")) }
+        let keyed = keyedItems(insp)
+        let fields: [(id: String, value: String, rule: FieldRule)] = keyed.compactMap { k in
+            switch k.item.kind {
+            case .num: return (k.id, answers.text[k.id] ?? "", .opt(.decimal, k.item.q ?? "Value"))
+            case .airReading: return (k.id, answers.text[k.id] ?? "", .opt(.reading, "\(k.item.code ?? k.item.q ?? "Reading") level"))
+            default: return nil
+            }
+        }
         return errors.validate(fields)
     }
 
@@ -239,6 +253,8 @@ struct ItemCard: View {
     @Binding var answers: SectionAnswers
     var errors: FormErrors? = nil
     var showDetail = false
+    /// The section's `airQuality` block (rating names under the 1–6 chips).
+    var airQuality: AirQualityDef? = nil
     /// Called with the item's question when "Concerns" / "Concern" is newly selected (opens the concern sheet).
     var onConcern: ((String) -> Void)? = nil
 
@@ -272,6 +288,11 @@ struct ItemCard: View {
             case .num:
                 VTextField(text: textBinding(\.text), placeholder: item.placeholder ?? "Enter a value", keyboard: .decimalPad, bottom: 0,
                            kind: .decimal, fieldID: key, errors: errors)
+            case .airReading:
+                AirReadingInput(item: item, key: key, level: textBinding(\.text),
+                                rating: Binding(get: { answers.choices[key]?.first }, set: { answers.choices[key] = $0.map { [$0] } }),
+                                ratingNames: airQuality?.ratings ?? [:], actionPrefix: airQuality?.prefix ?? AirQualityDef().prefix,
+                                errors: errors)
             case .text:
                 VTextField(text: textBinding(\.text), placeholder: item.placeholder ?? "Enter a value", bottom: 0, kind: .plain(max: 500))
             case .date:
@@ -293,6 +314,85 @@ struct ItemCard: View {
     private func textBinding(_ kp: WritableKeyPath<SectionAnswers, [String: String]>) -> Binding<String> {
         Binding(get: { answers[keyPath: kp][key] ?? "" },
                 set: { answers[keyPath: kp][key] = $0.isEmpty ? nil : $0 })
+    }
+}
+
+/// Indoor Air Quality reading (data v1.7 `airReading`): optional "Level (unit)" on the decimal keypad + a 1–6 rating
+/// (tap again to deselect), then the client's reference levels and corrective action in small secondary text.
+/// iPhone stacks the level over the rating row; iPad puts them side by side (prototype `.li.air`).
+struct AirReadingInput: View {
+    let item: ItemDef
+    let key: String
+    @Binding var level: String
+    @Binding var rating: String?
+    var ratingNames: [String: String] = [:]
+    var actionPrefix = "Corrective action if needed — "
+    var errors: FormErrors? = nil
+
+    private var unit: String { item.unit ?? "" }
+    private var options: [String] { item.options ?? ["1", "2", "3", "4", "5", "6"] }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if Device.isPad {
+                HStack(alignment: .bottom, spacing: 14) {
+                    levelField.frame(width: 250)
+                    VStack(alignment: .leading, spacing: 6) {
+                        ratingCaption
+                        ratingRow.frame(maxWidth: 380)
+                    }
+                    .padding(.bottom, 2)
+                    Spacer(minLength: 0)
+                }
+            } else {
+                levelField
+                ratingCaption.padding(.top, 11).padding(.bottom, 6)
+                ratingRow
+            }
+            VStack(alignment: .leading, spacing: 3) {
+                if let r = item.reference, !r.isEmpty { Text(r) }
+                if let a = item.action, !a.isEmpty { Text(actionPrefix + a) }
+            }
+            .font(VFont.ui(11.5)).foregroundStyle(VC.ink3)
+            .lineSpacing(1.5)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.top, 10)
+        }
+    }
+
+    private var levelField: some View {
+        VTextField(text: $level, placeholder: unit.isEmpty ? "Level measured" : "Level (\(unit))", keyboard: .decimalPad, bottom: 0,
+                   kind: .reading, fieldID: key, errors: errors, trailing: unit.isEmpty ? nil : unit)
+    }
+
+    private var ratingCaption: some View {
+        HStack(spacing: 6) {
+            Text("Air quality rating").font(VFont.ui(12, .semibold)).foregroundStyle(VC.ink2)
+            if let r = rating, let name = ratingNames[r] {
+                Text("· \(r) \(name)").font(VFont.ui(12, .semibold)).foregroundStyle(VC.brandDeep)
+            }
+        }
+    }
+
+    private var ratingRow: some View {
+        HStack(spacing: 7) {
+            ForEach(options, id: \.self) { o in
+                let on = rating == o
+                Button { rating = on ? nil : o } label: {
+                    Text(o)
+                        .font(VFont.ui(15, .semibold))
+                        .foregroundStyle(on ? .white : VC.ink2)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .background(on ? VC.brand : VC.paper)
+                        .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 11, style: .continuous).stroke(on ? VC.brand : VC.line, lineWidth: 1.5))
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(ChipPressStyle())
+                .accessibilityLabel("Rating \(o)\(ratingNames[o].map { ", \($0)" } ?? "")")
+                .accessibilityAddTraits(on ? .isSelected : [])
+            }
+        }
     }
 }
 

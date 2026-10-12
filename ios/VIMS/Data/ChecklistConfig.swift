@@ -119,6 +119,8 @@ struct SectionDef: Codable, Hashable {
     var form: String? = nil
     /// Section with no items: opening it goes straight to its photo screen (Pictures pages)
     var photosOnly: Bool? = nil
+    /// v1.7 Indoor Air Quality: the section's `airReading` items print as the client's readings table.
+    var airQuality: AirQualityDef? = nil
 
     var isForm: Bool { form != nil }
     var isPhotosOnly: Bool { photosOnly == true }
@@ -130,6 +132,12 @@ struct ItemDef: Codable, Hashable {
     var options: [String]?
     var header: String?
     var placeholder: String?
+    /// v1.7 `airReading` (Indoor Air Quality): pollutant code, unit of the measured level, the client's
+    /// reference levels and the corrective action printed under the reading in the report table.
+    var code: String?
+    var unit: String?
+    var reference: String?
+    var action: String?
 
     var isHeader: Bool { header != nil }
     var kind: ItemKind {
@@ -140,6 +148,7 @@ struct ItemDef: Codable, Hashable {
         case "text": return .text
         case "date": return .date
         case "time": return .time
+        case "airReading": return .airReading
         default: return .single
         }
     }
@@ -149,7 +158,22 @@ struct ItemDef: Codable, Hashable {
     }
 }
 
-enum ItemKind { case single, multi, num, text, date, time, header }
+/// `airReading` answer: the optional "Level measured" in `SectionAnswers.text[key]`, the 1–6 rating in `choices[key]`.
+enum ItemKind { case single, multi, num, text, date, time, airReading, header }
+
+/// Section-level `airQuality` block (v1.7): the report table's legend, column heads and corrective-action prefix.
+struct AirQualityDef: Codable, Hashable {
+    var legend: String?
+    var ratings: [String: String]?
+    var columns: [String]?
+    var actionPrefix: String?
+
+    var levelHead: String { columns?.first ?? "Level Measured" }
+    var ratingHead: String { (columns?.count ?? 0) > 1 ? columns![1] : "Air Quality Rating" }
+    var prefix: String { actionPrefix ?? "Corrective action if needed — " }
+    /// "1 & 2 Good · 3 Mild · …" spaced like the client's form ("1 & 2 Good   3 Mild   …").
+    var legendLine: String { (legend ?? "").replacingOccurrences(of: " · ", with: "     ") }
+}
 
 struct BuilderDef: Decodable {
     let phaseTypes: [String: [LayoutEntry]]

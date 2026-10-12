@@ -16,6 +16,7 @@ enum FieldKind: Equatable {
     case policy
     case year
     case decimal            // sq ft, valuation, lot size, amps, `num` checklist items
+    case reading            // Indoor Air Quality "Level measured": a number, 0 or more
     case temperature
     case url
     case price              // admin plan price / per-inspector rate
@@ -93,7 +94,7 @@ extension FieldKind {
             s = String(s.filter { $0.isLetter || $0.isNumber || $0 == "-" }).uppercased()
         case .year, .zip:
             s = String(s.filter(\.isNumber))
-        case .decimal:
+        case .decimal, .reading:
             s = Validator.decimalOnly(s, maxDecimals: nil)
         case .price:
             s = Validator.decimalOnly(s, maxDecimals: 2)
@@ -226,6 +227,8 @@ enum Validator {
             if y < 1800 || y > current { return "Enter a year between 1800 and \(current)" }
         case .decimal:
             guard let d = Double(v), d > 0 else { return "Enter a number greater than 0" }
+        case .reading:
+            guard let d = Double(v), d >= 0, d.isFinite else { return "Enter a number (0 or more)" }
         case .temperature:
             guard let t = Int(v), (-60...140).contains(t) else { return "Enter a temperature between -60 and 140" }
         case .url:

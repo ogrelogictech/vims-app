@@ -245,7 +245,7 @@ struct EditItemCard: View {
                     }
                 } label: {
                     HStack(spacing: 4) {
-                        Text(types.first { $0.0 == (edit.item.type ?? "single") }?.1 ?? "Pick one").font(VFont.ui(12, .semibold))
+                        Text(edit.item.kind == .airReading ? "Air reading" : types.first { $0.0 == (edit.item.type ?? "single") }?.1 ?? "Pick one").font(VFont.ui(12, .semibold))
                         ProtoIcon("chevron-down", size: 12)
                     }
                     .foregroundStyle(VC.brandDeep)

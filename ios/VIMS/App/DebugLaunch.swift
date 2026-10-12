@@ -69,6 +69,10 @@ enum DebugFlags {
 ///   -section NAME              section to open (default Roof / Outside Utilities for high)
 ///   -generate                  with -screen reportReady: regenerate the PDF first
 ///   -inspection PREFIX         inspection whose address starts with PREFIX, or whose type equals it (default 1428…)
+///   -iaq fill|blank|legacy     add the Indoor Air Quality test to that inspection and mark it done: `fill` = the
+///                              report.html sample readings, `blank` = no readings, `legacy` = pre-v1.7 choices
+///                              ("Formaldehyde (HCHO)": "2" …) to exercise the rating migration, `overflow` = `fill`
+///                              plus long High Detail Report Information text so the table breaks across pages
 enum DebugLaunch {
     static var args: [String] { ProcessInfo.processInfo.arguments }
 
@@ -122,6 +126,42 @@ enum DebugLaunch {
         if MFMailComposeViewController.canSendMail() {
             let vc = MFMailComposeViewController(); d.configure(vc); print("MAILTEST composer configured")
         }
+    }
+
+    /// -iaq: Indoor Air Quality on the chosen inspection (report table / migration checks).
+    @MainActor
+    static func seedAirQuality(_ store: AppStore, _ id: UUID, mode: String) {
+        let name = "Indoor Air Quality"
+        guard var insp = store.inspection(id) else { return }
+        if !insp.tests.contains(name) { insp.tests.append(name); store.buildChecklist(from: insp) }
+        guard let depth = store.inspection(id)?.depth else { return }
+        let keyed = ItemKeys.keyed(store.catalog.items(name, depth: depth).items)
+        var a = store.defaultAnswers(name)
+        let sample: [String: (String, String)] = ["HCHO": ("0.03", "2"), "TVOC": ("0.21", "2"), "PM2.5": ("8", "1"),
+                                                  "PM10": ("22", "2"), "CO2": ("610", "3"), "Ozone": ("0.02", "1"), "CO": ("0", "1")]
+        switch mode {
+        case "fill", "overflow":
+            for k in keyed {
+                if k.item.kind == .airReading, let v = sample[k.item.code ?? ""] { a.text[k.id] = v.0; a.choices[k.id] = [v.1] }
+                if k.item.kind == .text {
+                    a.text[k.id] = ["Client name": insp.clientName, "Date": Fmt.date(Date(), "MMMM d, yyyy"), "Time": "10:15 AM",
+                                    "Property address": insp.addressLine1][k.item.q ?? ""]
+                    if mode == "overflow", k.item.q == "Property address" {
+                        a.text[k.id] = Array(repeating: "\(insp.addressLine1) — readings taken on the main floor, basement and the finished attic room.", count: 9).joined(separator: " ")
+                    }
+                }
+            }
+        case "legacy":
+            // Standard keys before v1.7 (no header) with the old "1 Good" style options.
+            for (q, v) in [("Formaldehyde (HCHO)", "2"), ("TVOC", "2"), ("PM2.5", "1 Good"), ("PM10", "2"), ("CO2", "3 Mild"), ("CO", "1 Good")] {
+                a.choices["›\(q)"] = [v]
+            }
+        default: break
+        }
+        a.comments = mode != "blank" && mode != "legacy" ? "Readings taken in the main living area with the meter at breathing height." : ""
+        let answers = a
+        store.update(id, markDirty: false) { $0.answers[name] = answers; $0.status[name] = .done }
+        print("IAQTEST mode=\(mode) depth=\(depth.rawValue) readings=\(keyed.filter { $0.item.kind == .airReading }.count)")
     }
 
     @MainActor
@@ -222,6 +262,7 @@ enum DebugLaunch {
             if p.count == 4 { store.update(id, markDirty: false) { $0.cover = CoverChoice(color: p[0], category: p[1], option: p[2], style: p[3]) } }
         }
         if let d = value("-depth"), let depth = Depth(rawValue: d) { store.update(id, markDirty: false) { $0.depth = depth } }
+        if let mode = value("-iaq") { seedAirQuality(store, id, mode: mode) }
         let depth = store.inspection(id)?.depth ?? .standard
         let section = value("-section") ?? (ridge.leafSections.contains("Roof") ? (depth == .high ? "Outside Utilities" : "Roof") : (ridge.leafSections.first ?? "Roof"))
 

@@ -20,10 +20,41 @@ struct ReportSection {
     let number: Int
     let name: String
     let rows: [ReportRow]
+    var airTable: AirQualityTable? = nil
     let overall: String?
     let comments: String
     let findings: [Finding]
     let photos: [ReportPhoto]
+}
+
+/// Indoor Air Quality readings in the client's report format (data v1.7 `airReading` items + the section's
+/// `airQuality` block; report.html page 7 `.aqhead` / `.aqrow`). Every reading prints, blank when not taken.
+struct AirQualityTable {
+    struct Row {
+        let code: String
+        let pollutant: String      // "HCHO – Formaldehyde"
+        let level: String          // "0.03 mg/m³", or "" (blank underline)
+        let rating: String         // "2", or ""
+        let reference: String
+        let action: String         // without the prefix
+    }
+    let def: AirQualityDef
+    let rows: [Row]
+
+    static func make(_ items: [KeyedItem], answers a: SectionAnswers, def: AirQualityDef?) -> AirQualityTable? {
+        let rows: [Row] = items.filter { $0.item.kind == .airReading }.map { k in
+            let code = k.item.code ?? ""
+            let q = k.item.q ?? code
+            let level = a.airLevel(k.id).trimmingCharacters(in: .whitespaces)
+            let unit = k.item.unit ?? ""
+            return Row(code: code,
+                       pollutant: code.isEmpty || q.hasPrefix(code) ? q : "\(code) – \(q)",
+                       level: level.isEmpty ? "" : (unit.isEmpty ? level : "\(level) \(unit)"),
+                       rating: a.airRating(k.id) ?? "",
+                       reference: k.item.reference ?? "", action: k.item.action ?? "")
+        }
+        return rows.isEmpty ? nil : AirQualityTable(def: def ?? AirQualityDef(), rows: rows)
+    }
 }
 
 struct ReportData {
@@ -123,15 +154,20 @@ struct ReportData {
         let ordered = cat.sortedForReport(done)
         var sections: [ReportSection] = []
         for name in ordered {
-            let a = insp.answers[name] ?? SectionAnswers()
+            var a = insp.answers[name] ?? SectionAnswers()
             var rows: [ReportRow] = []
+            var airTable: AirQualityTable?
             if insp.depth == .fast {
                 if !a.present.isEmpty { rows.append(ReportRow(kind: .line("Items reviewed", a.present.joined(separator: ", ")))) }
             } else {
                 let items = ItemKeys.keyed(cat.items(name, depth: insp.depth).items)
+                a = a.migratingLegacyAirRatings(items)
+                // Indoor Air Quality readings print as their own table after the other lines (High: Report Information).
+                airTable = AirQualityTable.make(items, answers: a, def: cat.section(name)?.airQuality)
                 var pendingHeader: String?
                 for k in items {
                     if let h = k.item.header { pendingHeader = h; continue }
+                    if k.item.kind == .airReading { continue }
                     var value = ""
                     switch k.item.kind {
                     case .single, .multi: value = (a.choices[k.id] ?? []).joined(separator: ", ")
@@ -155,7 +191,7 @@ struct ReportData {
                     photos.append(ReportPhoto(url: repo.url(for: p.file), caption: c, flag: p.flag, comment: p.comment))
                 }
             }
-            sections.append(ReportSection(number: cat.number(name), name: name, rows: rows, overall: a.overall,
+            sections.append(ReportSection(number: cat.number(name), name: name, rows: rows, airTable: airTable, overall: a.overall,
                                           comments: a.comments, findings: insp.findings.filter { $0.section == name }, photos: photos))
         }
 
@@ -793,7 +829,7 @@ enum ReportRenderer {
         func section(_ s: ReportSection) {
             newContentPage()
             sectionTitle(s.number, s.name)
-            if s.rows.isEmpty {
+            if s.rows.isEmpty && s.airTable == nil {
                 note("No line items were recorded for this section.")
             }
             for r in s.rows {
@@ -816,6 +852,10 @@ enum ReportRenderer {
                     y += h
                 }
             }
+            if let t = s.airTable {
+                if !s.rows.isEmpty { y += 10 }
+                airQuality(t)
+            }
             if let o = s.overall {
                 ensure(40)
                 y += 10
@@ -833,6 +873,77 @@ enum ReportRenderer {
             if !s.findings.isEmpty {
                 blockLabel("Findings")
                 for f in s.findings { findingLine(f, number: nil) }
+            }
+        }
+
+        // MARK: Indoor Air Quality table (client's format, Oct 12 2026)
+
+        private var aqLevelW: CGFloat { 112 }
+        private var aqRatingW: CGFloat { 104 }
+        private var aqPollutantW: CGFloat { contentW - aqLevelW - aqRatingW - 12 }
+        private let aqPollutantFont = VFont.uUI(10)
+        private let aqSubFont = VFont.uUI(7.6)
+
+        private func aqRowHeight(_ r: AirQualityTable.Row, prefix: String) -> CGFloat {
+            let half = (contentW - 14) / 2
+            let top = max(measure(r.pollutant, aqPollutantFont, w: aqPollutantW, lineSpacing: 1), 16)
+            let sub = max(r.reference.isEmpty ? 0 : measure(r.reference, aqSubFont, w: half, lineSpacing: 1),
+                          r.action.isEmpty ? 0 : measure(prefix + r.action, aqSubFont, w: half, lineSpacing: 1))
+            return 8 + top + (sub > 0 ? 5 + sub : 0) + 8
+        }
+
+        /// Legend (top-right) and the "Level Measured" / "Air Quality Rating" column heads; repeated after a page break.
+        private func aqHead(_ def: AirQualityDef, legend: Bool) {
+            if legend, !def.legendLine.isEmpty {
+                text(def.legendLine, VFont.uUI(8.6, .semibold), ink, x: m, y: y, w: contentW, align: .right, lineSpacing: 0)
+                y += 18
+            }
+            let hf = VFont.uUI(8.4, .bold)
+            let lx = m + aqPollutantW + 6
+            text(def.levelHead, hf, ink2, x: lx, y: y, w: aqLevelW, align: .center, lineSpacing: 0)
+            text(def.ratingHead, hf, ink2, x: lx + aqLevelW + 6, y: y, w: aqRatingW, align: .center, lineSpacing: 0)
+            y += 14
+            hline(y, x: m, w: contentW, line)
+            y += 1
+        }
+
+        func airQuality(_ t: AirQualityTable) {
+            let prefix = t.def.prefix
+            let headH: CGFloat = (t.def.legendLine.isEmpty ? 0 : 18) + 15
+            ensure(headH + (t.rows.first.map { aqRowHeight($0, prefix: prefix) } ?? 0))
+            aqHead(t.def, legend: true)
+            let previous = onPageBreak
+            onPageBreak = { [unowned self] in self.aqHead(t.def, legend: false) }
+            defer { onPageBreak = previous }
+            let half = (contentW - 14) / 2
+            for r in t.rows {
+                let h = aqRowHeight(r, prefix: prefix)
+                ensure(h)
+                let top = y + 8
+                // pollutant: code bold, " – name" regular
+                let p = NSMutableParagraphStyle(); p.lineSpacing = 1
+                let a = NSMutableAttributedString(string: r.pollutant, attributes: [.font: aqPollutantFont, .foregroundColor: ink, .paragraphStyle: p])
+                if !r.code.isEmpty, r.pollutant.hasPrefix(r.code) {
+                    a.addAttribute(.font, value: VFont.uUI(10, .bold), range: NSRange(location: 0, length: (r.code as NSString).length))
+                }
+                let ph = max(measure(r.pollutant, aqPollutantFont, w: aqPollutantW, lineSpacing: 1), 16)
+                a.draw(with: CGRect(x: m + 4, y: top, width: aqPollutantW - 4, height: ph + 2), options: [.usesLineFragmentOrigin, .usesFontLeading], context: nil)
+                // level on an underline (blank underline when not measured)
+                let lx = m + aqPollutantW + 6
+                if !r.level.isEmpty {
+                    text(r.level, VFont.uUI(9.6), ink, x: lx + 6, y: top, w: aqLevelW - 12, align: .center, lineSpacing: 0)
+                }
+                hline(top + 15.5, x: lx + 14, w: aqLevelW - 28, ink3, width: 0.7)
+                // rating, bold
+                if !r.rating.isEmpty {
+                    text(r.rating, VFont.uUI(11.5, .bold), ink, x: lx + aqLevelW + 6, y: top - 1.5, w: aqRatingW, align: .center, lineSpacing: 0)
+                }
+                // reference (left) and corrective action (right), small
+                let sy = top + ph + 5
+                if !r.reference.isEmpty { text(r.reference, aqSubFont, ink2, x: m + 4, y: sy, w: half - 4, lineSpacing: 1) }
+                if !r.action.isEmpty { text(prefix + r.action, aqSubFont, ink2, x: m + half + 14, y: sy, w: half - 4, align: .right, lineSpacing: 1) }
+                hline(y + h - 0.6, x: m, w: contentW, line2)
+                y += h
             }
         }
 

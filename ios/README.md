@@ -48,7 +48,9 @@ validation errors show), `-eulaVersion V` (pretend eula.json has version V → r
 version), `-eulaSection N|footer` (viewer scroll), `-prefill EMAIL [-code CODE] [-agree]` (valid Create account /
 Join details), `-activeSub` (mark the subscription active), `-profilePhotoSample` (profile photo from an
 inspection photo), `-confirmDelete` (with `-screen deleteAccount`: type DELETE and submit), `-prefill EMAIL -password PW -validate`
-on `-screen login` (try that sign-in), `-confirm PW` (signup confirm value).
+on `-screen login` (try that sign-in), `-confirm PW` (signup confirm value), `-iaq fill|blank|legacy|overflow` (adds
+Indoor Air Quality to the chosen inspection and marks it done: sample readings / no readings / pre-v1.7 answers /
+long Report Information so the readings table breaks across pages).
 None of this is compiled into Release builds. The prototype's yellow review/jump button is intentionally not a
 user feature.
 
@@ -406,3 +408,27 @@ menu existed). Now (`Views/Inspection/DeleteInspection.swift`):
   inspections are listed and the repository re-checks the owner. TODO(backend): once the VIMS server is live,
   reports are retained server-side (reports 3 years, agreements 5 years), so deleting only frees device space.
 - Screenshots: `screenshots/oct11-delete-*.png` (iPhone 17 01–10, 19; iPad mini 11–18).
+
+## Indoor Air Quality readings (client update Oct 12, shared data v1.7)
+
+- **Data**: new item type `airReading` (`ItemDef` gains `code`, `unit`, `reference`, `action`; `ItemKind.airReading`)
+  and the section-level `airQuality` block (`AirQualityDef`: legend, ratings, column heads, action prefix).
+- **Answer**: the optional "Level measured" lives in `SectionAnswers.text[key]`, the 1–6 rating in `choices[key]`
+  (no schema change, older saves decode as before). Pre-v1.7 IAQ answers (single choice "1 Good" / "2"… under the
+  old question keys) are moved onto the matching reading's rating by pollutant code when the section is opened or
+  the report is built (`SectionAnswers.migratingLegacyAirRatings`); anything that doesn't map is left alone.
+- **Entry** (`AirReadingInput` in `SectionEntryView.swift`): question, decimal-keypad "Level (unit)" field with the
+  unit pill (optional; validated on Save as a number, 0 or more — new `FieldKind.reading`), "Air quality rating"
+  with six 44 pt rating buttons (tap again to deselect; the caption shows e.g. "· 3 Mild"), then the reference
+  and "Corrective action if needed — …" in small secondary text. iPhone stacks level over rating; iPad puts them
+  side by side. Fast Entry's "Items reviewed" chips list the readings as before. Manage checklist labels these
+  items "Air reading".
+- **PDF** (`AirQualityTable` + `Writer.airQuality` in `ReportRenderer.swift`, report.html page 7): legend top-right,
+  "Level Measured" / "Air Quality Rating" heads, one row per reading — "**CODE** – name" | level + unit on an
+  underline (blank underline when not measured) | bold rating (blank when none) — with the reference (left) and
+  corrective action (right) under it. Every reading prints, filled or not, like the client's form. High Detail's
+  Report Information lines print above the table. Rows never split; after a page break the column heads repeat.
+  Overall condition, comments, findings and the photo pages follow as usual. Fast Entry keeps its "Items reviewed" line.
+- Screenshots: `screenshots/oct12-iaq-*.png` (1–2 iPhone entry, 3 Standard PDF page, 4 High Detail PDF page,
+  5 table across a page break, 6 PDF from migrated pre-v1.7 answers, 7 migrated entry + Fast Entry,
+  8 iPad High Detail entry, 9 level validation).

@@ -57,6 +57,48 @@ struct SectionAnswers: Codable, Hashable {
         choices.values.contains { !$0.isEmpty } || text.values.contains { !$0.isEmpty } ||
         detail.values.contains { !$0.isEmpty } || !present.isEmpty || !comments.isEmpty
     }
+
+    // MARK: Indoor Air Quality readings (data v1.7 `airReading`)
+    // Level measured -> text[key] (optional, non-negative number); rating "1"…"6" -> choices[key] (single).
+
+    func airLevel(_ key: String) -> String { text[key] ?? "" }
+    func airRating(_ key: String) -> String? { choices[key]?.first }
+
+    /// Before v1.7 the IAQ readings were plain single-choice items ("Formaldehyde (HCHO)": "1 Good", "2", …) under
+    /// other answer keys. Moves such a saved choice onto the matching reading's rating (by pollutant code) when that
+    /// reading has none yet; answers that don't map are left alone (and simply aren't shown).
+    func migratingLegacyAirRatings(_ keyed: [KeyedItem]) -> SectionAnswers {
+        let readings = keyed.filter { $0.item.kind == .airReading }
+        guard !readings.isEmpty else { return self }
+        let current = Set(keyed.map(\.id))
+        var out = self
+        for r in readings where out.choices[r.id]?.isEmpty ?? true {
+            guard let code = r.item.code?.lowercased(), !code.isEmpty else { continue }
+            let options = r.item.options ?? []
+            let legacy = out.choices.keys.sorted().first { k in
+                guard !current.contains(k), !(out.choices[k]?.isEmpty ?? true) else { return false }
+                return Self.legacyQuestion(k).contains(code)
+            }
+            guard let lk = legacy, let old = out.choices[lk]?.first,
+                  let digit = old.trimmingCharacters(in: .whitespaces).first.map(String.init), options.contains(digit) else { continue }
+            out.choices[r.id] = [digit]
+            out.choices[lk] = nil
+        }
+        return out
+    }
+
+    /// "Readings (…)›HCHO (Formaldehyde)#1" -> {"hcho (formaldehyde)", "hcho", "formaldehyde"}.
+    private static func legacyQuestion(_ key: String) -> Set<String> {
+        var q = key.components(separatedBy: "›").last ?? key
+        if let r = q.range(of: #"#\d+$"#, options: .regularExpression) { q = String(q[..<r.lowerBound]) }
+        q = q.trimmingCharacters(in: .whitespaces).lowercased()
+        var out: Set<String> = [q]
+        if let open = q.firstIndex(of: "("), let close = q.lastIndex(of: ")"), open < close {
+            out.insert(q[..<open].trimmingCharacters(in: .whitespaces))
+            out.insert(q[q.index(after: open)..<close].trimmingCharacters(in: .whitespaces))
+        }
+        return out
+    }
 }
 
 // MARK: - Photos & findings
