@@ -118,11 +118,12 @@ only after `ready` — on a normal cold launch and when the activity is recreate
 `Theme.VIMS.Starting` (SplashScreen API, light gray `#D4D4D9` matching the video, no icon) → `SplashVideo` plays
 `shared/media/vims-splash.mp4` once, muted, **fit inside** (whole frame visible on every aspect ratio, never cropped),
 tap to skip, then Sign in (or Home with a saved session). The letterbox is a two-band background whose colors are
-sampled from the video's top/bottom edge rows at runtime (`MediaMetadataRetriever`; fallback `#D2D4DA` / `#C3CAD1`),
-so the bands blend into the frame. The video file itself is not altered.
+sampled from the video's top/bottom edge rows at runtime (`MediaMetadataRetriever`; fallback `#CCD6DF` / `#BDC7D3`, the
+Oct 12 video's edges), so the bands blend into the frame. The video file itself is not altered. The video (6.6 s since
+Oct 12) ends the splash itself; safety nets: 8 s if it never starts, otherwise its length + 1.5 s (debug builds log
+`VIMS-Splash` ready / first frame / done).
 With animator duration scale 0 the last frame shows for ~1 s. On emulators only, the platform software H.264 decoder is
-preferred (the emulator's "goldfish" decoder renders nothing under software GPU). Note: the source video's tagline reads
-"Vision Ins**j**ection…" — pending a corrected file from the client.
+preferred (the emulator's "goldfish" decoder renders nothing under software GPU).
 
 ### Platform-owner settings (Feedback & support, Report quality copy / BCC)
 - These are **VIMS platform** settings (disclosed in the VIMS EULA), not per-company settings.
@@ -281,9 +282,9 @@ The VIMS agreement stays the default and is never changed; edits only ever apply
   (and downloads that), and **Open your agreement** is unchanged.
 - **Edit (company admins only — same permission as Upload / Use VIMS agreement, which are now admin-only too):** the card
   shows **Edit**, which opens "Edit agreement" (`AgreementEditR`): one large text field prefilled with the company's edited
-  version, or the whole VIMS agreement as plain text (`InspectionAgreement.plainText`: title, form lines, paragraphs
+  version, or the whole VIMS agreement as plain text (`InspectionAgreement.plainText`: title, paragraphs
   separated by blank lines, bullets "• ", the disclosures heading then one "State name: text" paragraph per state, closing)
-  with the company name filled in. Save checks not blank / at most 100,000 characters; leaving with unsaved changes (header
+  with the company name filled in; the form lines are locked since v0.15.0 (see below). Save checks not blank / at most 100,000 characters; leaving with unsaved changes (header
   back, Cancel, system back) asks "Discard changes?". The draft survives rotation (kept in the ViewModel, not in saved state).
 - **Which agreement is in use:** saving an edit clears an uploaded file (and deletes it); uploading a file clears the edit;
   **Use VIMS agreement** clears both (asks first when an edited version would be removed).
@@ -392,3 +393,34 @@ Client update (Oct 12): section 39 Indoor Air Quality uses the new `airReading` 
   comments, findings and photos print as usual. Admin "Manage checklist" labels the item "Air reading · level (unit) + 1–6 rating".
 - Screenshots: `screenshots/oct12-iaq-*.png` (entry Standard / High Detail / validation / after relaunch; PDF Standard,
   High Detail, and a forced page break with an empty CO row). Test APK: `../../VIMS-Android-test-v0.14.0-2026-10-12.apk`.
+
+## QA round Oct 12 — iOS parity (v0.15.0, data v1.7.1)
+
+- **Date & time fields in checklists:** data v1.7.1 made Indoor Air Quality (High Detail) Date → `date` and Time → `time`,
+  Termite "Date of inspection" and Wind Mitigation "Inspection date" → `date`. The checklist renderer already had both
+  types (`SectionScreen.ItemCard` → `PickerField` + `pickDate` / `pickTime`, the wizard's own Date / Time pickers — same
+  look, no past-date limit in checklists). Tapping one opens the picker directly; `PickerField` now clears focus first, so a
+  keyboard left up by a text field above closes (wizard too). Stored as text in the answer like the wizard (`2026-10-14`,
+  `10:00`); the PDF prints "Oct 14, 2026" / "10:00 AM". **Inspections built before v1.7.1** (their checklist snapshot still
+  says `text`) get the picker too: `ChecklistEngine.upgradePickers` (applied when the repository loads inspections) switches
+  a snapshot item from `text` to `date` / `time` when the current data has the same section + question as a picker (iOS reads
+  the live data). Nothing else in the snapshot changes; an answer typed earlier ("10/12/2026", "9:30 AM") still shows and
+  prints as typed until a date / time is picked.
+- **Agreement form block locked:** "Edit agreement" edits only the wording (title, body, state disclosures, closing). The
+  form block (`InspectionAgreement.formLines`: Clients Name ____ … ☐ checkbox lines … fees) is shown read-only above the
+  field ("Form lines · locked", boxed mono, scrolls inside 150dp; folds away while the keyboard is up, Show closes the
+  keyboard) and is not in the editor text. The viewer and the downloaded PDF print the saved wording with the locked block
+  boxed after its title (`AgreementText.pieces(text, form)`: a one-line first block is the title; block at the top when
+  there is none). No fill-in-the-blank or tappable checkboxes (filling / signing is the deferred e-sign add-on).
+  **Edits saved before the lock** contain the form lines after the title: `AgreementText.stripForm` drops a blank-line block
+  whose lines are at least half form lines (even with a few lines changed) and any other line that is exactly a form line,
+  so the viewer / PDF show the block once and the editor opens without it (stored text is rewritten on the next save).
+- **Quick-comment dropdowns** (photo markup Comment, Flag a finding / Concern Quick comment — shared `SelectBox`): every
+  comment shows in full, wrapped (menu as wide as the field, at least 260dp; the chosen comment in the field wraps instead
+  of an ellipsis). Opening it clears focus (keyboard down).
+- **Splash video** (Oct 12, 6.6 s, 720×1280): the old 7 s safety timer cut the last ~0.5 s on a cold start (the video
+  ends ~7.2–7.5 s after launch on the emulator). Now 8 s only if it never starts, else video length + 1.5 s; it plays to the
+  end once (`VIMS-Splash: done (video ended)`). Fallback band colors updated to the new video's edges (top / bottom rows
+  measured constant across the video); `verifySharedAssets` passes.
+- Screenshots: `screenshots/oct12b-*.png` (date / time entry, legacy text answer, IAQ PDF; agreement editor, edited +
+  legacy viewer, PDF; quick-comment menus; splash). Test APK: `../../VIMS-Android-test-v0.15.0-2026-10-12.apk`.
