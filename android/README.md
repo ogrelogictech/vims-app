@@ -369,3 +369,26 @@ Client feedback (Oct 11): a tester couldn't find a way to delete current or old 
 - `TODO(backend)`: once the VIMS server is live, reports are retained server-side (reports 3 yrs, agreements 5 yrs), so
   deleting only frees device space.
 - Screenshots: `screenshots/oct11-delete-*.png`. Test APK: `../../VIMS-Android-test-v0.13.0-2026-10-11.apk`.
+
+## Indoor Air Quality readings (v0.14.0, data v1.7)
+
+Client update (Oct 12): section 39 Indoor Air Quality uses the new `airReading` item type (Standard `items` and High Detail
+`itemsHigh`, after Report Information) plus a section-level `airQuality` block (legend, ratings, column heads, action prefix).
+- **Model:** `ItemDef` gains `code` / `unit` / `reference` / `action` (+ `isAirReading`); `SectionDef.airQuality` →
+  `AirQualityDef`. Unknown item types still render as a text input (no crash).
+- **Answer storage (no Room migration):** under the item's normal key, the 1–6 rating is a single value in
+  `SectionAnswers.values` (like `single`) and the optional level is plain decimal text in `SectionAnswers.inputs` (unit not
+  stored). Read through `SectionAnswers.airRating(key)` / `airLevel(key)`; a pre-v1.7 value such as "1 Good" / "3 Mild"
+  maps to its leading digit, anything else is ignored; a non-numeric level (e.g. ".") is treated as blank.
+  Inspections built before v1.7 keep their checklist snapshot (old single-choice IAQ lines) and print as before.
+- **Entry UI (`SectionScreen.AirReadingCard`):** question, "Level (<unit>)" decimal-keypad field (optional, must be a
+  number ≥ 0 — `Checks.level`), 1–6 rating chips (tap again to deselect), then the reference and
+  "Corrective action if needed — <action>" in small secondary text. Fast Entry "Items reviewed" chips unchanged.
+- **PDF (`ReportPdfGenerator.airQualityTable`):** when a section has `airQuality`, each run of readings prints as the
+  client's table — legend top-right (own line when it can't share the column-head line), "Level Measured" / "Air Quality
+  Rating" heads, rows "<code> – <name>" | level + unit on an underline | bold rating, with the reference (left) and the
+  corrective action (right) beneath. Unanswered readings print blank like the paper form; a row never splits across pages
+  and the column heads repeat under "Indoor Air Quality (cont.)". Report Information (High Detail), Overall condition,
+  comments, findings and photos print as usual. Admin "Manage checklist" labels the item "Air reading · level (unit) + 1–6 rating".
+- Screenshots: `screenshots/oct12-iaq-*.png` (entry Standard / High Detail / validation / after relaunch; PDF Standard,
+  High Detail, and a forced page break with an empty CO row). Test APK: `../../VIMS-Android-test-v0.14.0-2026-10-12.apk`.
