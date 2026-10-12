@@ -1218,12 +1218,14 @@
       {q:'Lead present level (1 low … 10 high)',t:'single',o:['1','2','3','4','5','6','7','8','9','10']}
     ]},
     'Indoor Air Quality':{pics:['Meter','Concerns'],items:[
-      {q:'Formaldehyde (HCHO)',t:'single',o:['1 Good','2','3 Mild','4 Moderate','5 Severe','6 Serious']},
-      {q:'TVOC',t:'single',o:['1 Good','2','3 Mild','4 Moderate','5 Severe','6 Serious']},
-      {q:'PM2.5',t:'single',o:['1 Good','2','3 Mild','4 Moderate','5 Severe','6 Serious']},
-      {q:'PM10',t:'single',o:['1 Good','2','3 Mild','4 Moderate','5 Severe','6 Serious']},
-      {q:'CO2',t:'single',o:['1 Good','2','3 Mild','4 Moderate','5 Severe','6 Serious']},
-      {q:'CO',t:'single',o:['1 Good','2','3 Mild','4 Moderate','5 Severe','6 Serious']}
+      {h:"Readings (1 & 2 Good \u00b7 3 Mild \u00b7 4 Moderate \u00b7 5 Severe \u00b7 6 Serious)"},
+      {q:"HCHO \u2013 Formaldehyde",t:'air',code:"HCHO",unit:"mg/m\u00b3",o:['1','2','3','4','5','6'],ref:"Formaldehyde 0.94 to 1.25 mg/m\u00b3",act:"Ventilation or deodorant absorption."},
+      {q:"TVOC \u2013 Total Volatile Organic Compounds",t:'air',code:"TVOC",unit:"mg/m\u00b3",o:['1','2','3','4','5','6'],ref:"Total Volatile Organic Compounds such as carcinogenic particles from building materials. 0.3 to 0.5 mg",act:"Removal and ventilation or seal and bake."},
+      {q:"PM2.5 \u2013 Fine Particulates",t:'air',code:"PM2.5",unit:"\u00b5g/m\u00b3",o:['1','2','3','4','5','6'],ref:"Fine Particulates. National Standard is 12 \u00b5g/m\u00b3",act:"Air filters & ventilation (seasonal)."},
+      {q:"PM10 \u2013 Inhalable Coarse Particulates",t:'air',code:"PM10",unit:"\u00b5g/m\u00b3",o:['1','2','3','4','5','6'],ref:"Inhalable coarse Particulates. National Standard is 150 \u00b5g/m\u00b3",act:"Air filters & ventilation (seasonal)."},
+      {q:"CO2 \u2013 Carbon Dioxide",t:'air',code:"CO2",unit:"ppm",o:['1','2','3','4','5','6'],ref:"Carbon Dioxide 250 - 400",act:"Ventilation and find, correct source."},
+      {q:"Ozone",t:'air',code:"Ozone",unit:"ppm",o:['1','2','3','4','5','6'],ref:"Normal/Good 0-0.054 PPM",act:"Air filters & ventilation (seasonal)."},
+      {q:"CO \u2013 Carbon Monoxide",t:'air',code:"CO",unit:"ppm",o:['1','2','3','4','5','6'],ref:"Carbon Monoxide Normal/Good 0-5 PPM",act:"Above 30 ppm leave the house immediately."}
     ]},
     'Wind Mitigation':{pics:['Roof Deck','Roof-Wall Attachment','Openings','Concerns'],items:[
       {q:'1. Building code',t:'single',o:['A – FBC compliant','B – SFBC-94 (HVHZ)','C – Unknown / neither']},
@@ -4018,14 +4020,14 @@ SEC['Indoor Air Quality'].itemsHigh=[
   {q:'Date',t:'text',ph:'date'},
   {q:'Time',t:'text',ph:'time'},
   {q:'Property address',t:'text',ph:'address'},
-  {h:'Readings (1-2 Good, 3 Mild, 4 Moderate, 5 Severe, 6 Serious)'},
-  {q:'HCHO (Formaldehyde)',t:'single',o:['1','2','3','4','5','6']},
-  {q:'TVOC (Total Volatile Organic Compounds)',t:'single',o:['1','2','3','4','5','6']},
-  {q:'PM2.5 (Fine Particulates)',t:'single',o:['1','2','3','4','5','6']},
-  {q:'PM10 (Inhalable Coarse Particulates)',t:'single',o:['1','2','3','4','5','6']},
-  {q:'CO2 (Carbon Dioxide)',t:'single',o:['1','2','3','4','5','6']},
-  {q:'Ozone',t:'single',o:['1','2','3','4','5','6']},
-  {q:'CO (Carbon Monoxide)',t:'single',o:['1','2','3','4','5','6']}
+  {h:"Readings (1 & 2 Good \u00b7 3 Mild \u00b7 4 Moderate \u00b7 5 Severe \u00b7 6 Serious)"},
+  {q:"HCHO \u2013 Formaldehyde",t:'air',code:"HCHO",unit:"mg/m\u00b3",o:['1','2','3','4','5','6'],ref:"Formaldehyde 0.94 to 1.25 mg/m\u00b3",act:"Ventilation or deodorant absorption."},
+  {q:"TVOC \u2013 Total Volatile Organic Compounds",t:'air',code:"TVOC",unit:"mg/m\u00b3",o:['1','2','3','4','5','6'],ref:"Total Volatile Organic Compounds such as carcinogenic particles from building materials. 0.3 to 0.5 mg",act:"Removal and ventilation or seal and bake."},
+  {q:"PM2.5 \u2013 Fine Particulates",t:'air',code:"PM2.5",unit:"\u00b5g/m\u00b3",o:['1','2','3','4','5','6'],ref:"Fine Particulates. National Standard is 12 \u00b5g/m\u00b3",act:"Air filters & ventilation (seasonal)."},
+  {q:"PM10 \u2013 Inhalable Coarse Particulates",t:'air',code:"PM10",unit:"\u00b5g/m\u00b3",o:['1','2','3','4','5','6'],ref:"Inhalable coarse Particulates. National Standard is 150 \u00b5g/m\u00b3",act:"Air filters & ventilation (seasonal)."},
+  {q:"CO2 \u2013 Carbon Dioxide",t:'air',code:"CO2",unit:"ppm",o:['1','2','3','4','5','6'],ref:"Carbon Dioxide 250 - 400",act:"Ventilation and find, correct source."},
+  {q:"Ozone",t:'air',code:"Ozone",unit:"ppm",o:['1','2','3','4','5','6'],ref:"Normal/Good 0-0.054 PPM",act:"Air filters & ventilation (seasonal)."},
+  {q:"CO \u2013 Carbon Monoxide",t:'air',code:"CO",unit:"ppm",o:['1','2','3','4','5','6'],ref:"Carbon Monoxide Normal/Good 0-5 PPM",act:"Above 30 ppm leave the house immediately."}
 ];
 
 SEC['Septic'].itemsHigh=[
@@ -4368,6 +4370,7 @@ SEC['Wind Mitigation'].itemsHigh=[
       items.forEach(function(it){
         if(it.h){ h+='<div class="lihead">'+ico('list')+it.h+'</div>'; return; }
         if(it.t==='num'||it.t==='text'||it.t==='date'||it.t==='time'){ var itype=it.t==='date'?'date':it.t==='time'?'time':'text'; var extra=it.t==='num'?'inputmode="decimal" ':''; var ph=(it.t==='date'||it.t==='time')?'':'placeholder="'+(it.ph||'Enter a value')+'" '; h+='<div class="li"><div class="q">'+it.q+'</div><input class="txt" type="'+itype+'" '+extra+ph+'></div>'; return; }
+        if(it.t==='air'){ h+='<div class="li air" data-q="'+String(it.q).replace(/"/g,'&quot;')+'"><div class="q">'+it.q+'</div><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><input class="txt" style="flex:0 0 150px;min-height:42px" inputmode="decimal" placeholder="Level ('+it.unit+')" aria-label="Level measured, '+it.unit+'"><div class="chips" data-single style="margin:0">'; it.o.forEach(function(op){ h+='<button class="chip">'+op+'</button>'; }); h+='</div></div><div style="font-size:11.5px;color:var(--ink-3);margin-top:7px;line-height:1.45">'+it.ref+'<br>Corrective action if needed — '+it.act+'</div></div>'; return; }
         h+='<div class="li" data-q="'+String(it.q).replace(/"/g,'&quot;')+'"><div class="q">'+it.q+'</div><div class="chips"'+(it.t==='single'?' data-single':'')+'>';
         it.o.forEach(function(op){ h+='<button class="chip">'+op+'</button>'; });
         h+='</div>';

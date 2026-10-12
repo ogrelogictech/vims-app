@@ -1,7 +1,7 @@
 {
  "_about": "VIMS shared checklist + configuration data. Single source of truth for the native iOS (SwiftUI) and Android (Kotlin/Compose) apps. Extracted from the client-approved prototype (index.html, approved Sep 15, 2026). Edit here, not in app code.",
- "version": "1.6.0",
- "generated": "2026-10-09",
+ "version": "1.7.0",
+ "generated": "2026-10-12",
  "depths": [
   {
    "id": "high",
@@ -28,7 +28,8 @@
   "text": "free text input",
   "date": "date picker",
   "time": "time picker",
-  "header": "sub-section header band (not an input)"
+  "header": "sub-section header band (not an input)",
+  "airReading": "Indoor Air Quality reading: optional numeric 'Level measured' (decimal keypad, unit shown) + a 1–6 rating (single choice). Answer = {level, rating}. Carries code/unit/reference/action for the report table (see the section's airQuality block)."
  },
  "overallCondition": [
   "Satisfactory",
@@ -26739,76 +26740,126 @@
    ],
    "items": [
     {
-     "q": "Formaldehyde (HCHO)",
-     "type": "single",
-     "options": [
-      "1 Good",
-      "2",
-      "3 Mild",
-      "4 Moderate",
-      "5 Severe",
-      "6 Serious"
-     ]
+     "header": "Readings (1 & 2 Good · 3 Mild · 4 Moderate · 5 Severe · 6 Serious)"
     },
     {
-     "q": "TVOC",
-     "type": "single",
+     "q": "HCHO – Formaldehyde",
+     "type": "airReading",
+     "code": "HCHO",
+     "unit": "mg/m³",
+     "placeholder": "Level measured (mg/m³)",
      "options": [
-      "1 Good",
+      "1",
       "2",
-      "3 Mild",
-      "4 Moderate",
-      "5 Severe",
-      "6 Serious"
-     ]
+      "3",
+      "4",
+      "5",
+      "6"
+     ],
+     "reference": "Formaldehyde 0.94 to 1.25 mg/m³",
+     "action": "Ventilation or deodorant absorption."
     },
     {
-     "q": "PM2.5",
-     "type": "single",
+     "q": "TVOC – Total Volatile Organic Compounds",
+     "type": "airReading",
+     "code": "TVOC",
+     "unit": "mg/m³",
+     "placeholder": "Level measured (mg/m³)",
      "options": [
-      "1 Good",
+      "1",
       "2",
-      "3 Mild",
-      "4 Moderate",
-      "5 Severe",
-      "6 Serious"
-     ]
+      "3",
+      "4",
+      "5",
+      "6"
+     ],
+     "reference": "Total Volatile Organic Compounds such as carcinogenic particles from building materials. 0.3 to 0.5 mg",
+     "action": "Removal and ventilation or seal and bake."
     },
     {
-     "q": "PM10",
-     "type": "single",
+     "q": "PM2.5 – Fine Particulates",
+     "type": "airReading",
+     "code": "PM2.5",
+     "unit": "µg/m³",
+     "placeholder": "Level measured (µg/m³)",
      "options": [
-      "1 Good",
+      "1",
       "2",
-      "3 Mild",
-      "4 Moderate",
-      "5 Severe",
-      "6 Serious"
-     ]
+      "3",
+      "4",
+      "5",
+      "6"
+     ],
+     "reference": "Fine Particulates. National Standard is 12 µg/m³",
+     "action": "Air filters & ventilation (seasonal)."
     },
     {
-     "q": "CO2",
-     "type": "single",
+     "q": "PM10 – Inhalable Coarse Particulates",
+     "type": "airReading",
+     "code": "PM10",
+     "unit": "µg/m³",
+     "placeholder": "Level measured (µg/m³)",
      "options": [
-      "1 Good",
+      "1",
       "2",
-      "3 Mild",
-      "4 Moderate",
-      "5 Severe",
-      "6 Serious"
-     ]
+      "3",
+      "4",
+      "5",
+      "6"
+     ],
+     "reference": "Inhalable coarse Particulates. National Standard is 150 µg/m³",
+     "action": "Air filters & ventilation (seasonal)."
     },
     {
-     "q": "CO",
-     "type": "single",
+     "q": "CO2 – Carbon Dioxide",
+     "type": "airReading",
+     "code": "CO2",
+     "unit": "ppm",
+     "placeholder": "Level measured (ppm)",
      "options": [
-      "1 Good",
+      "1",
       "2",
-      "3 Mild",
-      "4 Moderate",
-      "5 Severe",
-      "6 Serious"
-     ]
+      "3",
+      "4",
+      "5",
+      "6"
+     ],
+     "reference": "Carbon Dioxide 250 - 400",
+     "action": "Ventilation and find, correct source."
+    },
+    {
+     "q": "Ozone",
+     "type": "airReading",
+     "code": "Ozone",
+     "unit": "ppm",
+     "placeholder": "Level measured (ppm)",
+     "options": [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6"
+     ],
+     "reference": "Normal/Good 0-0.054 PPM",
+     "action": "Air filters & ventilation (seasonal)."
+    },
+    {
+     "q": "CO – Carbon Monoxide",
+     "type": "airReading",
+     "code": "CO",
+     "unit": "ppm",
+     "placeholder": "Level measured (ppm)",
+     "options": [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6"
+     ],
+     "reference": "Carbon Monoxide Normal/Good 0-5 PPM",
+     "action": "Above 30 ppm leave the house immediately."
     }
    ],
    "itemsHigh": [
@@ -26836,11 +26887,14 @@
      "placeholder": "address"
     },
     {
-     "header": "Readings (1-2 Good, 3 Mild, 4 Moderate, 5 Severe, 6 Serious)"
+     "header": "Readings (1 & 2 Good · 3 Mild · 4 Moderate · 5 Severe · 6 Serious)"
     },
     {
-     "q": "HCHO (Formaldehyde)",
-     "type": "single",
+     "q": "HCHO – Formaldehyde",
+     "type": "airReading",
+     "code": "HCHO",
+     "unit": "mg/m³",
+     "placeholder": "Level measured (mg/m³)",
      "options": [
       "1",
       "2",
@@ -26848,11 +26902,16 @@
       "4",
       "5",
       "6"
-     ]
+     ],
+     "reference": "Formaldehyde 0.94 to 1.25 mg/m³",
+     "action": "Ventilation or deodorant absorption."
     },
     {
-     "q": "TVOC (Total Volatile Organic Compounds)",
-     "type": "single",
+     "q": "TVOC – Total Volatile Organic Compounds",
+     "type": "airReading",
+     "code": "TVOC",
+     "unit": "mg/m³",
+     "placeholder": "Level measured (mg/m³)",
      "options": [
       "1",
       "2",
@@ -26860,11 +26919,16 @@
       "4",
       "5",
       "6"
-     ]
+     ],
+     "reference": "Total Volatile Organic Compounds such as carcinogenic particles from building materials. 0.3 to 0.5 mg",
+     "action": "Removal and ventilation or seal and bake."
     },
     {
-     "q": "PM2.5 (Fine Particulates)",
-     "type": "single",
+     "q": "PM2.5 – Fine Particulates",
+     "type": "airReading",
+     "code": "PM2.5",
+     "unit": "µg/m³",
+     "placeholder": "Level measured (µg/m³)",
      "options": [
       "1",
       "2",
@@ -26872,11 +26936,16 @@
       "4",
       "5",
       "6"
-     ]
+     ],
+     "reference": "Fine Particulates. National Standard is 12 µg/m³",
+     "action": "Air filters & ventilation (seasonal)."
     },
     {
-     "q": "PM10 (Inhalable Coarse Particulates)",
-     "type": "single",
+     "q": "PM10 – Inhalable Coarse Particulates",
+     "type": "airReading",
+     "code": "PM10",
+     "unit": "µg/m³",
+     "placeholder": "Level measured (µg/m³)",
      "options": [
       "1",
       "2",
@@ -26884,11 +26953,16 @@
       "4",
       "5",
       "6"
-     ]
+     ],
+     "reference": "Inhalable coarse Particulates. National Standard is 150 µg/m³",
+     "action": "Air filters & ventilation (seasonal)."
     },
     {
-     "q": "CO2 (Carbon Dioxide)",
-     "type": "single",
+     "q": "CO2 – Carbon Dioxide",
+     "type": "airReading",
+     "code": "CO2",
+     "unit": "ppm",
+     "placeholder": "Level measured (ppm)",
      "options": [
       "1",
       "2",
@@ -26896,11 +26970,16 @@
       "4",
       "5",
       "6"
-     ]
+     ],
+     "reference": "Carbon Dioxide 250 - 400",
+     "action": "Ventilation and find, correct source."
     },
     {
      "q": "Ozone",
-     "type": "single",
+     "type": "airReading",
+     "code": "Ozone",
+     "unit": "ppm",
+     "placeholder": "Level measured (ppm)",
      "options": [
       "1",
       "2",
@@ -26908,11 +26987,16 @@
       "4",
       "5",
       "6"
-     ]
+     ],
+     "reference": "Normal/Good 0-0.054 PPM",
+     "action": "Air filters & ventilation (seasonal)."
     },
     {
-     "q": "CO (Carbon Monoxide)",
-     "type": "single",
+     "q": "CO – Carbon Monoxide",
+     "type": "airReading",
+     "code": "CO",
+     "unit": "ppm",
+     "placeholder": "Level measured (ppm)",
      "options": [
       "1",
       "2",
@@ -26920,9 +27004,28 @@
       "4",
       "5",
       "6"
-     ]
+     ],
+     "reference": "Carbon Monoxide Normal/Good 0-5 PPM",
+     "action": "Above 30 ppm leave the house immediately."
     }
-   ]
+   ],
+   "airQuality": {
+    "_about": "Client's Indoor Air Quality checklist + report format (Oct 12 2026: 'Inspection Checklist 39 Indoor Air Quality.docx' + 'Indoor air quality report - Updated.jpg'). Report renders this section as a table: Pollutant (code – name) | Level Measured (value + unit, or a blank line) | Air Quality Rating (1–6), legend top-right; under each row: the reference text (left, small) and 'Corrective action if needed — <action>' (right, small). Then Overall condition as usual.",
+    "legend": "1 & 2 Good · 3 Mild · 4 Moderate · 5 Severe · 6 Serious",
+    "ratings": {
+     "1": "Good",
+     "2": "Good",
+     "3": "Mild",
+     "4": "Moderate",
+     "5": "Severe",
+     "6": "Serious"
+    },
+    "columns": [
+     "Level Measured",
+     "Air Quality Rating"
+    ],
+    "actionPrefix": "Corrective action if needed — "
+   }
   },
   {
    "name": "Septic",
