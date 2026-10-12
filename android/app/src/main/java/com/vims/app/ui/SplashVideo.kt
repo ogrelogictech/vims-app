@@ -38,9 +38,9 @@ import kotlinx.coroutines.withContext
 
 /** Same gray as the video background and the system splash (no white flash). */
 val SplashGray = Color(0xFFD4D4D9)
-/** Fallback letterbox colors = the video's top / bottom edge colors (sampled at runtime when possible). */
-private val EdgeTop = Color(0xFFD2D4DA)
-private val EdgeBottom = Color(0xFFC3CAD1)
+/** Fallback letterbox colors = the video's top / bottom edge colors (Oct 12 video; sampled at runtime when possible). */
+private val EdgeTop = Color(0xFFCCD6DF)
+private val EdgeBottom = Color(0xFFBDC7D3)
 
 /** Averages the top and bottom pixel rows of a mid-video frame so the fit-inside letterbox blends seamlessly. */
 private fun sampleEdges(ctx: android.content.Context): Pair<Color, Color>? = try {
@@ -59,7 +59,7 @@ private const val ASSET = "media/vims-splash.mp4"
 
 /**
  * Cold-launch splash (shared/media/vims-splash.mp4): full-screen, muted, fit-inside (whole frame visible, letterbox in the
- * video's edge colors), played once (~5 s), tap to skip.
+ * video's edge colors), played once (6.6 s), tap to skip.
  * With animations turned off (Animator duration scale 0) the last frame is shown for ~1 s instead.
  */
 @OptIn(UnstableApi::class)
@@ -67,7 +67,9 @@ private const val ASSET = "media/vims-splash.mp4"
 fun SplashVideo(onDone: () -> Unit) {
     val ctx = LocalContext.current
     var finished by remember { mutableStateOf(false) }
-    fun finish() { if (!finished) { finished = true; onDone() } }
+    val t0 = remember { android.os.SystemClock.elapsedRealtime() }
+    fun log(m: String) { if (com.vims.app.BuildConfig.DEBUG) android.util.Log.d("VIMS-Splash", "+${android.os.SystemClock.elapsedRealtime() - t0} ms $m") }
+    fun finish(why: String = "tap") { if (!finished) { finished = true; log("done ($why)"); onDone() } }
     val reduceMotion = remember { Settings.Global.getFloat(ctx.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f }
     val tap = Modifier.fillMaxSize().semantics { contentDescription = "VIMS — tap to skip" }
         .clickable(remember { MutableInteractionSource() }, null) { finish() }
@@ -83,7 +85,7 @@ fun SplashVideo(onDone: () -> Unit) {
                     r.getFrameAtTime((durUs - 100_000).coerceAtLeast(0), MediaMetadataRetriever.OPTION_CLOSEST).also { r.release() }
                 } catch (_: Exception) { null }
             }
-            delay(1000); finish()
+            delay(1000); finish("reduce motion")
         }
         Box(tap.background(androidx.compose.ui.graphics.Brush.verticalGradient(0f to EdgeTop, 0.5f to EdgeTop, 0.5f to EdgeBottom, 1f to EdgeBottom))) {
             frame?.let { Image(it.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = ContentScale.Fit) }
@@ -106,16 +108,24 @@ fun SplashVideo(onDone: () -> Unit) {
             prepare(); playWhenReady = true
         }
     }
+    // Length of the video once the player is ready (C.TIME_UNSET → unknown).
+    var durationMs by remember { mutableStateOf<Long?>(null) }
     DisposableEffect(player) {
         val l = object : Player.Listener {
-            override fun onPlaybackStateChanged(state: Int) { if (state == Player.STATE_ENDED) finish() }
-            override fun onPlayerError(error: PlaybackException) { finish() }
+            override fun onPlaybackStateChanged(state: Int) {
+                if (state == Player.STATE_READY && durationMs == null) { durationMs = player.duration.takeIf { it > 0 } ?: 0L; log("ready, video ${durationMs} ms") }
+                if (state == Player.STATE_ENDED) finish("video ended")
+            }
+            override fun onRenderedFirstFrame() { log("first frame") }
+            override fun onPlayerError(error: PlaybackException) { finish("error ${error.errorCodeName}") }
         }
         player.addListener(l)
         onDispose { player.removeListener(l); player.release() }
     }
-    // Safety net: never hold the user on the splash (video is ~5 s).
-    LaunchedEffect(Unit) { delay(7000); finish() }
+    // Safety nets (the video is 6.6 s and normally ends itself): if it hasn't started within 8 s, move on; once it has
+    // started, wait for its whole length plus 1.5 s (8 s when the length is unknown) so it is never cut off.
+    LaunchedEffect(Unit) { delay(8000); if (durationMs == null) finish("not started in 8 s") }
+    LaunchedEffect(durationMs) { durationMs?.let { d -> delay(if (d > 0) d + 1500 else 8000); finish("safety timeout") } }
     // Fit-inside: the whole frame (incl. the tagline) is visible; letterbox bands use the video's own edge colors.
     var edges by remember { mutableStateOf(EdgeTop to EdgeBottom) }
     LaunchedEffect(Unit) { withContext(Dispatchers.IO) { sampleEdges(ctx) }?.let { edges = it } }

@@ -77,6 +77,9 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
@@ -388,10 +391,12 @@ fun PasswordField(label: String, value: String, onChange: (String) -> Unit, plac
 @Composable
 fun PickerField(value: String, placeholder: String, icon: ImageVector, onClick: () -> Unit, modifier: Modifier = Modifier, minHeight: Dp = 48.dp, error: String? = null) {
     val shape = RoundedCornerShape(11.dp)
+    // Opens its picker directly: drop focus first so a text field typed in before doesn't keep the keyboard up.
+    val focus = LocalFocusManager.current
     Column(modifier.fillMaxWidth()) {
     Row(
         Modifier.fillMaxWidth().heightIn(min = minHeight).clip(shape).background(V.paper).border(if (error != null) 1.5.dp else 1.dp, if (error != null) V.c1 else V.line, shape)
-            .clickable(role = Role.Button, onClick = onClick).padding(horizontal = 14.dp, vertical = 12.dp),
+            .clickable(role = Role.Button) { focus.clearFocus(); onClick() }.padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(value.ifEmpty { placeholder }, style = T.ui(15.sp, color = if (value.isEmpty()) V.placeholder else V.ink), modifier = Modifier.weight(1f))
@@ -401,25 +406,34 @@ fun PickerField(value: String, placeholder: String, icon: ImageVector, onClick: 
     }
 }
 
-/** Dropdown select styled like the prototype's `<select class="txt">` (light) or the viewer's `.qcsel` (dark). */
+/**
+ * Dropdown select styled like the prototype's `<select class="txt">` (light) or the viewer's `.qcsel` (dark). Options and
+ * the chosen value wrap onto as many lines as they need (no ellipsis — quick comments are long); the menu is as wide as
+ * the field (at least 260dp).
+ */
 @Composable
 fun SelectBox(placeholder: String, options: List<String>, onSelect: (String) -> Unit, modifier: Modifier = Modifier, dark: Boolean = false, selected: String = "") {
     var open by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(if (dark) 9.dp else 11.dp)
+    val density = LocalDensity.current
+    var anchorW by remember { mutableStateOf(0.dp) }
+    val focus = LocalFocusManager.current
     Box(modifier) {
         Row(
-            Modifier.fillMaxWidth().heightIn(min = if (dark) 44.dp else 48.dp).clip(shape)
+            Modifier.fillMaxWidth().onSizeChanged { anchorW = with(density) { it.width.toDp() } }.heightIn(min = if (dark) 44.dp else 48.dp).clip(shape)
                 .background(if (dark) Color.White.copy(alpha = .1f) else V.paper)
                 .border(1.dp, if (dark) Color.White.copy(alpha = .18f) else V.line, shape)
-                .clickable(role = Role.DropdownList) { open = true }.padding(horizontal = if (dark) 11.dp else 14.dp, vertical = 10.dp),
+                .clickable(role = Role.DropdownList) { focus.clearFocus(); open = true }.padding(horizontal = if (dark) 11.dp else 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(selected.ifEmpty { placeholder }, style = T.ui(if (dark) 13.sp else 15.sp, color = if (dark) Color.White else V.ink), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-            Icon(VIcons.chevDown, null, tint = if (dark) Color.White else V.ink, modifier = Modifier.size(16.dp))
+            Text(selected.ifEmpty { placeholder }, style = T.ui(if (dark) 13.sp else 15.sp, color = if (dark) Color.White else V.ink, lineHeight = if (dark) 17.sp else 20.sp), modifier = Modifier.weight(1f))
+            Icon(VIcons.chevDown, null, tint = if (dark) Color.White else V.ink, modifier = Modifier.padding(start = 6.dp).size(16.dp))
         }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }, containerColor = V.paper) {
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }, containerColor = V.paper, modifier = Modifier.width(anchorW.coerceAtLeast(260.dp))) {
             options.forEach { o ->
-                DropdownMenuItem(text = { Text(o, style = T.ui(14.sp, color = V.ink)) }, onClick = { open = false; onSelect(o) })
+                // DropdownMenuItem caps its content at 280dp; the full-width item + wrapping text shows every option whole.
+                DropdownMenuItem(text = { Text(o, style = T.ui(14.sp, color = V.ink, lineHeight = 19.sp), softWrap = true) }, onClick = { open = false; onSelect(o) },
+                    modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp))
             }
         }
     }

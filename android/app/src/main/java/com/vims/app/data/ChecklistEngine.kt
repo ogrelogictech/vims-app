@@ -117,6 +117,31 @@ class ChecklistEngine(val config: ChecklistConfig, val edits: ChecklistEdits) {
     }
 
     companion object {
+        /**
+         * Data v1.7.1 turned free-text inspection-day fields (Indoor Air Quality Date / Time, Termite "Date of inspection",
+         * Wind Mitigation "Inspection date") into date / time pickers. Inspections built earlier keep their checklist
+         * snapshot, but an item the snapshot still has as "text" takes the picker type when [current] has the same section
+         * and question as "date" / "time", so every inspection opens the picker (iOS reads the live data). Nothing else in
+         * the snapshot changes; an answer typed before still shows and prints as typed.
+         */
+        fun upgradePickers(defs: Map<String, SectionDef>, current: List<SectionDef>): Map<String, SectionDef> {
+            if (defs.isEmpty()) return defs
+            val byName = current.associateBy { it.name }
+            fun pickers(l: List<ItemDef>?) = l.orEmpty().filter { it.q != null && (it.type == "date" || it.type == "time") }.associate { it.q!! to it.type!! }
+            fun up(l: List<ItemDef>?, types: Map<String, String>): List<ItemDef>? =
+                l?.map { i -> types[i.q]?.takeIf { i.type == "text" }?.let { t -> i.copy(type = t, placeholder = null) } ?: i }
+            var changed = false
+            val out = defs.mapValues { (name, d) ->
+                val cur = byName[name] ?: return@mapValues d
+                val types = pickers(cur.items) + pickers(cur.itemsHigh)
+                if (types.isEmpty()) return@mapValues d
+                val u = d.copy(items = up(d.items, types)!!, itemsHigh = up(d.itemsHigh, types))
+                if (u != d) changed = true
+                u
+            }
+            return if (changed) out else defs
+        }
+
         fun number(defs: Map<String, SectionDef>, name: String): Int = defs[baseName(name)]?.number ?: 99
 
         /** Items to render for a section at a depth (Fast Entry renders its own "Items reviewed" chips). */

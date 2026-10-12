@@ -51,6 +51,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -65,6 +67,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLinkStyles
@@ -182,7 +186,7 @@ private fun ColumnScope.GateButtons(vm: AppViewModel, onSignOut: () -> Unit) {
  * "Inspection agreement" viewer. VIMS default agreement (inspection-agreement.json): title, header form lines in a boxed
  * mono block, body paragraphs / bullets, state disclosures (all states when [state] is blank — Company profile; only that
  * state's entry from the wizard), then the closing. A company's edited version is shown whole instead (it can't be
- * filtered by state), under a short note. If the company uses its own uploaded agreement, a note at the top says the VIMS
+ * filtered by state; the locked form block stays boxed after its title), under a short note. If the company uses its own uploaded agreement, a note at the top says the VIMS
  * text is shown for reference and offers to open their file. The top bar's Download prints what's shown to a PDF
  * (Share / Save to device) — every user can download.
  */
@@ -305,8 +309,9 @@ fun shareAgreementPdf(ctx: Context, vm: AppViewModel, f: java.io.File) {
 }
 
 /**
- * Edit agreement (company admins only — same permission as Upload): the company's own copy of the agreement as plain
- * text, prefilled with their edited version or the whole VIMS agreement (company name filled in). Paragraphs are
+ * Edit agreement (company admins only — same permission as Upload): the company's own copy of the agreement's wording as
+ * plain text, prefilled with their edited version or the whole VIMS agreement (company name filled in). The form block is
+ * locked: shown read-only above the field ([LockedFormBlock]) and always printed after the title as is. Paragraphs are
  * separated by blank lines; lines starting with "• " are bullets. Save stores it on the company record and makes it the
  * agreement in use (an uploaded file is cleared). Leaving with unsaved changes (header back, Cancel, system back) asks first.
  */
@@ -319,6 +324,7 @@ fun AgreementEditScreen(vm: AppViewModel, nav: NavHostController) {
     }
     val key = rememberSaveable { java.util.UUID.randomUUID().toString() }
     val initial = remember { vm.agreementEditorText() }
+    val formLines = remember { vm.agreementFormLines() }
     val draft = remember(key) { vm.agreementDrafts.getOrPut(key) { mutableStateOf(TextFieldValue(initial)) } }
     val text = draft.value.text
     val dirty = text != initial
@@ -341,8 +347,9 @@ fun AgreementEditScreen(vm: AppViewModel, nav: NavHostController) {
     )
     VScreen("Edit agreement", companyName(vm), net(vm), HdrAction(VIcons.back, "Back") { close() }, scroll = false) {
         Column(Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 12.dp)) {
-            Hint("Your company's copy of the VIMS agreement. Separate paragraphs with a blank line and start a line with **•** for a bullet. The VIMS agreement itself doesn't change.",
+            Hint("Your company's copy of the VIMS agreement. Edit the wording below: separate paragraphs with a blank line and start a line with **•** for a bullet. The VIMS agreement itself doesn't change.",
                 Modifier.padding(start = 2.dp, bottom = 10.dp), size = 12.5f)
+            if (formLines.isNotEmpty()) LockedFormBlock(formLines)
             AgreementTextField(draft.value, { v ->
                 val t = Filters.agreement(v.text, max)
                 draft.value = if (t == v.text) v else v.copy(text = t, selection = TextRange(v.selection.start.coerceAtMost(t.length), v.selection.end.coerceAtMost(t.length)))
@@ -356,6 +363,45 @@ fun AgreementEditScreen(vm: AppViewModel, nav: NavHostController) {
                 VBtn("Cancel", { close() }, Modifier.weight(1f), BtnKind.Ghost)
                 VBtn("Save", { save() }, Modifier.weight(1f), icon = VIcons.check)
             }
+        }
+    }
+}
+
+/**
+ * The agreement's form block (client / property / services / fees lines), read-only: it can't be edited here and prints
+ * after the title exactly as in the VIMS agreement. Filling it in / signing in the app is the deferred e-sign add-on.
+ * The box scrolls inside a fixed height and folds away while the keyboard is open (or when the header is tapped) so the
+ * text field keeps its room; Show while typing closes the keyboard.
+ */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun LockedFormBlock(lines: List<String>) {
+    var open by rememberSaveable { mutableStateOf(true) }
+    val ime = WindowInsets.isImeVisible
+    val shown = open && !ime
+    val focus = androidx.compose.ui.platform.LocalFocusManager.current
+    Column(Modifier.fillMaxWidth().padding(bottom = 10.dp).vCard(12.dp)) {
+        Row(
+            Modifier.fillMaxWidth().heightIn(min = 44.dp).clickable(role = Role.Button, onClickLabel = if (shown) "Hide form lines" else "Show form lines") {
+                // Show while typing closes the keyboard first (the box needs the room).
+                if (shown) open = false else { open = true; if (ime) focus.clearFocus() }
+            }
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Icon(VIcons.lock, null, tint = V.ink3, modifier = Modifier.size(15.dp))
+            Column(Modifier.weight(1f)) {
+                Text("Form lines · locked", style = T.ui(13.sp, FontWeight.SemiBold, V.ink))
+                Text("Printed after the title as shown. Filled in when the client signs.", style = T.ui(11.5.sp, color = V.ink3, lineHeight = 15.sp))
+            }
+            Text(if (shown) "Hide" else "Show", style = T.ui(12.5.sp, FontWeight.SemiBold, V.brand))
+        }
+        if (shown) {
+            Text(lines.joinToString("\n"), style = T.mono(11.sp, color = V.ink2).copy(lineHeight = 18.sp),
+                modifier = Modifier.padding(start = 10.dp, end = 10.dp, bottom = 10.dp).fillMaxWidth().heightIn(max = 150.dp)
+                    .clip(RoundedCornerShape(9.dp)).background(V.paper2).border(1.dp, V.line, RoundedCornerShape(9.dp))
+                    .verticalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 9.dp)
+                    .semantics { contentDescription = "Locked form lines: " + lines.joinToString(". ") })
         }
     }
 }

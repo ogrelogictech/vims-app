@@ -33,7 +33,7 @@ data class InspectionAgreement(
     fun pieces(companyName: String, state: String, stateName: (String) -> String): List<AgreementPiece> {
         fun f(t: String) = fill(t, companyName)
         val out = mutableListOf<AgreementPiece>(AgreementPiece.Title(f(title)))
-        header.drop(2).takeIf { it.isNotEmpty() }?.let { out += AgreementPiece.Form(it.map(::f)) }
+        formLines(companyName).takeIf { it.isNotEmpty() }?.let { out += AgreementPiece.Form(it) }
         body.forEach { out += it.piece(::f) }
         out += AgreementPiece.Heading(f(stateDisclosuresHeading))
         val code = state.trim().uppercase()
@@ -48,15 +48,22 @@ data class InspectionAgreement(
     }
 
     /**
-     * The whole agreement (every state) as plain text for the editor: title, form lines, paragraphs separated by blank
-     * lines, bullets prefixed "• ", the state-disclosures heading followed by one "State name: text" paragraph per state,
-     * closing. `{companyName}` is filled in. [AgreementText.pieces] reads it back.
+     * The boxed form block (client / property / services / fees lines, `{companyName}` filled). It is locked: a company's
+     * edited version keeps exactly these lines (shown read-only in Edit agreement, printed after the title) — only the
+     * wording around it can be edited. Filling it in / signing is the deferred e-sign add-on.
+     */
+    fun formLines(companyName: String): List<String> = header.drop(2).map { fill(it, companyName) }
+
+    /**
+     * The agreement's wording (every state) as plain text for the editor — everything except the locked [formLines]:
+     * title, paragraphs separated by blank lines, bullets prefixed "• ", the state-disclosures heading followed by one
+     * "State name: text" paragraph per state, closing. `{companyName}` is filled in. [AgreementText.pieces] reads it back.
      */
     fun plainText(companyName: String, stateName: (String) -> String): String =
         pieces(companyName, "", stateName).mapNotNull { p ->
             when (p) {
                 is AgreementPiece.Title -> p.text
-                is AgreementPiece.Form -> p.lines.joinToString("\n")
+                is AgreementPiece.Form -> null
                 is AgreementPiece.Para -> p.text
                 is AgreementPiece.Bullet -> AgreementText.BULLET + p.text
                 is AgreementPiece.Heading -> p.text
@@ -112,16 +119,56 @@ sealed interface AgreementPiece {
     data class Note(val text: String) : AgreementPiece
 }
 
-/** A company's edited agreement (plain text, see [InspectionAgreement.plainText]). */
+/** A company's edited agreement wording (plain text, see [InspectionAgreement.plainText]); the form block stays locked. */
 object AgreementText {
     const val BULLET = "• "
     /** Save limit for the editor. */
     const val MAX_CHARS = 100_000
+    /** A first block up to this long, on one line, is the agreement's title. */
+    private const val TITLE_MAX = 120
+
+    private fun norm(line: String) = line.trim().replace(Regex("\\s+"), " ")
+    private fun blocks(text: String) = text.replace("\r\n", "\n").replace('\r', '\n').split(Regex("\n[ \t]*\n"))
+
+    /**
+     * Removes copies of the locked [form] lines from an edited text. Edits saved before the form block was locked
+     * (v0.15.0) contain it as the block after the title: a blank-line block whose lines are at least half form lines is
+     * dropped (even if a few of its lines were changed), and any other line that is exactly a form line is dropped, so the
+     * viewer / PDF never show the block twice. Blank-line separation of the rest is kept.
+     */
+    fun stripForm(text: String, form: List<String>): String {
+        val set = form.map(::norm).filter { it.isNotEmpty() }.toSet()
+        if (set.isEmpty()) return text
+        return blocks(text).mapNotNull { block ->
+            val lines = block.split('\n')
+            val filled = lines.filter { it.isNotBlank() }
+            val hits = filled.count { norm(it) in set }
+            when {
+                hits == 0 -> block
+                hits * 2 >= filled.size -> null
+                else -> lines.filterNot { norm(it) in set }.joinToString("\n")
+            }
+        }.filter { it.isNotBlank() }.joinToString("\n\n")
+    }
+
+    /**
+     * The edited agreement as the viewer shows it (and the PDF prints): a one-line first block is the title, then the
+     * locked [form] block (boxed, exactly as in the VIMS agreement; at the top when there is no title), then a paragraph
+     * per blank-line-separated block; lines starting with "• " are bullets (other lines keep their line breaks).
+     */
+    fun pieces(text: String, form: List<String>): List<AgreementPiece> {
+        val out = pieces(stripForm(text, form)).toMutableList()
+        val first = out.firstOrNull()
+        val hasTitle = first is AgreementPiece.Para && '\n' !in first.text && first.text.length <= TITLE_MAX
+        if (hasTitle) out[0] = AgreementPiece.Title((first as AgreementPiece.Para).text.trim())
+        if (form.isNotEmpty()) out.add(if (hasTitle) 1 else 0, AgreementPiece.Form(form))
+        return out
+    }
 
     /** Paragraph per blank-line-separated block; lines starting with "• " are bullets (other lines keep their line breaks). */
     fun pieces(text: String): List<AgreementPiece> {
         val out = mutableListOf<AgreementPiece>()
-        text.replace("\r\n", "\n").replace('\r', '\n').split(Regex("\n[ \t]*\n")).forEach { block ->
+        blocks(text).forEach { block ->
             val para = mutableListOf<String>()
             fun flush() { if (para.isNotEmpty()) { out += AgreementPiece.Para(para.joinToString("\n")); para.clear() } }
             block.split('\n').map { it.trimEnd() }.forEach { line ->

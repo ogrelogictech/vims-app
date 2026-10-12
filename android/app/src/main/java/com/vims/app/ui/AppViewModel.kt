@@ -475,12 +475,23 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         toast("Your edited agreement is now in use")
     }
 
-    /** What the agreement viewer shows: the company's edited text (whole, never filtered by state), else the VIMS agreement. */
+    /**
+     * What the agreement viewer shows: the company's edited wording (whole, never filtered by state) with the locked VIMS
+     * form block after its title, else the VIMS agreement.
+     */
     fun agreementPieces(c: CompanyProfile, state: String): List<com.vims.app.data.AgreementPiece> =
-        c.editedAgreement?.let { com.vims.app.data.AgreementText.pieces(it) } ?: agreement.pieces(c.name, state, config::stateName)
+        c.editedAgreement?.let { com.vims.app.data.AgreementText.pieces(it, agreement.formLines(c.name)) } ?: agreement.pieces(c.name, state, config::stateName)
 
-    /** Editor prefill: the company's edited version, else the whole VIMS agreement as plain text with the company name filled in. */
-    fun agreementEditorText(): String = company.value.let { c -> c.editedAgreement ?: agreement.plainText(c.name, config::stateName) }
+    /** The locked form block (read-only in Edit agreement; the same lines the viewer boxes). */
+    fun agreementFormLines(): List<String> = agreement.formLines(company.value.name)
+
+    /**
+     * Editor prefill: the company's edited wording (any copy of the locked form block from an edit saved before it was
+     * locked is left out), else the VIMS agreement's wording as plain text with the company name filled in.
+     */
+    fun agreementEditorText(): String = company.value.let { c ->
+        c.editedAgreement?.let { com.vims.app.data.AgreementText.stripForm(it, agreement.formLines(c.name)) } ?: agreement.plainText(c.name, config::stateName)
+    }
 
     /** Unsaved editor text by editor visit, kept here (not in saved instance state — it can be ~100 KB) across rotation. */
     val agreementDrafts = HashMap<String, androidx.compose.runtime.MutableState<androidx.compose.ui.text.input.TextFieldValue>>()

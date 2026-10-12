@@ -78,7 +78,11 @@ interface VimsRepository {
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class RoomRepository(filesDir: File, private val dao: VimsDao, private val owners: PlatformOwners = PlatformOwners(emptyList())) : VimsRepository {
+class RoomRepository(
+    filesDir: File, private val dao: VimsDao, private val owners: PlatformOwners = PlatformOwners(emptyList()),
+    /** Current checklist sections, for [ChecklistEngine.upgradePickers] on stored snapshots. */
+    private val currentSections: List<SectionDef> = emptyList(),
+) : VimsRepository {
     override val root: File = File(filesDir, "vims").apply { mkdirs() }
     private val json = ChecklistLoader.json
     private val writer = Dispatchers.IO.limitedParallelism(1)
@@ -144,7 +148,7 @@ class RoomRepository(filesDir: File, private val dao: VimsDao, private val owner
                 answers = answers[e.id].orEmpty().associate { it.section to dec(SectionAnswers.serializer(), it.json, SectionAnswers()) },
                 photos = photos[e.id].orEmpty().mapNotNull { p -> try { json.decodeFromString(Photo.serializer(), p.json) } catch (_: Exception) { null } },
                 findings = findings[e.id].orEmpty().mapNotNull { f -> try { json.decodeFromString(Finding.serializer(), f.json) } catch (_: Exception) { null } },
-                defs = dec(defsSer, e.defsJson, emptyMap()),
+                defs = ChecklistEngine.upgradePickers(dec(defsSer, e.defsJson, emptyMap()), currentSections),
             )
         }.associateBy { it.id }
         _company.value = dec(CompanyProfile.serializer(), co.profileJson, CompanyProfile()).copy(agreementText = co.agreementText, agreementEditedAt = co.agreementEditedAt)
