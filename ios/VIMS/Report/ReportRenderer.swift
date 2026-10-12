@@ -171,10 +171,14 @@ struct ReportData {
                     var value = ""
                     switch k.item.kind {
                     case .single, .multi: value = (a.choices[k.id] ?? []).joined(separator: ", ")
+                    // Same text as the wizard's Date / Time on the cover ("October 12, 2026", "10:15 AM"); an older
+                    // free-text answer that can't be read as a date / time prints as typed.
                     case .date:
-                        if let d = Fmt.parse(a.text[k.id] ?? "", "yyyy-MM-dd") { value = Fmt.date(d, "MMMM d, yyyy") }
+                        let raw = a.text[k.id] ?? ""
+                        value = Fmt.answerDate(raw).map { Fmt.date($0, "MMMM d, yyyy") } ?? raw
                     case .time:
-                        if let d = Fmt.parse(a.text[k.id] ?? "", "HH:mm") { value = Fmt.date(d, "h:mm a") }
+                        let raw = a.text[k.id] ?? ""
+                        value = Fmt.answerTime(raw).map { Fmt.date($0, "h:mm a") } ?? raw
                     default: value = a.text[k.id] ?? ""
                     }
                     if let det = a.detail[k.id], !det.isEmpty { value = value.isEmpty ? det : "\(value) — \(det)" }

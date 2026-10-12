@@ -9,6 +9,7 @@ struct SectionsOverviewView: View {
     @State private var didInit = false
     @State private var confirmDelete = false
     @State private var deleteAnchor = PopoverAnchor()
+    var wide = WideLayout()
 
     var body: some View {
         if let insp = store.inspection(inspectionID) {
@@ -16,52 +17,23 @@ struct SectionsOverviewView: View {
             let done = leafs.filter { insp.status[$0] == .done }.count
             let pct = leafs.isEmpty ? 0 : Int((Double(done) / Double(leafs.count) * 100).rounded())
             Screen(title: "Sections", subtitle: insp.addressLine1, actions: [store.homeAction()]) {
-                VStack(alignment: .leading, spacing: 0) {
-                    HStack {
-                        Text(insp.addressLine1).font(VFont.ui(15, .bold)).foregroundStyle(VC.ink).lineLimit(1)
-                        Spacer()
-                        Pill(kind: pct == 100 ? .done : pct == 0 ? .new : .prog, text: "\(pct)%")
-                    }
-                    .padding(.bottom, 9)
-                    GeometryReader { g in
-                        ZStack(alignment: .leading) {
-                            Capsule().fill(VC.paper3)
-                            Capsule().fill(LinearGradient(colors: [VC.brand, VC.brandBright], startPoint: .leading, endPoint: .trailing))
-                                .frame(width: g.size.width * CGFloat(pct) / 100)
+                if wide.isWide {
+                    // iPad landscape: the checklist groups on the left; progress and the report actions beside them.
+                    HStack(alignment: .top, spacing: 20) {
+                        VStack(alignment: .leading, spacing: 0) { groups(insp, top: 0) }
+                            .frame(maxWidth: .infinity, alignment: .topLeading)
+                        VStack(alignment: .leading, spacing: 0) {
+                            SectionLabel(text: "Progress", top: 0)
+                            progressCard(insp, done: done, total: leafs.count, pct: pct)
+                            actions(insp)
                         }
+                        .frame(width: 340)
                     }
-                    .frame(height: 7)
-                    .accessibilityElement().accessibilityLabel("\(pct) percent complete")
-                    HStack(spacing: 14) {
-                        countText(done, "done", VC.ink)
-                        countText(leafs.count - done, "left", VC.ink)
-                        countText(insp.findings.count, "findings", VC.c1)
-                    }
-                    .padding(.top, 11)
+                } else {
+                    progressCard(insp, done: done, total: leafs.count, pct: pct)
+                    groups(insp, top: 8)
+                    actions(insp)
                 }
-                .vCard(EdgeInsets(top: 14, leading: 16, bottom: 14, trailing: 16))
-                .padding(.bottom, 12)
-
-                SectionLabel(text: "Checklist · tap a group", top: 8)
-                ForEach(insp.groups) { g in
-                    GroupAccordion(group: g, insp: insp, isOpen: open.contains(g.heading),
-                                   toggle: { withAnimation(.easeInOut(duration: 0.2)) { toggle(g.heading) } },
-                                   openLink: { link in openLink(link) },
-                                   openSection: { store.push(store.sectionRoute(inspectionID, $0)) })
-                }
-
-                if insp.hasSummary {
-                    Button { store.push(.summary(inspectionID)) } label: { IconLabel("Review summary", icon: "review-summary-svg") }
-                        .buttonStyle(.vSignal).padding(.top, 8)
-                }
-                Button { store.push(.report(inspectionID)) } label: { IconLabel("Generate report", icon: "file") }
-                    .buttonStyle(.vPrimary).padding(.top, insp.hasSummary ? 10 : 8)
-                // Red ghost button like Settings → Delete account; asks first, then returns to Home.
-                Button { confirmDelete = true } label: { IconLabel("Delete inspection", icon: "trash") }
-                    .buttonStyle(VButtonStyle(kind: .ghost, tint: VC.c1))
-                    .popoverAnchor(deleteAnchor)
-                    .deleteInspectionConfirmation(insp, isPresented: $confirmDelete, anchor: deleteAnchor, leave: true)
-                    .padding(.top, 22)
             }
             .onAppear {
                 if !didInit {
@@ -72,6 +44,61 @@ struct SectionsOverviewView: View {
         } else {
             Screen(title: "Sections") { Text("This inspection is no longer on this device.").font(VFont.ui(14)) }
         }
+    }
+
+    private func progressCard(_ insp: Inspection, done: Int, total: Int, pct: Int) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text(insp.addressLine1).font(VFont.ui(15, .bold)).foregroundStyle(VC.ink).lineLimit(1)
+                Spacer()
+                Pill(kind: pct == 100 ? .done : pct == 0 ? .new : .prog, text: "\(pct)%")
+            }
+            .padding(.bottom, 9)
+            GeometryReader { g in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(VC.paper3)
+                    Capsule().fill(LinearGradient(colors: [VC.brand, VC.brandBright], startPoint: .leading, endPoint: .trailing))
+                        .frame(width: g.size.width * CGFloat(pct) / 100)
+                }
+            }
+            .frame(height: 7)
+            .accessibilityElement().accessibilityLabel("\(pct) percent complete")
+            HStack(spacing: 14) {
+                countText(done, "done", VC.ink)
+                countText(total - done, "left", VC.ink)
+                countText(insp.findings.count, "findings", VC.c1)
+            }
+            .padding(.top, 11)
+        }
+        .vCard(EdgeInsets(top: 14, leading: 16, bottom: 14, trailing: 16))
+        .padding(.bottom, 12)
+    }
+
+    @ViewBuilder
+    private func groups(_ insp: Inspection, top: CGFloat) -> some View {
+        SectionLabel(text: "Checklist · tap a group", top: top)
+        ForEach(insp.groups) { g in
+            GroupAccordion(group: g, insp: insp, isOpen: open.contains(g.heading),
+                           toggle: { withAnimation(.easeInOut(duration: 0.2)) { toggle(g.heading) } },
+                           openLink: { link in openLink(link) },
+                           openSection: { store.push(store.sectionRoute(inspectionID, $0)) })
+        }
+    }
+
+    @ViewBuilder
+    private func actions(_ insp: Inspection) -> some View {
+        if insp.hasSummary {
+            Button { store.push(.summary(inspectionID)) } label: { IconLabel("Review summary", icon: "review-summary-svg") }
+                .buttonStyle(.vSignal).padding(.top, 8)
+        }
+        Button { store.push(.report(inspectionID)) } label: { IconLabel("Generate report", icon: "file") }
+            .buttonStyle(.vPrimary).padding(.top, insp.hasSummary ? 10 : 8)
+        // Red ghost button like Settings → Delete account; asks first, then returns to Home.
+        Button { confirmDelete = true } label: { IconLabel("Delete inspection", icon: "trash") }
+            .buttonStyle(VButtonStyle(kind: .ghost, tint: VC.c1))
+            .popoverAnchor(deleteAnchor)
+            .deleteInspectionConfirmation(insp, isPresented: $confirmDelete, anchor: deleteAnchor, leave: true)
+            .padding(.top, 22)
     }
 
     private func countText(_ n: Int, _ label: String, _ color: Color) -> some View {

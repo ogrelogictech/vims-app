@@ -8,7 +8,26 @@
 
 /* Begin PBXFileReference section */
 		A10000000000000000000001 /* VIMS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = VIMS.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A10000000000000000000002 /* VIMSUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VIMSUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
+
+/* Begin PBXContainerItemProxy section */
+		A100000000000000000000A1 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A10000000000000000000070 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A10000000000000000000040;
+			remoteInfo = VIMS;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXTargetDependency section */
+		A100000000000000000000A2 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A10000000000000000000040 /* VIMS */;
+			targetProxy = A100000000000000000000A1 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
 		A10000000000000000000090 /* Exceptions for "SharedMedia" folder in "VIMS" target */ = {
@@ -35,10 +54,18 @@
 		A10000000000000000000014 /* SharedIcons */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (A10000000000000000000091 /* Exceptions for "SharedIcons" folder in "VIMS" target */, ); name = SharedIcons; path = ../shared/icons; sourceTree = "<group>"; };
 		A10000000000000000000015 /* SharedLegal */ = {isa = PBXFileSystemSynchronizedRootGroup; name = SharedLegal; path = ../shared/legal; sourceTree = "<group>"; };
 		A10000000000000000000016 /* SharedCovers */ = {isa = PBXFileSystemSynchronizedRootGroup; name = SharedCovers; path = ../shared/covers; sourceTree = "<group>"; };
+		A10000000000000000000017 /* VIMSUITests */ = {isa = PBXFileSystemSynchronizedRootGroup; path = VIMSUITests; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		A10000000000000000000020 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A10000000000000000000021 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -58,6 +85,7 @@
 				A10000000000000000000014 /* SharedIcons */,
 				A10000000000000000000015 /* SharedLegal */,
 				A10000000000000000000016 /* SharedCovers */,
+				A10000000000000000000017 /* VIMSUITests */,
 				A10000000000000000000031 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -66,6 +94,7 @@
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000001 /* VIMS.app */,
+				A10000000000000000000002 /* VIMSUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -101,6 +130,29 @@
 			productReference = A10000000000000000000001 /* VIMS.app */;
 			productType = "com.apple.product-type.application";
 		};
+		A10000000000000000000041 /* VIMSUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A10000000000000000000062 /* Build configuration list for PBXNativeTarget "VIMSUITests" */;
+			buildPhases = (
+				A10000000000000000000052 /* Sources */,
+				A10000000000000000000021 /* Frameworks */,
+				A10000000000000000000053 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				A100000000000000000000A2 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				A10000000000000000000017 /* VIMSUITests */,
+			);
+			name = VIMSUITests;
+			packageProductDependencies = (
+			);
+			productName = VIMSUITests;
+			productReference = A10000000000000000000002 /* VIMSUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -113,6 +165,10 @@
 				TargetAttributes = {
 					A10000000000000000000040 = {
 						CreatedOnToolsVersion = 26.0;
+					};
+					A10000000000000000000041 = {
+						CreatedOnToolsVersion = 26.0;
+						TestTargetID = A10000000000000000000040;
 					};
 				};
 			};
@@ -131,6 +187,7 @@
 			projectRoot = "";
 			targets = (
 				A10000000000000000000040 /* VIMS */,
+				A10000000000000000000041 /* VIMSUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -143,10 +200,24 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A10000000000000000000053 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		A10000000000000000000050 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A10000000000000000000052 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -254,6 +325,38 @@
 			};
 			name = Release;
 		};
+		A10000000000000000000084 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.vims.app.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = VIMS;
+			};
+			name = Debug;
+		};
+		A10000000000000000000085 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.vims.app.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = VIMS;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -271,6 +374,15 @@
 			buildConfigurations = (
 				A10000000000000000000080 /* Debug */,
 				A10000000000000000000081 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A10000000000000000000062 /* Build configuration list for PBXNativeTarget "VIMSUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A10000000000000000000084 /* Debug */,
+				A10000000000000000000085 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

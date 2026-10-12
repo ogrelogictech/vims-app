@@ -95,6 +95,7 @@ struct RootView: View {
             }
         }
         .animation(.easeOut(duration: 0.25), value: store.toastMessage)
+        .measuresWindowWidth()
         #if DEBUG
         .task { DebugLaunch.applyOrientation() }
         #endif

@@ -420,44 +420,71 @@ struct InspectorsView: View {
     @State private var name = ""
     @State private var email = ""
     @State private var errors = FormErrors()
+    var wide = WideLayout()
 
     var body: some View {
-        let company = store.company
-        let n = company.inspectors.count
         Screen(title: "Inspectors", actions: [store.homeAction()], errors: errors) {
-            Text(md("Add inspector accounts under your company license. First inspector is included; each additional is **\(Fmt.money(store.subscription.extraInspectorMonthly))/mo**."))
-                .font(VFont.ui(13)).foregroundStyle(VC.ink3).padding(.top, 2).padding(.bottom, 12)
-                .fixedSize(horizontal: false, vertical: true)
-            VStack(alignment: .leading, spacing: 0) {
-                Text("COMPANY JOIN CODE").font(VFont.mono(10.5)).tracking(1.2).foregroundStyle(VC.ink3).padding(.bottom, 7)
-                HStack {
-                    Text(company.joinCode).font(VFont.mono(24, .semibold)).tracking(4.3).foregroundStyle(VC.brandDeep)
-                        .accessibilityLabel("Company code \(company.joinCode.map(String.init).joined(separator: " "))")
-                    Spacer()
-                    Button {
-                        UIPasteboard.general.string = company.joinCode
-                        store.toast("Code \(company.joinCode) copied")
-                    } label: {
-                        IconLabel("Copy", icon: "copy").font(VFont.ui(12.5, .semibold)).foregroundStyle(VC.brandDeep)
-                            .padding(.horizontal, 12).frame(minHeight: 44)
-                            .background(VC.paper3).clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-                    }
-                    .buttonStyle(ChipPressStyle())
+            if wide.isWide {
+                // iPad landscape: the join code and the add form on the left, the team beside them.
+                HStack(alignment: .top, spacing: 24) {
+                    VStack(alignment: .leading, spacing: 0) { intro; joinCode; addForm }
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                    VStack(alignment: .leading, spacing: 0) { roles; team; total }
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
                 }
-                Text(md("Share this code with an inspector. They download VIMS, tap **Join a company with a code**, and their account links to your license & billing."))
-                    .font(VFont.ui(12)).foregroundStyle(VC.ink3).lineSpacing(2).padding(.top, 9)
-                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                intro; joinCode; roles; team; total; addForm
             }
-            .padding(.horizontal, 16).padding(.vertical, 15)
-            .background(VC.paper)
-            .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 13, style: .continuous).strokeBorder(VC.brand, style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
-            .padding(.bottom, 14)
+        }
+        .onAppear {
+            if DebugFlags.validate { DebugFlags.validate = false; name = ""; email = store.company.inspectors.first?.email ?? "x@y.com"; addInspector() }
+        }
+    }
 
-            Text(md("You (the account owner) are an **admin** by default. Tap **Make admin** to grant any inspector admin access — admins can manage checklists, plans, the company profile, and settings. Nothing is hard-coded; roles are set here."))
-                .font(VFont.ui(12)).foregroundStyle(VC.ink3).lineSpacing(2).padding(.horizontal, 2).padding(.bottom, 12)
+    private var intro: some View {
+        Text(md("Add inspector accounts under your company license. First inspector is included; each additional is **\(Fmt.money(store.subscription.extraInspectorMonthly))/mo**."))
+            .font(VFont.ui(13)).foregroundStyle(VC.ink3).padding(.top, 2).padding(.bottom, 12)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var joinCode: some View {
+        let company = store.company
+        return VStack(alignment: .leading, spacing: 0) {
+            Text("COMPANY JOIN CODE").font(VFont.mono(10.5)).tracking(1.2).foregroundStyle(VC.ink3).padding(.bottom, 7)
+            HStack {
+                Text(company.joinCode).font(VFont.mono(24, .semibold)).tracking(4.3).foregroundStyle(VC.brandDeep)
+                    .accessibilityLabel("Company code \(company.joinCode.map(String.init).joined(separator: " "))")
+                Spacer()
+                Button {
+                    UIPasteboard.general.string = company.joinCode
+                    store.toast("Code \(company.joinCode) copied")
+                } label: {
+                    IconLabel("Copy", icon: "copy").font(VFont.ui(12.5, .semibold)).foregroundStyle(VC.brandDeep)
+                        .padding(.horizontal, 12).frame(minHeight: 44)
+                        .background(VC.paper3).clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                }
+                .buttonStyle(ChipPressStyle())
+            }
+            Text(md("Share this code with an inspector. They download VIMS, tap **Join a company with a code**, and their account links to your license & billing."))
+                .font(VFont.ui(12)).foregroundStyle(VC.ink3).lineSpacing(2).padding(.top, 9)
                 .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, 16).padding(.vertical, 15)
+        .background(VC.paper)
+        .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 13, style: .continuous).strokeBorder(VC.brand, style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
+        .padding(.bottom, 14)
+    }
 
+    private var roles: some View {
+        Text(md("You (the account owner) are an **admin** by default. Tap **Make admin** to grant any inspector admin access — admins can manage checklists, plans, the company profile, and settings. Nothing is hard-coded; roles are set here."))
+            .font(VFont.ui(12)).foregroundStyle(VC.ink3).lineSpacing(2).padding(.horizontal, 2).padding(.bottom, 12)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var team: some View {
+        let company = store.company
+        return VStack(spacing: 0) {
             ForEach(company.inspectors) { ins in
                 HStack(spacing: 13) {
                     UserAvatar(userID: ins.id, name: ins.name, size: 44, radius: 11)
@@ -498,21 +525,24 @@ struct InspectorsView: View {
                 .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(VC.line, lineWidth: 1))
                 .padding(.bottom, 10)
             }
-            (Text("\(n) inspector\(n == 1 ? "" : "s")").font(VFont.ui(12.5, .bold)).foregroundColor(VC.ink)
-             + Text(" · monthly total \(Fmt.money(monthly))").font(VFont.ui(12.5)).foregroundColor(VC.ink3))
-                .padding(.horizontal, 2).padding(.top, 4).padding(.bottom, 14)
-
-            DashedBox {
-                SmallField(text: $name, placeholder: "Inspector name", kind: .personName, fieldID: "name", errors: errors, required: true)
-                SmallField(text: $email, placeholder: "inspector@email.com", keyboard: .emailAddress, kind: .email, fieldID: "email", errors: errors, required: true)
-                Button {
-                    addInspector()
-                } label: { IconLabel("Add inspector", icon: "hdr-add") }
-                    .buttonStyle(VButtonStyle(kind: .primary, minHeight: 46))
-            }
         }
-        .onAppear {
-            if DebugFlags.validate { DebugFlags.validate = false; name = ""; email = store.company.inspectors.first?.email ?? "x@y.com"; addInspector() }
+    }
+
+    private var total: some View {
+        let n = store.company.inspectors.count
+        return (Text("\(n) inspector\(n == 1 ? "" : "s")").font(VFont.ui(12.5, .bold)).foregroundColor(VC.ink)
+         + Text(" · monthly total \(Fmt.money(monthly))").font(VFont.ui(12.5)).foregroundColor(VC.ink3))
+            .padding(.horizontal, 2).padding(.top, 4).padding(.bottom, 14)
+    }
+
+    private var addForm: some View {
+        DashedBox {
+            SmallField(text: $name, placeholder: "Inspector name", kind: .personName, fieldID: "name", errors: errors, required: true)
+            SmallField(text: $email, placeholder: "inspector@email.com", keyboard: .emailAddress, kind: .email, fieldID: "email", errors: errors, required: true)
+            Button {
+                addInspector()
+            } label: { IconLabel("Add inspector", icon: "hdr-add") }
+                .buttonStyle(VButtonStyle(kind: .primary, minHeight: 46))
         }
     }
 

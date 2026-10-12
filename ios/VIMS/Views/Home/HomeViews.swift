@@ -7,6 +7,7 @@ struct HomeView: View {
     @State private var pendingDelete: Inspection?
     @State private var moreAnchors = PopoverAnchors()
     @State private var menuOpen = false
+    var wide = WideLayout()
 
     var body: some View {
         ZStack {
@@ -48,44 +49,66 @@ struct HomeView: View {
                 .padding(.bottom, 14)
             }
 
-            HStack(spacing: 10) {
-                StatTile(value: "\(today.count)", label: "Inspections today")
-                StatTile(value: "\(store.pendingSyncCount)", label: "Waiting to sync")
-            }
-            .padding(.bottom, 6)
-
-            SectionLabel(text: "Today · \(Fmt.date(Date(), "EEE, MMM d"))")
-            if store.inspections.isEmpty {
-                VStack(spacing: 8) {
-                    ProtoIcon("harrison-blvd-aug", size: 28).foregroundStyle(VC.brand)
-                    Text("No inspections yet").font(VFont.ui(15, .bold)).foregroundStyle(VC.ink)
-                    Text("Tap New inspection to set up your first one. Everything you add is saved on this device.")
-                        .font(VFont.ui(13)).foregroundStyle(VC.ink3).multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
+            if wide.isWide {
+                // iPad landscape: the inspection lists on the left, the counts and actions in a side column.
+                HStack(alignment: .top, spacing: 20) {
+                    VStack(alignment: .leading, spacing: 0) { lists(today: today, recent: recent) }
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                    VStack(alignment: .leading, spacing: 10) {
+                        SectionLabel(text: "At a glance", top: 0)
+                        StatTile(value: "\(today.count)", label: "Inspections today")
+                        StatTile(value: "\(store.pendingSyncCount)", label: "Waiting to sync")
+                        actionButtons.padding(.top, 4)
+                    }
+                    .frame(width: 320)
                 }
-                .frame(maxWidth: .infinity)
-                .vCard(all: 20)
-                .padding(.bottom, 4)
-            } else if today.isEmpty {
-                Text("No inspections scheduled today.").font(VFont.ui(13)).foregroundStyle(VC.ink3).padding(.bottom, 10)
+            } else {
+                HStack(spacing: 10) {
+                    StatTile(value: "\(today.count)", label: "Inspections today")
+                    StatTile(value: "\(store.pendingSyncCount)", label: "Waiting to sync")
+                }
+                .padding(.bottom, 6)
+                lists(today: today, recent: recent)
+                actionButtons.padding(.top, 14)
             }
-            ForEach(today) { insp in row(insp, timeLead: true) }
-            if !recent.isEmpty {
-                SectionLabel(text: "Recent")
-                ForEach(recent) { insp in row(insp, timeLead: false) }
-            }
+        }
+    }
 
+    @ViewBuilder
+    private func lists(today: [Inspection], recent: [Inspection]) -> some View {
+        SectionLabel(text: "Today · \(Fmt.date(Date(), "EEE, MMM d"))", top: wide.isWide ? 0 : 20)
+        if store.inspections.isEmpty {
+            VStack(spacing: 8) {
+                ProtoIcon("harrison-blvd-aug", size: 28).foregroundStyle(VC.brand)
+                Text("No inspections yet").font(VFont.ui(15, .bold)).foregroundStyle(VC.ink)
+                Text("Tap New inspection to set up your first one. Everything you add is saved on this device.")
+                    .font(VFont.ui(13)).foregroundStyle(VC.ink3).multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity)
+            .vCard(all: 20)
+            .padding(.bottom, 4)
+        } else if today.isEmpty {
+            Text("No inspections scheduled today.").font(VFont.ui(13)).foregroundStyle(VC.ink3).padding(.bottom, 10)
+        }
+        ForEach(today) { insp in row(insp, timeLead: true) }
+        if !recent.isEmpty {
+            SectionLabel(text: "Recent")
+            ForEach(recent) { insp in row(insp, timeLead: false) }
+        }
+    }
+
+    private var actionButtons: some View {
+        VStack(spacing: 10) {
             Button { store.push(.wizard(editing: nil)) } label: {
                 IconLabel("New inspection", icon: "hdr-add")
             }
             .buttonStyle(.vPrimary)
-            .padding(.top, 14)
 
             Button { store.push(.settings) } label: {
                 IconLabel("Settings", icon: "settings-structure-rooms")
             }
             .buttonStyle(.vGhost)
-            .padding(.top, 10)
         }
     }
 

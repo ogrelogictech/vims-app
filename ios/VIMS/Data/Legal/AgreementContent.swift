@@ -42,9 +42,12 @@ struct AgreementContent: Equatable {
 
     /// A company's edited agreement (plain text): one paragraph per blank-line-separated block, "• " lines become
     /// bullets, and the first block is the title when it's a single short line (as in the text the editor starts from).
-    /// Line breaks inside a block are kept (the form lines). `{companyName}` is still filled if someone typed it.
-    static func edited(_ text: String, company: String) -> AgreementContent {
-        let normalized = text.replacingOccurrences(of: "\r\n", with: "\n")
+    /// Line breaks inside a block are kept. `{companyName}` is still filled if someone typed it.
+    /// The form block (`form`: the VIMS agreement's form lines, company name filled) is locked — it isn't part of the
+    /// editable text — and is always placed right after the title, exactly as in the VIMS agreement. Form lines left
+    /// in text saved before it was locked are dropped first, so the block never shows twice.
+    static func edited(_ text: String, company: String, form: [String]) -> AgreementContent {
+        let normalized = strippingFormLines(text, formLines: form).replacingOccurrences(of: "\r\n", with: "\n")
         var out: [Block] = []
         for (i, chunk) in normalized.components(separatedBy: "\n\n").enumerated() {
             let lines = chunk.components(separatedBy: "\n")
@@ -71,7 +74,37 @@ struct AgreementContent: Equatable {
             }
             flush()
         }
+        if !form.isEmpty {
+            let at = out.firstIndex { if case .title = $0 { return true } else { return false } }.map { $0 + 1 } ?? 0
+            out.insert(.form(form), at: at)
+        }
         return AgreementContent(blocks: out)
+    }
+
+    /// Removes the form block from agreement text saved before the form was locked (the editor used to start from
+    /// the whole agreement, form lines included, so a company may have saved them, possibly with field names deleted):
+    /// a multi-line, non-bullet chunk that holds a form line or is mostly blanks / ☐ boxes, and any single-line chunk
+    /// that is one of the form lines. The signature and date blanks in the body and closing are untouched (they're
+    /// one paragraph per chunk).
+    static func strippingFormLines(_ text: String, formLines: [String]) -> String {
+        func norm(_ s: String) -> String {
+            s.lowercased().replacingOccurrences(of: "_", with: " ").replacingOccurrences(of: "\u{2610}", with: " ")
+                .replacingOccurrences(of: "$", with: " ")
+                .split(whereSeparator: \.isWhitespace).joined(separator: " ")
+        }
+        let known = Set(formLines.map(norm).filter { $0.count >= 4 })
+        func isBlanky(_ l: String) -> Bool { l.contains("__") || l.contains("\u{2610}") }
+        let chunks = text.replacingOccurrences(of: "\r\n", with: "\n").components(separatedBy: "\n\n")
+        let kept = chunks.filter { chunk in
+            let lines = chunk.components(separatedBy: "\n").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+            guard !lines.isEmpty else { return true }
+            if lines.count == 1 { return !known.contains(norm(lines[0])) }
+            if lines.contains(where: { $0.hasPrefix(bulletPrefix) || $0.hasPrefix("\u{2022}") }) { return true }
+            let matches = lines.filter { known.contains(norm($0)) }.count
+            let blanks = lines.filter(isBlanky).count
+            return !(lines.count >= 3 && (matches > 0 || blanks * 2 >= lines.count))
+        }
+        return kept.joined(separator: "\n\n")
     }
 
     static let bulletPrefix = "\u{2022} "
@@ -95,6 +128,17 @@ struct AgreementContent: Equatable {
         }
         flushBullets()
         return chunks.joined(separator: "\n\n")
+    }
+
+    /// What "Edit agreement" edits: the plain text without the locked form block (title, body, disclosures, closing).
+    var editableText: String {
+        AgreementContent(blocks: blocks.filter { if case .form = $0 { return false } else { return true } }).plainText
+    }
+
+    /// The boxed form lines, if any.
+    var formLines: [String] {
+        for b in blocks { if case .form(let l) = b { return l } }
+        return []
     }
 
     /// Title for file names / the PDF metadata.

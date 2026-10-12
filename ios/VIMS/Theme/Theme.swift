@@ -187,6 +187,23 @@ enum Fmt {
         return f.date(from: s)
     }
 
+    /// Checklist `date` / `time` answers are stored like the wizard's fields ("yyyy-MM-dd", "HH:mm"). Answers typed
+    /// before data v1.7.1 (when these were text fields, e.g. "October 12, 2026", "10:15 AM") are read too.
+    static let answerDateFormat = "yyyy-MM-dd"
+    static let answerTimeFormat = "HH:mm"
+    private static let legacyDateFormats = ["MMMM d, yyyy", "MMM d, yyyy", "M/d/yyyy", "M/d/yy", "M-d-yyyy", "MMMM d yyyy", "MMM d yyyy"]
+    private static let legacyTimeFormats = ["h:mm a", "h:mma", "h a", "ha", "H:mm"]
+
+    static func answerDate(_ s: String) -> Date? {
+        let t = s.trimmingCharacters(in: .whitespacesAndNewlines)
+        return ([answerDateFormat] + legacyDateFormats).lazy.compactMap { parse(t, $0) }.first
+    }
+
+    static func answerTime(_ s: String) -> Date? {
+        let t = s.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        return ([answerTimeFormat] + legacyTimeFormats).lazy.compactMap { parse(t, $0) }.first
+    }
+
     static func initials(_ name: String) -> String {
         name.split(separator: " ").prefix(2).compactMap { $0.first.map(String.init) }.joined().uppercased()
     }

@@ -12,6 +12,7 @@ struct WizardView: View {
     @State private var focus = FocusChain()
     /// Earliest selectable inspection date: today, or the saved date when editing an older inspection.
     @State private var minDate = Calendar.current.startOfDay(for: Date())
+    var wide = WideLayout()
 
     var body: some View {
         let w = store.config.wizard
@@ -26,8 +27,8 @@ struct WizardView: View {
                         StepsBar(count: w.steps.count, current: step)
                         if draft != nil {
                             switch step {
-                            case 1: EntryList(entries: w.step1, draft: draftBinding, errors: errors, focus: focus, pairText: false, minDate: minDate)
-                            case 2: EntryList(entries: w.step2, draft: draftBinding, errors: errors, focus: focus, pairText: true, minDate: minDate)
+                            case 1: EntryList(entries: w.step1, draft: draftBinding, errors: errors, focus: focus, pairText: false, minDate: minDate, wide: wide.isWide)
+                            case 2: EntryList(entries: w.step2, draft: draftBinding, errors: errors, focus: focus, pairText: true, minDate: minDate, wide: wide.isWide)
                             case 3: areas
                             default: tests
                             }
@@ -270,6 +271,9 @@ private struct EntryList: View {
     let focus: FocusChain
     let pairText: Bool
     var minDate: Date? = nil
+    /// iPad landscape: step 1's fields two per row (Client name | phone, email | address, State | agent name …),
+    /// step 2's numbers four per row, the two notes side by side.
+    var wide = false
 
     /// The step's single-line text fields in screen order — the Return / Next chain. With the v1.3 State field,
     /// Return on "Inspection address" opens the State picker instead, and picking a state moves on to the next one.
@@ -300,9 +304,13 @@ private struct EntryList: View {
         case single(WizardEntry)
         case pair(WizardEntry, WizardEntry)
         case labelThenField(String, WizardEntry)   // e.g. "Weather & site conditions" label before Temperature
+        /// Wide layout: up to four fields in one row; `nil` is the State picker (data v1.3), placed after the address.
+        case row([WizardEntry?])
+        case stateDetails                           // the State rule card + agreement line under its row
     }
 
     private func grouped() -> [Block] {
+        if wide { return groupedWide() }
         var out: [Block] = []
         var i = 0
         while i < entries.count {
@@ -322,6 +330,50 @@ private struct EntryList: View {
         return out
     }
 
+    private func isLine(_ e: WizardEntry) -> Bool {
+        e.kind == "field" && ["text", "email", "tel"].contains(e.type ?? "text") && !e.label.hasPrefix("Temperature")
+    }
+
+    private func groupedWide() -> [Block] {
+        var out: [Block] = []
+        var pending: [WizardEntry?] = []
+        let perRow = pairText ? 4 : 2
+        func flush() {
+            guard !pending.isEmpty else { return }
+            let hadState = pending.contains { $0 == nil }
+            out.append(.row(pending))
+            if hadState { out.append(.stateDetails) }
+            pending = []
+        }
+        var i = 0
+        while i < entries.count {
+            let e = entries[i]
+            let next = i + 1 < entries.count ? entries[i + 1] : nil
+            if isLine(e) {
+                pending.append(e)
+                if pending.count == perRow { flush() }
+                if e.label == "Inspection address", addressHasState {
+                    pending.append(nil)
+                    if pending.count == perRow { flush() }
+                }
+                i += 1; continue
+            }
+            flush()
+            if e.kind == "field", e.type == "date", let n = next, n.type == "time" {
+                out.append(.pair(e, n)); i += 2; continue
+            }
+            if e.kind == "field", e.type == "textarea", let n = next, n.kind == "field", n.type == "textarea" {
+                out.append(.pair(e, n)); i += 2; continue
+            }
+            if e.kind == "field", e.label.hasPrefix("Temperature"), let n = next, n.kind == "chips" {
+                out.append(.labelThenField(n.label, e)); i += 1; continue
+            }
+            out.append(.single(e)); i += 1
+        }
+        flush()
+        return out
+    }
+
     @ViewBuilder
     private func render(_ b: Block) -> some View {
         switch b {
@@ -334,6 +386,24 @@ private struct EntryList: View {
                 field(c, bottom: 0)
             }
             .padding(.bottom, 11)
+        case .row(let items):
+            if pairText, let first = items.first ?? nil, first.label == entries.first(where: { $0.kind == "field" })?.label {
+                SectionLabel(text: "Property details")
+            }
+            HStack(alignment: .top, spacing: 14) {
+                ForEach(Array(items.enumerated()), id: \.offset) { _, e in
+                    VStack(alignment: .leading, spacing: 0) {
+                        if let e { field(e, bottom: 0) }
+                        else { StateFieldBlock(draft: $draft, errors: errors, focus: focus, nextField: nextField(after: "Inspection address"), part: .field) }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                }
+                // A short last row keeps its fields the same width as the rows above.
+                ForEach(0..<max(0, (pairText ? 4 : 2) - items.count), id: \.self) { _ in Color.clear.frame(maxWidth: .infinity, maxHeight: 1) }
+            }
+            .padding(.bottom, 11)
+        case .stateDetails:
+            StateFieldBlock(draft: $draft, errors: errors, focus: focus, nextField: nil, part: .details)
         case .labelThenField(let lbl, let e):
             SectionLabel(text: lbl)
             field(e, bottom: 11).frame(maxWidth: 140, alignment: .leading)

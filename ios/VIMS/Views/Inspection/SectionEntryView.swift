@@ -13,6 +13,7 @@ struct SectionEntryView: View {
     /// The finding sheet: "Flag a finding" for the section, or a concern on one checklist item.
     @State private var findingPrompt: FindingPrompt?
     @State private var errors = FormErrors()
+    var wide = WideLayout()
 
     var body: some View {
         if let insp = store.inspection(inspectionID) {
@@ -83,15 +84,38 @@ struct SectionEntryView: View {
             }
         } else {
             let keyed = ItemKeys.keyed(resolved.items)
-            LazyVStack(alignment: .leading, spacing: 0) {
-                ForEach(Array(keyed.enumerated()), id: \.element.id) { idx, k in
-                    if let h = k.item.header {
-                        HeaderBand(text: h, first: idx == 0)
-                    } else {
-                        ItemCard(item: k.item, key: k.id, answers: $answers, errors: errors,
-                                 showDetail: depth == .high && !resolved.usingHigh,
-                                 airQuality: store.catalog.section(section)?.airQuality,
-                                 onConcern: insp.hasSummary ? { q in findingPrompt = .concern(q) } : nil)
+            let card = { (k: KeyedItem, fill: Bool) in
+                ItemCard(item: k.item, key: k.id, answers: $answers, errors: errors,
+                         showDetail: depth == .high && !resolved.usingHigh,
+                         airQuality: store.catalog.section(section)?.airQuality,
+                         onConcern: insp.hasSummary ? { q in findingPrompt = .concern(q) } : nil,
+                         fillHeight: fill)
+            }
+            if wide.isWide {
+                // iPad landscape: two checklist lines per row (each row as tall as its taller card); header bands and
+                // Indoor Air Quality readings (level + rating side by side already) keep the full width.
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(ItemRow.rows(keyed)) { row in
+                        switch row.kind {
+                        case .header(let h, let first): HeaderBand(text: h, first: first)
+                        case .full(let k): card(k, false)
+                        case .pair(let a, let b):
+                            HStack(alignment: .top, spacing: 12) {
+                                card(a, true)
+                                if let b { card(b, true) } else { Color.clear.frame(maxWidth: .infinity, maxHeight: 1) }
+                            }
+                            .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+            } else {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(keyed.enumerated()), id: \.element.id) { idx, k in
+                        if let h = k.item.header {
+                            HeaderBand(text: h, first: idx == 0)
+                        } else {
+                            card(k, false)
+                        }
                     }
                 }
             }
@@ -183,6 +207,38 @@ struct SectionEntryView: View {
     }
 }
 
+/// Wide checklist layout: header bands, full-width lines (air readings) and pairs of lines, in checklist order.
+struct ItemRow: Identifiable {
+    enum Kind {
+        case header(String, first: Bool)
+        case full(KeyedItem)
+        case pair(KeyedItem, KeyedItem?)
+    }
+    let id: String
+    let kind: Kind
+
+    static func rows(_ keyed: [KeyedItem]) -> [ItemRow] {
+        var out: [ItemRow] = []
+        var pending: KeyedItem?
+        func flush() {
+            if let p = pending { out.append(ItemRow(id: "p:" + p.id, kind: .pair(p, nil))); pending = nil }
+        }
+        for (idx, k) in keyed.enumerated() {
+            if let h = k.item.header {
+                flush(); out.append(ItemRow(id: k.id, kind: .header(h, first: idx == 0)))
+            } else if k.item.kind == .airReading {
+                flush(); out.append(ItemRow(id: k.id, kind: .full(k)))
+            } else if let p = pending {
+                out.append(ItemRow(id: "p:" + p.id, kind: .pair(p, k))); pending = nil
+            } else {
+                pending = k
+            }
+        }
+        flush()
+        return out
+    }
+}
+
 enum FindingPrompt: Identifiable, Hashable {
     case flag
     case concern(String)
@@ -257,6 +313,8 @@ struct ItemCard: View {
     var airQuality: AirQualityDef? = nil
     /// Called with the item's question when "Concerns" / "Concern" is newly selected (opens the concern sheet).
     var onConcern: ((String) -> Void)? = nil
+    /// Wide iPad rows: the card stretches to the taller card beside it.
+    var fillHeight = false
 
     static func isConcern(_ option: String) -> Bool {
         let o = option.trimmingCharacters(in: .whitespaces)
@@ -296,15 +354,15 @@ struct ItemCard: View {
             case .text:
                 VTextField(text: textBinding(\.text), placeholder: item.placeholder ?? "Enter a value", bottom: 0, kind: .plain(max: 500))
             case .date:
-                OptionalDateField(value: textBinding(\.text), format: "yyyy-MM-dd", components: .date, prompt: "Select date")
+                OptionalDateField(value: textBinding(\.text), components: .date, label: item.q ?? "Date")
             case .time:
-                OptionalDateField(value: textBinding(\.text), format: "HH:mm", components: .hourAndMinute, prompt: "Select time")
+                OptionalDateField(value: textBinding(\.text), components: .hourAndMinute, label: item.q ?? "Time")
             case .header:
                 EmptyView()
             }
         }
         .padding(.horizontal, 15).padding(.vertical, 14)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, maxHeight: fillHeight ? .infinity : nil, alignment: .topLeading)
         .background(VC.paper)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(VC.line, lineWidth: 1))
@@ -331,15 +389,16 @@ struct AirReadingInput: View {
 
     private var unit: String { item.unit ?? "" }
     private var options: [String] { item.options ?? ["1", "2", "3", "4", "5", "6"] }
+    var wide = WideLayout()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if Device.isPad {
                 HStack(alignment: .bottom, spacing: 14) {
-                    levelField.frame(width: 250)
+                    levelField.frame(width: wide.isWide ? 300 : 250)
                     VStack(alignment: .leading, spacing: 6) {
                         ratingCaption
-                        ratingRow.frame(maxWidth: 380)
+                        ratingRow.frame(maxWidth: wide.isWide ? 540 : 380)
                     }
                     .padding(.bottom, 2)
                     Spacer(minLength: 0)
@@ -396,40 +455,90 @@ struct AirReadingInput: View {
     }
 }
 
-/// A date/time answer that starts empty ("Select date") and can be cleared.
+/// A checklist `date` / `time` answer (data v1.7.1: IAQ Date / Time, Termite and Wind Mitigation inspection date).
+/// Looks like the wizard's Date / Time fields (the value in a gray pill inside the field box) and behaves like them:
+/// one tap anywhere on the field opens the calendar (or the time wheels) right away, no keyboard. An empty answer
+/// shows "Select date" / "Select time"; opening the picker fills in today / now (like the wizard), × clears it.
+/// Stored as "yyyy-MM-dd" / "HH:mm" like the wizard; older typed answers are read when possible, else shown as typed.
 struct OptionalDateField: View {
     @Binding var value: String
-    let format: String
     let components: DatePickerComponents
-    let prompt: String
+    let label: String
+    @State private var open = false
+
+    private var isDate: Bool { components == .date }
+    private var format: String { isDate ? Fmt.answerDateFormat : Fmt.answerTimeFormat }
+    private var parsed: Date? { isDate ? Fmt.answerDate(value) : Fmt.answerTime(value) }
+    /// What the pill shows: "Oct 12, 2026" / "10:15 AM" like the system compact picker in the wizard.
+    private var display: String? {
+        guard !value.isEmpty else { return nil }
+        return parsed.map { Fmt.date($0, isDate ? "MMM d, yyyy" : "h:mm a") } ?? value
+    }
 
     var body: some View {
-        FieldBox(focused: false) {
-            if value.isEmpty {
-                Button {
-                    value = Fmt.date(Date(), format)
-                } label: {
-                    IconLabel(prompt, icon: components == .date ? "calendar" : "free-trial-days", iconSize: 18)
-                        .font(VFont.ui(15)).foregroundStyle(VC.brand)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+        FieldBox(focused: open) {
+            HStack(spacing: 8) {
+                Button { openPicker() } label: {
+                    HStack {
+                        if let display {
+                            Text(display)
+                                .font(.system(size: 17)).foregroundStyle(open ? VC.brand : Color(.label))
+                                .padding(.horizontal, 11).padding(.vertical, 6)
+                                .background(Color(.tertiarySystemFill))
+                                .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                                .padding(.vertical, -6)
+                        } else {
+                            IconLabel(isDate ? "Select date" : "Select time", icon: isDate ? "calendar" : "free-trial-days", iconSize: 18)
+                                .font(VFont.ui(15)).foregroundStyle(VC.brand)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-            } else {
-                HStack {
-                    DatePicker(prompt, selection: Binding(get: { Fmt.parse(value, format) ?? Date() }, set: { value = Fmt.date($0, format) }),
-                               displayedComponents: components)
-                        .labelsHidden()
-                        .environment(\.locale, Fmt.locale)
-                    Spacer()
+                .accessibilityLabel(label)
+                .accessibilityValue(display ?? "Not set")
+                .accessibilityHint(isDate ? "Opens the calendar" : "Opens the time picker")
+                .popover(isPresented: $open, arrowEdge: .top) {
+                    picker.presentationCompactAdaptation(.popover)
+                }
+                if display != nil {
                     Button { value = "" } label: {
                         ProtoIcon("close", size: 16).foregroundStyle(VC.ink3).frame(width: 44, height: 44)
                     }
                     .buttonStyle(.plain)
                     .padding(.vertical, -10)
-                    .accessibilityLabel("Clear")
+                    .accessibilityLabel("Clear \(label)")
                 }
             }
         }
+    }
+
+    private func openPicker() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        // Like the wizard's picker, which always holds a date: opening it chooses today / now until changed.
+        if parsed == nil { value = Fmt.date(Date(), format) }
+        open = true
+    }
+
+    private var picker: some View {
+        let selection = Binding(get: { parsed ?? Date() }, set: { value = Fmt.date($0, format) })
+        return Group {
+            if isDate {
+                DatePicker(label, selection: selection, displayedComponents: .date)
+                    .datePickerStyle(.graphical)
+                    .frame(width: 320)
+            } else {
+                DatePicker(label, selection: selection, displayedComponents: .hourAndMinute)
+                    .datePickerStyle(.wheel)
+                    .frame(width: 280)
+            }
+        }
+        .labelsHidden()
+        .tint(VC.brand)
+        .environment(\.locale, Fmt.locale)
+        .padding(12)
     }
 }
 
@@ -510,8 +619,9 @@ struct FindingSheet: View {
     }
 }
 
-/// Styled "select" for the 8 canned quick comments (JSON findings.quickComments). iPhone: the system menu.
-/// iPad: a popover list with its arrow on the field (the system menu floated free over the photo there).
+/// Styled "select" for the 8 canned quick comments (JSON findings.quickComments). Every comment shows in full,
+/// wrapped, with a checkmark on the current one (the system menu cut the long ones off on iPhone).
+/// iPhone: a sheet listing them. iPad: a popover list with its arrow on the field.
 struct QuickCommentMenu: View {
     @Environment(AppStore.self) private var store
     let placeholder: String
@@ -522,62 +632,82 @@ struct QuickCommentMenu: View {
     @State private var fieldWidth: CGFloat = 320
 
     var body: some View {
-        if Device.isPad {
-            Button { showList = true } label: { field }
-                .buttonStyle(.plain)
-                .background(GeometryReader { g in
-                    Color.clear
-                        .onAppear { fieldWidth = g.size.width }
-                        .onChange(of: g.size.width) { _, w in fieldWidth = w }
-                })
-                .popover(isPresented: $showList, arrowEdge: .bottom) { list.presentationCompactAdaptation(.popover) }
-                .task {
-                    guard dark, DebugFlags.openCommentList else { return }
-                    DebugFlags.openCommentList = false
-                    try? await Task.sleep(nanoseconds: 900_000_000)
-                    showList = true
-                }
-                .accessibilityLabel(placeholder)
-                .accessibilityValue(selection ?? "None")
-        } else {
-            Menu {
-                ForEach(store.config.findings.quickComments, id: \.self) { c in
-                    Button(c) { selection = c; onPick(c) }
-                }
-            } label: { field }
+        Button { showList = true } label: { field }
+            .buttonStyle(.plain)
+            .background(GeometryReader { g in
+                Color.clear
+                    .onAppear { fieldWidth = g.size.width }
+                    .onChange(of: g.size.width) { _, w in fieldWidth = w }
+            })
+            .modifier(QuickCommentPresentation(isPresented: $showList, padList: { padList }, phoneSheet: { phoneSheet }))
+            .task {
+                guard DebugFlags.openCommentList, dark || !Device.isPad else { return }
+                DebugFlags.openCommentList = false
+                try? await Task.sleep(nanoseconds: 900_000_000)
+                showList = true
+            }
             .accessibilityLabel(placeholder)
+            .accessibilityValue(selection ?? "None")
+            .accessibilityHint("Shows the quick comments")
+    }
+
+    private func pick(_ c: String) {
+        selection = c
+        onPick(c)
+        showList = false
+    }
+
+    private var rows: some View {
+        let comments = store.config.findings.quickComments
+        return VStack(spacing: 0) {
+            ForEach(Array(comments.enumerated()), id: \.offset) { i, c in
+                Button { pick(c) } label: {
+                    HStack(spacing: 10) {
+                        Text(c).font(VFont.ui(15)).foregroundStyle(VC.ink)
+                            .multilineTextAlignment(.leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        if c == selection { ProtoIcon("check", size: 16, lineWidth: 2.4).foregroundStyle(VC.brand) }
+                    }
+                    .padding(.horizontal, 16).padding(.vertical, 12)
+                    .frame(minHeight: 48)
+                    .overlay(alignment: .bottom) { if i < comments.count - 1 { Rectangle().fill(VC.line2).frame(height: 1) } }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(PressableStyle())
+                .accessibilityAddTraits(c == selection ? .isSelected : [])
+            }
         }
     }
 
-    private var list: some View {
-        let comments = store.config.findings.quickComments
-        return ScrollView {
-            VStack(spacing: 0) {
-                ForEach(Array(comments.enumerated()), id: \.offset) { i, c in
-                    Button {
-                        selection = c
-                        onPick(c)
-                        showList = false
-                    } label: {
-                        HStack(spacing: 10) {
-                            Text(c).font(VFont.ui(15)).foregroundStyle(VC.ink)
-                                .multilineTextAlignment(.leading)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                            if c == selection { ProtoIcon("check", size: 16, lineWidth: 2.4).foregroundStyle(VC.brand) }
-                        }
-                        .padding(.horizontal, 16).padding(.vertical, 12)
-                        .frame(minHeight: 48)
-                        .overlay(alignment: .bottom) { if i < comments.count - 1 { Rectangle().fill(VC.line2).frame(height: 1) } }
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(PressableStyle())
-                    .accessibilityAddTraits(c == selection ? .isSelected : [])
-                }
+    /// iPhone: titled sheet tall enough for all eight wrapped comments (drag up for full height).
+    private var phoneSheet: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("Quick comment").font(VFont.display(17, .bold)).foregroundStyle(VC.ink)
+                Spacer()
+                Button("Cancel") { showList = false }
+                    .font(VFont.ui(16)).foregroundStyle(VC.brand)
+                    .frame(minWidth: 44, minHeight: 44, alignment: .trailing)
             }
+            .padding(.horizontal, 18).padding(.top, 14).padding(.bottom, 6)
+            Rectangle().fill(VC.line).frame(height: 1)
+            ScrollView { rows }
         }
-        .frame(width: max(fieldWidth, 320))
-        .frame(minHeight: 200, idealHeight: min(CGFloat(comments.count) * 49 + 4, 460), maxHeight: 460)
         .background(VC.paper)
+        .presentationDetents([.height(600), .large])
+        .presentationDragIndicator(.visible)
+        .presentationCornerRadius(22)
+        .environment(\.colorScheme, .light)
+    }
+
+    private var padList: some View {
+        let comments = store.config.findings.quickComments
+        return ScrollView { rows }
+            .frame(width: max(fieldWidth, 320))
+            .frame(minHeight: 200, idealHeight: min(CGFloat(comments.count) * 49 + 4, 460), maxHeight: 460)
+            .background(VC.paper)
+            .presentationCompactAdaptation(.popover)
     }
 
     private var field: some View {
@@ -585,16 +715,33 @@ struct QuickCommentMenu: View {
                 Text(selection ?? placeholder)
                     .font(VFont.ui(dark ? 13 : 15))
                     .foregroundStyle(dark ? .white : (selection == nil ? VC.ink3 : VC.ink))
-                    .lineLimit(1)
+                    .lineLimit(3)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 ProtoIcon("chevron-down", size: 16)
                     .foregroundStyle(dark ? .white.opacity(0.8) : VC.ink3)
             }
             .padding(.horizontal, dark ? 11 : 14)
+            .padding(.vertical, 8)
             .frame(minHeight: dark ? 44 : 48)
             .background(dark ? Color.white.opacity(0.1) : VC.paper)
             .clipShape(RoundedRectangle(cornerRadius: dark ? 9 : 11, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: dark ? 9 : 11, style: .continuous).stroke(dark ? Color.white.opacity(0.18) : VC.line, lineWidth: 1))
             .contentShape(Rectangle())
+    }
+}
+
+private struct QuickCommentPresentation<PadList: View, PhoneSheet: View>: ViewModifier {
+    @Binding var isPresented: Bool
+    let padList: () -> PadList
+    let phoneSheet: () -> PhoneSheet
+
+    func body(content: Content) -> some View {
+        if Device.isPad {
+            content.popover(isPresented: $isPresented, arrowEdge: .bottom, content: padList)
+        } else {
+            content.sheet(isPresented: $isPresented, content: phoneSheet)
+        }
     }
 }

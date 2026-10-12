@@ -9,71 +9,11 @@ struct LoginView: View {
     @State private var errors = FormErrors()
     @State private var busy = false
 
+    var wide = WideLayout()
+
     var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                VStack(spacing: 0) {
-                    VStack(spacing: 0) {
-                        Image("VimsLogo")
-                            .resizable().scaledToFit()
-                            .frame(width: 74, height: 74)
-                            .frame(width: 96, height: 96)
-                            .background(Color.white)
-                            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-                            .shadow(color: .black.opacity(0.35), radius: 15, y: 12)
-                            .padding(.bottom, 16)
-                            .accessibilityLabel("VIMS logo")
-                        Text("VIMS")
-                            .font(VFont.display(30, .heavy))
-                            .tracking(0.6)
-                            .foregroundStyle(.white)
-                        Text("Vision Inspection Management Solutions")
-                            .font(VFont.ui(13))
-                            .foregroundStyle(VC.hdrSub)
-                            .multilineTextAlignment(.center)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .padding(.top, 4)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, 40).padding(.bottom, 36).padding(.horizontal, 24)
-                    // The blue runs up under the status bar (and into the pull-down overscroll) but
-                    // never below the header, whatever the device height or text size.
-                    .background(VC.hdr.padding(.top, -1000))
-
-                    VStack(spacing: 0) {
-                        VTextField(label: "Email", text: $email, placeholder: "you@company.com", keyboard: .emailAddress,
-                                   contentType: .username, capitalization: .never, kind: .email, fieldID: "email", errors: errors, required: true)
-                        VSecureField(label: "Password", text: $password, placeholder: "Password", fieldID: "password", errors: errors, required: true)
-                        Button {
-                            signIn()
-                        } label: {
-                            if busy { ProgressView().tint(.white) } else { Text("Sign in") }
-                        }
-                        .buttonStyle(.vPrimary)
-                        .disabled(busy)
-
-                        Button("Create account") { store.push(.signup) }
-                            .buttonStyle(.vGhost).padding(.top, 10)
-                        Button { store.push(.join) } label: {
-                            IconLabel("Join a company with a code", icon: "join-a-company")
-                        }
-                        .buttonStyle(.vGhost).padding(.top, 10)
-                        Button("Forgot password?") { store.push(.forgot) }
-                            .font(VFont.ui(12.5))
-                            .foregroundStyle(VC.ink3)
-                            .frame(minHeight: 44)
-                            .padding(.top, 6)
-                    }
-                    .padding(.horizontal, 18).padding(.vertical, 24)
-                    .readableColumn(PadLayout.formWidth)
-                }
-            }
-            .scrollDismissesKeyboard(.interactively)
-            .onChange(of: errors.scrollTarget) { _, t in
-                guard let t else { return }
-                withAnimation { proxy.scrollTo(t, anchor: .center) }
-                errors.scrollTarget = nil
-            }
+        Group {
+            if wide.isWide { wideBody } else { compactBody }
         }
         .background(VC.paper2.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
@@ -85,6 +25,114 @@ struct LoginView: View {
             }
             #endif
             if DebugFlags.validate, store.path.isEmpty { DebugFlags.validate = false; email = "jeremy@@example"; password = "abc"; signIn() }
+        }
+    }
+
+    /// iPhone and iPad portrait: brand block over the form (the approved design).
+    private var compactBody: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(spacing: 0) {
+                    brand
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 40).padding(.bottom, 36).padding(.horizontal, 24)
+                        // The blue runs up under the status bar (and into the pull-down overscroll) but
+                        // never below the header, whatever the device height or text size.
+                        .background(VC.hdr.padding(.top, -1000))
+                    form
+                        .padding(.horizontal, 18).padding(.vertical, 24)
+                        .readableColumn(PadLayout.formWidth, wideMax: PadLayout.formWidth)
+                }
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .onChange(of: errors.scrollTarget) { _, t in
+                guard let t else { return }
+                withAnimation { proxy.scrollTo(t, anchor: .center) }
+                errors.scrollTarget = nil
+            }
+        }
+    }
+
+    /// iPad landscape: the blue brand panel fills the left half, the form is centered in the right half.
+    private var wideBody: some View {
+        GeometryReader { g in
+            HStack(spacing: 0) {
+                brand
+                    .padding(32)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(VC.hdr.ignoresSafeArea())
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        form
+                            .padding(.horizontal, 28).padding(.vertical, 32)
+                            .frame(maxWidth: 520)
+                            .frame(maxWidth: .infinity)
+                            .containerRelativeFrame(.vertical, alignment: .center) { h, _ in h }
+                    }
+                    .scrollDismissesKeyboard(.interactively)
+                    .onChange(of: errors.scrollTarget) { _, t in
+                        guard let t else { return }
+                        withAnimation { proxy.scrollTo(t, anchor: .center) }
+                        errors.scrollTarget = nil
+                    }
+                }
+                .frame(maxWidth: .infinity)
+            }
+            // Blue behind the status bar across the whole width, so its white text stays readable on the right too.
+            .overlay(alignment: .top) {
+                VC.hdr.frame(height: g.safeAreaInsets.top).offset(y: -g.safeAreaInsets.top).allowsHitTesting(false)
+            }
+        }
+    }
+
+    private var brand: some View {
+        VStack(spacing: 0) {
+            Image("VimsLogo")
+                .resizable().scaledToFit()
+                .frame(width: 74, height: 74)
+                .frame(width: 96, height: 96)
+                .background(Color.white)
+                .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .shadow(color: .black.opacity(0.35), radius: 15, y: 12)
+                .padding(.bottom, 16)
+                .accessibilityLabel("VIMS logo")
+            Text("VIMS")
+                .font(VFont.display(30, .heavy))
+                .tracking(0.6)
+                .foregroundStyle(.white)
+            Text("Vision Inspection Management Solutions")
+                .font(VFont.ui(13))
+                .foregroundStyle(VC.hdrSub)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 4)
+        }
+    }
+
+    private var form: some View {
+        VStack(spacing: 0) {
+            VTextField(label: "Email", text: $email, placeholder: "you@company.com", keyboard: .emailAddress,
+                       contentType: .username, capitalization: .never, kind: .email, fieldID: "email", errors: errors, required: true)
+            VSecureField(label: "Password", text: $password, placeholder: "Password", fieldID: "password", errors: errors, required: true)
+            Button {
+                signIn()
+            } label: {
+                if busy { ProgressView().tint(.white) } else { Text("Sign in") }
+            }
+            .buttonStyle(.vPrimary)
+            .disabled(busy)
+
+            Button("Create account") { store.push(.signup) }
+                .buttonStyle(.vGhost).padding(.top, 10)
+            Button { store.push(.join) } label: {
+                IconLabel("Join a company with a code", icon: "join-a-company")
+            }
+            .buttonStyle(.vGhost).padding(.top, 10)
+            Button("Forgot password?") { store.push(.forgot) }
+                .font(VFont.ui(12.5))
+                .foregroundStyle(VC.ink3)
+                .frame(minHeight: 44)
+                .padding(.top, 6)
         }
     }
 

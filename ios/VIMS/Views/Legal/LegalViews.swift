@@ -55,7 +55,8 @@ struct EULAView: View {
     @Environment(AppStore.self) private var store
     @State private var jump = FormErrors()     // only used for the DEBUG -eulaSection jump
     var body: some View {
-        Screen(title: "License agreement", actions: store.session == nil ? [] : [store.homeAction()], errors: jump) {
+        Screen(title: "License agreement", actions: store.session == nil ? [] : [store.homeAction()], errors: jump,
+               wideContentWidth: PadLayout.documentWidth) {
             EULABody(doc: store.eula)
         }
         #if DEBUG
@@ -73,6 +74,7 @@ struct EULAView: View {
 struct EULAGateView: View {
     @Environment(AppStore.self) private var store
     @State private var confirmSignOut = false
+    var wide = WideLayout()
 
     var body: some View {
         let updated = store.currentUser?.eulaVersion != nil
@@ -80,45 +82,77 @@ struct EULAGateView: View {
             AppHeader(title: updated ? "Updated license agreement" : "License agreement",
                       subtitle: store.session == nil ? "Vision Inspection Management Solutions" : store.company.name,
                       leading: .none)
-            ScrollViewReader { proxy in
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    // Draft copy (not in the prototype): explains why the screen appears.
-                    Text(updated
-                         ? "We've updated the VIMS End User License Agreement (revised \(store.eula.revised)). Please review it and tap I agree to keep using VIMS."
-                         : "Please review the VIMS End User License Agreement (revised \(store.eula.revised)) and tap I agree to continue.")
-                        .font(VFont.ui(14)).foregroundStyle(VC.ink2).lineSpacing(3)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.bottom, 14)
-                    EULABody(doc: store.eula)
+            if wide.isWide {
+                // iPad landscape: the agreement keeps a readable line length on the left; the explanation and
+                // I agree / Sign out sit in a panel beside it, always in view.
+                HStack(alignment: .top, spacing: 24) {
+                    document(intro: false)
+                        .frame(maxWidth: .infinity)
+                    VStack(alignment: .leading, spacing: 0) {
+                        intro(updated)
+                        actions
+                    }
+                    .padding(18)
+                    .vCard(all: 0)
+                    .frame(width: 320)
+                    .padding(.top, 16)
                 }
-                .padding(.horizontal, 16).padding(.top, 16).padding(.bottom, 20)
-                .readableColumn()
+                .frame(maxWidth: 1240)
+                .padding(.horizontal, 24)
+                .frame(maxWidth: .infinity)
+            } else {
+                document(intro: true, updated: updated)
+                actions
+                    .padding(.horizontal, 16).padding(.top, 12).padding(.bottom, 6)
+                    .readableColumn(wideMax: PadLayout.documentWidth)
+                    .background(VC.paper.ignoresSafeArea(edges: .bottom))
+                    .overlay(alignment: .top) { Rectangle().fill(VC.line).frame(height: 1) }
             }
-            #if DEBUG
-            .task {
-                // -eulaSection N|footer also scrolls the gate (review screenshots of a revised clause).
-                guard let n = DebugLaunch.value("-eulaSection") else { return }
-                try? await Task.sleep(nanoseconds: 500_000_000)
-                proxy.scrollTo(n == "footer" ? "eula-footer" : "eula-sec-\(n)", anchor: DebugLaunch.has("-eulaAnchorBottom") ? .bottom : .top)
-            }
-            #endif
-            }
-            VStack(spacing: 4) {
-                Button("I agree") { withAnimation(.easeOut(duration: 0.25)) { store.acceptEula() } }
-                    .buttonStyle(.vPrimary)
-                Button("Sign out") { confirmSignOut = true }
-                    .font(VFont.ui(14, .semibold)).foregroundStyle(VC.ink2)
-                    .frame(maxWidth: .infinity, minHeight: 44)
-                    .signOutConfirmation(isPresented: $confirmSignOut)
-            }
-            .padding(.horizontal, 16).padding(.top, 12).padding(.bottom, 6)
-            .readableColumn()
-            .background(VC.paper.ignoresSafeArea(edges: .bottom))
-            .overlay(alignment: .top) { Rectangle().fill(VC.line).frame(height: 1) }
         }
         .background(VC.paper2.ignoresSafeArea())
         .accessibilityAddTraits(.isModal)
+    }
+
+    // Draft copy (not in the prototype): explains why the screen appears.
+    private func intro(_ updated: Bool) -> some View {
+        Text(updated
+             ? "We've updated the VIMS End User License Agreement (revised \(store.eula.revised)). Please review it and tap I agree to keep using VIMS."
+             : "Please review the VIMS End User License Agreement (revised \(store.eula.revised)) and tap I agree to continue.")
+            .font(VFont.ui(14)).foregroundStyle(VC.ink2).lineSpacing(3)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.bottom, 14)
+    }
+
+    private func document(intro showIntro: Bool, updated: Bool = false) -> some View {
+        ScrollViewReader { proxy in
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                if showIntro { intro(updated) }
+                EULABody(doc: store.eula)
+            }
+            .padding(.horizontal, wide.isWide ? 0 : 16).padding(.top, 16).padding(.bottom, 20)
+            .readableColumn(wideMax: PadLayout.documentWidth)
+        }
+        #if DEBUG
+        .task {
+            // -eulaSection N|footer also scrolls the gate (review screenshots of a revised clause).
+            guard let n = DebugLaunch.value("-eulaSection") else { return }
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            proxy.scrollTo(n == "footer" ? "eula-footer" : "eula-sec-\(n)", anchor: DebugLaunch.has("-eulaAnchorBottom") ? .bottom : .top)
+        }
+        #endif
+        }
+    }
+
+    private var actions: some View {
+        VStack(spacing: 4) {
+            Button("I agree") { withAnimation(.easeOut(duration: 0.25)) { store.acceptEula() } }
+                .buttonStyle(.vPrimary)
+            Button("Sign out") { confirmSignOut = true }
+                .font(VFont.ui(14, .semibold)).foregroundStyle(VC.ink2)
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .signOutConfirmation(isPresented: $confirmSignOut)
+        }
     }
 }
 

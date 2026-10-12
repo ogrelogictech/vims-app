@@ -48,7 +48,8 @@ enum DebugFlags {
 ///   -useVimsAgreement          revert the company to the VIMS agreement
 ///   -editedAgreement           give the company an edited copy of the VIMS agreement (same path as Edit → Save)
 ///   -agreementScroll disclosures  scroll the agreement viewer to the state disclosures (`card`: Company profile's agreement card)
-///   -agreementStatus           print AGREEMENTTEST (bundled agreement loaded, state keys, own file)
+///   -agreementStatus           print AGREEMENTTEST (bundled agreement loaded, state keys, own file, edited copy's form blocks)
+///   -legacyEditedAgreement     an edited agreement saved before the form block was locked (form lines in its text)
 ///   -agreementState XX         with -screen agreement: open the viewer from the wizard for state XX (else from Company profile)
 ///   -landscape / -portrait     rotate the iPad simulator window (review screenshots; refused in iPadOS 26 windowed mode)
 ///   -openPicker                with -screen wizard: open the State picker
@@ -143,6 +144,9 @@ enum DebugLaunch {
         case "fill", "overflow":
             for k in keyed {
                 if k.item.kind == .airReading, let v = sample[k.item.code ?? ""] { a.text[k.id] = v.0; a.choices[k.id] = [v.1] }
+                // Data v1.7.1: Date / Time are `date` / `time` items (stored like the wizard: yyyy-MM-dd, HH:mm).
+                if k.item.kind == .date { a.text[k.id] = Fmt.date(Date(), "yyyy-MM-dd") }
+                if k.item.kind == .time { a.text[k.id] = "10:15" }
                 if k.item.kind == .text {
                     a.text[k.id] = ["Client name": insp.clientName, "Date": Fmt.date(Date(), "MMMM d, yyyy"), "Time": "10:15 AM",
                                     "Property address": insp.addressLine1][k.item.q ?? ""]
@@ -205,6 +209,14 @@ enum DebugLaunch {
         if has("-editedAgreement"), store.session != nil, let t = store.vimsAgreementPlainText {
             store.saveEditedAgreement(t.replacingOccurrences(of: "Inspection Agreement\n", with: "Home Inspection Agreement\n", options: .anchored))
         }
+        // -legacyEditedAgreement: an edit saved before the form block was locked (form lines in the text, one field
+        // name deleted) — the viewer / PDF / editor must show the locked block once.
+        if has("-legacyEditedAgreement"), store.session != nil, let doc = InspectionAgreement.bundled {
+            var full = AgreementContent.vims(doc, company: store.company.name, stateCode: nil, stateName: { store.config.stateName($0) ?? $0 }).plainText
+            full = full.replacingOccurrences(of: "Clients Name ________________________", with: "________________________")
+            store.state.company.agreementText = full.replacingOccurrences(of: "Inspection Agreement\n", with: "Home Inspection Agreement\n", options: .anchored)
+            print("AGREEMENTTEST legacy edited chars=\(full.count) stripped=\(AgreementContent.strippingFormLines(full, formLines: store.agreementFormLines).count)")
+        }
         if let n = value("-ownAgreement"), store.session != nil {
             if let u = Bundle.main.url(forResource: n, withExtension: "pdf") { store.saveAgreement(from: u) }
             else { print("AGREEMENTTEST missing bundled \(n).pdf") }
@@ -212,6 +224,12 @@ enum DebugLaunch {
         if has("-agreementStatus") {
             let a = InspectionAgreement.bundled
             print("AGREEMENTTEST loaded=\(a != nil) version=\(a?.version ?? "-") states=\(a?.disclosureStates.joined(separator: ",") ?? "-") own=\(store.company.agreementName ?? "none") file=\(store.ownAgreementURL?.lastPathComponent ?? "none")")
+            if let e = store.editedAgreementContent {
+                let forms = e.blocks.filter { if case .form = $0 { return true } else { return false } }
+                let formLines = Set(store.agreementFormLines)
+                let leaked = e.blocks.filter { if case .paragraph(let t, _) = $0 { return t.components(separatedBy: "\n").contains { formLines.contains($0) } } else { return false } }.count
+                print("AGREEMENTTEST edited title=\(e.title) formBlocks=\(forms.count) formLinesMatch=\(e.formLines == store.agreementFormLines) leakedFormParagraphs=\(leaked) blocks=\(e.blocks.count)")
+            }
         }
         if let v = value("-wizState") { DebugFlags.wizardStates = v.split(separator: ",").map(String.init) }
         if has("-mailSelfTest") { mailSelfTest(store) }

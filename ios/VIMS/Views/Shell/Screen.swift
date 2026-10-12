@@ -114,6 +114,8 @@ struct Screen<Content: View>: View {
     var errors: FormErrors? = nil
     /// iPad (regular width): the scrolling content is a centered column this wide; the header stays full width.
     var maxContentWidth: CGFloat = PadLayout.readableWidth
+    /// iPad landscape: the column grows with the window up to this (forms and documents stay narrower).
+    var wideContentWidth: CGFloat? = nil
     @ViewBuilder var content: () -> Content
 
     var body: some View {
@@ -126,7 +128,8 @@ struct Screen<Content: View>: View {
                             .padding(.horizontal, 16)
                             .padding(.top, 16)
                             .padding(.bottom, 34)
-                            .readableColumn(maxContentWidth)
+                            .readableColumn(maxContentWidth, wideMax: wideContentWidth
+                                            ?? (maxContentWidth == PadLayout.formWidth ? PadLayout.wideFormWidth : PadLayout.maxWideWidth))
                     }
                     .scrollDismissesKeyboard(.interactively)
                     .onChange(of: errors?.scrollTarget) { _, target in

@@ -405,7 +405,7 @@ struct PhotoMarkupView: View {
                 }
             }
             .padding(.horizontal, 14).padding(.top, 12).padding(.bottom, 18)
-            .readableColumn()   // iPad: tools stay a compact centered panel under the full-width photo
+            .readableColumn(wideMax: PadLayout.readableWidth)   // iPad: tools stay a compact centered panel under the full-width photo
             .background(Color(hex: 0x12181F).ignoresSafeArea(edges: .bottom))
         }
         .background(Color(hex: 0x0B0F15).ignoresSafeArea())

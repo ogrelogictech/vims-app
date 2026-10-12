@@ -22,6 +22,9 @@ struct StateFieldBlock: View {
     /// Wizard Return / Next chain: Return on Inspection address opens this picker; a pick moves on to `nextField`.
     var focus: FocusChain? = nil
     var nextField: String? = nil
+    /// The wide iPad wizard puts the field in a two-column row and the rule card + agreement line under the row.
+    enum Part { case all, field, details }
+    var part: Part = .all
     @State private var picking = false
     @State private var picked = false
     @State private var preview: PreviewDoc?
@@ -32,6 +35,7 @@ struct StateFieldBlock: View {
         let cfg = store.config
         let name = cfg.stateName(draft.state)
         let error = errors[StateFieldIDs.state]
+        if part != .details {
         VStack(alignment: .leading, spacing: 7) {
             FieldLabel(text: "State", required: true)
             Button { endEditing(); picking = true } label: {
@@ -48,8 +52,8 @@ struct StateFieldBlock: View {
             .accessibilityLabel("State, required")
             .accessibilityValue(name ?? "Not selected")
             .accessibilityHint("Opens the list of states")
-            // iPhone: the full-height sheet. iPad: a popover hanging off this field.
-            .pickerPresentation(isPresented: $picking, padSize: CGSize(width: 420, height: 600)) {
+            // iPhone: the full-height sheet. iPad: a form-sized sheet (search field + long list above the keyboard).
+            .pickerPresentation(isPresented: $picking) {
                 StatePickerSheet(states: cfg.states ?? [], selected: draft.state) { code in
                     draft.setState(code, config: cfg)
                     errors.set(StateFieldIDs.state, nil)
@@ -85,7 +89,9 @@ struct StateFieldBlock: View {
             try? await Task.sleep(nanoseconds: 600_000_000)
             picking = true
         }
+        }
 
+        if part != .field {
         if let rule = cfg.stateRule(draft.state) {
             ruleCard(rule)
                 .padding(.top, -2).padding(.bottom, 14)
@@ -100,6 +106,7 @@ struct StateFieldBlock: View {
                 }
         }
         agreementLine
+        }
     }
 
     /// v1.4: "Inspection agreement: View (shows the selected state's section)" → the VIMS agreement viewer,
@@ -274,12 +281,22 @@ struct StatePickerSheet: View {
     }
 
     var body: some View {
-        if Device.isPad { popoverBody } else { sheetBody }
+        if Device.isPad { padSheetBody } else { sheetBody }
     }
 
-    /// iPad popover: its own search field + list (a NavigationStack's bar doesn't lay out inside a popover).
-    private var popoverBody: some View {
+    /// iPad form sheet: title bar with Cancel, its own search field (focused) and the list.
+    private var padSheetBody: some View {
         VStack(spacing: 0) {
+            HStack {
+                Button("Cancel") { dismiss() }
+                    .font(VFont.ui(16)).foregroundStyle(VC.brand)
+                    .frame(minWidth: 44, minHeight: 44, alignment: .leading)
+                Spacer()
+                Text("State").font(VFont.display(17, .bold)).foregroundStyle(VC.ink)
+                Spacer()
+                Color.clear.frame(width: 60, height: 44)
+            }
+            .padding(.horizontal, 16).padding(.top, 8)
             FieldBox(focused: false, minHeight: 44) {
                 HStack(spacing: 8) {
                     ProtoIcon("search", size: 16).foregroundStyle(VC.ink3)
@@ -292,14 +309,14 @@ struct StatePickerSheet: View {
                         .accessibilityLabel("Search states")
                 }
             }
-            .padding(12)
+            .padding(.horizontal, 16).padding(.top, 6).padding(.bottom, 12)
             Rectangle().fill(VC.line).frame(height: 1)
             list
         }
         .background(VC.paper)
         .onAppear { searchFocused = true }
         .task {
-            // Again once the popover has finished presenting, in case the first request came too early.
+            // Again once the sheet has finished presenting, in case the first request came too early.
             try? await Task.sleep(nanoseconds: 350_000_000)
             searchFocused = true
         }

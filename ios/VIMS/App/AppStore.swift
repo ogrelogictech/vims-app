@@ -785,11 +785,25 @@ final class AppStore {
         return .vims
     }
 
-    /// The full VIMS agreement as plain text with this company's name filled in — what "Edit" starts from.
+    /// The VIMS agreement's editable wording as plain text with this company's name filled in — what "Edit" starts
+    /// from. The form block (client / property / fee lines) is locked, so it isn't part of it (`agreementFormLines`).
     var vimsAgreementPlainText: String? {
         InspectionAgreement.bundled.map {
-            AgreementContent.vims($0, company: company.name, stateCode: nil, stateName: { self.config.stateName($0) ?? $0 }).plainText
+            AgreementContent.vims($0, company: company.name, stateCode: nil, stateName: { self.config.stateName($0) ?? $0 }).editableText
         }
+    }
+
+    /// The locked form lines of the agreement (VIMS agreement `formLines`, company name filled). Shown read-only in
+    /// "Edit agreement" and always part of an edited agreement in the viewer and the PDF. Filling them in / signing
+    /// is the deferred e-sign add-on.
+    var agreementFormLines: [String] {
+        InspectionAgreement.bundled.map { $0.formLines.map { InspectionAgreement.fill($0, company: company.name) } } ?? []
+    }
+
+    /// The company's edited agreement as shown in the viewer / PDF (locked form block included), or nil.
+    var editedAgreementContent: AgreementContent? {
+        guard agreementInUse == .edited, let text = company.agreementText else { return nil }
+        return .edited(text, company: company.name, form: agreementFormLines)
     }
 
     /// "Edit agreement" → Save: the edited text becomes this company's agreement and replaces an uploaded file.

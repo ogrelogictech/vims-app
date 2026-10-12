@@ -9,6 +9,7 @@ struct SettingsView: View {
     @Environment(\.openURL) private var openURL
     @State private var photoMenu = false
     @State private var confirmSignOut = false
+    var wide = WideLayout()
 
     var body: some View {
         @Bindable var store = store
@@ -16,6 +17,9 @@ struct SettingsView: View {
         let plan = sub.plan(sub.selectedPlan)
         let n = store.company.inspectors.count
         Screen(title: "Settings", actions: [store.homeAction()]) {
+            // iPad landscape: account, sync, subscription and admin on the left; help, company, legal and defaults
+            // on the right. Same order, one column, everywhere else.
+            WideColumns(spacing: 24, wide: wide.isWide) {
             SectionLabel(text: "Account", top: 2)
             HStack(spacing: 13) {
                 // The user's own profile photo (initials if none) — tap to change. Not the company logo.
@@ -87,7 +91,8 @@ struct SettingsView: View {
                 NavRow(symbol: "email-to-client", title: "Feedback & support", subtitle: "Change the feedback contact email") { store.push(.feedbackAdmin) }
             }
 
-            SectionLabel(text: "Help & feedback", top: 10)
+            } trailing: {
+            SectionLabel(text: "Help & feedback", top: wide.isWide ? 2 : 10)
             VStack(alignment: .leading, spacing: 0) {
                 Text("Questions or feedback?").font(VFont.ui(14, .bold)).foregroundStyle(VC.ink)
                 Text("We'd love to hear from you — send us a note and the VIMS team will get back to you.")
@@ -125,6 +130,7 @@ struct SettingsView: View {
             RowView(title: "Report cover", subtitle: store.state.settings.defaultCover.label) { EmptyView() } trailing: { EmptyView() }
                 .padding(.bottom, 10)
             RowView(title: "Photo size", subtitle: "JPG · ~750 KB") { EmptyView() } trailing: { EmptyView() }
+            }
             #if DEBUG
             // App + data version: developer builds only (not shown to customers).
             Text("DEBUG · VIMS \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "") · data \(store.config.version)")

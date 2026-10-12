@@ -17,9 +17,7 @@ struct InspectionAgreementView: View {
 
     /// What's on screen (and in the download): the edited copy, else the VIMS agreement; nil if it can't be loaded.
     private var content: AgreementContent? {
-        if store.agreementInUse == .edited, let text = store.company.agreementText {
-            return .edited(text, company: store.company.name)
-        }
+        if let edited = store.editedAgreementContent { return edited }
         return InspectionAgreement.bundled.map {
             AgreementContent.vims($0, company: store.company.name, stateCode: stateCode, stateName: stateName)
         }
@@ -285,6 +283,7 @@ struct AgreementEditorView: View {
                     .font(VFont.ui(12.5)).foregroundStyle(VC.ink3).lineSpacing(2)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.bottom, 10)
+                lockedForm
                 FieldBox(focused: focused, minHeight: 200, error: errors["text"] != nil) {
                     TextEditor(text: $text)
                         .font(VFont.ui(14)).foregroundStyle(VC.ink)
@@ -310,7 +309,7 @@ struct AgreementEditorView: View {
                 }
             }
             .padding(.horizontal, 16).padding(.top, 14).padding(.bottom, 12)
-            .readableColumn()
+            .readableColumn(wideMax: PadLayout.documentWidth)
         }
         .confirmationDialog("Discard changes?", isPresented: $confirmDiscard, titleVisibility: .visible) {
             Button("Discard", role: .destructive) { store.back() }
@@ -320,7 +319,10 @@ struct AgreementEditorView: View {
         .onDisappear { SwipeBack.blocked = false }
         .onAppear {
             guard !loaded else { return }
-            let start = store.company.agreementText ?? store.vimsAgreementPlainText ?? ""
+            // An edit saved before the form block was locked may still hold its lines: leave them out here (the viewer
+            // and PDF drop them too), so saving can't duplicate the locked block.
+            let start = store.company.agreementText.map { AgreementContent.strippingFormLines($0, formLines: store.agreementFormLines) }
+                ?? store.vimsAgreementPlainText ?? ""
             text = start
             original = start
             loaded = true
@@ -328,6 +330,44 @@ struct AgreementEditorView: View {
             // -validate: try to save an empty agreement once (error state for review screenshots).
             if DebugFlags.validate { DebugFlags.validate = false; text = ""; save() }
             #endif
+        }
+    }
+
+    /// The agreement's form block (client, property, inspection type, fees): read-only, boxed like the viewer, and kept
+    /// as is in the viewer and the PDF whatever is edited below. Filling it in / signing is the deferred e-sign add-on.
+    @ViewBuilder
+    private var lockedForm: some View {
+        let lines = store.agreementFormLines
+        if !lines.isEmpty {
+            HStack(spacing: 8) {
+                Text("FORM FIELDS").font(VFont.mono(10.5)).tracking(1.2).foregroundStyle(VC.ink3)
+                Text("Locked").font(VFont.ui(11, .semibold)).foregroundStyle(VC.ink2)
+                    .padding(.horizontal, 8).padding(.vertical, 2)
+                    .background(VC.paper3).clipShape(Capsule())
+                Spacer(minLength: 0)
+            }
+            .padding(.bottom, 4)
+            Text("Printed under the title on every agreement. These lines can\u{2019}t be edited.")
+                .font(VFont.ui(12)).foregroundStyle(VC.ink3)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.bottom, 7)
+            ScrollView {
+                Text(lines.joined(separator: "\n"))
+                    .font(VFont.mono(11.5)).foregroundStyle(VC.ink2)
+                    .lineSpacing(5)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 12).padding(.vertical, 10)
+            }
+            .frame(maxHeight: Device.isPad ? 240 : 150)
+            .background(VC.paper2)
+            .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).stroke(VC.line, lineWidth: 1))
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Form fields, locked")
+            .padding(.bottom, 12)
+            Text("AGREEMENT TEXT").font(VFont.mono(10.5)).tracking(1.2).foregroundStyle(VC.ink3)
+                .padding(.bottom, 7)
         }
     }
 

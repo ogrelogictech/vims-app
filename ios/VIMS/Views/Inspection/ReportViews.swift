@@ -7,6 +7,7 @@ import MessageUI
 struct SummaryView: View {
     @Environment(AppStore.self) private var store
     let inspectionID: UUID
+    var wide = WideLayout()
 
     var body: some View {
         if let insp = store.inspection(inspectionID) {
@@ -19,16 +20,27 @@ struct SummaryView: View {
                     StateDisclosureCard(title: "\(store.config.stateName(insp.state) ?? insp.stateCode) disclosure", text: text)
                         .padding(.bottom, 12)
                 }
-                ForEach(store.config.findings.categories, id: \.id) { c in
-                    SummaryCategoryCard(category: c, findings: insp.findings.filter { $0.category == c.id }) { f in
-                        store.deleteFinding(inspectionID, findingID: f.id)
-                        store.toast("Finding removed")
+                if wide.isWide {
+                    // iPad landscape: the three categories side by side.
+                    HStack(alignment: .top, spacing: 14) {
+                        ForEach(store.config.findings.categories, id: \.id) { c in categoryCard(c, insp).frame(maxWidth: .infinity) }
                     }
+                } else {
+                    ForEach(store.config.findings.categories, id: \.id) { c in categoryCard(c, insp) }
                 }
                 Button { store.push(.report(inspectionID)) } label: { IconLabel("Save and generate report", icon: "save-and-generate") }
                     .buttonStyle(.vPrimary)
+                    .frame(maxWidth: wide.isWide ? 460 : .infinity)
+                    .frame(maxWidth: .infinity)
                     .padding(.top, 14)
             }
+        }
+    }
+
+    private func categoryCard(_ c: FindingCategoryDef, _ insp: Inspection) -> some View {
+        SummaryCategoryCard(category: c, findings: insp.findings.filter { $0.category == c.id }) { f in
+            store.deleteFinding(inspectionID, findingID: f.id)
+            store.toast("Finding removed")
         }
     }
 }
@@ -92,6 +104,7 @@ struct ReportView: View {
     @State private var pageEstimate: Int?
     @State private var generating = false
     @State private var preview: PreviewDoc?
+    var wide = WideLayout()
 
     var body: some View {
         if let insp = store.inspection(inspectionID) {
@@ -99,59 +112,12 @@ struct ReportView: View {
             let done = cat.sortedForReport(insp.leafSections.filter { insp.status[$0] == .done })
             Screen(title: "Generate report", subtitle: insp.addressLine1,
                    actions: [HeaderAction(symbol: "hdr-sections", label: "Sections") { store.popToSections(inspectionID) }, store.homeAction()]) {
-                metaCard(insp)
-                SectionLabel(text: "Report cover")
-                // Reads the live cover (not this render's `insp` snapshot): a pick that changes several parts at once
-                // (category → its first image + style) used to write back the stale category / image.
-                CoverPicker(cover: Binding(get: { store.inspection(inspectionID)?.cover ?? insp.cover },
-                                           set: { c in store.update(inspectionID) { $0.cover = c } }), step: $coverStep)
-
-                SectionLabel(text: "Report pages")
-                Text(Self.reportPages[store.catalog.reportLayout(for: insp.inspType)] ?? "")
-                    .font(VFont.ui(13)).foregroundStyle(VC.ink2).lineSpacing(3)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .vCard(EdgeInsets(top: 12, leading: 14, bottom: 12, trailing: 14))
-
-                SectionLabel(text: "Report contents · in checklist order")
-                Text("Completed sections populate the report in the order they're numbered on your master checklist.")
-                    .font(VFont.ui(12)).foregroundStyle(VC.ink3).padding(.top, -4).padding(.bottom, 10).padding(.horizontal, 2)
-                    .fixedSize(horizontal: false, vertical: true)
-                VStack(spacing: 0) {
-                    if done.isEmpty {
-                        Text("No sections completed yet").font(VFont.ui(14)).foregroundStyle(VC.ink3)
-                            .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 15).padding(.vertical, 12)
-                    }
-                    ForEach(Array(done.enumerated()), id: \.element) { i, n in
-                        HStack {
-                            Text(String(format: "%02d", cat.number(n))).font(VFont.mono(14, .semibold)).foregroundStyle(VC.brandDeep)
-                                .frame(width: 30, alignment: .leading)
-                            Text(n).font(VFont.ui(14)).foregroundStyle(VC.ink)
-                            Spacer()
-                            Pill(kind: .done, text: "Included")
-                        }
-                        .padding(.horizontal, 15).padding(.vertical, 11)
-                        .overlay(alignment: .bottom) { if i < done.count - 1 { Rectangle().fill(VC.line2).frame(height: 1) } }
-                    }
+                // iPad landscape: cover on the left, contents and the generate buttons on the right.
+                WideColumns(wide: wide.isWide) {
+                    coverColumn(insp)
+                } trailing: {
+                    contentsColumn(insp, done: done)
                 }
-                .padding(.vertical, 6)
-                .background(VC.paper)
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(VC.line, lineWidth: 1))
-                .padding(.bottom, 12)
-
-                Button { Task { await previewFormat() } } label: { IconLabel("Preview report format", icon: "preview-report-format") }
-                    .buttonStyle(.vGhost).padding(.top, -2)
-
-                if !store.isOnline {
-                    Banner(text: md("You're **offline**. The report generates on the device now; it uploads on the next sync."))
-                        .padding(.top, 16)
-                }
-                Button { Task { await generate() } } label: {
-                    if generating { ProgressView().tint(.white) } else { IconLabel("Generate PDF report", icon: "generate-pdf-report") }
-                }
-                .buttonStyle(.vPrimary)
-                .disabled(generating)
-                .padding(.top, 12)
             }
             .onAppear {
                 if let s = DebugFlags.coverStep { coverStep = s; DebugFlags.coverStep = nil }
@@ -159,6 +125,67 @@ struct ReportView: View {
             }
             .documentCover(item: $preview) { doc in PDFPreviewSheet(doc: doc) }
         }
+    }
+
+    @ViewBuilder
+    private func coverColumn(_ insp: Inspection) -> some View {
+        metaCard(insp)
+        SectionLabel(text: "Report cover")
+        // Reads the live cover (not this render's `insp` snapshot): a pick that changes several parts at once
+        // (category → its first image + style) used to write back the stale category / image.
+        CoverPicker(cover: Binding(get: { store.inspection(inspectionID)?.cover ?? insp.cover },
+                                   set: { c in store.update(inspectionID) { $0.cover = c } }), step: $coverStep)
+
+        SectionLabel(text: "Report pages")
+        Text(Self.reportPages[store.catalog.reportLayout(for: insp.inspType)] ?? "")
+            .font(VFont.ui(13)).foregroundStyle(VC.ink2).lineSpacing(3)
+            .fixedSize(horizontal: false, vertical: true)
+            .vCard(EdgeInsets(top: 12, leading: 14, bottom: 12, trailing: 14))
+    }
+
+    @ViewBuilder
+    private func contentsColumn(_ insp: Inspection, done: [String]) -> some View {
+        let cat = store.catalog
+        SectionLabel(text: "Report contents · in checklist order", top: wide.isWide ? 0 : 20)
+        Text("Completed sections populate the report in the order they're numbered on your master checklist.")
+            .font(VFont.ui(12)).foregroundStyle(VC.ink3).padding(.top, -4).padding(.bottom, 10).padding(.horizontal, 2)
+            .fixedSize(horizontal: false, vertical: true)
+        VStack(spacing: 0) {
+            if done.isEmpty {
+                Text("No sections completed yet").font(VFont.ui(14)).foregroundStyle(VC.ink3)
+                    .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 15).padding(.vertical, 12)
+            }
+            ForEach(Array(done.enumerated()), id: \.element) { i, n in
+                HStack {
+                    Text(String(format: "%02d", cat.number(n))).font(VFont.mono(14, .semibold)).foregroundStyle(VC.brandDeep)
+                        .frame(width: 30, alignment: .leading)
+                    Text(n).font(VFont.ui(14)).foregroundStyle(VC.ink)
+                    Spacer()
+                    Pill(kind: .done, text: "Included")
+                }
+                .padding(.horizontal, 15).padding(.vertical, 11)
+                .overlay(alignment: .bottom) { if i < done.count - 1 { Rectangle().fill(VC.line2).frame(height: 1) } }
+            }
+        }
+        .padding(.vertical, 6)
+        .background(VC.paper)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(VC.line, lineWidth: 1))
+        .padding(.bottom, 12)
+
+        Button { Task { await previewFormat() } } label: { IconLabel("Preview report format", icon: "preview-report-format") }
+            .buttonStyle(.vGhost).padding(.top, -2)
+
+        if !store.isOnline {
+            Banner(text: md("You're **offline**. The report generates on the device now; it uploads on the next sync."))
+                .padding(.top, 16)
+        }
+        Button { Task { await generate() } } label: {
+            if generating { ProgressView().tint(.white) } else { IconLabel("Generate PDF report", icon: "generate-pdf-report") }
+        }
+        .buttonStyle(.vPrimary)
+        .disabled(generating)
+        .padding(.top, 12)
     }
 
     /// Page structure per report layout (prototype copy for `reportLayouts`).
