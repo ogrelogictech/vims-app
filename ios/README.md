@@ -35,7 +35,7 @@ xcrun simctl launch --terminate-running-process "iPhone 17" com.vims.app -screen
 xcrun simctl launch --terminate-running-process "iPhone 17" com.vims.app -resetData -skipLogin -noSplash
 ```
 
-`-screen` accepts: `login signup forgot join home splash wizard sections section drawer photos markup flag summary
+`-screen` accepts: `login signup forgot join home splash wizard editWizard sections section drawer photos markup flag summary
 report reportReady settings company instructions manage editSection plans inspectors subscribe subscribed billing
 feedback reportBcc eula signupEula deleteAccount phase1 phase2 agreement agreementEditor`. Extras: `-step N` (wizard 1–4 / cover picker 1–3), `-depth high|standard|fast`,
 `-section NAME`, `-inspection PREFIX|TYPE` (e.g. `Texas`, `"4 Point Inspection"`), `-generate` (with
@@ -278,7 +278,8 @@ layout is unchanged; iPad-only behavior lives in `Views/Shell/Adaptive.swift`:
   US Letter PDF, `Inspection-Agreement-<Company-Name>.pdf`, footer "<Company> · Inspection Agreement · Page x of n"
   (`Report/AgreementPDF.swift`, content model `Data/Legal/AgreementContent.swift`), and opens the share sheet
   ("Share agreement": Save to Files, Mail, AirDrop, Print). An uploaded agreement keeps its Quick Look share.
-- **Edit** (company admins, same permission as upload): the card's **Edit** opens "Edit agreement"
+- **Edit** — *replaced by the block editor on Oct 13, see "QA round Oct 13" below; the original plain-text design follows.*
+  (company admins, same permission as upload): the card's **Edit** opens "Edit agreement"
   (`AgreementEditorView`, route `.agreementEditor`): the agreement's **form block is locked** (Oct 12) — shown read-only
   above the editor, boxed like the viewer ("Form fields · Locked") — and a plain-text editor prefilled with the VIMS
   agreement's wording (title, blank-line paragraphs, "• " bullets, the disclosures heading then "State: text" per state, closing; company
@@ -500,3 +501,52 @@ Screenshots: `screenshots/oct12-*.png` — `ipad-01…18` 13" (landscape 01–13
 (landscape 19–22, portrait 23–26), `state-01…04`, `comment-01…04`, `date-01…05` (05 = the IAQ PDF page),
 `agreement-01…04` (04 = the PDF from a pre-lock edit, form block once), `iphone-01…04` (unchanged iPhone screens),
 `splash-01…04`.
+
+## QA round Oct 13 (team QA, iPhone 17)
+
+- **Numbers** (`Validation.swift`, docs "Number limits"): one parser, `Validator.number`, reads every number ignoring grouping
+  commas, spaces and a leading `$` (valuation, sq ft, lot size, `num` items, IAQ levels, plan prices, the PDF's Property
+  Information). Root cause of "450,000 → Enter a number greater than 0": the demo seed stores `"450,000"` and the check
+  used `Double(v)`. `FieldKind.number(NumberLimits)` replaces `.decimal` / `.reading`: sq ft 1 – 100,000 and valuation
+  1 – 100,000,000 (both may show commas), lot size 0.01 – 10,000, checklist `num` items 0 – 99,999 (counts — "Number of …"
+  room counts only: kitchens / bathrooms / half baths / bedrooms / stories / hallways / rooms / living / family / dining / garages,
+  Android's regex — 0 – 20), IAQ level 0 – 99,999. Typing filters to digits + one `.`; a value above the max
+  shows "Enter a number up to <max>" immediately (`FormErrors.liveLimit`, no submit needed). Steppers use
+  `StepperLimits`: room counts and unit mix 0 – 20, Inspector seats 1 – 50 and never below the current team (people with an
+  email; − only removes open seats added with +); − / + are disabled (not just dimmed) at the
+  ends. Text items such as "System number" stay free text.
+- **No auto-selection** (`TextSelection` in `FilteredTextField.swift`, installed at launch): when any UITextField /
+  UITextView (incl. SwiftUI TextField / TextEditor) begins editing with its whole text selected, the selection collapses
+  to a caret at the end; a tap keeps its tap point. The iOS code had no select-all of its own; this guards the
+  programmatic-focus / Return-chain paths app-wide.
+- **Edit agreement = block editor** (`AgreementEditorView`, `AgreementContent` + `EditedAgreement`): the agreement is listed
+  as the viewer's blocks (title, form, paragraphs, bullets, disclosures heading, each state's disclosure, closing). The
+  form block and every block containing `___` blanks or ☐ boxes ("THIS AGREEMENT is entered into on ____ …", agent / client
+  name and signature lines, "NO Report to Real Estate Agent ☐") are **Locked** (read-only, tag, no delete). Every other
+  block is a multi-line text box with **+** (add a paragraph after it; after the title it lands below the form) and trash
+  (asks "Delete this paragraph?"; the title has none — it can't be deleted); **Add paragraph** at the end. Save refuses
+  blank blocks (each highlighted: "Enter a title" / "Enter text or delete this block"), checks ≤ 100,000 characters, and
+  stores JSON
+  `{"format":"vims-agreement-blocks","v":1,"blocks":[{"t":"title|p|li|h|state","text":…,"state":…,"lead":…,"locked":…}]}` (Android's schema) in
+  `CompanyProfile.agreementText` (the form block isn't stored: its lines come from the VIMS agreement, always under the title). Plain-text
+  edits saved by earlier builds still load (parsed into blocks, old form lines dropped). Viewer and PDF render the stored
+  blocks; Use VIMS agreement still resets. No fill-in / tappable checkboxes (deferred e-sign add-on).
+- **Manage checklist:** the item trash asks "Delete this item?" / "“<question>” and its options will be removed from new
+  inspections." (Delete / Cancel), anchored to the button on iPad. Removing a custom section already asked.
+- **How VIMS works:** "Need a hand? Contact VIMS support" and the support address as a link — the platform owner's Feedback &
+  support email (`PlatformSettings.feedbackEmail`, default `support.feedbackEmail` = VIMSInspect@Gmail.com; the old
+  support@ogrelogic.com is gone). Mail composer when Mail is set up, else `mailto:`, else the address is copied with a
+  toast; long-press → Copy email address.
+- **Plans & pricing:** trash on each plan card → "Delete this plan?" (anchored on iPad). The last plan can't be deleted;
+  a company on the deleted plan moves to the first remaining one (`AppStore.deletePlan`, stored with the subscription
+  like a price edit). "Additional inspector" is a rate setting and has no delete.
+- **Billing ZIP / postal code:** letters, digits, space, `-`, uppercased, max 10; valid at 3 – 10 characters (84015,
+  84015-1234, K1A 0B1, SW1A 1AA); default keyboard.
+- **Ownership:** only the current owner can transfer it — "Make owner" on every other teammate with an email (incl. the
+  previous owner), after "Make <name> the owner? You'll stay an admin. Only the new owner can transfer ownership again."
+  The new owner becomes an admin. Your own row has no Make admin / Remove / Make owner. A non-owner admin sees "Only the owner can transfer ownership." on the owner's row and
+  has no way to take ownership.
+- DEBUG: `-screen editWizard [-step N]` (the wizard editing an existing inspection), `-teamAccount EMAIL` (a second
+  account, Sam Rivera / inspect2026, on the demo company; then `-signInAs EMAIL`), `-agreementScroll first|last|N` in the
+  agreement editor, `-editedAgreement` now saves the block format. UI-test plans gained `tapField` (a text field by label
+  or placeholder). Screenshots: `screenshots/oct13-*.png` (iPhone 17; `oct13-ipad-*` on iPad Pro 13", portrait).
