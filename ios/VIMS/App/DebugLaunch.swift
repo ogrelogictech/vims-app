@@ -33,6 +33,7 @@ enum DebugFlags {
 ///   -resetData                 wipe the SwiftData store + files and reseed the demo account
 ///   -video / -noVideo          force / skip the launch video (skipped by default with -screen)
 ///   -signInAs EMAIL            sign in as that local account
+///   -teamAccount EMAIL         add a second local account (Sam Rivera / inspect2026) to the demo company
 ///   -eulaVersion V             pretend shared/legal/eula.json has version V (re-acceptance gate test)
 ///   -eulaGate                  show the EULA gate even with -screen / -skipLogin
 ///   -profilePhotoSample        set the signed-in user's profile photo from an inspection photo
@@ -173,6 +174,20 @@ enum DebugLaunch {
         let screen = value("-screen")
         // The launch video only plays on a plain launch (or with -video).
         if (screen != nil || has("-skipLogin") || has("-noVideo")) && !has("-video") { store.showVideoSplash = false }
+        // -teamAccount EMAIL: a second account (Sam Rivera, password inspect2026) on the demo company, as if they joined
+        // with the company code (ownership-transfer checks: transfer, then -signInAs EMAIL to transfer back).
+        if let email = value("-teamAccount")?.lowercased(), store.repo.user(email: email) == nil,
+           let demo = store.repo.user(email: DemoSeed.loginEmail), var c = store.repo.company(id: demo.companyID) {
+            let salt = PasswordHasher.newSalt()
+            let u = UserAccount(id: UUID(), email: email, name: "Sam Rivera", companyID: demo.companyID,
+                                passwordHash: PasswordHasher.hash(DemoSeed.loginPassword, salt: salt), salt: salt, createdAt: Date(),
+                                settings: nil, eulaVersion: store.eula.version, eulaAcceptedAt: Date())
+            if (try? store.repo.insertUser(u)) != nil {
+                c.profile.inspectors.removeAll { $0.email.caseInsensitiveCompare(email) == .orderedSame }
+                c.profile.inspectors.append(Inspector(id: u.id, name: u.name, email: u.email))
+                store.repo.saveCompany(c)
+            }
+        }
         if let email = value("-signInAs"), let u = store.repo.user(email: email) { store.loadSession(u) }
         if has("-noSplash") || (screen != nil && screen != "splash" && screen != "home") { DebugFlags.suppressSplash = true }
         if (has("-skipLogin") || (screen != nil && screen != "login" && !["signup", "forgot", "join", "signupEula"].contains(screen!))), store.session == nil,
@@ -206,8 +221,16 @@ enum DebugLaunch {
         }
         if has("-useVimsAgreement"), store.session != nil { store.useDefaultAgreement() }
         // -editedAgreement: give the company an edited copy (title changed) through the same save as the editor.
-        if has("-editedAgreement"), store.session != nil, let t = store.vimsAgreementPlainText {
-            store.saveEditedAgreement(t.replacingOccurrences(of: "Inspection Agreement\n", with: "Home Inspection Agreement\n", options: .anchored))
+        // Stored as the block editor saves it (JSON blocks): title changed, the second body paragraph deleted, a
+        // paragraph added after the disclosures heading.
+        if has("-editedAgreement"), store.session != nil, let doc = InspectionAgreement.bundled {
+            var blocks = AgreementContent.vims(doc, company: store.company.name, stateCode: nil, stateName: { store.config.stateName($0) ?? $0 }).blocks
+            if let i = blocks.firstIndex(where: { if case .title = $0 { return true } else { return false } }) { blocks[i] = .title("Home Inspection Agreement") }
+            if let i = blocks.firstIndex(where: { $0.editableText?.hasPrefix("Please read and sign") == true }) { blocks.remove(at: i) }
+            if let i = blocks.firstIndex(where: { if case .heading = $0 { return true } else { return false } }) {
+                blocks.insert(.paragraph("Disclosures below apply only to inspections in the listed state.", lead: false), at: i + 1)
+            }
+            store.saveEditedAgreement(EditedAgreement(blocks: blocks).encoded)
         }
         // -legacyEditedAgreement: an edit saved before the form block was locked (form lines in the text, one field
         // name deleted) — the viewer / PDF / editor must show the locked block once.
@@ -228,7 +251,10 @@ enum DebugLaunch {
                 let forms = e.blocks.filter { if case .form = $0 { return true } else { return false } }
                 let formLines = Set(store.agreementFormLines)
                 let leaked = e.blocks.filter { if case .paragraph(let t, _) = $0 { return t.components(separatedBy: "\n").contains { formLines.contains($0) } } else { return false } }.count
-                print("AGREEMENTTEST edited title=\(e.title) formBlocks=\(forms.count) formLinesMatch=\(e.formLines == store.agreementFormLines) leakedFormParagraphs=\(leaked) blocks=\(e.blocks.count)")
+                print("AGREEMENTTEST edited title=\(e.title) formBlocks=\(forms.count) formLinesMatch=\(e.formLines == store.agreementFormLines) leakedFormParagraphs=\(leaked) blocks=\(e.blocks.count) stored=\(EditedAgreement.decode(store.company.agreementText ?? "") != nil ? "blocks" : "plain") pdfPages=\(AgreementPDF.render(e, company: store.company.name).pageCount)")
+                print("AGREEMENTTEST first blocks: " + e.blocks.prefix(4).map { b -> String in
+                    switch b { case .title(let t): return "title(\(t))"; case .form: return "form"; default: return "p(\(String((b.editableText ?? "").prefix(30))))" }
+                }.joined(separator: " | "))
             }
         }
         if let v = value("-wizState") { DebugFlags.wizardStates = v.split(separator: ",").map(String.init) }
@@ -293,6 +319,7 @@ enum DebugLaunch {
         case "home": break
         case "splash": DebugFlags.suppressSplash = false; store.showSplash = true
         case "wizard": DebugFlags.wizardStep = step; store.path = [.wizard(editing: nil)]
+        case "editWizard": DebugFlags.wizardStep = step; store.path = [.sections(id), .wizard(editing: id)]
         case "sections": store.path = [.sections(id)]
         case "section": store.path = [.sections(id), .section(id, section)]
         case "drawer": DebugFlags.openDrawer = true; store.path = [.sections(id), .section(id, section)]

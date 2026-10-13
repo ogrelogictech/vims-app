@@ -114,7 +114,7 @@ struct WizardView: View {
         ForEach(w.roomCounts, id: \.key) { rc in
             CounterRow(label: rc.label, value: Binding(
                 get: { draft?.counts[rc.key] ?? 0 },
-                set: { draft?.counts[rc.key] = $0 }), range: 0...12)
+                set: { draft?.counts[rc.key] = $0 }), range: StepperLimits.roomCount)
         }
         SectionLabel(text: "Interior rooms", top: 11)
         ChipGroup(options: w.roomOptions, selection: draftBinding.rooms, single: false)
@@ -229,9 +229,9 @@ enum WizardRules {
         case "Date": return .req(.plain(max: nil), "Date")
         case "Temperature (°F)": return .opt(.temperature, "Temperature")
         case "Year of construction": return .opt(.year, "Year of construction")
-        case "Total sq ft": return .opt(.decimal, "Total sq ft")
-        case "Valuation ($)": return .opt(.decimal, "Valuation")
-        case "Lot size (acres)": return .opt(.decimal, "Lot size")
+        case "Total sq ft": return .opt(.number(.sqft), "Total sq ft")
+        case "Valuation ($)": return .opt(.number(.valuation), "Valuation")
+        case "Lot size (acres)": return .opt(.number(.lotSize), "Lot size")
         case "sponsorName", "insuredName": return .opt(.personName, "Name")
         case "sponsorLicense": return .opt(.license, "Sponsor TREC License #")
         case "policyNumber": return .opt(.policy, "Application / Policy #")
@@ -595,7 +595,7 @@ private struct EntryList: View {
             if draft.structure == "Multi-Unit" {
                 SectionLabel(text: "Unit mix")
                 ForEach(store.config.unitMixOrder, id: \.self) { k in
-                    CounterRow(label: k, value: Binding(get: { draft.unitMix[k] ?? 0 }, set: { draft.unitMix[k] = $0 }), range: 0...99)
+                    CounterRow(label: k, value: Binding(get: { draft.unitMix[k] ?? 0 }, set: { draft.unitMix[k] = $0 }), range: StepperLimits.roomCount)
                 }
             }
         }

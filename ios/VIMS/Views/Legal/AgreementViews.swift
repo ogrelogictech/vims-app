@@ -261,135 +261,325 @@ extension AgreementCard {
     }
 }
 
-/// Company admins: "Edit agreement" — the company's copy of the VIMS agreement as plain text (the VIMS text with the
-/// company name filled in, or their earlier edit). Saving makes it the company's agreement; the VIMS agreement
-/// itself never changes for anyone else.
+/// Company admins: "Edit agreement" — a block editor over the company's copy of the VIMS agreement (Oct 13 2026). The
+/// agreement is shown as the viewer's blocks (title, form, paragraphs, bullets, disclosures heading, state disclosures,
+/// closing). The form block and every block with fill-in blanks ("___") or checkboxes (☐) is LOCKED: read-only with a
+/// "Locked" tag, can't be deleted. Every other block is a multi-line text box with Delete (asks first) and "Add
+/// paragraph" after it; "Add paragraph" at the end too. Save stores the blocks as JSON (`EditedAgreement`) in
+/// `CompanyProfile.agreementText`; an edit saved by an earlier build (plain text) loads into blocks. The VIMS agreement
+/// itself never changes for anyone else. No fill-in / tappable checkboxes (the deferred e-sign add-on).
 struct AgreementEditorView: View {
     @Environment(AppStore.self) private var store
-    @State private var text = ""
-    @State private var original = ""
+    @State private var blocks: [AgreementEditorBlock] = []
+    @State private var original: [AgreementContent.Block] = []
     @State private var loaded = false
     @State private var errors = FormErrors()
     @State private var confirmDiscard = false
-    @FocusState private var focused: Bool
+    @State private var scrollTo: UUID?
+    @FocusState private var focused: UUID?
 
-    private var dirty: Bool { loaded && text != original }
+    private var dirty: Bool { loaded && blocks.map(\.block) != original }
+    private var characterCount: Int { blocks.reduce(0) { $0 + ($1.block.editableText?.count ?? 0) } }
 
     var body: some View {
         Screen(title: "Edit agreement", subtitle: store.company.name,
                onLeading: { leave() }, actions: [], scroll: false) {
-            VStack(alignment: .leading, spacing: 0) {
-                Text("Your company\u{2019}s copy of the VIMS agreement. Separate paragraphs with a blank line and start a line with \u{2022} for a bullet. The VIMS agreement itself doesn\u{2019}t change.")
-                    .font(VFont.ui(12.5)).foregroundStyle(VC.ink3).lineSpacing(2)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.bottom, 10)
-                lockedForm
-                FieldBox(focused: focused, minHeight: 200, error: errors["text"] != nil) {
-                    TextEditor(text: $text)
-                        .font(VFont.ui(14)).foregroundStyle(VC.ink)
-                        .scrollContentBackground(.hidden)
-                        .focused($focused)
-                        .padding(.horizontal, -5).padding(.vertical, -8)   // TextEditor's own inset
-                        .frame(maxHeight: .infinity)
-                        .accessibilityLabel("Agreement text")
-                        .onChange(of: text) { _, _ in if errors["text"] != nil { errors.clear() } }
+            VStack(spacing: 0) {
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 0) {
+                            Text("Your company\u{2019}s copy of the VIMS agreement. Edit any paragraph, delete one, or add your own. Blocks with fill-in lines or checkboxes are locked. The VIMS agreement itself doesn\u{2019}t change.")
+                                .font(VFont.ui(12.5)).foregroundStyle(VC.ink3).lineSpacing(2)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .padding(.bottom, 12)
+                            ForEach($blocks) { $b in
+                                AgreementBlockCard(item: $b, focused: $focused, error: errors[b.errorID],
+                                                   addAfter: { addParagraph(after: b.id) },
+                                                   delete: { delete(b.id) })
+                                    .id(b.id)
+                            }
+                            Button { addParagraph(after: nil) } label: { IconLabel("Add paragraph", icon: "hdr-add") }
+                                .buttonStyle(.vGhost)
+                                .padding(.top, 2)
+                                .accessibilityHint("Adds a paragraph at the end of the agreement")
+                        }
+                        .padding(.horizontal, 16).padding(.top, 14).padding(.bottom, 24)
+                        .readableColumn(wideMax: PadLayout.documentWidth)
+                    }
+                    .scrollDismissesKeyboard(.interactively)
+                    .onChange(of: scrollTo) { _, id in
+                        guard let id else { return }
+                        withAnimation(.easeOut(duration: 0.25)) { proxy.scrollTo(id, anchor: .center) }
+                        scrollTo = nil
+                    }
                 }
-                .frame(maxHeight: .infinity)
-                HStack {
-                    if let e = errors["text"] { FieldError(text: e) }
-                    Spacer(minLength: 8)
-                    Text("\(Fmt.grouped(Double(text.count))) / \(Fmt.grouped(Double(AgreementContent.maxEditedLength)))")
-                        .font(VFont.mono(11)).foregroundStyle(text.count > AgreementContent.maxEditedLength ? VC.c1 : VC.ink3)
-                }
-                .padding(.top, 6).padding(.bottom, 10)
-                HStack(spacing: 10) {
-                    Button("Cancel") { leave() }.buttonStyle(.vGhost)
-                    Button { save() } label: { IconLabel("Save agreement", icon: "link-my-account") }
-                        .buttonStyle(.vPrimary)
-                }
+                bottomBar
             }
-            .padding(.horizontal, 16).padding(.top, 14).padding(.bottom, 12)
-            .readableColumn(wideMax: PadLayout.documentWidth)
         }
         .confirmationDialog("Discard changes?", isPresented: $confirmDiscard, titleVisibility: .visible) {
             Button("Discard", role: .destructive) { store.back() }
             Button("Keep editing", role: .cancel) {}
         } message: { Text("Your edits to the agreement haven\u{2019}t been saved.") }
         .onChange(of: dirty) { _, d in SwipeBack.blocked = d }
+        .onChange(of: blocks.map(\.block)) { _, _ in
+            // Once Save has flagged blanks, the highlights follow the edits (a filled-in block clears at once).
+            guard errors["text"] != nil else { return }
+            let blanks = blankErrors()
+            if blanks.isEmpty { errors.clear() } else {
+                errors.map = blanks
+                errors.map["text"] = blanks.count == 1 ? "Fill in or delete the highlighted block" : "Fill in or delete the \(blanks.count) highlighted blocks"
+            }
+        }
         .onDisappear { SwipeBack.blocked = false }
         .onAppear {
             guard !loaded else { return }
-            // An edit saved before the form block was locked may still hold its lines: leave them out here (the viewer
-            // and PDF drop them too), so saving can't duplicate the locked block.
-            let start = store.company.agreementText.map { AgreementContent.strippingFormLines($0, formLines: store.agreementFormLines) }
-                ?? store.vimsAgreementPlainText ?? ""
-            text = start
+            let start = startBlocks()
+            blocks = start.map { AgreementEditorBlock(block: $0) }
             original = start
             loaded = true
             #if DEBUG
-            // -validate: try to save an empty agreement once (error state for review screenshots).
-            if DebugFlags.validate { DebugFlags.validate = false; text = ""; save() }
+            // -validate: blank the title and the first paragraph, then Save (blank-block highlights for review screenshots).
+            if DebugFlags.validate {
+                DebugFlags.validate = false
+                for i in blocks.indices.filter({ !blocks[$0].locked }).prefix(2) { blocks[i].block = blocks[i].block.withText("") }
+                Task { try? await Task.sleep(nanoseconds: 300_000_000); save() }   // after the edit's onChange
+            }
+            // -agreementScroll first|last|<n>: scroll the editor (review screenshots).
+            if let v = DebugLaunch.value("-agreementScroll"), !blocks.isEmpty {
+                let i = v == "last" ? blocks.count - 1 : (Int(v) ?? 0)
+                let id = blocks[min(max(0, i), blocks.count - 1)].id
+                Task { try? await Task.sleep(nanoseconds: 400_000_000); scrollTo = id }
+            }
             #endif
         }
     }
 
-    /// The agreement's form block (client, property, inspection type, fees): read-only, boxed like the viewer, and kept
-    /// as is in the viewer and the PDF whatever is edited below. Filling it in / signing is the deferred e-sign add-on.
-    @ViewBuilder
-    private var lockedForm: some View {
-        let lines = store.agreementFormLines
-        if !lines.isEmpty {
-            HStack(spacing: 8) {
-                Text("FORM FIELDS").font(VFont.mono(10.5)).tracking(1.2).foregroundStyle(VC.ink3)
-                Text("Locked").font(VFont.ui(11, .semibold)).foregroundStyle(VC.ink2)
-                    .padding(.horizontal, 8).padding(.vertical, 2)
-                    .background(VC.paper3).clipShape(Capsule())
-                Spacer(minLength: 0)
+    /// The company's edited agreement (blocks JSON, or plain text from an earlier build), else the VIMS agreement with the
+    /// company name filled and every state's disclosure.
+    private func startBlocks() -> [AgreementContent.Block] {
+        let form = store.agreementFormLines
+        let content: AgreementContent?
+        if let t = store.company.agreementText, !t.isEmpty {
+            content = AgreementContent.edited(t, company: store.company.name, form: form)
+        } else {
+            content = InspectionAgreement.bundled.map {
+                AgreementContent.vims($0, company: store.company.name, stateCode: nil, stateName: { store.config.stateName($0) ?? $0 })
             }
-            .padding(.bottom, 4)
-            Text("Printed under the title on every agreement. These lines can\u{2019}t be edited.")
-                .font(VFont.ui(12)).foregroundStyle(VC.ink3)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.bottom, 7)
-            ScrollView {
-                Text(lines.joined(separator: "\n"))
-                    .font(VFont.mono(11.5)).foregroundStyle(VC.ink2)
-                    .lineSpacing(5)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 12).padding(.vertical, 10)
-            }
-            .frame(maxHeight: Device.isPad ? 240 : 150)
-            .background(VC.paper2)
-            .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).stroke(VC.line, lineWidth: 1))
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("Form fields, locked")
-            .padding(.bottom, 12)
-            Text("AGREEMENT TEXT").font(VFont.mono(10.5)).tracking(1.2).foregroundStyle(VC.ink3)
-                .padding(.bottom, 7)
         }
+        return (content?.blocks ?? []).filter { if case .note = $0 { return false } else { return true } }
+    }
+
+    private var bottomBar: some View {
+        VStack(spacing: 0) {
+            HStack(alignment: .top) {
+                if let e = errors["text"] { FieldError(text: e) }
+                Spacer(minLength: 8)
+                Text("\(Fmt.grouped(Double(characterCount))) / \(Fmt.grouped(Double(AgreementContent.maxEditedLength)))")
+                    .font(VFont.mono(11)).foregroundStyle(characterCount > AgreementContent.maxEditedLength ? VC.c1 : VC.ink3)
+                    .accessibilityLabel("\(characterCount) of \(AgreementContent.maxEditedLength) characters")
+            }
+            .padding(.bottom, 8)
+            HStack(spacing: 10) {
+                Button("Cancel") { leave() }.buttonStyle(.vGhost)
+                Button { save() } label: { IconLabel("Save agreement", icon: "link-my-account") }
+                    .buttonStyle(.vPrimary)
+            }
+        }
+        .padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 10)
+        .readableColumn(wideMax: PadLayout.documentWidth)
+        .frame(maxWidth: .infinity)
+        .background(VC.paper2)
+        .overlay(alignment: .top) { Rectangle().fill(VC.line).frame(height: 1) }
+    }
+
+    private func addParagraph(after id: UUID?) {
+        let new = AgreementEditorBlock(block: .paragraph("", lead: false))
+        if let id, var i = blocks.firstIndex(where: { $0.id == id }) {
+            // The locked form block always sits right under the title, so "add after the title" lands below the form.
+            if case .title = blocks[i].block, i + 1 < blocks.count, case .form = blocks[i + 1].block { i += 1 }
+            blocks.insert(new, at: i + 1)
+        } else {
+            blocks.append(new)
+        }
+        scrollTo = new.id
+        Task { try? await Task.sleep(nanoseconds: 300_000_000); focused = new.id }
+    }
+
+    private func delete(_ id: UUID) {
+        guard let i = blocks.firstIndex(where: { $0.id == id }), !blocks[i].locked else { return }
+        if focused == id { focused = nil }
+        _ = withAnimation(.easeInOut(duration: 0.2)) { blocks.remove(at: i) }
     }
 
     private func leave() {
-        focused = false
+        focused = nil
         if dirty { confirmDiscard = true } else { store.back() }
     }
 
+    /// Editable blocks left blank: each is highlighted with its own message (same rule as Android — fill it in or delete it).
+    private func blankErrors() -> [String: String] {
+        var out: [String: String] = [:]
+        for b in blocks where !b.locked && (b.block.editableText ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            if case .title = b.block { out[b.errorID] = "Enter a title" } else { out[b.errorID] = "Enter text or delete this block" }
+        }
+        return out
+    }
+
     private func save() {
-        // Same messages as Android.
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty { errors.set("text", "Enter the agreement text"); return }
-        if text.count > AgreementContent.maxEditedLength {
-            errors.set("text", "Keep the agreement under \(Fmt.grouped(Double(AgreementContent.maxEditedLength))) characters (now \(Fmt.grouped(Double(text.count))))")
+        let blanks = blankErrors()
+        if !blanks.isEmpty {
+            errors.map = blanks
+            errors.map["text"] = blanks.count == 1 ? "Fill in or delete the highlighted block" : "Fill in or delete the \(blanks.count) highlighted blocks"
+            scrollTo = blocks.first { blanks[$0.errorID] != nil }?.id
+            return
+        }
+        let out: [AgreementContent.Block] = blocks.map { b in
+            guard !b.locked, let t = b.block.editableText else { return b.block }
+            return b.block.withText(t.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+        if characterCount > AgreementContent.maxEditedLength {
+            errors.set("text", "Keep the agreement under \(Fmt.grouped(Double(AgreementContent.maxEditedLength))) characters (now \(Fmt.grouped(Double(characterCount))))")
             return
         }
         errors.clear()
-        focused = false
-        if text == original { store.toast("No changes to save"); return }
-        store.saveEditedAgreement(trimmed)
-        original = text
+        focused = nil
+        if out == original { store.toast("No changes to save"); return }
+        store.saveEditedAgreement(EditedAgreement(blocks: out).encoded)
+        original = out
+        blocks = out.map { AgreementEditorBlock(block: $0) }
         store.back()
+    }
+}
+
+/// One block in "Edit agreement". `locked` is decided when the block is loaded (typing "___" into a paragraph doesn't
+/// lock it mid-edit).
+struct AgreementEditorBlock: Identifiable, Equatable {
+    let id = UUID()
+    var block: AgreementContent.Block
+    let locked: Bool
+
+    init(block: AgreementContent.Block) {
+        self.block = block
+        locked = block.isLocked
+    }
+
+    var errorID: String { "block-\(id.uuidString)" }
+}
+
+/// A block card: label + "Locked" tag and the read-only text, or label + Add paragraph after / Delete and a multi-line
+/// text box. Delete asks first; on iPad the dialog points at the trash button.
+private struct AgreementBlockCard: View {
+    @Binding var item: AgreementEditorBlock
+    var focused: FocusState<UUID?>.Binding
+    var error: String? = nil
+    let addAfter: () -> Void
+    let delete: () -> Void
+    @State private var confirmDelete = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Text(item.block.editorLabel.uppercased()).font(VFont.mono(10)).tracking(1).foregroundStyle(VC.ink3)
+                    .lineLimit(1)
+                if item.locked {
+                    Text("Locked").font(VFont.ui(11, .semibold)).foregroundStyle(VC.ink2)
+                        .padding(.horizontal, 8).padding(.vertical, 2)
+                        .background(VC.paper3).clipShape(Capsule())
+                }
+                Spacer(minLength: 4)
+                smallButton("hdr-add", "Add paragraph after this \(item.block.editorLabel.lowercased())", tint: VC.brand, action: addAfter)
+                if !item.locked, !isTitle {
+                    smallButton("trash", "Delete this \(item.block.editorLabel.lowercased())", tint: VC.c1) { confirmDelete = true }
+                        .confirmationDialog("Delete this \(kindNoun)?", isPresented: $confirmDelete, titleVisibility: .visible) {
+                            Button("Delete", role: .destructive, action: delete)
+                            Button("Cancel", role: .cancel) {}
+                        } message: { Text("It will be removed from your company\u{2019}s agreement when you save.") }
+                }
+            }
+            if item.locked { lockedText } else { editor }
+            if let error { FieldError(text: error) }
+        }
+        .padding(.horizontal, 12).padding(.top, 6).padding(.bottom, 12)
+        .background(item.locked ? VC.paper2 : VC.paper)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(VC.line, lineWidth: 1))
+        .padding(.bottom, 10)
+        .accessibilityElement(children: .contain)
+    }
+
+    /// The title can be edited but not deleted (same as Android).
+    private var isTitle: Bool { if case .title = item.block { return true } else { return false } }
+
+    private var kindNoun: String {
+        switch item.block {
+        case .title: return "title"
+        case .bullet: return "bullet"
+        case .heading: return "heading"
+        case .disclosure: return "disclosure"
+        default: return "paragraph"
+        }
+    }
+
+    @ViewBuilder
+    private var lockedText: some View {
+        switch item.block {
+        case .form(let lines):
+            // In full (no inner scroll view, which would fight the page's scrolling), boxed like the viewer.
+            Text(lines.joined(separator: "\n"))
+                .font(VFont.mono(11.5)).foregroundStyle(VC.ink2).lineSpacing(5)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 10).padding(.vertical, 8)
+            .background(VC.paper)
+            .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).stroke(VC.line, lineWidth: 1))
+            .accessibilityLabel("Form fields, locked")
+        default:
+            Text(item.block.editableText ?? "")
+                .font(VFont.ui(13.5, isLead ? .semibold : .regular)).foregroundStyle(VC.ink2).lineSpacing(3)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private var isLead: Bool {
+        switch item.block {
+        case .title, .heading: return true
+        case .paragraph(_, let lead): return lead
+        default: return false
+        }
+    }
+
+    private var editor: some View {
+        let isFocused = focused.wrappedValue == item.id
+        return TextField("", text: Binding(get: { item.block.editableText ?? "" }, set: { item.block = item.block.withText($0) }),
+                         prompt: Text("Type the \(kindNoun)\u{2026}").foregroundStyle(VC.placeholder), axis: .vertical)
+            .font(isLead ? VFont.ui(14, .semibold) : VFont.ui(14)).foregroundStyle(VC.ink)
+            .lineSpacing(3)
+            .lineLimit(1...)
+            .tint(VC.brand)
+            .focused(focused, equals: item.id)
+            .padding(.horizontal, 12).padding(.vertical, 10)
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .background(VC.paper)
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(error != nil ? VC.c1 : (isFocused ? VC.brand : VC.line), lineWidth: isFocused || error != nil ? 2 : 1))
+            .accessibilityLabel(item.block.editorLabel)
+    }
+
+    private func smallButton(_ symbol: String, _ label: String, tint: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            ProtoIcon(symbol, size: 15).foregroundStyle(tint)
+                .frame(width: 34, height: 34)
+                .background(VC.paper2)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(VC.line, lineWidth: 1))
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
     }
 }
 

@@ -209,6 +209,15 @@ struct EditItemCard: View {
     let delete: () -> Void
     @State private var newOption = ""
     @State private var focused = false
+    @State private var confirmDelete = false
+
+    /// "“Number of kitchens” and its options will be removed from new inspections."
+    private var deleteMessage: String {
+        let raw = Validator.trimmed(edit.item.header ?? edit.item.q ?? "")
+        let name = raw.isEmpty ? (edit.item.isHeader ? "This header" : "This item") : "\u{201C}\(raw)\u{201D}"
+        let hasOptions = !edit.item.isHeader && !(edit.item.options ?? []).isEmpty && [.single, .multi].contains(edit.item.kind)
+        return "\(name)\(hasOptions ? " and its options" : "") will be removed from new inspections."
+    }
 
     private let types: [(String, String)] = [("single", "Pick one"), ("multi", "Pick several"), ("text", "Text"), ("num", "Number"), ("date", "Date"), ("time", "Time")]
 
@@ -231,7 +240,12 @@ struct EditItemCard: View {
                 HStack(spacing: 6) {
                     iconButton("chevron-up", "Move up", enabled: canUp) { move(-1) }
                     iconButton("chevron-down", "Move down", enabled: canDown) { move(1) }
-                    iconButton("trash", "Delete item", enabled: true, action: delete)
+                    // Deleting asks first (Oct 13 QA); on iPad the dialog points at this trash button.
+                    iconButton("trash", "Delete item", enabled: true) { confirmDelete = true }
+                        .confirmationDialog("Delete this item?", isPresented: $confirmDelete, titleVisibility: .visible) {
+                            Button("Delete", role: .destructive, action: delete)
+                            Button("Cancel", role: .cancel) {}
+                        } message: { Text(deleteMessage) }
                 }
             }
             if let e = errors["q-\(edit.id)"] { FieldError(text: e) }
@@ -329,13 +343,15 @@ struct PlansAdminView: View {
                 .padding(.top, 2).padding(.bottom, 12)
             ForEach(store.subscription.plans, id: \.id) { p in
                 priceCard(id: "price-\(p.id)", title: p.name, unit: p.unit ?? "/mo", desc: p.desc,
-                          text: Binding(get: { prices[p.id] ?? Fmt.price(p.price) }, set: { prices[p.id] = $0 })) {
+                          text: Binding(get: { prices[p.id] ?? Fmt.price(p.price) }, set: { prices[p.id] = $0 }),
+                          deletable: PlanDelete(plan: p, isLast: store.subscription.plans.count <= 1,
+                                                isCurrent: store.subscription.selectedPlan == p.id)) {
                     commit(p.id)
                 }
             }
             priceCard(id: "extra", title: "Additional inspector", unit: "/mo each", desc: nil, text: $extra) {
                 guard errors.validate([("extra", extra, .req(.price, "Rate"))]) else { return }
-                let v = Double(extra) ?? 0
+                let v = Validator.number(extra) ?? 0
                 store.state.subscription.extraInspectorMonthly = v
                 extra = Fmt.price(v)
                 store.toast("Extra inspector → \(Fmt.money(v))")
@@ -356,10 +372,18 @@ struct PlansAdminView: View {
         }
     }
 
-    private func priceCard(id: String, title: String, unit: String, desc: String?, text: Binding<String>, commit: @escaping () -> Void) -> some View {
+    /// A plan card's delete control ("Additional inspector" is a rate setting, so it has none).
+    struct PlanDelete { let plan: PlanDef; let isLast: Bool; let isCurrent: Bool }
+
+    private func priceCard(id: String, title: String, unit: String, desc: String?, text: Binding<String>,
+                           deletable: PlanDelete? = nil, commit: @escaping () -> Void) -> some View {
         let err = errors[id]
         return VStack(alignment: .leading, spacing: 10) {
-            Text(title).font(VFont.ui(14.5, .bold)).foregroundStyle(VC.ink)
+            HStack(alignment: .center, spacing: 8) {
+                Text(title).font(VFont.ui(14.5, .bold)).foregroundStyle(VC.ink)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                if let deletable { PlanDeleteButton(info: deletable) }
+            }
             HStack(spacing: 10) {
                 FieldLabel(text: "Price $", required: true)
                 FilteredTextField(text: text, kind: .price, fieldID: id, errors: errors, keyboard: .decimalPad,
@@ -391,7 +415,7 @@ struct PlansAdminView: View {
         guard let i = store.state.subscription.plans.firstIndex(where: { $0.id == id }) else { return }
         let raw = prices[id] ?? Fmt.price(store.state.subscription.plans[i].price)
         guard errors.validate([("price-\(id)", raw, .req(.price, "Price"))]) else { return }
-        let v = Double(raw) ?? 0
+        let v = Validator.number(raw) ?? 0
         store.state.subscription.plans[i].price = v
         prices[id] = Fmt.price(v)
         store.toast("\(store.state.subscription.plans[i].name) → \(Fmt.money(v))")
@@ -404,12 +428,44 @@ struct PlansAdminView: View {
             ("newPrice", newPrice, .req(.price, "Price"))
         ]) else { return }
         let n = Validator.trimmed(newName)
-        let pr = Double(newPrice) ?? 0
+        let pr = Validator.number(newPrice) ?? 0
         let id = "plan\(store.state.subscription.plans.count + 1)-\(UUID().uuidString.prefix(4))"
         let d = Validator.trimmed(newDesc)
         store.state.subscription.plans.append(PlanDef(id: id, name: n, price: pr, desc: d.isEmpty ? "Custom plan" : d, unit: nil, perReport: nil))
         newName = ""; newPrice = ""; newDesc = ""
         store.toast("Added “\(n)”")
+    }
+}
+
+/// Trash on a plan card → "Delete this plan?" (anchored to the button on iPad). The last plan can't be deleted.
+private struct PlanDeleteButton: View {
+    @Environment(AppStore.self) private var store
+    let info: PlansAdminView.PlanDelete
+    @State private var confirm = false
+
+    var body: some View {
+        Button {
+            if info.isLast { store.toast("Keep at least one plan") } else { confirm = true }
+        } label: {
+            ProtoIcon("trash", size: 15).foregroundStyle(info.isLast ? VC.ink3.opacity(0.5) : VC.c1)
+                .frame(width: 36, height: 36)
+                .background(VC.paper2)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(VC.line, lineWidth: 1))
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.vertical, -6)
+        .accessibilityLabel("Delete \(info.plan.name) plan")
+        .accessibilityHint(info.isLast ? "The only plan can't be deleted" : "")
+        .confirmationDialog("Delete this plan?", isPresented: $confirm, titleVisibility: .visible) {
+            Button("Delete plan", role: .destructive) { store.deletePlan(info.plan.id) }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("\u{201C}\(info.plan.name)\u{201D} will no longer be offered on the Subscription screen."
+                 + (info.isCurrent ? " Your company is on this plan, so it will switch to \(store.subscription.plans.first { $0.id != info.plan.id }?.name ?? "another plan")." : ""))
+        }
     }
 }
 
@@ -492,10 +548,20 @@ struct InspectorsView: View {
                         Text("\(ins.name) · \(ins.roleLabel)").font(VFont.ui(15, .semibold)).foregroundStyle(VC.ink)
                             .lineLimit(2).fixedSize(horizontal: false, vertical: true)
                         Text(ins.email.isEmpty ? "no email yet" : ins.email).font(VFont.ui(12.5, .medium)).foregroundStyle(VC.ink2).lineLimit(1)
+                        // Admins who aren't the owner can't take ownership back (security); say so on the owner's row.
+                        if ins.owner, !store.isCompanyOwner {
+                            Text("Only the owner can transfer ownership.")
+                                .font(VFont.ui(12)).foregroundStyle(VC.ink3)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .padding(.top, 3)
+                        }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     if ins.owner {
                         Pill(kind: .done, text: "Owner")
+                    } else if ins.id == store.currentUser?.id {
+                        // Your own row: no Make admin / Remove / Make owner (same as Android).
+                        if ins.admin { Pill(kind: .prog, text: "Admin", dot: false) }
                     } else {
                         VStack(alignment: .trailing, spacing: 6) {
                             Button { store.toggleAdmin(ins.id) } label: {
@@ -503,13 +569,10 @@ struct InspectorsView: View {
                                     .frame(minHeight: 32)
                             }
                             .buttonStyle(ChipPressStyle())
-                            // Only the owner can hand over ownership, and only to an admin.
-                            if store.isCompanyOwner && ins.admin {
-                                Button { store.makeOwner(ins.id) } label: {
-                                    Pill(kind: .new, text: "Make owner", dot: false).frame(minHeight: 32)
-                                }
-                                .buttonStyle(ChipPressStyle())
-                                .accessibilityLabel("Make \(ins.name) the owner")
+                            // Only the current owner can hand over ownership — to anyone on the team with an email
+                            // (including the previous owner), after confirming. The new owner becomes an admin too.
+                            if store.isCompanyOwner && !ins.email.isEmpty {
+                                MakeOwnerButton(inspector: ins)
                             }
                             Button { store.removeInspector(ins.id) } label: {
                                 Pill(kind: .queued, text: "Remove", dot: false).frame(minHeight: 32)
@@ -560,6 +623,25 @@ struct InspectorsView: View {
         let base = s.plan(s.selectedPlan)
         if base?.perReport == true { return 0 }
         return (base?.price ?? 0) + Double(max(0, store.company.inspectors.count - 1)) * s.extraInspectorMonthly
+    }
+}
+
+/// "Make owner" on an inspector row → "Make <name> the owner?" (anchored to the pill on iPad).
+private struct MakeOwnerButton: View {
+    @Environment(AppStore.self) private var store
+    let inspector: Inspector
+    @State private var confirm = false
+
+    var body: some View {
+        Button { confirm = true } label: {
+            Pill(kind: .new, text: "Make owner", dot: false).frame(minHeight: 32)
+        }
+        .buttonStyle(ChipPressStyle())
+        .accessibilityLabel("Make \(inspector.name) the owner")
+        .confirmationDialog("Make \(inspector.name) the owner?", isPresented: $confirm, titleVisibility: .visible) {
+            Button("Make owner") { store.makeOwner(inspector.id) }
+            Button("Cancel", role: .cancel) {}
+        } message: { Text("You\u{2019}ll stay an admin. Only the new owner can transfer ownership again.") }
     }
 }
 
@@ -618,13 +700,15 @@ struct SubscribeView: View {
                 .accessibilityAddTraits(on ? .isSelected : [])
             }
             SectionLabel(text: "Inspector seats")
+            // Seats never go below the current team (people with an email); − only removes open seats added with +.
+            let teamSize = max(1, store.company.inspectors.filter { !$0.email.isEmpty || $0.owner }.count)
             CounterRow(label: "Inspectors on this license", value: Binding(
                 get: { store.seats() },
                 set: { v in
                     let cur = store.company.inspectors.count
                     if v > cur { store.state.company.inspectors.append(Inspector(name: "Inspector \(cur + 1)", email: "")) }
-                    else if v < cur, let last = store.company.inspectors.last(where: { !$0.owner }) { store.removeInspector(last.id) }
-                }), range: 1...99)
+                    else if v < cur, let last = store.company.inspectors.last(where: { !$0.owner && $0.email.isEmpty }) { store.removeInspector(last.id) }
+                }), range: min(teamSize, StepperLimits.seats.upperBound)...StepperLimits.seats.upperBound)
             Text(md("First inspector included · each additional **\(Fmt.money(sub.extraInspectorMonthly))/mo**"))
                 .font(VFont.ui(12)).foregroundStyle(VC.ink3).padding(.horizontal, 2).padding(.top, 2)
             HStack {
@@ -652,8 +736,9 @@ struct SubscribeView: View {
             .padding(.bottom, 13)
             VTextField(label: "Cardholder name", text: $holder, placeholder: "Name on card", contentType: .name, capitalization: .words,
                        kind: .personName, fieldID: "holder", errors: errors, required: true)
-            VTextField(label: "Billing ZIP", text: $zip, placeholder: "84015", keyboard: .numberPad, contentType: .postalCode,
-                       capitalization: .never, bottom: 0, kind: .zip, fieldID: "zip", errors: errors, required: true)
+            // US ZIP or a Canadian / UK postal code: letters, digits, space and "-", uppercased, 3–10 characters.
+            VTextField(label: "Billing ZIP / postal code", text: $zip, placeholder: "84015", keyboard: .default, contentType: .postalCode,
+                       capitalization: .characters, bottom: 0, kind: .zip, fieldID: "zip", errors: errors, required: true)
             HStack(spacing: 8) {
                 ProtoIcon("secured-by-square", size: 14)
                 Text("Secured by Square · auto-renews monthly · cancel anytime").font(VFont.ui(12))
@@ -677,7 +762,7 @@ struct SubscribeView: View {
             ("expiry", expiry, .req(.expiry, "Expiry")),
             ("cvc", cvc, .req(.cvc(amex: amex), "CVC")),
             ("holder", holder, .req(.personName, "Cardholder name")),
-            ("zip", zip, .req(.zip, "Billing ZIP"))
+            ("zip", zip, .req(.zip, "Billing ZIP / postal code"))
         ]
         guard errors.validate(fields) else { return }
         busy = true

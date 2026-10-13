@@ -15,8 +15,10 @@ enum FieldKind: Equatable {
     case license
     case policy
     case year
-    case decimal            // sq ft, valuation, lot size, amps, `num` checklist items
-    case reading            // Indoor Air Quality "Level measured": a number, 0 or more
+    /// Digits + one "." (grouping commas too when `limits.grouping`), read ignoring commas and a leading `$`,
+    /// within `limits` (docs/validation-rules.md "Number limits"): sq ft, valuation, lot size, `num` checklist items,
+    /// Indoor Air Quality "Level measured".
+    case number(NumberLimits)
     case temperature
     case url
     case price              // admin plan price / per-inspector rate
@@ -40,10 +42,42 @@ enum FieldKind: Equatable {
         case .year: return 4
         case .sectionName, .option: return 60
         case .question: return 120
-        case .zip: return 5
+        case .zip: return 10
         default: return nil
         }
     }
+}
+
+/// Min – max of a numeric field (docs/validation-rules.md, "Number limits", Oct 13 2026).
+struct NumberLimits: Equatable {
+    var min: Double
+    var max: Double
+    /// Valuation / sq ft may show grouping commas ("450,000"); they're ignored when the value is read.
+    var grouping = false
+
+    static let sqft = NumberLimits(min: 1, max: 100_000, grouping: true)
+    static let valuation = NumberLimits(min: 1, max: 100_000_000, grouping: true)
+    static let lotSize = NumberLimits(min: 0.01, max: 10_000)
+    /// Checklist `num` items (sizes, readings, gallons, amps…).
+    static let checklist = NumberLimits(min: 0, max: 99_999)
+    /// Checklist room counts ("Number of kitchens / bathrooms …").
+    static let count = NumberLimits(min: 0, max: 20)
+    /// Indoor Air Quality "Level measured".
+    static let reading = NumberLimits(min: 0, max: 99_999)
+
+    /// The limits for a checklist `num` item: room counts ("Number of kitchens / bathrooms / bedrooms / stories …") 0 – 20,
+    /// every other `num` item 0 – 99,999 (same rule as Android's `checklistMax`).
+    static func checklistItem(question: String?, placeholder: String? = nil) -> NumberLimits {
+        let q = (question ?? "").trimmingCharacters(in: .whitespaces)
+        let roomCount = #"^number of (kitchens?|bath(room)?s?|half[- ]baths?|bedrooms?|stories|hallways?|rooms?|living|family|dining|garages?)"#
+        return q.range(of: roomCount, options: [.regularExpression, .caseInsensitive]) != nil ? .count : .checklist
+    }
+}
+
+/// Inspector seats, wizard room counts, unit mix (docs "Number limits"): the − / + steppers stop here.
+enum StepperLimits {
+    static let seats = 1...50
+    static let roomCount = 0...20
 }
 
 struct FieldRule {
@@ -92,10 +126,13 @@ extension FieldKind {
             s = String(s.filter { $0.isLetter || $0.isNumber || $0 == " " || $0 == "-" }).uppercased()
         case .policy:
             s = String(s.filter { $0.isLetter || $0.isNumber || $0 == "-" }).uppercased()
-        case .year, .zip:
+        case .year:
             s = String(s.filter(\.isNumber))
-        case .decimal, .reading:
-            s = Validator.decimalOnly(s, maxDecimals: nil)
+        case .zip:
+            // US 84015 / 84015-1234, Canada K1A 0B1, UK SW1A 1AA.
+            s = String(s.filter { ($0.isASCII && ($0.isLetter || $0.isNumber)) || $0 == " " || $0 == "-" }).uppercased()
+        case .number(let limits):
+            s = Validator.decimalOnly(s, maxDecimals: nil, grouping: limits.grouping)
         case .price:
             s = Validator.decimalOnly(s, maxDecimals: 2)
         case .temperature:
@@ -157,12 +194,15 @@ enum Validator {
         return digits.isEmpty ? (s.hasSuffix("-") ? letters + "-" : letters) : "\(letters)-\(digits)"
     }
 
-    static func decimalOnly(_ s: String, maxDecimals: Int?) -> String {
+    /// Digits and one "."; with `grouping`, also "," before the "." (valuation / sq ft "450,000").
+    static func decimalOnly(_ s: String, maxDecimals: Int?, grouping: Bool = false) -> String {
         var out = ""
         var seenDot = false
         var decimals = 0
         for ch in s {
-            if ch.isNumber {
+            if grouping, ch == ",", !seenDot, !out.isEmpty, out.last != "," {
+                out.append(ch)
+            } else if ch.isASCII && ch.isNumber {
                 if seenDot { if let m = maxDecimals, decimals >= m { continue }; decimals += 1 }
                 out.append(ch)
             } else if ch == "." && !seenDot {
@@ -190,6 +230,23 @@ enum Validator {
         var d = String(s.filter(\.isNumber).prefix(4))
         if d.count == 1, let f = d.first, f > "1" { d = "0" + d }     // "4" -> "04"
         return d.count > 2 ? "\(d.prefix(2))/\(d.dropFirst(2))" : d
+    }
+
+    /// A typed or stored number: grouping commas, spaces and a leading `$` are ignored ("$450,000" → 450000).
+    /// Nil when it isn't a plain decimal number.
+    static func number(_ raw: String) -> Double? {
+        var v = trimmed(raw)
+        if v.hasPrefix("$") { v.removeFirst() }
+        v = v.replacingOccurrences(of: ",", with: "").filter { !$0.isWhitespace }
+        guard !v.isEmpty, v.allSatisfy({ ($0.isASCII && $0.isNumber) || $0 == "." }),
+              v.filter({ $0 == "." }).count <= 1, let d = Double(v), d.isFinite else { return nil }
+        return d
+    }
+
+    /// "Enter a number up to 100,000" when a typed number is above its field's max (shown while typing), else nil.
+    static func overMaxError(_ raw: String, kind: FieldKind?) -> String? {
+        guard case .number(let l)? = kind, let d = number(raw), d > l.max else { return nil }
+        return "Enter a number up to \(Fmt.grouped(l.max))"
     }
 
     static func luhn(_ digits: String) -> Bool {
@@ -225,10 +282,13 @@ enum Validator {
             let y = Int(v) ?? 0
             let current = cal.component(.year, from: now)
             if y < 1800 || y > current { return "Enter a year between 1800 and \(current)" }
-        case .decimal:
-            guard let d = Double(v), d > 0 else { return "Enter a number greater than 0" }
-        case .reading:
-            guard let d = Double(v), d >= 0, d.isFinite else { return "Enter a number (0 or more)" }
+        case .number(let l):
+            guard let d = number(v) else { return l.min > 0 ? "Enter a number greater than 0" : "Enter a number (0 or more)" }
+            if d > l.max { return "Enter a number up to \(Fmt.grouped(l.max))" }
+            if d < l.min {
+                if l.min <= 0 { return "Enter a number (0 or more)" }
+                return d <= 0 ? "Enter a number greater than 0" : "Enter a number of at least \(Fmt.grouped(l.min))"
+            }
         case .temperature:
             guard let t = Int(v), (-60...140).contains(t) else { return "Enter a temperature between -60 and 140" }
         case .url:
@@ -236,7 +296,7 @@ enum Validator {
             guard lower.hasPrefix("https://") || lower.hasPrefix("http://"),
                   let host = URL(string: v)?.host, host.contains(".") else { return "Enter a full link starting with https://" }
         case .price:
-            guard let d = Double(v), d >= 0.01, d <= 9999.99 else { return "Enter a price from $0.01 to $9,999.99" }
+            guard let d = number(v), d >= 0.01, d <= 9999.99 else { return "Enter a price from $0.01 to $9,999.99" }
         case .cardNumber:
             let digits = v.filter(\.isNumber)
             let amex = CardBrand.detect(digits) == .amex
@@ -254,7 +314,9 @@ enum Validator {
         case .cvc(let amex):
             if v.filter(\.isNumber).count != (amex ? 4 : 3) { return amex ? "Enter the 4-digit CVC" : "Enter the 3-digit CVC" }
         case .zip:
-            if v.count != 5 { return "Enter a 5-digit ZIP code" }
+            if !(3...10).contains(v.count) || !v.contains(where: { $0.isLetter || $0.isNumber }) {
+                return "Enter a valid billing ZIP / postal code"
+            }
         default:
             break
         }
@@ -296,6 +358,17 @@ final class FormErrors {
     func revalidate(_ id: String, _ value: String) {
         guard map[id] != nil, let rule = rules[id] else { return }
         map[id] = Validator.error(for: value, rule: rule)
+    }
+
+    /// Called while typing in a number field: a value above the field's max shows "Enter a number up to <max>" right
+    /// away (no submit needed, no scroll); it clears as soon as the value is back in range.
+    func liveLimit(_ id: String, _ value: String, kind: FieldKind?) {
+        guard case .number = kind else { return }
+        if let over = Validator.overMaxError(value, kind: kind) {
+            if map[id] != over { map[id] = over }
+        } else if rules[id] == nil, map[id] != nil {
+            map[id] = nil
+        }
     }
 
     func set(_ id: String, _ message: String?) {

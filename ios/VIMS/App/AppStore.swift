@@ -604,6 +604,19 @@ final class AppStore {
 
     func seats() -> Int { max(1, state.company.inspectors.count) }
 
+    /// Plans & pricing → delete a plan (admin). At least one plan always stays; a company on the deleted plan moves to
+    /// the first remaining one. Persisted with the rest of the subscription, like a price edit.
+    /// TODO(backend): DELETE the plan on the server (Square catalog item).
+    func deletePlan(_ id: String) {
+        guard isAdmin, state.subscription.plans.count > 1,
+              let i = state.subscription.plans.firstIndex(where: { $0.id == id }) else { return }
+        let removed = state.subscription.plans.remove(at: i)
+        if state.subscription.selectedPlan == id, let first = state.subscription.plans.first {
+            state.subscription.selectedPlan = first.id
+        }
+        toast("Deleted \u{201C}\(removed.name)\u{201D}")
+    }
+
     func addInspector(name: String, email: String) -> Bool {
         let n = name.trimmingCharacters(in: .whitespaces)
         guard !n.isEmpty else { toast("Enter a name"); return false }
@@ -618,10 +631,12 @@ final class AppStore {
         return state.company.inspectors.contains { $0.id == me.id && $0.owner }
     }
 
-    /// Owner only: hand ownership to another admin (the old owner stays an admin).
+    /// Only the CURRENT owner can hand ownership to another team member (security: an admin can never take it). The new
+    /// owner is made an admin; the old owner stays an admin and can only get ownership back from the new owner.
+    /// TODO(backend): the server enforces this (owner-only transfer).
     func makeOwner(_ id: UUID) {
-        guard isCompanyOwner, let me = currentUser,
-              let t = state.company.inspectors.firstIndex(where: { $0.id == id }), state.company.inspectors[t].admin,
+        guard isCompanyOwner, let me = currentUser, id != me.id,
+              let t = state.company.inspectors.firstIndex(where: { $0.id == id }), !state.company.inspectors[t].email.isEmpty,
               let m = state.company.inspectors.firstIndex(where: { $0.id == me.id }) else { return }
         state.company.inspectors[m].owner = false
         state.company.inspectors[m].admin = true
@@ -783,14 +798,6 @@ final class AppStore {
         if state.company.agreementFile != nil { return .uploaded }
         if let t = state.company.agreementText, !t.isEmpty { return .edited }
         return .vims
-    }
-
-    /// The VIMS agreement's editable wording as plain text with this company's name filled in — what "Edit" starts
-    /// from. The form block (client / property / fee lines) is locked, so it isn't part of it (`agreementFormLines`).
-    var vimsAgreementPlainText: String? {
-        InspectionAgreement.bundled.map {
-            AgreementContent.vims($0, company: company.name, stateCode: nil, stateName: { self.config.stateName($0) ?? $0 }).editableText
-        }
     }
 
     /// The locked form lines of the agreement (VIMS agreement `formLines`, company name filled). Shown read-only in

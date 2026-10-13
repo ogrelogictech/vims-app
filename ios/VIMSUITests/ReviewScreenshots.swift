@@ -15,7 +15,7 @@ import UIKit
 ///
 /// Each shot launches the app with the DEBUG launch arguments (DebugLaunch.swift), rotates, runs the steps and saves
 /// `<out>/<name>.png` (also attached to the test result). Steps: `tap` (accessibility label / identifier / static
-/// text), `tapAt` ([x, y] as fractions of the window), `type`, `swipeUp` / `swipeDown` (count), `wait` (seconds),
+/// text), `tapField` (a text field / view by label or placeholder), `tapAt` ([x, y] as fractions of the window), `type`, `swipeUp` / `swipeDown` (count), `wait` (seconds),
 /// `shot` (an extra screenshot named `<name>-<value>`).
 final class ReviewScreenshots: XCTestCase {
     struct Plan: Decodable {
@@ -31,6 +31,8 @@ final class ReviewScreenshots: XCTestCase {
     }
     struct Step: Decodable {
         var tap: String?
+        /// Taps the text field / text view with this accessibility label or placeholder (not a static text that says it).
+        var tapField: String?
         var tapAt: [Double]?
         var type: String?
         var swipeUp: Int?
@@ -71,6 +73,12 @@ final class ReviewScreenshots: XCTestCase {
             if let label = step.tap {
                 let el = element(app, label)
                 if el.waitForExistence(timeout: 4) { el.tap() } else { print("SHOT \(shot.name): no element '\(label)'") }
+            }
+            if let label = step.tapField {
+                let pred = NSPredicate(format: "label == %@ OR placeholderValue == %@", label, label)
+                let el = app.textFields.matching(pred).firstMatch.exists ? app.textFields.matching(pred).firstMatch
+                    : app.textViews.matching(pred).firstMatch
+                if el.waitForExistence(timeout: 4) { el.tap() } else { print("SHOT \(shot.name): no field '\(label)'") }
             }
             if let p = step.tapAt, p.count == 2 {
                 app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: p[0], dy: p[1])).tap()

@@ -133,8 +133,8 @@ struct ReportData {
         var info: [(String, String)] = [
             ("Type of inspection", type), ("Type of loan", v("Type of loan")),
             ("Property type", property), ("Construction style", v("Construction style")),
-            ("Year of construction", v("Year of construction")), ("Total square footage", sqft.isEmpty ? "—" : "\(Double(sqft.replacingOccurrences(of: ",", with: "")).map { Fmt.grouped($0) } ?? sqft) sq ft"),
-            ("Valuation", val.isEmpty ? "—" : "$\(val)"), ("Lot size", lot.isEmpty ? "—" : "\(lot) acres"),
+            ("Year of construction", v("Year of construction")), ("Total square footage", sqft.isEmpty ? "—" : "\(Validator.number(sqft).map { Fmt.grouped($0) } ?? sqft) sq ft"),
+            ("Valuation", val.isEmpty ? "—" : (Validator.number(val).map { "$" + Fmt.grouped($0) } ?? val)), ("Lot size", lot.isEmpty ? "—" : "\(lot) acres"),
             ("Stories", stories), ("Basement", v("Basement")),
             ("Garage", garage), ("Car port", v("Car port"))
         ]

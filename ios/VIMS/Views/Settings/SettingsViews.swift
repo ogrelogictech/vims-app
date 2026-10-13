@@ -1,4 +1,5 @@
 import SwiftUI
+import MessageUI
 import PhotosUI
 import UniformTypeIdentifiers
 
@@ -285,6 +286,13 @@ struct CompanyProfileView: View {
 
 struct InstructionsView: View {
     @Environment(AppStore.self) private var store
+    @State private var composeSupport = false
+    /// The VIMS support address: the platform owner's Feedback & support email (default `support.feedbackEmail` in the
+    /// shared JSON, VIMSInspect@Gmail.com).
+    private var supportEmail: String {
+        let e = Validator.trimmed(store.platform.feedbackEmail)
+        return e.isEmpty ? store.config.support.feedbackEmail : e
+    }
 
     var body: some View {
         Screen(title: "How VIMS works", actions: [store.homeAction()]) {
@@ -304,12 +312,41 @@ struct InstructionsView: View {
             card("bolt", "Subscription & inspectors",
                  "Your free look counts down at every sign-in. Subscribe through **Square** any time. Add inspectors under your company license and share your **company code** so they can join.")
             VStack(spacing: 4) {
-                Text("Need a hand? Contact your VIMS setup team").font(VFont.ui(13)).foregroundStyle(VC.ink3)
-                Text("support@ogrelogic.com").font(VFont.mono(13)).foregroundStyle(VC.brandDeep)
+                Text("Need a hand? Contact VIMS support").font(VFont.ui(13)).foregroundStyle(VC.ink3)
+                // Tappable (Oct 13 QA): Mail composer when Mail is set up, else the mailto: handler (another mail app),
+                // else the address is copied with a toast. Long-press → Copy email address.
+                Button { contactSupport() } label: {
+                    Text(supportEmail).font(VFont.mono(13)).foregroundStyle(VC.brandDeep).underline()
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Email \(supportEmail)")
+                .accessibilityHint("Opens a new email to VIMS support")
+                .contextMenu {
+                    Button("Copy email address") { copySupportEmail(note: nil) }
+                }
             }
             .frame(maxWidth: .infinity)
             .vCard()
         }
+        .sheet(isPresented: $composeSupport) {
+            SupportMailView(to: supportEmail, subject: "VIMS help — \(store.company.name)") { composeSupport = false }
+                .ignoresSafeArea()
+        }
+    }
+
+    private func contactSupport() {
+        if MFMailComposeViewController.canSendMail() { composeSupport = true; return }
+        guard let url = URL(string: "mailto:\(supportEmail)") else { copySupportEmail(note: nil); return }
+        UIApplication.shared.open(url) { opened in
+            if !opened { copySupportEmail(note: "No mail app is set up") }
+        }
+    }
+
+    private func copySupportEmail(note: String?) {
+        UIPasteboard.general.string = supportEmail
+        store.toast(note.map { "\($0) — \(supportEmail) copied" } ?? "\(supportEmail) copied")
     }
 
     private func card(_ symbol: String, _ title: String, _ body: String) -> some View {
@@ -487,6 +524,33 @@ struct DeleteAccountView: View {
             do { try await store.deleteAccount() }
             catch { errors.set("confirm", "Make another admin the owner first") }
             busy = false
+        }
+    }
+}
+
+/// A plain Mail composer to one address ("How VIMS works" → support email).
+struct SupportMailView: UIViewControllerRepresentable {
+    let to: String
+    let subject: String
+    let onFinish: () -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(onFinish: onFinish) }
+
+    func makeUIViewController(context: Context) -> MFMailComposeViewController {
+        let vc = MFMailComposeViewController()
+        vc.mailComposeDelegate = context.coordinator
+        vc.setToRecipients([to])
+        vc.setSubject(subject)
+        return vc
+    }
+
+    func updateUIViewController(_ vc: MFMailComposeViewController, context: Context) {}
+
+    final class Coordinator: NSObject, MFMailComposeViewControllerDelegate {
+        let onFinish: () -> Void
+        init(onFinish: @escaping () -> Void) { self.onFinish = onFinish }
+        func mailComposeController(_ controller: MFMailComposeViewController, didFinishWith result: MFMailComposeResult, error: Error?) {
+            onFinish()
         }
     }
 }

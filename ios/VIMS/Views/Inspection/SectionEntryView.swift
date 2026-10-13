@@ -158,8 +158,9 @@ struct SectionEntryView: View {
         return ItemKeys.keyed(store.catalog.items(section, depth: depth).items)
     }
 
-    /// `num` items: digits + one "." while typing, > 0 when entered (docs/validation-rules.md).
-    /// `airReading` levels: same filter, optional, 0 or more (a CO reading is often 0 ppm).
+    /// `num` items: digits + one "." while typing, 0 – 99,999 when entered (counts "Number of …" 0 – 20); a value above
+    /// the max shows its error while typing (docs/validation-rules.md "Number limits").
+    /// `airReading` levels: same filter, optional, 0 – 99,999 (a CO reading is often 0 ppm).
     private func valid() -> Bool {
         guard let insp = store.inspection(inspectionID) else { return true }
         let isForm = store.catalog.isForm(section)
@@ -168,8 +169,8 @@ struct SectionEntryView: View {
         let keyed = keyedItems(insp)
         let fields: [(id: String, value: String, rule: FieldRule)] = keyed.compactMap { k in
             switch k.item.kind {
-            case .num: return (k.id, answers.text[k.id] ?? "", .opt(.decimal, k.item.q ?? "Value"))
-            case .airReading: return (k.id, answers.text[k.id] ?? "", .opt(.reading, "\(k.item.code ?? k.item.q ?? "Reading") level"))
+            case .num: return (k.id, answers.text[k.id] ?? "", .opt(.number(.checklistItem(question: k.item.q, placeholder: k.item.placeholder)), k.item.q ?? "Value"))
+            case .airReading: return (k.id, answers.text[k.id] ?? "", .opt(.number(.reading), "\(k.item.code ?? k.item.q ?? "Reading") level"))
             default: return nil
             }
         }
@@ -345,7 +346,7 @@ struct ItemCard: View {
                 }
             case .num:
                 VTextField(text: textBinding(\.text), placeholder: item.placeholder ?? "Enter a value", keyboard: .decimalPad, bottom: 0,
-                           kind: .decimal, fieldID: key, errors: errors)
+                           kind: .number(.checklistItem(question: item.q, placeholder: item.placeholder)), fieldID: key, errors: errors)
             case .airReading:
                 AirReadingInput(item: item, key: key, level: textBinding(\.text),
                                 rating: Binding(get: { answers.choices[key]?.first }, set: { answers.choices[key] = $0.map { [$0] } }),
@@ -421,7 +422,7 @@ struct AirReadingInput: View {
 
     private var levelField: some View {
         VTextField(text: $level, placeholder: unit.isEmpty ? "Level measured" : "Level (\(unit))", keyboard: .decimalPad, bottom: 0,
-                   kind: .reading, fieldID: key, errors: errors, trailing: unit.isEmpty ? nil : unit)
+                   kind: .number(.reading), fieldID: key, errors: errors, trailing: unit.isEmpty ? nil : unit)
     }
 
     private var ratingCaption: some View {

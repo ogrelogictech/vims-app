@@ -9,6 +9,7 @@ struct VIMSApp: App {
 
     init() {
         FontRegistry.registerBundledFonts()
+        TextSelection.install()          // focusing a field never selects its text (docs/validation-rules.md)
         #if DEBUG
         DebugLaunch.prepareStorage()
         #endif

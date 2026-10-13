@@ -372,7 +372,8 @@ struct NavRow: View {
 struct CounterRow: View {
     let label: String
     @Binding var value: Int
-    var range: ClosedRange<Int> = 0...12
+    /// docs/validation-rules.md "Number limits": − disables at the min, + at the max.
+    var range: ClosedRange<Int> = StepperLimits.roomCount
     var body: some View {
         HStack {
             Text(label).font(VFont.ui(14.5, .semibold)).foregroundStyle(VC.ink)
@@ -403,6 +404,7 @@ struct CounterRow: View {
                 .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(VC.line, lineWidth: 1.5))
         }
         .buttonStyle(ChipPressStyle())
+        .disabled(!enabled)
         .opacity(enabled ? 1 : 0.45)
     }
 }
@@ -506,7 +508,7 @@ struct VTextField: View {
 
     private var shownError: String? { error ?? fieldID.flatMap { errors?[$0] } }
     private var noAutocorrect: Bool {
-        keyboard == .emailAddress || mono || keyboard == .URL || kind == .email || kind == .url || kind == .joinCode
+        keyboard == .emailAddress || mono || keyboard == .URL || kind == .email || kind == .url || kind == .joinCode || kind == .zip
     }
 
     var body: some View {
