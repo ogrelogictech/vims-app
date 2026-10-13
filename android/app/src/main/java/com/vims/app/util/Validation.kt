@@ -60,8 +60,8 @@ object Filters {
         v.forEach { c -> if (c.isDigit()) sb.append(c) else if ((c == '.') && !dot) { dot = true; sb.append(c) } }
         return sb.toString().take(max)
     }
-    /** Digits, a comma is accepted and dropped (valuation "450,000"). */
-    fun money(v: String) = decimal(v.replace(",", ""))
+    /** Digits + one ".", grouping commas and a leading "$" are accepted and dropped (valuation "$450,000" → "450000"). */
+    fun money(v: String) = decimal(Num.clean(v))
     fun temperature(v: String): String { val neg = v.trimStart().startsWith("-"); return (if (neg) "-" else "") + v.filter { it.isDigit() }.take(3) }
     fun url(v: String) = v.filterNot { it.isWhitespace() }.take(300)
     /** Digits + ".", at most 2 decimals. */
@@ -70,7 +70,8 @@ object Filters {
     /** Expiry digits "MMYY" ([ExpiryTransform] shows "MM/YY"). A leading 2–9 month gets a 0 prefix. */
     fun expiry(v: String): String { var d = v.filter { it.isDigit() }; if (d.length == 1 && d[0] in '2'..'9') d = "0$d"; return d.take(4) }
     fun cvc(v: String, amex: Boolean) = v.filter { it.isDigit() }.take(if (amex) 4 else 3)
-    fun zip(v: String) = v.filter { it.isDigit() }.take(5)
+    /** Billing ZIP / postal code: letters, digits, space, "-"; uppercase; max 10 (US 84015 / 84015-1234, Canada K1A 0B1, UK SW1A 1AA). */
+    fun postalCode(v: String) = base(v.uppercase(Locale.US).filter { it in 'A'..'Z' || it.isDigit() || it == ' ' || it == '-' }, 10)
     fun sectionName(v: String) = base(v, 60)
     fun question(v: String) = base(v, 120)
     fun option(v: String) = base(v, 60)
@@ -79,6 +80,28 @@ object Filters {
      * (form lines rely on them). Length is checked on Save ([Checks.agreement]); this only stops runaway pastes.
      */
     fun agreement(v: String, max: Int): String = v.replace("\r\n", "\n").replace('\r', '\n').replace('\t', ' ').take(max * 2)
+}
+
+/** Reading numbers: grouping commas, spaces and a leading "$" are ignored everywhere a number is read ("$450,000" = 450000). */
+object Num {
+    fun clean(v: String): String = v.trim().removePrefix("$").replace(",", "").replace(" ", "")
+    fun parse(v: String): Double? = clean(v).takeIf { it.isNotEmpty() }?.toDoubleOrNull()
+    /** "100000000" → "100,000,000"; "0.01" stays. */
+    fun fmt(n: Double): String = if (n == Math.floor(n)) String.format(Locale.US, "%,d", n.toLong()) else String.format(Locale.US, "%,.2f", n)
+}
+
+/** Number limits (docs/validation-rules.md "Number limits"): every numeric field and − / + stepper. */
+object Limits {
+    const val SEATS_MAX = 50
+    /** Wizard counts (bedrooms, bathrooms, hallways, unit mix, …) and checklist room counts ("Number of kitchens"). */
+    const val COUNT_MAX = 20
+    const val SQFT_MAX = 100_000.0
+    const val VALUATION_MAX = 100_000_000.0
+    const val LOT_MAX = 10_000.0
+    const val CHECKLIST_NUM = 99_999.0
+    private val roomCount = Regex("^number of (kitchens?|bath(room)?s?|half[- ]baths?|bedrooms?|stories|hallways?|rooms?|living|family|dining|garages?)", RegexOption.IGNORE_CASE)
+    /** Max for a checklist `num` item: room counts ("Number of kitchens / bathrooms …") 20, everything else 99,999. */
+    fun checklistMax(question: String): Double = if (roomCount.containsMatchIn(question.trim())) COUNT_MAX.toDouble() else CHECKLIST_NUM
 }
 
 enum class CardBrand(val label: String) {
@@ -119,11 +142,20 @@ object Checks {
         val now = LocalDate.now().year
         return if (y !in 1800..now) "Enter a year between 1800 and $now" else null
     }
-    fun positive(v: String, label: String = "a number"): String? =
-        if (v.isEmpty()) null else if ((v.replace(",", "").toDoubleOrNull() ?: 0.0) <= 0.0) "Enter $label greater than 0" else null
-    /** Indoor Air Quality "Level measured": optional, any number ≥ 0 (0 ppm CO is a valid reading). */
-    fun level(v: String): String? =
-        if (v.isEmpty()) null else if ((v.toDoubleOrNull() ?: -1.0) < 0.0) "Enter a number of 0 or more, like 0.03" else null
+    /** Optional number > 0 (grouping commas / a leading "$" ignored — [Num.parse]) and at most [max] when given. */
+    fun positive(v: String, label: String = "a number", max: Double? = null): String? {
+        if (v.isBlank()) return null
+        val n = Num.parse(v) ?: return "Enter $label"
+        return if (n <= 0.0) "Enter $label greater than 0" else if (max != null && n > max) "Enter a number up to ${Num.fmt(max)}" else null
+    }
+    /** Optional number ≥ 0 and at most [max] (checklist `num` items, Indoor Air Quality level — 0 is a valid reading). */
+    fun upTo(v: String, max: Double): String? {
+        if (v.isBlank()) return null
+        val n = Num.parse(v) ?: return "Enter a number"
+        return if (n < 0.0) "Enter a number of 0 or more" else if (n > max) "Enter a number up to ${Num.fmt(max)}" else null
+    }
+    /** Indoor Air Quality "Level measured": optional, 0 – 99,999 (0 ppm CO is a valid reading). */
+    fun level(v: String): String? = upTo(v, Limits.CHECKLIST_NUM)
     fun temperature(v: String): String? {
         if (v.isEmpty() || v == "-") return if (v == "-") "Enter a temperature" else null
         val t = v.toIntOrNull() ?: return "Enter a temperature"
@@ -135,7 +167,7 @@ object Checks {
         return if (!ok) "Enter a full link starting with https://" else null
     }
     fun price(v: String): String? {
-        val p = v.toDoubleOrNull() ?: return "Enter a price"
+        val p = Num.parse(v) ?: return "Enter a price"
         return if (p < 0.01 || p > 9999.99) "Enter a price from $0.01 to $9,999.99" else null
     }
     fun sectionName(v: String, exists: (String) -> Boolean): String? = when {
@@ -177,7 +209,11 @@ object Checks {
         return null
     }
     fun cvc(d: String, amex: Boolean): String? = if (d.length != (if (amex) 4 else 3)) "Enter the ${if (amex) 4 else 3}-digit security code" else null
-    fun zip(d: String): String? = if (d.length != 5) "Enter a 5-digit ZIP code" else null
+    fun postalCode(v: String): String? = when {
+        v.isBlank() -> "Enter the billing ZIP or postal code"
+        v.trim().length !in 3..10 -> "Enter a valid ZIP or postal code"
+        else -> null
+    }
 }
 
 /* ---------------------------------------------------------------- on-screen formatting */
@@ -211,7 +247,16 @@ fun formatCard(d: String): String =
 fun formatJoinCode(raw: String): String = if (raw.length > 3) raw.take(3) + "-" + raw.drop(3) else raw
 fun formatExpiry(d: String): String = if (d.length > 2) d.take(2) + "/" + d.drop(2) else d
 
+/** "450000" (or a stored "450,000") → "450,000"; decimals kept ("1234.5" → "1,234.5"). */
+fun formatGrouped(raw: String): String {
+    val c = raw.replace(",", "")
+    val int = c.substringBefore('.'); val dec = if ('.' in c) "." + c.substringAfter('.') else ""
+    return int.reversed().chunked(3).joinToString(",").reversed() + dec
+}
+
 val PhoneTransform: VisualTransformation = Grouping(::formatPhone)
+/** Valuation / sq ft show grouping commas while the stored value stays digits (docs: "may also show grouping commas"). */
+val GroupedNumberTransform: VisualTransformation = Grouping(::formatGrouped)
 val CardTransform: VisualTransformation = Grouping(::formatCard)
 val JoinCodeTransform: VisualTransformation = Grouping(::formatJoinCode)
 val ExpiryTransform: VisualTransformation = Grouping(::formatExpiry)

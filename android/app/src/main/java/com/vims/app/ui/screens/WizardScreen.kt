@@ -63,6 +63,8 @@ import com.vims.app.ui.theme.VIcons
 import com.vims.app.util.Checks
 import com.vims.app.util.Filters
 import com.vims.app.util.FormState
+import com.vims.app.util.GroupedNumberTransform
+import com.vims.app.util.Limits
 import com.vims.app.util.Fmt
 import com.vims.app.util.PhoneTransform
 import com.vims.app.util.formField
@@ -112,7 +114,8 @@ fun WizardScreen(vm: AppViewModel, nav: NavHostController, inspId: String?) {
                     cfg.roomCounts.forEach { rc ->
                         Counter(rc.label, w.sel.count(rc.key),
                             onMinus = { vm.updateSel { it.copy(counts = it.counts + (rc.key to (it.count(rc.key) - 1).coerceAtLeast(0))) } },
-                            onPlus = { vm.updateSel { it.copy(counts = it.counts + (rc.key to (it.count(rc.key) + 1).coerceAtMost(12))) } })
+                            onPlus = { vm.updateSel { it.copy(counts = it.counts + (rc.key to (it.count(rc.key) + 1).coerceAtMost(Limits.COUNT_MAX))) } },
+                            max = Limits.COUNT_MAX)
                     }
                     Lbl("Interior rooms")
                     MultiChips(cfg.roomOptions, w.sel.rooms, { o -> vm.updateSel { it.copy(rooms = it.rooms.toggle(o)) } })
@@ -260,7 +263,8 @@ private fun WizardFields(vm: AppViewModel, nav: NavHostController, defs: List<Wi
                             mix.keys.forEach { k ->
                                 Counter(k, mix[k] ?: 0,
                                     onMinus = { vm.updateSel { it.copy(unitMix = mix + (k to ((mix[k] ?: 0) - 1).coerceAtLeast(0))) } },
-                                    onPlus = { vm.updateSel { it.copy(unitMix = mix + (k to (mix[k] ?: 0) + 1)) } })
+                                    onPlus = { vm.updateSel { it.copy(unitMix = mix + (k to ((mix[k] ?: 0) + 1).coerceAtMost(Limits.COUNT_MAX))) } },
+                                    max = Limits.COUNT_MAX)
                             }
                         }
                     }
@@ -291,7 +295,7 @@ private fun FieldCell(vm: AppViewModel, f: WizardFieldDef, sel: WizardSelections
             "time" -> PickerField(if (v.isBlank()) "" else Fmt.time(v), "Select time", VIcons.clock, { pickTime(ctx, v, set) }, error = err)
             "textarea" -> VInput(v, set, placeholder = f.placeholder.orEmpty(), multiline = true, filter = { Filters.base(it, 1000, multiline = true) }, error = err)
             else -> VInput(v, set, placeholder = placeholderFor(f), keyboard = keyboardFor(f, step2), error = err, filter = wizardFilter(f.label),
-                visual = if (f.type == "tel") PhoneTransform else androidx.compose.ui.text.input.VisualTransformation.None,
+                visual = if (f.type == "tel") PhoneTransform else if (f.label in groupedFields) GroupedNumberTransform else androidx.compose.ui.text.input.VisualTransformation.None,
                 caps = if (f.label.contains("name", true) || f.label.contains("address", true)) KeyboardCapitalization.Words else KeyboardCapitalization.None,
                 // Keyboard "Next" walks the form in order (Inspection address → State → Real estate agent name → …).
                 imeAction = ImeAction.Next)
@@ -307,6 +311,9 @@ private fun placeholderFor(f: WizardFieldDef): String =
     if (f.label == WizardSelections.F_ADDRESS && f.placeholder.orEmpty().endsWith("State")) f.placeholder.orEmpty().removeSuffix("State") + "ZIP"
     else f.placeholder.orEmpty()
 
+/** Shown with grouping commas ("450,000") while the stored value is digits. */
+private val groupedFields = setOf("Valuation ($)", "Total sq ft")
+
 /** While-typing filters for wizard fields (by JSON label / typeField key) — docs/validation-rules.md. */
 private fun wizardFilter(key: String): ((String) -> String)? = when (key) {
     WizardSelections.F_CLIENT, WizardSelections.F_AGENT, "sponsorName", "insuredName" -> Filters::personName
@@ -316,7 +323,8 @@ private fun wizardFilter(key: String): ((String) -> String)? = when (key) {
     "policyNumber" -> Filters::policy
     "Year of construction" -> Filters::year
     "Valuation ($)" -> Filters::money
-    "Total sq ft", "Lot size (acres)" -> { v -> Filters.decimal(v) }
+    "Total sq ft" -> Filters::money
+    "Lot size (acres)" -> { v -> Filters.decimal(v) }
     "Temperature (°F)" -> Filters::temperature
     else -> null
 }
@@ -332,9 +340,10 @@ private fun wizardCheck(label: String, v: String): String? = when (label) {
     WizardSelections.F_CLIENT_PHONE -> Checks.phone(v)
     WizardSelections.F_CLIENT_EMAIL, WizardSelections.F_AGENT_EMAIL -> Checks.email(v, required = false)
     "Year of construction" -> Checks.year(v)
-    "Total sq ft" -> Checks.positive(v, "a square footage")
-    "Valuation ($)" -> Checks.positive(v, "a valuation")
-    "Lot size (acres)" -> Checks.positive(v, "a lot size")
+    // Number limits (docs/validation-rules.md): > 0 and at most the max; "450,000" / "$450,000" read as 450000.
+    "Total sq ft" -> Checks.positive(v, "a square footage", Limits.SQFT_MAX)
+    "Valuation ($)" -> Checks.positive(v, "a valuation", Limits.VALUATION_MAX)
+    "Lot size (acres)" -> Checks.positive(v, "a lot size", Limits.LOT_MAX)
     else -> null
 }
 

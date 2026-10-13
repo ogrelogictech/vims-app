@@ -147,6 +147,19 @@ fun EditSectionScreen(vm: AppViewModel, nav: NavHostController, name: String) {
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     var showErrors by remember { mutableStateOf(false) }
+    // Trash asks first (team QA Oct 13): the item is removed from the draft only after Delete.
+    var deleteId by remember { mutableStateOf<Long?>(null) }
+    deleteId?.let { id ->
+        val d = draft.firstOrNull { it.id == id }
+        if (d == null) deleteId = null else {
+            val label = (d.item.header ?: d.item.q).orEmpty().trim().ifEmpty { "This item" }
+            com.vims.app.ui.components.ConfirmDialog(
+                if (d.item.isHeader) "Delete this header?" else "Delete this item?",
+                if (d.item.isChoice) "**$label** and its options will be removed from new inspections." else "**$label** will be removed from new inspections.",
+                "Delete", onConfirm = { draft.removeAll { it.id == id }; deleteId = null }, onDismiss = { deleteId = null }, danger = true,
+            )
+        }
+    }
 
     VScreen(name, companyName(vm), net(vm), backAction(nav), listOf(homeAction(nav)), scroll = false) {
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 34.dp)) {
@@ -168,7 +181,7 @@ fun EditSectionScreen(vm: AppViewModel, nav: NavHostController, name: String) {
                     onChange = { v -> update(i) { if (it.isHeader) it.copy(header = v) else it.copy(q = v) } },
                     onUp = { if (i > 0) { val x = draft.removeAt(i); draft.add(i - 1, x) } },
                     onDown = { if (i < draft.size - 1) { val x = draft.removeAt(i); draft.add(i + 1, x) } },
-                    onDelete = { draft.removeAt(i) },
+                    onDelete = { deleteId = d.id },
                     onRemoveOpt = { oi -> update(i) { it.copy(options = it.options.orEmpty().filterIndexed { k, _ -> k != oi }) } },
                     onAddOpt = { o -> update(i) { it.copy(options = it.options.orEmpty() + o) } },
                 )
@@ -198,9 +211,10 @@ private fun EdItem(it: ItemDef, index: Int, count: Int, showErrors: Boolean, onC
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Column(Modifier.weight(1f)) {
                 if (it.isHeader) Text("SUB-SECTION HEADER", style = T.mono(9.5.sp, FontWeight.SemiBold, V.brandDeep))
+                val field = com.vims.app.ui.components.rememberFieldText()
                 BasicTextField(
-                    text, { v -> onChange(Filters.question(v)) }, singleLine = true, textStyle = T.ui(14.5.sp, FontWeight.SemiBold, V.ink), cursorBrush = SolidColor(V.brand),
-                    modifier = Modifier.fillMaxWidth(),
+                    field.shown(text), { v -> onChange(field.change(v, Filters::question)) }, singleLine = true, textStyle = T.ui(14.5.sp, FontWeight.SemiBold, V.ink), cursorBrush = SolidColor(V.brand),
+                    modifier = Modifier.fillMaxWidth().onFocusChanged { f -> field.focus(f.isFocused, text) },
                     decorationBox = { inner -> Column { Box(Modifier.padding(vertical = 5.dp)) { inner() }; Box(Modifier.fillMaxWidth().height(1.5.dp).background(if (textErr != null) V.c1 else V.line)) } },
                 )
                 com.vims.app.ui.components.FieldError(textErr)
@@ -252,11 +266,12 @@ private fun EdBtn(icon: ImageVector, label: String, enabled: Boolean, onClick: (
 fun PriceField(value: Double, onCommit: (Double) -> Unit, modifier: Modifier = Modifier, onError: (String?) -> Unit = {}) {
     var text by remember(value) { mutableStateOf(Fmt.price(value)) }
     var bad by remember { mutableStateOf(false) }
-    fun commit() { val e = Checks.price(text); bad = e != null; onError(e); if (e == null) { val v = text.toDouble(); if (v != value) onCommit(v) } }
+    fun commit() { val e = Checks.price(text); bad = e != null; onError(e); if (e == null) { val v = com.vims.app.util.Num.parse(text) ?: return; if (v != value) onCommit(v) } }
+    val field = com.vims.app.ui.components.rememberFieldText()
     BasicTextField(
-        text, { text = Filters.price(it); if (bad) { val e = Checks.price(text); bad = e != null; onError(e) } }, singleLine = true, textStyle = T.ui(15.sp, color = V.ink), cursorBrush = SolidColor(V.brand),
+        field.shown(text), { text = field.change(it, Filters::price); if (bad) { val e = Checks.price(text); bad = e != null; onError(e) } }, singleLine = true, textStyle = T.ui(15.sp, color = V.ink), cursorBrush = SolidColor(V.brand),
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { commit() }),
-        modifier = modifier.width(130.dp).onFocusChanged { if (!it.isFocused) commit() },
+        modifier = modifier.width(130.dp).onFocusChanged { field.focus(it.isFocused, text); if (!it.isFocused) commit() },
         decorationBox = { inner -> Box(Modifier.heightIn(min = 48.dp).clip(RoundedCornerShape(11.dp)).background(V.paper).border(if (bad) 1.5.dp else 1.dp, if (bad) V.c1 else V.line, RoundedCornerShape(11.dp)).padding(horizontal = 14.dp), contentAlignment = Alignment.CenterStart) { inner() } },
     )
 }
@@ -268,10 +283,24 @@ fun PlansAdminScreen(vm: AppViewModel, nav: NavHostController) {
     var p by rememberSaveable { mutableStateOf("") }
     var d by rememberSaveable { mutableStateOf("") }
     val form = rememberForm()
+    var deleteId by rememberSaveable { mutableStateOf<String?>(null) }
+    deleteId?.let { id ->
+        val plan = account.plans.firstOrNull { it.id == id }
+        if (plan == null) deleteId = null else {
+            val next = account.plans.firstOrNull { it.id != id }
+            com.vims.app.ui.components.ConfirmDialog(
+                "Delete ${plan.name}?",
+                "**${plan.name}** is removed from the subscribe screen." + if (plan.id == account.planId && next != null) " Your company's selected plan switches to **${next.name}**." else "",
+                "Delete", onConfirm = { vm.deletePlan(id); deleteId = null }, onDismiss = { deleteId = null }, danger = true,
+            )
+        }
+    }
     VScreen("Plans & pricing", companyName(vm), net(vm), backAction(nav), listOf(homeAction(nav))) {
-        Hint("Owner admin — edit plan prices, add a plan, or set the per-inspector rate. Changes apply to the subscribe screen.", Modifier.padding(top = 2.dp, bottom = 12.dp))
+        Hint("Owner admin — edit plan prices, add or delete a plan, or set the per-inspector rate. Changes apply to the subscribe screen.", Modifier.padding(top = 2.dp, bottom = 12.dp))
+        // Delete: at least one plan always stays (no Delete on the last one); the Additional inspector rate isn't a plan.
+        val canDelete = account.plans.size > 1
         account.plans.forEach { plan ->
-            PlanCard(plan.name, plan.price, plan.unit ?: "/mo", plan.desc) { vm.setPlanPrice(plan.id, it) }
+            PlanCard(plan.name, plan.price, plan.unit ?: "/mo", plan.desc, onDelete = if (canDelete) ({ deleteId = plan.id }) else null) { vm.setPlanPrice(plan.id, it) }
         }
         PlanCard("Additional inspector", account.extraInspectorMonthly, "/mo each", null) { vm.setExtraRate(it) }
         AddBox {
@@ -286,10 +315,19 @@ fun PlansAdminScreen(vm: AppViewModel, nav: NavHostController) {
 }
 
 @Composable
-private fun PlanCard(name: String, price: Double, unit: String, desc: String?, onCommit: (Double) -> Unit) {
+private fun PlanCard(name: String, price: Double, unit: String, desc: String?, onDelete: (() -> Unit)? = null, onCommit: (Double) -> Unit) {
     var err by remember { mutableStateOf<String?>(null) }
     Column(Modifier.padding(bottom = 11.dp).fillMaxWidth().vCard(13.dp).padding(horizontal = 14.dp, vertical = 13.dp)) {
-        Text(name, style = T.ui(14.5.sp, FontWeight.Bold), modifier = Modifier.padding(bottom = 10.dp))
+        Row(Modifier.padding(bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(name, style = T.ui(14.5.sp, FontWeight.Bold), modifier = Modifier.weight(1f))
+            if (onDelete != null) Row(
+                Modifier.padding(start = 8.dp).heightIn(min = 40.dp).clip(RoundedCornerShape(9.dp)).clickable(role = Role.Button, onClickLabel = "Delete plan $name", onClick = onDelete).padding(horizontal = 10.dp),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp),
+            ) {
+                Icon(VIcons.trash, null, tint = V.c1, modifier = Modifier.size(15.dp))
+                Text("Delete", style = T.ui(12.5.sp, FontWeight.SemiBold, V.c1))
+            }
+        }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("Price $", style = T.ui(13.sp, color = V.ink2))
             PriceField(price, onCommit, onError = { err = it })

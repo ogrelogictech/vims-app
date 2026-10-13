@@ -532,7 +532,7 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
         startPage()
         val s = b.inspection.selections
         title("Property Information", "Inspection details & property description")
-        fun num(v: String) = v.replace(",", "").toDoubleOrNull()
+        fun num(v: String) = com.vims.app.util.Num.parse(v)
         val sq = s.field("Total sq ft").let { v -> num(v)?.let { String.format(Locale.US, "%,d sq ft", it.toLong()) } ?: v }
         val value = s.field("Valuation ($)").let { v -> num(v)?.let { String.format(Locale.US, "$%,d", it.toLong()) } ?: v }
         val lot = s.field("Lot size (acres)").let { if (it.isBlank()) it else "$it acres" }

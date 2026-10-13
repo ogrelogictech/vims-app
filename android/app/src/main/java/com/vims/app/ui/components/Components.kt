@@ -75,6 +75,9 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.layout.onSizeChanged
@@ -304,6 +307,34 @@ fun FieldError(error: String?) {
 val LocalNoAutofill = staticCompositionLocalOf { false }
 
 /**
+ * A String field's [TextFieldValue] (docs/validation-rules.md "Text selection"): focusing a field never selects its text.
+ * Focus from the keyboard's Next / programmatically puts the cursor at the END (Compose's String overload leaves it at the
+ * start; iOS selected everything); a tap puts it where the user tapped (the tap places it right after focus). While typing
+ * the user's cursor is kept, also when a filter drops characters. Unfocused, the cursor rests at 0 so a long single-line
+ * value shows its beginning. Hook [focus] up with `Modifier.onFocusChanged`.
+ */
+class FieldText internal constructor() {
+    private var last by mutableStateOf(TextFieldValue(""))
+    private var focused = false
+    /** What the field shows for [value]: the user's own selection while it matches, else [value] with the cursor at the end (focused) or start. */
+    fun shown(value: String): TextFieldValue = if (last.text == value) last else TextFieldValue(value, TextRange(if (focused) value.length else 0))
+    fun focus(isFocused: Boolean, value: String) {
+        if (isFocused == focused) return
+        focused = isFocused
+        last = TextFieldValue(value, TextRange(if (isFocused) value.length else 0))
+    }
+    /** Applies [filter] to an edit; keeps the cursor where the user was (moved back by any characters the filter dropped). */
+    fun change(new: TextFieldValue, filter: (String) -> String): String {
+        val t = filter(new.text)
+        last = if (t == new.text) new else TextFieldValue(t, TextRange((new.selection.end - (new.text.length - t.length)).coerceIn(0, t.length)))
+        return t
+    }
+}
+
+@Composable
+fun rememberFieldText(): FieldText = remember { FieldText() }
+
+/**
  * Text input. Every value goes through a while-typing filter (default: no leading space, never two spaces in a row;
  * email/password strip spaces) — see util/Validation.kt. `error` turns the border red and shows the message below.
  */
@@ -327,16 +358,18 @@ fun VInput(
         KeyboardType.Uri -> Filters::url
         else -> { v -> Filters.base(v, multiline = multiline) }
     }
+    val field = rememberFieldText()
     Column(modifier.fillMaxWidth()) {
         BasicTextField(
-            value = value, onValueChange = { onChange(apply(it)) }, singleLine = !multiline, textStyle = style, interactionSource = interaction,
+            value = field.shown(value), onValueChange = { onChange(field.change(it, apply)) }, singleLine = !multiline, textStyle = style, interactionSource = interaction,
             keyboardOptions = KeyboardOptions(
                 keyboardType = keyboard, autoCorrectEnabled = !noAuto,
                 capitalization = if (noAuto) KeyboardCapitalization.None else if (keyboard == KeyboardType.Text && caps == KeyboardCapitalization.None && !mono) KeyboardCapitalization.Sentences else caps,
                 imeAction = imeAction,
             ),
             visualTransformation = visual, cursorBrush = SolidColor(V.brand),
-            modifier = Modifier.fillMaxWidth().then(if (noAutofill) Modifier.semantics { contentDataType = ContentDataType.None } else Modifier),
+            modifier = Modifier.fillMaxWidth().onFocusChanged { field.focus(it.isFocused, value) }
+                .then(if (noAutofill) Modifier.semantics { contentDataType = ContentDataType.None } else Modifier),
             decorationBox = { inner ->
                 Row(
                     Modifier.fillMaxWidth().heightIn(min = minHeight).clip(shape).background(V.paper)
@@ -573,26 +606,28 @@ fun BinfoRow(label: String, value: String, last: Boolean = false, bold: Boolean 
     BinfoRow(label = { Text(label, style = T.ui(14.sp, color = V.ink)) }, value = { Text(value, style = T.ui(14.sp, if (bold) FontWeight.Bold else FontWeight.Normal, V.ink)) }, last = last)
 }
 
+/** − / + stepper. Number limits (docs/validation-rules.md): − disables at [min], + at [max]. */
 @Composable
-fun Counter(label: String, value: Int, onMinus: () -> Unit, onPlus: () -> Unit, modifier: Modifier = Modifier) {
+fun Counter(label: String, value: Int, onMinus: () -> Unit, onPlus: () -> Unit, modifier: Modifier = Modifier, min: Int = 0, max: Int = Int.MAX_VALUE) {
     Row(
         modifier.padding(bottom = 9.dp).fillMaxWidth().vCard(12.dp).padding(horizontal = 14.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(label, style = T.ui(14.5.sp, FontWeight.Bold, V.ink), modifier = Modifier.weight(1f))
-        CounterBtn("−", onMinus, "Decrease $label")
+        CounterBtn("−", onMinus, "Decrease $label", enabled = value > min)
         Text("$value", style = T.mono(16.sp, FontWeight.SemiBold, V.ink), textAlign = TextAlign.Center, modifier = Modifier.width(44.dp))
-        CounterBtn("+", onPlus, "Increase $label")
+        CounterBtn("+", onPlus, "Increase $label", enabled = value < max)
     }
 }
 
 @Composable
-private fun CounterBtn(text: String, onClick: () -> Unit, label: String) {
+private fun CounterBtn(text: String, onClick: () -> Unit, label: String, enabled: Boolean = true) {
     val shape = RoundedCornerShape(10.dp)
     Box(
-        Modifier.size(44.dp).clip(shape).background(V.paper2).border(1.5.dp, V.line, shape).clickable(onClickLabel = label, role = Role.Button, onClick = onClick),
+        Modifier.size(44.dp).clip(shape).background(if (enabled) V.paper2 else V.paper3).border(1.5.dp, V.line, shape)
+            .clickable(enabled = enabled, onClickLabel = label, role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
-    ) { Text(text, style = T.ui(22.sp, color = V.brand)) }
+    ) { Text(text, style = T.ui(22.sp, color = if (enabled) V.brand else V.ink3.copy(alpha = .45f))) }
 }
 
 @Composable

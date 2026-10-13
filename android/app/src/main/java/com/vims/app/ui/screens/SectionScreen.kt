@@ -62,6 +62,8 @@ import com.vims.app.ui.theme.V
 import com.vims.app.ui.theme.VIcons
 import com.vims.app.util.Checks
 import com.vims.app.util.Filters
+import com.vims.app.util.Limits
+import com.vims.app.util.Num
 import com.vims.app.util.Fmt
 
 /** Returns to the Sections overview if it is on the back stack, otherwise opens it. */
@@ -207,9 +209,12 @@ private fun ItemCard(key: String, it: ItemDef, a: SectionAnswers, detail: Boolea
             "date" -> PickerField(if (input.isBlank()) "" else Fmt.date(input), "Select date", VIcons.calendar, { pickDate(ctx, input, onPick = setInput) })
             "time" -> PickerField(if (input.isBlank()) "" else Fmt.time(input), "Select time", VIcons.clock, { pickTime(ctx, input, setInput) })
             else -> {
-                val numErr = if (it.type == "num") Checks.positive(input) else null
-                VInput(input, setInput, placeholder = it.placeholder ?: "Enter a value", keyboard = if (it.type == "num") KeyboardType.Decimal else KeyboardType.Text,
-                    filter = if (it.type == "num") { v -> Filters.decimal(v) } else { v -> Filters.base(v, 500) }, error = numErr)
+                // `num` items: digits + one "." only (filtered as typed / pasted), decimal keypad, inline error as soon as the value is
+                // above the max (room counts like "Number of kitchens" 20, everything else 99,999). Text items stay free text.
+                val num = it.type == "num"
+                val numErr = if (num) Checks.upTo(input, Limits.checklistMax(q)) else null
+                VInput(input, setInput, placeholder = it.placeholder ?: "Enter a value", keyboard = if (num) KeyboardType.Decimal else KeyboardType.Text,
+                    filter = if (num) { v -> Filters.decimal(Num.clean(v)) } else { v -> Filters.base(v, 500) }, error = numErr)
             }
         }
         if (detail && it.isChoice) {
@@ -230,7 +235,7 @@ private fun AirReadingCard(key: String, it: ItemDef, a: SectionAnswers, actionPr
     LiCard(it.q.orEmpty()) {
         VInput(level, { v -> edit { s -> s.copy(inputs = s.inputs + (key to v)) } },
             placeholder = if (unit.isBlank()) "Level measured" else "Level ($unit)", keyboard = KeyboardType.Decimal,
-            filter = { v -> Filters.decimal(v) }, error = Checks.level(level), imeAction = ImeAction.Done)
+            filter = { v -> Filters.decimal(Num.clean(v)) }, error = Checks.level(level), imeAction = ImeAction.Done)
         SingleChips(it.options.orEmpty().ifEmpty { (1..6).map { n -> "$n" } }, a.airRating(key), { v ->
             edit { s -> s.copy(values = s.values + (key to listOfNotNull(v))) }
         }, modifier = Modifier.padding(top = 10.dp))

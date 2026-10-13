@@ -183,3 +183,85 @@ object AgreementText {
         return out
     }
 }
+
+/**
+ * One block of a company's edited agreement (Edit agreement, team QA Oct 13): the same blocks the viewer shows.
+ * [t] = "title" | "p" (paragraph; [lead] = darker lead-in) | "li" (bullet) | "h" (heading) | "state" (state disclosure,
+ * [state] = state name). [locked] blocks contain fill-in blanks (`___`) or checkboxes (☐) and can't be edited or deleted.
+ */
+@Serializable
+data class AgreementDocBlock(
+    val t: String = "p",
+    val text: String = "",
+    val state: String? = null,
+    val lead: Boolean = false,
+    val locked: Boolean = false,
+) {
+    val isTitle: Boolean get() = t == "title"
+    fun piece(): AgreementPiece = when (t) {
+        "title" -> AgreementPiece.Title(text.trim())
+        "li" -> AgreementPiece.Bullet(text.trim())
+        "h" -> AgreementPiece.Heading(text.trim())
+        "state" -> AgreementPiece.Disclosure(state.orEmpty(), text.trim())
+        else -> AgreementPiece.Para(text.trim(), lead = lead)
+    }
+}
+
+/** The stored form of an edited agreement (companies.agreementText): `{"format":"vims-agreement-blocks","v":1,"blocks":[…]}`. */
+@Serializable
+data class AgreementDoc(val format: String = AgreementBlocks.FORMAT, val v: Int = 1, val blocks: List<AgreementDocBlock> = emptyList())
+
+/** Editor row: a block plus a stable id for the list (not stored). */
+data class AgreementEditBlock(val id: Long, val block: AgreementDocBlock)
+
+/**
+ * Edited agreement as blocks. Since v0.16.0 the editor saves JSON ([encode]); plain-text edits saved earlier (v0.10–0.15,
+ * [AgreementText]) still load: they are split into blocks the same way the viewer always showed them, and blocks with
+ * fill-in blanks / checkboxes are locked from then on.
+ */
+object AgreementBlocks {
+    const val FORMAT = "vims-agreement-blocks"
+    private val blank = Regex("_{3,}")
+
+    /** A fill-in blank run (`___`) or a checkbox (☐): the block is part of the form and can't be edited. */
+    fun hasFormFields(text: String): Boolean = blank.containsMatchIn(text) || '☐' in text
+
+    private fun block(p: AgreementPiece): AgreementDocBlock? = when (p) {
+        is AgreementPiece.Title -> AgreementDocBlock("title", p.text)
+        is AgreementPiece.Para -> AgreementDocBlock("p", p.text, lead = p.lead)
+        is AgreementPiece.Bullet -> AgreementDocBlock("li", p.text)
+        is AgreementPiece.Heading -> AgreementDocBlock("h", p.text)
+        is AgreementPiece.Disclosure -> AgreementDocBlock("state", p.text, state = p.state)
+        is AgreementPiece.Form, is AgreementPiece.Note -> null
+    }.let { b -> b?.copy(locked = hasFormFields(b.text)) }
+
+    /** The VIMS agreement (every state, company name filled in) as editor blocks; the form lines are separate ([InspectionAgreement.formLines]). */
+    fun fromVims(a: InspectionAgreement, companyName: String, stateName: (String) -> String): List<AgreementDocBlock> =
+        a.pieces(companyName, "", stateName).mapNotNull(::block)
+
+    /** A plain-text edit saved before v0.16.0, split as the viewer showed it (form lines stripped). */
+    fun fromLegacy(text: String, form: List<String>): List<AgreementDocBlock> = AgreementText.pieces(text, form).mapNotNull(::block)
+
+    /** Stored JSON → blocks, or null when [stored] is a legacy plain-text edit (or unreadable). */
+    fun decode(stored: String): List<AgreementDocBlock>? {
+        val s = stored.trimStart()
+        if (!s.startsWith("{") || FORMAT !in s) return null
+        return try { ChecklistLoader.json.decodeFromString(AgreementDoc.serializer(), s).blocks } catch (_: Exception) { null }
+    }
+
+    /** Saved / edited agreement → editor blocks (JSON or legacy plain text). */
+    fun load(stored: String, form: List<String>): List<AgreementDocBlock> = decode(stored) ?: fromLegacy(stored, form)
+
+    fun encode(blocks: List<AgreementDocBlock>): String =
+        ChecklistLoader.json.encodeToString(AgreementDoc.serializer(), AgreementDoc(blocks = blocks.map { it.copy(text = it.text.trim()) }))
+
+    /** What the viewer shows / the PDF prints: the blocks, with the locked form block after the title (at the top without one). */
+    fun pieces(blocks: List<AgreementDocBlock>, form: List<String>): List<AgreementPiece> {
+        val out = blocks.filter { it.text.isNotBlank() }.map { it.piece() }.toMutableList()
+        if (form.isNotEmpty()) out.add(if (out.firstOrNull() is AgreementPiece.Title) 1 else 0, AgreementPiece.Form(form))
+        return out
+    }
+
+    /** Characters counted against [AgreementText.MAX_CHARS]. */
+    fun length(blocks: List<AgreementDocBlock>): Int = blocks.sumOf { it.text.length }
+}

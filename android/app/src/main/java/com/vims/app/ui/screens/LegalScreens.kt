@@ -7,33 +7,29 @@ import android.webkit.MimeTypeMap
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsFocusedAsState
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.text.TextRange
-import androidx.compose.ui.text.input.KeyboardCapitalization
-import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.window.Dialog
 import com.vims.app.data.AgreementPiece
 import com.vims.app.data.AgreementText
+import com.vims.app.data.AgreementBlocks
+import com.vims.app.data.AgreementDocBlock
+import com.vims.app.data.AgreementEditBlock
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.mutableStateListOf
 import com.vims.app.ui.back
 import com.vims.app.ui.components.BtnRow
 import com.vims.app.ui.components.ChooserRow
 import com.vims.app.ui.components.ConfirmDialog
 import com.vims.app.ui.components.HdrAction
 import com.vims.app.ui.components.Hint
-import com.vims.app.util.Checks
 import com.vims.app.util.Filters
-import com.vims.app.util.formField
-import com.vims.app.util.rememberForm
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -51,8 +47,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -86,6 +80,7 @@ import com.vims.app.ui.components.BtnKind
 import com.vims.app.ui.components.FieldError
 import com.vims.app.ui.components.TopStrip
 import com.vims.app.ui.components.VBtn
+import com.vims.app.ui.components.VInput
 import com.vims.app.ui.components.VScreen
 import com.vims.app.ui.components.vCard
 import com.vims.app.ui.theme.T
@@ -309,11 +304,14 @@ fun shareAgreementPdf(ctx: Context, vm: AppViewModel, f: java.io.File) {
 }
 
 /**
- * Edit agreement (company admins only — same permission as Upload): the company's own copy of the agreement's wording as
- * plain text, prefilled with their edited version or the whole VIMS agreement (company name filled in). The form block is
- * locked: shown read-only above the field ([LockedFormBlock]) and always printed after the title as is. Paragraphs are
- * separated by blank lines; lines starting with "• " are bullets. Save stores it on the company record and makes it the
- * agreement in use (an uploaded file is cleared). Leaving with unsaved changes (header back, Cancel, system back) asks first.
+ * Edit agreement (company admins only — same permission as Upload), team QA Oct 13: the agreement as its blocks, the same
+ * ones the viewer shows (title, paragraphs, bullets, headings, state disclosures, closing), prefilled with the company's
+ * edited version or the whole VIMS agreement (company name filled in). The form block (client / property / services / fees
+ * lines) and every block with fill-in blanks (`___`) or checkboxes (☐) are LOCKED: read-only with a "Locked" tag, never
+ * deleted. Every other block is its own multi-line field; it can be deleted (confirmation) and "Add paragraph" adds one
+ * (at the end, or below a block with its + button). Save stores the blocks as JSON ([AgreementBlocks]) on the company record
+ * and makes it the agreement in use (an uploaded file is cleared). Leaving with unsaved changes asks first. Filling in the
+ * blanks / tapping the checkboxes is the deferred e-sign add-on.
  */
 @Composable
 fun AgreementEditScreen(vm: AppViewModel, nav: NavHostController) {
@@ -323,21 +321,43 @@ fun AgreementEditScreen(vm: AppViewModel, nav: NavHostController) {
         return
     }
     val key = rememberSaveable { java.util.UUID.randomUUID().toString() }
-    val initial = remember { vm.agreementEditorText() }
+    val initial = remember { vm.agreementEditorBlocks() }
     val formLines = remember { vm.agreementFormLines() }
-    val draft = remember(key) { vm.agreementDrafts.getOrPut(key) { mutableStateOf(TextFieldValue(initial)) } }
-    val text = draft.value.text
-    val dirty = text != initial
+    val draft = remember(key) {
+        vm.agreementDrafts.getOrPut(key) { mutableStateListOf<AgreementEditBlock>().apply { initial.forEachIndexed { i, b -> add(AgreementEditBlock(i.toLong(), b)) } } }
+    }
+    var seq by remember { mutableStateOf((draft.maxOfOrNull { it.id } ?: 0L) + 1) }
+    val blocks = draft.map { it.block }
+    val dirty = blocks != initial
     var ask by remember { mutableStateOf(false) }
-    val form = rememberForm()
+    var deleteId by remember { mutableStateOf<Long?>(null) }
+    var showErrors by remember { mutableStateOf(false) }
     val max = AgreementText.MAX_CHARS
-    val err = form.check("text", text) { Checks.agreement(text, max) }
+    val length = AgreementBlocks.length(blocks)
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+    // LazyColumn rows: 0 = hint, then (form block after the title) one row per block.
+    val formAt = if (formLines.isEmpty()) -1 else if (draft.firstOrNull()?.block?.isTitle == true) 1 else 0
+    fun rowOf(blockIndex: Int) = 1 + blockIndex + if (formAt in 0..blockIndex) 1 else 0
+    fun blockError(b: AgreementDocBlock): String? =
+        if (!showErrors || b.locked || b.text.isNotBlank()) null else if (b.isTitle) "Enter the agreement title" else "Enter the text or delete this ${blockKind(b).lowercase()}"
     fun leave() { vm.agreementDrafts.remove(key); nav.back() }
     fun close() { if (dirty) ask = true else leave() }
+    fun addParagraph(at: Int) {
+        val i = at.coerceIn(0, draft.size)
+        draft.add(i, AgreementEditBlock(seq++, AgreementDocBlock("p", "")))
+        scope.launch { listState.animateScrollToItem(rowOf(i)) }
+    }
     fun save() {
-        if (!form.submit()) return
+        val bad = draft.indexOfFirst { !it.block.locked && it.block.text.isBlank() }
+        if (bad >= 0 || length > max) {
+            showErrors = true
+            if (bad >= 0) scope.launch { listState.animateScrollToItem(rowOf(bad)) }
+            vm.toast(if (bad >= 0) "Fill in or delete the highlighted block" else "Keep the agreement under ${String.format(java.util.Locale.US, "%,d", max)} characters")
+            return
+        }
         if (!dirty) { vm.toast("No changes to save"); leave(); return }
-        vm.saveAgreementText(text.trim())
+        vm.saveAgreementText(AgreementBlocks.encode(blocks))
         leave()
     }
     BackHandler(enabled = dirty) { ask = true }
@@ -345,20 +365,37 @@ fun AgreementEditScreen(vm: AppViewModel, nav: NavHostController) {
         "Discard changes?", "Your edits to the agreement haven't been saved.", "Discard",
         onConfirm = { ask = false; leave() }, onDismiss = { ask = false }, danger = true,
     )
+    deleteId?.let { id ->
+        val b = draft.firstOrNull { it.id == id }?.block
+        if (b == null) deleteId = null else ConfirmDialog(
+            "Delete this ${blockKind(b).lowercase()}?",
+            "It's removed from your company's agreement when you save. **Use VIMS agreement** brings back the original wording.",
+            "Delete", onConfirm = { draft.removeAll { it.id == id }; deleteId = null }, onDismiss = { deleteId = null }, danger = true,
+        )
+    }
     VScreen("Edit agreement", companyName(vm), net(vm), HdrAction(VIcons.back, "Back") { close() }, scroll = false) {
-        Column(Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 12.dp)) {
-            Hint("Your company's copy of the VIMS agreement. Edit the wording below: separate paragraphs with a blank line and start a line with **•** for a bullet. The VIMS agreement itself doesn't change.",
-                Modifier.padding(start = 2.dp, bottom = 10.dp), size = 12.5f)
-            if (formLines.isNotEmpty()) LockedFormBlock(formLines)
-            AgreementTextField(draft.value, { v ->
-                val t = Filters.agreement(v.text, max)
-                draft.value = if (t == v.text) v else v.copy(text = t, selection = TextRange(v.selection.start.coerceAtMost(t.length), v.selection.end.coerceAtMost(t.length)))
-            }, err != null, Modifier.weight(1f).formField(form, "text"))
-            Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Box(Modifier.weight(1f)) { FieldError(err) }
-                Text("${String.format(java.util.Locale.US, "%,d", text.length)} / ${String.format(java.util.Locale.US, "%,d", max)}",
-                    style = T.mono(11.sp, color = if (text.length > max) V.c1 else V.ink3), modifier = Modifier.padding(top = 6.dp, end = 2.dp))
+        LazyColumn(Modifier.weight(1f).fillMaxWidth(), state = listState, contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 12.dp)) {
+            item(key = "hint") {
+                Hint("Your company's copy of the VIMS agreement. Edit any paragraph below, delete one, or add your own. Blocks with fill-in blanks or checkboxes are **locked**, like the form fields. The VIMS agreement itself doesn't change.",
+                    Modifier.padding(start = 2.dp, bottom = 10.dp), size = 12.5f)
             }
+            draft.forEachIndexed { i, eb ->
+                if (i == formAt) item(key = "form") { LockedFormBlock(formLines) }
+                item(key = eb.id) {
+                    AgreementBlockCard(eb.block, blockError(eb.block),
+                        onChange = { t -> val k = draft.indexOfFirst { it.id == eb.id }; if (k >= 0) draft[k] = eb.copy(block = draft[k].block.copy(text = t)) },
+                        onDelete = if (eb.block.locked || eb.block.isTitle) null else ({ deleteId = eb.id }),
+                        onAddBelow = { addParagraph(draft.indexOfFirst { it.id == eb.id } + 1) })
+                }
+            }
+            if (formAt == 0 && draft.isEmpty()) item(key = "form") { LockedFormBlock(formLines) }
+            item(key = "add") {
+                VBtn("Add paragraph", { addParagraph(draft.size) }, Modifier.padding(top = 2.dp), BtnKind.Ghost, VIcons.plus)
+            }
+        }
+        Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 12.dp)) {
+            Text("${String.format(java.util.Locale.US, "%,d", length)} / ${String.format(java.util.Locale.US, "%,d", max)}",
+                style = T.mono(11.sp, color = if (length > max) V.c1 else V.ink3), modifier = Modifier.align(Alignment.End).padding(top = 4.dp, bottom = 6.dp, end = 2.dp))
             BtnRow {
                 VBtn("Cancel", { close() }, Modifier.weight(1f), BtnKind.Ghost)
                 VBtn("Save", { save() }, Modifier.weight(1f), icon = VIcons.check)
@@ -367,63 +404,68 @@ fun AgreementEditScreen(vm: AppViewModel, nav: NavHostController) {
     }
 }
 
+private fun blockKind(b: AgreementDocBlock): String = when (b.t) {
+    "title" -> "Title"; "li" -> "Bullet"; "h" -> "Heading"; "state" -> "State disclosure"; else -> "Paragraph"
+}
+
 /**
- * The agreement's form block (client / property / services / fees lines), read-only: it can't be edited here and prints
- * after the title exactly as in the VIMS agreement. Filling it in / signing in the app is the deferred e-sign add-on.
- * The box scrolls inside a fixed height and folds away while the keyboard is open (or when the header is tapped) so the
- * text field keeps its room; Show while typing closes the keyboard.
+ * One agreement block in the editor: a small type label, then the text — read-only with a "Locked" tag when it holds
+ * fill-in blanks / checkboxes, else an editable multi-line field with Delete (not for the title) and + (add a paragraph below).
  */
-@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
-private fun LockedFormBlock(lines: List<String>) {
-    var open by rememberSaveable { mutableStateOf(true) }
-    val ime = WindowInsets.isImeVisible
-    val shown = open && !ime
-    val focus = androidx.compose.ui.platform.LocalFocusManager.current
-    Column(Modifier.fillMaxWidth().padding(bottom = 10.dp).vCard(12.dp)) {
-        Row(
-            Modifier.fillMaxWidth().heightIn(min = 44.dp).clickable(role = Role.Button, onClickLabel = if (shown) "Hide form lines" else "Show form lines") {
-                // Show while typing closes the keyboard first (the box needs the room).
-                if (shown) open = false else { open = true; if (ime) focus.clearFocus() }
+private fun AgreementBlockCard(b: AgreementDocBlock, error: String?, onChange: (String) -> Unit, onDelete: (() -> Unit)?, onAddBelow: () -> Unit) {
+    Column(Modifier.padding(bottom = 10.dp).fillMaxWidth().vCard(12.dp, bg = if (b.locked) V.paper2 else V.paper).padding(start = 12.dp, end = 6.dp, top = 6.dp, bottom = 12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text((blockKind(b) + (b.state?.let { " · $it" } ?: "")).uppercase(), style = T.mono(9.5.sp, FontWeight.SemiBold, V.ink3),
+                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            if (b.locked) Row(
+                Modifier.padding(end = 4.dp).clip(RoundedCornerShape(6.dp)).background(V.paper3).padding(horizontal = 7.dp, vertical = 3.dp)
+                    .semantics { contentDescription = "Locked: contains form fields" },
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Icon(VIcons.lock, null, tint = V.ink3, modifier = Modifier.size(11.dp))
+                Text("Locked", style = T.mono(10.sp, FontWeight.SemiBold, V.ink2))
             }
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Icon(VIcons.lock, null, tint = V.ink3, modifier = Modifier.size(15.dp))
-            Column(Modifier.weight(1f)) {
-                Text("Form lines · locked", style = T.ui(13.sp, FontWeight.SemiBold, V.ink))
-                Text("Printed after the title as shown. Filled in when the client signs.", style = T.ui(11.5.sp, color = V.ink3, lineHeight = 15.sp))
-            }
-            Text(if (shown) "Hide" else "Show", style = T.ui(12.5.sp, FontWeight.SemiBold, V.brand))
+            BlockBtn(VIcons.plus, "Add paragraph below", V.ink3, onAddBelow)
+            if (onDelete != null) BlockBtn(VIcons.trash, "Delete ${blockKind(b).lowercase()}", V.c1, onDelete)
         }
-        if (shown) {
-            Text(lines.joinToString("\n"), style = T.mono(11.sp, color = V.ink2).copy(lineHeight = 18.sp),
-                modifier = Modifier.padding(start = 10.dp, end = 10.dp, bottom = 10.dp).fillMaxWidth().heightIn(max = 150.dp)
-                    .clip(RoundedCornerShape(9.dp)).background(V.paper2).border(1.dp, V.line, RoundedCornerShape(9.dp))
-                    .verticalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 9.dp)
-                    .semantics { contentDescription = "Locked form lines: " + lines.joinToString(". ") })
+        Box(Modifier.padding(end = 6.dp, top = 2.dp)) {
+            if (b.locked) {
+                Text(b.text, style = T.ui(13.sp, color = V.ink2, lineHeight = 20.sp), modifier = Modifier.fillMaxWidth())
+            } else {
+                VInput(b.text, onChange, placeholder = if (b.isTitle) "Agreement title" else "Paragraph text", multiline = true, minHeight = 48.dp, textSize = 14f,
+                    mono = false, filter = { Filters.agreement(it, AgreementText.MAX_CHARS) }, error = error)
+            }
         }
     }
 }
 
-/** Large multi-line field for the agreement text: fills the space it's given and scrolls inside (VInput's look). */
 @Composable
-private fun AgreementTextField(value: TextFieldValue, onChange: (TextFieldValue) -> Unit, error: Boolean, modifier: Modifier) {
-    val interaction = remember { MutableInteractionSource() }
-    val focused by interaction.collectIsFocusedAsState()
-    val shape = RoundedCornerShape(11.dp)
-    BasicTextField(
-        value, onChange, modifier.fillMaxWidth(), textStyle = T.ui(14.sp, color = V.ink, lineHeight = 21.sp), interactionSource = interaction,
-        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, autoCorrectEnabled = true),
-        cursorBrush = SolidColor(V.brand),
-        decorationBox = { inner ->
-            Box(
-                Modifier.fillMaxSize().clip(shape).background(V.paper)
-                    .border(if (focused || error) (if (error && !focused) 1.5.dp else 2.dp) else 1.dp, if (error) V.c1 else if (focused) V.brand else V.line, shape)
-                    .padding(horizontal = 14.dp, vertical = 12.dp),
-            ) { inner() }
-        },
-    )
+private fun BlockBtn(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, tint: Color, onClick: () -> Unit) {
+    Box(Modifier.size(40.dp).clip(RoundedCornerShape(9.dp)).clickable(role = Role.Button, onClickLabel = label, onClick = onClick), contentAlignment = Alignment.Center) {
+        Icon(icon, label, tint = tint, modifier = Modifier.size(16.dp))
+    }
+}
+
+/** The agreement's form block (client / property / services / fees lines), read-only — printed after the title as is. */
+@Composable
+private fun LockedFormBlock(lines: List<String>) {
+    Column(Modifier.fillMaxWidth().padding(bottom = 10.dp).vCard(12.dp, bg = V.paper2).padding(start = 12.dp, end = 10.dp, top = 9.dp, bottom = 12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 6.dp)) {
+            Text("FORM FIELDS", style = T.mono(9.5.sp, FontWeight.SemiBold, V.ink3), modifier = Modifier.weight(1f))
+            Row(
+                Modifier.clip(RoundedCornerShape(6.dp)).background(V.paper3).padding(horizontal = 7.dp, vertical = 3.dp),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Icon(VIcons.lock, null, tint = V.ink3, modifier = Modifier.size(11.dp))
+                Text("Locked", style = T.mono(10.sp, FontWeight.SemiBold, V.ink2))
+            }
+        }
+        Text("Printed after the title on every agreement. Filled in when the client signs.", style = T.ui(11.5.sp, color = V.ink3, lineHeight = 15.sp), modifier = Modifier.padding(bottom = 8.dp))
+        Text(lines.joinToString("\n"), style = T.mono(11.sp, color = V.ink2).copy(lineHeight = 18.sp),
+            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(9.dp)).background(V.paper).border(1.dp, V.line, RoundedCornerShape(9.dp))
+                .padding(horizontal = 12.dp, vertical = 9.dp).semantics { contentDescription = "Locked form lines: " + lines.joinToString(". ") })
+    }
 }
 
 /** Opens the company's own uploaded agreement (PDF / Word) in another app via FileProvider. */

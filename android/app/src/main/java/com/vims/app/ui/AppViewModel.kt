@@ -408,9 +408,20 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         toast("Account deleted"); onOk()
     }
 
-    /** Owner hands the company to another inspector (they become Owner · Admin; the old owner stays Admin). */
+    /** True when the signed-in user is the company's current owner (the inspectors list decides; the session role is the fallback). */
+    fun iAmOwner(a: AccountState = account.value): Boolean {
+        val s = session.value ?: return false
+        return a.inspectors.firstOrNull { it.email.equals(s.email, ignoreCase = true) }?.owner ?: (s.role == Role.OWNER)
+    }
+
+    /**
+     * Owner hands the company to another inspector (they become Owner · Admin; the old owner stays Admin). Only the CURRENT
+     * owner can transfer — so the new owner can hand it back, but a previous owner can't take it back themselves.
+     */
     fun makeOwner(inspectorId: String) = viewModelScope.launch {
+        if (!iAmOwner()) { toast("Only the owner can transfer ownership."); return@launch }
         val target = account.value.inspectors.firstOrNull { it.id == inspectorId } ?: return@launch
+        if (target.owner || target.email.equals(session.value?.email, ignoreCase = true)) return@launch
         repo.updateAccount { a -> a.copy(inspectors = a.inspectors.map { i -> if (i.id == inspectorId) i.copy(owner = true, admin = true) else if (i.owner) i.copy(owner = false, admin = true) else i }) }
         session.value?.let { repo.activate(it.copy(role = Role.ADMIN)) }
         toast("${target.name} is now the owner")
@@ -476,25 +487,28 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * What the agreement viewer shows: the company's edited wording (whole, never filtered by state) with the locked VIMS
-     * form block after its title, else the VIMS agreement.
+     * What the agreement viewer shows: the company's edited version (whole, never filtered by state — saved blocks, or a
+     * plain-text edit from before v0.16.0) with the locked VIMS form block after its title, else the VIMS agreement.
      */
-    fun agreementPieces(c: CompanyProfile, state: String): List<com.vims.app.data.AgreementPiece> =
-        c.editedAgreement?.let { com.vims.app.data.AgreementText.pieces(it, agreement.formLines(c.name)) } ?: agreement.pieces(c.name, state, config::stateName)
+    fun agreementPieces(c: CompanyProfile, state: String): List<com.vims.app.data.AgreementPiece> = c.editedAgreement?.let { stored ->
+        val form = agreement.formLines(c.name)
+        com.vims.app.data.AgreementBlocks.decode(stored)?.let { com.vims.app.data.AgreementBlocks.pieces(it, form) } ?: com.vims.app.data.AgreementText.pieces(stored, form)
+    } ?: agreement.pieces(c.name, state, config::stateName)
 
     /** The locked form block (read-only in Edit agreement; the same lines the viewer boxes). */
     fun agreementFormLines(): List<String> = agreement.formLines(company.value.name)
 
     /**
-     * Editor prefill: the company's edited wording (any copy of the locked form block from an edit saved before it was
-     * locked is left out), else the VIMS agreement's wording as plain text with the company name filled in.
+     * Editor prefill as blocks: the company's edited version (saved blocks, or an older plain-text edit split into blocks
+     * with any copy of the form lines left out), else the VIMS agreement (every state, company name filled in).
      */
-    fun agreementEditorText(): String = company.value.let { c ->
-        c.editedAgreement?.let { com.vims.app.data.AgreementText.stripForm(it, agreement.formLines(c.name)) } ?: agreement.plainText(c.name, config::stateName)
+    fun agreementEditorBlocks(): List<com.vims.app.data.AgreementDocBlock> = company.value.let { c ->
+        c.editedAgreement?.let { com.vims.app.data.AgreementBlocks.load(it, agreement.formLines(c.name)) }
+            ?: com.vims.app.data.AgreementBlocks.fromVims(agreement, c.name, config::stateName)
     }
 
-    /** Unsaved editor text by editor visit, kept here (not in saved instance state — it can be ~100 KB) across rotation. */
-    val agreementDrafts = HashMap<String, androidx.compose.runtime.MutableState<androidx.compose.ui.text.input.TextFieldValue>>()
+    /** Unsaved editor blocks by editor visit, kept here (not in saved instance state — they can be ~100 KB) across rotation. */
+    val agreementDrafts = HashMap<String, androidx.compose.runtime.snapshots.SnapshotStateList<com.vims.app.data.AgreementEditBlock>>()
 
     data class AgreementPdfFile(val file: File, val pages: Int)
 
@@ -554,7 +568,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     // Subscription / inspectors / plans -------------------------------------
 
     fun selectPlan(planId: String) = repo.updateAccount { it.copy(planId = planId) }
-    fun setSeats(n: Int) = repo.updateAccount { it.copy(seats = n.coerceAtLeast(maxOf(1, it.inspectors.size))) }
+    fun setSeats(n: Int) = repo.updateAccount { it.copy(seats = n.coerceAtMost(com.vims.app.util.Limits.SEATS_MAX).coerceAtLeast(maxOf(1, it.inspectors.size))) }
 
     fun monthlyTotal(a: AccountState = account.value): Double = if (a.plan.perReport) 0.0 else a.plan.price + maxOf(0, a.seatCount - 1) * a.extraInspectorMonthly
 
@@ -591,10 +605,21 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         account.value.plans.firstOrNull { it.id == planId }?.let { toast("${it.name} → ${com.vims.app.util.Fmt.money(price)}") }
     }
 
+    /** Plans & pricing → Delete (confirmed on screen). The last plan can't be deleted; a deleted selected plan falls back to the first left. */
+    fun deletePlan(planId: String) {
+        val plan = account.value.plans.firstOrNull { it.id == planId } ?: return
+        if (account.value.plans.size <= 1) { toast("Keep at least one plan"); return }
+        repo.updateAccount { a ->
+            val left = a.plans.filterNot { it.id == planId }
+            a.copy(plans = left, planId = if (a.planId == planId) left.first().id else a.planId)
+        }
+        toast("Deleted “${plan.name}”")
+    }
+
     fun setExtraRate(v: Double) { repo.updateAccount { it.copy(extraInspectorMonthly = v) }; toast("Extra inspector → ${com.vims.app.util.Fmt.money(v)}") }
 
     fun addPlan(name: String, price: String, desc: String): Boolean {
-        val p = price.trim().toDoubleOrNull()
+        val p = com.vims.app.util.Num.parse(price)
         if (name.isBlank()) { toast("Enter a plan name"); return false }
         if (p == null || p < 0) { toast("Enter a valid price"); return false }
         repo.updateAccount { a -> a.copy(plans = a.plans + Plan("plan${a.plans.size + 1}-${System.currentTimeMillis() % 10000}", name.trim(), p, desc.trim().ifEmpty { "Custom plan" })) }

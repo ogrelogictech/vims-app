@@ -51,6 +51,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -472,9 +473,10 @@ private fun ToolBtn(onClick: () -> Unit, label: String, on: Boolean = false, con
 
 @Composable
 private fun DarkInput(value: String, onChange: (String) -> Unit, placeholder: String) {
+    val field = com.vims.app.ui.components.rememberFieldText()
     BasicTextField(
-        value, { onChange(com.vims.app.util.Filters.base(it, 200)) }, singleLine = true, textStyle = T.ui(13.sp, color = Color.White), cursorBrush = SolidColor(Color.White),
-        modifier = Modifier.fillMaxWidth(),
+        field.shown(value), { onChange(field.change(it) { t -> com.vims.app.util.Filters.base(t, 200) }) }, singleLine = true, textStyle = T.ui(13.sp, color = Color.White), cursorBrush = SolidColor(Color.White),
+        modifier = Modifier.fillMaxWidth().onFocusChanged { field.focus(it.isFocused, value) },
         decorationBox = { inner ->
             Box(Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(RoundedCornerShape(9.dp)).background(Color.White.copy(alpha = .1f)).border(1.dp, Color.White.copy(alpha = .18f), RoundedCornerShape(9.dp)).padding(horizontal = 11.dp, vertical = 10.dp), contentAlignment = Alignment.CenterStart) {
                 if (value.isEmpty()) Text(placeholder, style = T.ui(13.sp, color = Color(0xFF9AA8BA)))

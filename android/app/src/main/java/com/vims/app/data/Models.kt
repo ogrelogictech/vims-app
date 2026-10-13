@@ -295,7 +295,7 @@ data class SectionAnswers(
         values[key]?.firstOrNull()?.trim()?.let { airRatingRx.find(it)?.groupValues?.get(1) }
 
     /** `airReading` "Level measured" (decimal text without the unit), or "" when not measured or not a valid number (e.g. "."). */
-    fun airLevel(key: String): String = inputs[key].orEmpty().trim().takeIf { (it.toDoubleOrNull() ?: -1.0) >= 0.0 }.orEmpty()
+    fun airLevel(key: String): String = inputs[key].orEmpty().trim().takeIf { (com.vims.app.util.Num.parse(it) ?: -1.0) >= 0.0 }.orEmpty()
 }
 
 @Serializable

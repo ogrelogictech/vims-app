@@ -12,6 +12,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -312,10 +313,31 @@ fun InstructionsScreen(vm: AppViewModel, nav: NavHostController) {
         HowCard(VIcons.file, "Photos & findings", "Tap **Add** to capture a photo, then tap it to draw on it or add a quick comment. Flagging a photo as a concern adds it to the **Summary** under Category 1 Safety, 2 Functional, or 3 Items to monitor.")
         HowCard(VIcons.file, "Generate the report", "From the Summary tap **Save and generate report**, choose a cover (color → theme → style), and the app builds your branded PDF. It queues to send when you are back online.")
         HowCard(VIcons.bolt, "Subscription & inspectors", "Your free look counts down at every sign-in. Subscribe through **Square** any time. Add inspectors under your company license and share your **company code** so they can join.")
+        val ctx = androidx.compose.ui.platform.LocalContext.current
         VCard {
             Text("Need a hand? Contact your VIMS setup team", style = T.ui(13.sp, color = V.ink3), modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-            Text("support@ogrelogic.com", style = T.mono(13.sp, color = V.brandDeep), modifier = Modifier.fillMaxWidth().padding(top = 4.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            // Tappable: opens a new email (ACTION_SENDTO mailto:); no email app → the address is copied instead.
+            Box(Modifier.fillMaxWidth().padding(top = 2.dp), contentAlignment = Alignment.Center) {
+                Text(SUPPORT_EMAIL, style = T.mono(13.sp, color = V.brandDeep).copy(textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    modifier = Modifier.heightIn(min = 44.dp).clip(RoundedCornerShape(8.dp))
+                        .clickable(role = Role.Button, onClickLabel = "Email $SUPPORT_EMAIL") { emailSupport(ctx, vm) }
+                        .padding(horizontal = 10.dp, vertical = 12.dp))
+            }
         }
+    }
+}
+
+private const val SUPPORT_EMAIL = "support@ogrelogic.com"
+
+/** How VIMS works → support address: compose an email in the user's email app, else copy the address + toast. */
+private fun emailSupport(ctx: android.content.Context, vm: AppViewModel) {
+    val intent = android.content.Intent(android.content.Intent.ACTION_SENDTO, android.net.Uri.parse("mailto:$SUPPORT_EMAIL"))
+        .putExtra(android.content.Intent.EXTRA_SUBJECT, "VIMS support")
+    try { ctx.startActivity(intent) } catch (_: android.content.ActivityNotFoundException) {
+        (ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager)
+            .setPrimaryClip(android.content.ClipData.newPlainText("VIMS support email", SUPPORT_EMAIL))
+        vm.toast("No email app found — $SUPPORT_EMAIL copied")
     }
 }
 

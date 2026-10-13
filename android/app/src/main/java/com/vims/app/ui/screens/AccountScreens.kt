@@ -101,7 +101,7 @@ fun InspectorsScreen(vm: AppViewModel, nav: NavHostController) {
         val who = account.inspectors.firstOrNull { it.id == id }?.name ?: "this admin"
         com.vims.app.ui.components.ConfirmDialog(
             "Make $who the owner?",
-            "$who becomes the account owner (billing and company). You stay an admin.",
+            "$who becomes the account owner (billing and company). You'll stay an admin. Only the new owner can transfer ownership again.",
             "Make owner", { vm.makeOwner(id); ownerTo = null }, { ownerTo = null },
         )
     }
@@ -125,25 +125,30 @@ fun InspectorsScreen(vm: AppViewModel, nav: NavHostController) {
             Text(rich("Share this code with an inspector. They download VIMS, tap **Join a company with a code**, and their account links to your license & billing."),
                 style = T.ui(12.sp, color = V.ink3, lineHeight = 17.sp), modifier = Modifier.padding(top = 9.dp))
         }
-        Text(rich("You (the account owner) are an **admin** by default. Tap **Make admin** to grant any inspector admin access — admins can manage checklists, plans, the company profile, and settings. Nothing is hard-coded; roles are set here."),
+        Text(rich((if (vm.iAmOwner(account)) "You (the account owner) are" else "The account owner is") + " an **admin** by default. Tap **Make admin** to grant any inspector admin access — admins can manage checklists, plans, the company profile, and settings. Nothing is hard-coded; roles are set here."),
             style = T.ui(12.sp, color = V.ink3, lineHeight = 18.sp), modifier = Modifier.padding(start = 2.dp, end = 2.dp, bottom = 12.dp))
         val photos by vm.memberPhotos.collectAsState()
         val photoVersion by vm.logoVersion.collectAsState()
-        val iAmOwner = session?.role == com.vims.app.data.Role.OWNER
+        // Ownership: only the CURRENT owner can transfer it — they see "Make owner" on every other inspector (including a
+        // previous owner, so it can be handed back); nobody can take it back themselves.
+        val iAmOwner = vm.iAmOwner(account)
+        val myEmail = session?.email.orEmpty()
         account.inspectors.forEach { ins ->
+            val isMe = ins.email.equals(myEmail, ignoreCase = true)
             ListRow(
                 "${ins.name} · ${ins.roleLabel}", ins.email.ifBlank { "no email yet" }, titleMaxLines = 2,
                 lead = { UserAvatar(photos[ins.email.lowercase()]?.let { java.io.File(vm.filesDir, it) }, ins.initials, 44.dp, photoVersion) },
                 end = {
-                    if (ins.owner) Pill("Admin", PillKind.Done)
-                    else if (canManage) Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (ins.owner) Pill("Owner", PillKind.Done)
+                    else if (canManage && !isMe) Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Pill(if (ins.admin) "Admin ✓" else "Make admin", if (ins.admin) PillKind.Prog else PillKind.New, dot = false) { vm.toggleAdmin(ins.id) }
-                        // Owner can hand the company to an admin (needed before the owner can delete their account).
-                        if (iAmOwner && ins.admin) Pill("Make owner", PillKind.Prog, dot = false) { ownerTo = ins.id }
+                        if (iAmOwner && !isMe) Pill("Make owner", PillKind.Prog, dot = false) { ownerTo = ins.id }
                         Pill("Remove", PillKind.Queued, dot = false) { vm.removeInspector(ins.id) }
                     }
                 },
             )
+            if (ins.owner && canManage && !iAmOwner) Text("Only the owner can transfer ownership.", style = T.ui(12.sp, color = V.ink3),
+                modifier = Modifier.padding(start = 4.dp, top = 0.dp, bottom = 12.dp))
         }
         Text(buildAnnotatedString {
             withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = V.ink)) { append("${account.inspectors.size} inspector${if (account.inspectors.size == 1) "" else "s"}") }
@@ -152,7 +157,8 @@ fun InspectorsScreen(vm: AppViewModel, nav: NavHostController) {
         if (canManage) AddBox {
             val nameErr = form.check("name", name) { Checks.required(name, "Enter the inspector's name") }
             val emailErr = form.check("email", email) {
-                Checks.email(email) ?: if (account.inspectors.any { it.email.equals(email.trim(), true) }) "That email is already on your team" else null
+                Checks.email(email) ?: if (account.inspectors.any { it.email.equals(email.trim(), true) }) "That email is already on your team"
+                else if (account.inspectors.size >= com.vims.app.util.Limits.SEATS_MAX) "A license has up to ${com.vims.app.util.Limits.SEATS_MAX} inspectors" else null
             }
             VField("Inspector name", name, { name = it }, Modifier.formField(form, "name"), placeholder = "Full name", caps = KeyboardCapitalization.Words, filter = Filters::personName, error = nameErr, required = true, bottom = 0.dp)
             VField("Email", email, { email = it }, Modifier.formField(form, "email"), placeholder = "inspector@email.com", keyboard = KeyboardType.Email, error = emailErr, required = true, bottom = 0.dp)
@@ -203,7 +209,9 @@ fun SubscribeScreen(vm: AppViewModel, nav: NavHostController) {
             }
         }
         Lbl("Inspector seats")
-        Counter("Inspectors on this license", account.seatCount, { vm.setSeats(account.seatCount - 1) }, { vm.setSeats(account.seatCount + 1) })
+        // Seats 1 – 50 (docs "Number limits"); never fewer than the inspectors already on the license.
+        Counter("Inspectors on this license", account.seatCount, { vm.setSeats(account.seatCount - 1) }, { vm.setSeats(account.seatCount + 1) },
+            min = maxOf(1, account.inspectors.size), max = com.vims.app.util.Limits.SEATS_MAX)
         Text(rich("First inspector included · each additional **${Fmt.money(account.extraInspectorMonthly)}/mo**"), style = T.ui(12.sp, color = V.ink3), modifier = Modifier.padding(start = 2.dp, end = 2.dp, top = 2.dp))
         VCard(Modifier.padding(top = 14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -220,7 +228,7 @@ fun SubscribeScreen(vm: AppViewModel, nav: NavHostController) {
         val expErr = form.check("exp", exp) { Checks.expiry(exp) }
         val cvcErr = form.check("cvc", cvc) { Checks.cvc(cvc, amex) }
         val holderErr = form.check("holder", holder) { Checks.required(holder, "Enter the name on the card") }
-        val zipErr = form.check("zip", zip) { Checks.zip(zip) }
+        val zipErr = form.check("zip", zip) { Checks.postalCode(zip) }
         Column(Modifier.padding(bottom = 13.dp).formField(form, "card")) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 FieldLabel("Card number", required = true)
@@ -234,7 +242,8 @@ fun SubscribeScreen(vm: AppViewModel, nav: NavHostController) {
             Column(Modifier.weight(1f).formField(form, "cvc")) { FieldLabel("CVC", required = true); VInput(cvc, { cvc = it }, placeholder = if (amex) "1234" else "123", keyboard = KeyboardType.NumberPassword, filter = { Filters.cvc(it, amex) }, error = cvcErr) }
         }
         VField("Cardholder name", holder, { holder = it }, Modifier.padding(top = 13.dp).formField(form, "holder"), placeholder = "Name on card", caps = KeyboardCapitalization.Words, filter = Filters::personName, error = holderErr, required = true)
-        VField("Billing ZIP", zip, { zip = it }, Modifier.formField(form, "zip"), placeholder = "84015", keyboard = KeyboardType.Number, filter = Filters::zip, error = zipErr, bottom = 0.dp, required = true)
+        // US ZIP or a Canadian / UK postal code: letters + digits, uppercase (text keyboard with caps).
+        VField("Billing ZIP / postal code", zip, { zip = it }, Modifier.formField(form, "zip"), placeholder = "84015", caps = KeyboardCapitalization.Characters, filter = Filters::postalCode, error = zipErr, bottom = 0.dp, required = true)
         Row(Modifier.padding(start = 2.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Icon(VIcons.lock, null, tint = V.ink3, modifier = Modifier.size(14.dp))
             Text("Secured by Square · auto-renews monthly · cancel anytime", style = T.ui(12.sp, color = V.ink3))
