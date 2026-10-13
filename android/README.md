@@ -424,3 +424,40 @@ Client update (Oct 12): section 39 Indoor Air Quality uses the new `airReading` 
   measured constant across the video); `verifySharedAssets` passes.
 - Screenshots: `screenshots/oct12b-*.png` (date / time entry, legacy text answer, IAQ PDF; agreement editor, edited +
   legacy viewer, PDF; quick-comment menus; splash). Test APK: `../../VIMS-Android-test-v0.15.0-2026-10-12.apk`.
+
+## Team QA list Oct 13 (v0.16.0) — rules in `../docs/validation-rules.md`
+
+- **Numbers:** `util/Validation.kt` `Num.parse` reads every number ignoring grouping commas, spaces and a leading `$`
+  (`"$450,000"` = 450000) — wizard checks, checklist `num` items, IAQ level, plan prices, report PDF. Valuation and Total
+  sq ft store digits and show grouping commas (`GroupedNumberTransform`); the demo seed's `"450,000"` passes Next.
+- **Number limits** (`Limits`): `Counter` takes `min` / `max` and disables − / + at the ends (wizard room counts and unit
+  mix 0–20, Inspector seats 1–50 and never below the inspectors on the license; Add inspector stops at 50). Typed values
+  above the max show "Enter a number up to <max>" (sq ft 100,000, valuation 100,000,000, lot size 10,000, checklist `num`
+  99,999, room counts "Number of kitchens / bathrooms / bedrooms / stories …" 20, IAQ level 99,999).
+- **Checklist `num` items:** digits + one `.` (typed or pasted; commas / `$` dropped), decimal keypad, inline error as soon
+  as the value is above the max; 0 is allowed. Text items ("System number") stay free text.
+- **No auto-selection:** `Components.FieldText` (used by `VInput`, the price fields, checklist question fields, markup
+  inputs) holds a `TextFieldValue`: focus from Next / code puts the cursor at the END, a tap where tapped, never
+  select-all; unfocused it rests at 0 so a long single-line value shows its start; a filter that drops characters keeps
+  the cursor in place.
+- **Edit agreement = block editor:** the agreement as the viewer's blocks (title, paragraphs, bullets, heading, one block
+  per state disclosure, closing). The form fields and every block containing `___` or ☐ are locked (read-only, "Locked"
+  tag, no delete); every other block is its own multi-line field with Delete (confirmation; not the title) and + (add a
+  paragraph below); "Add paragraph" at the end. Blank blocks block Save (highlighted, scrolled to). Stored in the same
+  `companies.agreementText` column as JSON `{"format":"vims-agreement-blocks","v":1,"blocks":[{t,text,state?,lead,locked}]}`
+  (`data/InspectionAgreement.kt` `AgreementBlocks`; no Room migration). Plain-text edits saved before v0.16.0 still load
+  (split as the viewer showed them; blocks with blanks / checkboxes become locked) and are rewritten as JSON on the next
+  save. Viewer + PDF render the blocks with the form block after the title; Use VIMS agreement resets.
+- **Manage checklist:** trash asks "Delete this item?" / "<question> and its options will be removed from new
+  inspections." (headers: "Delete this header?"). There is no section delete on Android.
+- **How VIMS works:** support@ogrelogic.com is a link (ACTION_SENDTO `mailto:`); with no email app the address is copied
+  and a toast says so.
+- **Plans & pricing:** Delete on each plan (confirmation; hidden when only one plan is left; Additional inspector has
+  none). A deleted selected plan falls back to the first remaining one. Persisted in the company's account JSON.
+- **Billing ZIP / postal code:** letters, digits, space, `-`, uppercase, max 10; valid 3–10 characters; text keyboard
+  with caps.
+- **Ownership:** only the current owner (from the inspectors list) can transfer it; they see Make owner on every other
+  inspector (admin or not, including a previous owner). Confirmation: "Make <name> the owner? … You'll stay an admin. Only
+  the new owner can transfer ownership again." A non-owner admin sees "Only the owner can transfer ownership." under the
+  owner row; nobody can reclaim it themselves (no controls on your own row).
+- Screenshots: `screenshots/oct13-*.png`. Test APK: `../../VIMS-Android-test-v0.16.0-2026-10-13.apk`.
