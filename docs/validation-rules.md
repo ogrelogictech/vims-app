@@ -22,7 +22,7 @@ On a button tap with errors: keep the user on the screen, show every error, scro
 | License # (inspector, sponsor) | Letters, digits, space, `-`; max 20 | Optional |
 | Application / Policy # | Letters, digits, `-`; max 30 | Optional |
 | Year of construction / Actual year built | Digits, max 4 | 1800 – current year |
-| Total sq ft, valuation, lot size, amps, `num` checklist items | Digits + one `.` (valuation/sq ft may also show grouping commas `450,000`; commas and a leading `$` are ignored when reading the value, never an error) | > 0 if entered; at most the field's max (see Number limits) |
+| Total sq ft, valuation, lot size, amps, `num` checklist items | Digits + one `.` (valuation/sq ft may also show grouping commas `450,000`; commas and a leading `$` are ignored when reading the value, never an error) | > 0 if entered for sq ft / valuation / lot size / amps; checklist `num` items allow 0; at most the field's max (see Number limits) |
 | Temperature (°F) | Digits, optional leading `-` | −60 – 140 |
 | Review URL | No spaces | Must start `https://` or `http://` and have a host |
 | Feedback email (admin) | as Email | Required, valid |
