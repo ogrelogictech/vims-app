@@ -82,9 +82,10 @@ fun SummaryScreen(vm: AppViewModel, nav: NavHostController, inspId: String) {
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
                         Box(Modifier.padding(top = 7.dp).size(7.dp).clip(CircleShape).background(V.cat(cat.id)))
+                        // Same line as the report's Summary of Findings (client, Oct 16): **Section** — custom comment — quick comment.
                         Text(buildAnnotatedString {
                             withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = V.ink)) { append(f.section) }
-                            append(" — ${f.text}")
+                            f.body.takeIf { it.isNotBlank() }?.let { append(" — $it") }
                         }, style = T.ui(13.5.sp, color = V.ink2, lineHeight = 18.sp))
                     }
                 }

@@ -399,10 +399,8 @@ fun MarkupScreen(vm: AppViewModel, nav: NavHostController, inspId: String, photo
             }
             // tools
             Column(Modifier.fillMaxWidth().background(V.viewerTools).navigationBarsPadding().padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                    ToolLabel("Comment")
-                    SelectBox("Add a quick comment…", quickComments, { quick = it; vm.toast("Comment added") }, Modifier.weight(1f), dark = true, selected = quick)
-                }
+                // No "Comment" label: the quick-comment dropdown takes the full row (client, Oct 16).
+                SelectBox("Add a quick comment…", quickComments, { quick = it; vm.toast("Comment added") }, Modifier.fillMaxWidth(), dark = true, selected = quick)
                 DarkInput(custom, { custom = it }, "Custom comment…")
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     ToolLabel("Draw")
@@ -431,9 +429,9 @@ fun MarkupScreen(vm: AppViewModel, nav: NavHostController, inspId: String, photo
             }
         }
         FindingSheet(
-            visible = sheet, vm = vm, initialText = listOf(quick, custom).filter { it.isNotBlank() }.joinToString(" — "),
+            visible = sheet, vm = vm, initialText = custom, initialQuick = quick,
             onCancel = { sheet = false },
-            onAdd = { cat, text -> vm.addFinding(inspId, cat, text, photo.section, photo.id); sheet = false },
+            onAdd = { cat, c, q -> vm.addFinding(inspId, cat, c, q, photo.section, photo.id); sheet = false },
         )
     }
 }
@@ -489,10 +487,15 @@ private fun DarkInput(value: String, onChange: (String) -> Unit, placeholder: St
 /* ================================================================ Flag a finding (bottom sheet) */
 
 @Composable
+/**
+ * [initialText] seeds the Description (the custom comment) and [initialQuick] the quick comment; [onAdd] gets
+ * (category, custom comment, quick comment) so the finding stores them as separate parts. One of the two is required.
+ */
 fun FindingSheet(
-    visible: Boolean, vm: AppViewModel, initialText: String, onCancel: () -> Unit, onAdd: (Int, String) -> Unit,
+    visible: Boolean, vm: AppViewModel, initialText: String, onCancel: () -> Unit, onAdd: (Int, String, String) -> Unit,
     title: String = "Flag a finding",
     subtitle: String = "Pick a category and add a note. It's added to the summary and the report automatically.",
+    initialQuick: String = "",
 ) {
     Box(Modifier.fillMaxSize()) {
         AnimatedVisibility(visible, enter = fadeIn(), exit = fadeOut()) {
@@ -501,6 +504,7 @@ fun FindingSheet(
         AnimatedVisibility(visible, modifier = Modifier.align(Alignment.BottomCenter), enter = slideInVertically { it / 3 } + fadeIn(), exit = slideOutVertically { it / 3 } + fadeOut()) {
             var cat by rememberSaveable { mutableIntStateOf(2) }
             var text by rememberSaveable(initialText, title) { mutableStateOf(initialText) }
+            var quick by rememberSaveable(initialQuick, title) { mutableStateOf(initialQuick) }
             var descErr by remember { mutableStateOf(false) }
             Column(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp)).background(V.paper).imePadding().navigationBarsPadding()
@@ -523,13 +527,14 @@ fun FindingSheet(
                     }
                 }
                 FieldLabel("Quick comment")
-                SelectBox("Pick a quick comment…", vm.config.findings.quickComments, { text = it }, Modifier.padding(bottom = 13.dp))
-                FieldLabel("Description", required = true)
+                SelectBox("Pick a quick comment…", vm.config.findings.quickComments, { quick = it; descErr = false }, Modifier.padding(bottom = 13.dp),
+                    selected = quick, clearLabel = "No quick comment")
+                FieldLabel("Description", required = quick.isBlank())
                 VInput(text, { text = it; descErr = false }, placeholder = "Describe the concern…", multiline = true, filter = { com.vims.app.util.Filters.base(it, 1000, multiline = true) },
                     error = if (descErr) "Describe the concern or pick a quick comment" else null)
                 BtnRow(Modifier.padding(top = 4.dp)) {
                     VBtn("Cancel", onCancel, Modifier.weight(1f), BtnKind.Ghost)
-                    VBtn("Add finding", { if (text.isBlank()) descErr = true else onAdd(cat, text) }, Modifier.weight(1f))
+                    VBtn("Add finding", { if (text.isBlank() && quick.isBlank()) descErr = true else onAdd(cat, text, quick) }, Modifier.weight(1f))
                 }
             }
         }

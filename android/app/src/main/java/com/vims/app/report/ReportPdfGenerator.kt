@@ -415,7 +415,16 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
             if (leftFree >= rightFree) fr = fl + maxOf(leftFree, minW) else fl = fr - maxOf(rightFree, minW)
         }
         val footW = inch(fr - fl)
-        val footText = lay.footer.text.replace("{companyName}", company.name.ifBlank { "the inspection company" })
+        // "{companyName}" is the signed-in inspector's Company profile name, underlined (client, Oct 16).
+        val footText = android.text.SpannableStringBuilder().apply {
+            lay.footer.text.split("{companyName}").forEachIndexed { i, part ->
+                if (i > 0) {
+                    val st = length; append(company.name.ifBlank { "the inspection company" })
+                    if (company.name.isNotBlank()) setSpan(android.text.style.UnderlineSpan(), st, length, 0)
+                }
+                append(part)
+            }
+        }
         val notice = layout(footText, tp(serifBold, pt(lay.footer.size), Color.BLACK), footW, Layout.Alignment.ALIGN_CENTER, 1.18f)
         // stateRules.<STATE>.coverNotice (e.g. Oregon): extra line under the ownership notice, every layout.
         val stateNotice = config.stateRule(sel.state)?.coverNotice?.let {
@@ -663,7 +672,7 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
             blockLabel("Findings")
             fs.sortedBy { it.cat }.forEach { f ->
                 val label = config.findings.categories.firstOrNull { it.id == f.cat }?.label.orEmpty()
-                val l = layout("Category ${f.cat} · $label — ${f.text}", tp(plex400, 12.5f, INK2), CW - 30f)
+                val l = layout("Category ${f.cat} · $label — ${f.body}", tp(plex400, 12.5f, INK2), CW - 30f)
                 ensure(l.height + 12f)
                 cv.drawCircle(PADX + 8f, y + 12f, 4.5f, fill(C[f.cat.coerceIn(1, 3)]))
                 cv.drawLayout(l, PADX + 22f, y + 4f)
@@ -792,9 +801,10 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
         config.findings.categories.forEach { cat ->
             val items = b.findings.filter { it.cat == cat.id }.sortedWith(compareBy({ ChecklistEngine.number(b.defs, it.section) }, { it.createdAt }))
             val rows = items.mapIndexed { i, f ->
+                // Same line as the app's Summary screen (client, Oct 16): **Section** — custom comment — quick comment.
                 val l = layout(android.text.SpannableStringBuilder().apply {
-                    append(f.text); append(" ")
-                    val st = length; append("(${f.section})"); setSpan(android.text.style.ForegroundColorSpan(INK3), st, length, 0)
+                    append(f.section); setSpan(android.text.style.StyleSpan(Typeface.BOLD), 0, length, 0); setSpan(android.text.style.ForegroundColorSpan(INK), 0, length, 0)
+                    f.body.takeIf { it.isNotBlank() }?.let { append(" — $it") }
                 }, tp(plex400, 12.5f, INK2), CW - 30f - 36f)
                 (i + 1) to l
             }.ifEmpty { listOf(0 to layout("No findings in this category.", tp(plex400, 12.5f, INK3), CW - 30f)) }

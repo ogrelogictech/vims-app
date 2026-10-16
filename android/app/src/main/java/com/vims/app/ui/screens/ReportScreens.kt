@@ -6,6 +6,21 @@ import android.graphics.Bitmap
 import android.graphics.pdf.PdfRenderer
 import android.os.ParcelFileDescriptor
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.IntOffset
+import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -386,11 +401,91 @@ fun PdfPreviewScreen(vm: AppViewModel, nav: NavHostController, inspId: String) {
             return@VScreen
         }
         Hint("${renderer.pageCount} pages · US Letter · saved on this device", Modifier.padding(start = 16.dp, top = 12.dp, end = 16.dp), size = 12f)
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            items(renderer.pageCount) { i -> PdfPage(renderer, i, "Report page ${i + 1}") }
+        val listState = rememberLazyListState()
+        Box(Modifier.fillMaxSize()) {
+            // End padding leaves a gutter for the fast-scroll thumb.
+            LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 22.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                items(renderer.pageCount) { i -> PdfPage(renderer, i, "Report page ${i + 1}") }
+            }
+            PageFastScroller(listState, renderer.pageCount)
         }
     }
 }
+
+/**
+ * Fast-scroll bar on the right edge of the report preview (client, Oct 16): the thumb follows normal scrolling, drags to
+ * jump through the report, and shows a "Page X of N" bubble while it is dragged. Only the thumb takes touches, so the
+ * pages still scroll under the rest of the edge. Every page has the same height (US Letter at the list's width).
+ */
+@Composable
+private fun PageFastScroller(state: LazyListState, pageCount: Int) {
+    val scope = rememberCoroutineScope()
+    val density = LocalDensity.current
+    val thumbH = 56.dp; val hitW = 44.dp; val inset = 6.dp
+    val thumbPx = with(density) { thumbH.toPx() }
+    var trackPx by remember { mutableIntStateOf(0) }
+    var dragging by remember { mutableStateOf(false) }
+    var dragFrac by remember { mutableFloatStateOf(0f) }
+    // (page stride, max scroll, viewport) in px from the laid-out list; null until a page is laid out or when it all fits.
+    val metrics by remember(state, pageCount) {
+        derivedStateOf {
+            val info = state.layoutInfo
+            val first = info.visibleItemsInfo.firstOrNull() ?: return@derivedStateOf null
+            val stride = first.size + info.mainAxisItemSpacing
+            val viewport = info.viewportSize.height
+            val max = info.beforeContentPadding + pageCount * stride - info.mainAxisItemSpacing + info.afterContentPadding - viewport
+            if (pageCount < 2 || max <= 0) null else Triple(stride, max, viewport)
+        }
+    }
+    val m = metrics ?: return
+    val scrolled = state.firstVisibleItemIndex * m.first + state.firstVisibleItemScrollOffset
+    val frac = if (dragging) dragFrac else (scrolled / m.second.toFloat()).coerceIn(0f, 1f)
+    // Page under the middle of the screen (first / last page at the ends of the range).
+    fun pageAt(f: Float): Int = when {
+        f <= 0f -> 1
+        f >= 1f -> pageCount
+        else -> ((f * m.second + m.third / 2f - state.layoutInfo.beforeContentPadding) / m.first).toInt().coerceIn(0, pageCount - 1) + 1
+    }
+    val thumbY = ((trackPx - thumbPx).coerceAtLeast(0f) * frac).roundToInt()
+    Box(Modifier.fillMaxSize().padding(vertical = inset).onSizeChanged { trackPx = it.height }) {
+        // faint track so it reads as a scroll bar
+        Box(Modifier.align(Alignment.TopEnd).padding(end = 8.dp).width(4.dp).fillMaxHeight().clip(RoundedCornerShape(2.dp)).background(V.ink.copy(alpha = .08f)))
+        Row(Modifier.align(Alignment.TopEnd).offset { IntOffset(0, thumbY) }, verticalAlignment = Alignment.CenterVertically) {
+            if (dragging) {
+                Text("Page ${pageAt(frac)} of $pageCount", style = T.ui(13.sp, FontWeight.SemiBold, Color.White),
+                    modifier = Modifier.shadow(4.dp, RoundedCornerShape(8.dp)).clip(RoundedCornerShape(8.dp)).background(V.ink).padding(horizontal = 12.dp, vertical = 7.dp))
+            }
+            Box(
+                Modifier.size(hitW, thumbH)
+                    .semantics { contentDescription = "Page ${pageAt(frac)} of $pageCount. Drag to jump through the report." }
+                    .pointerInput(pageCount) {
+                        detectVerticalDragGestures(
+                            onDragStart = { dragFrac = (scrollFrac(state, metrics)); dragging = true },
+                            onDragEnd = { dragging = false }, onDragCancel = { dragging = false },
+                        ) { change, dy ->
+                            change.consume()
+                            val mm = metrics ?: return@detectVerticalDragGestures
+                            val range = (trackPx - thumbPx).coerceAtLeast(1f)
+                            dragFrac = (dragFrac + dy / range).coerceIn(0f, 1f)
+                            val target = dragFrac * mm.second
+                            val idx = (target / mm.first).toInt().coerceIn(0, pageCount - 1)
+                            scope.launch { state.scrollToItem(idx, (target - idx * mm.first).roundToInt()) }
+                        }
+                    },
+                contentAlignment = Alignment.CenterEnd,
+            ) {
+                Box(
+                    Modifier.padding(end = 6.dp).width(if (dragging) 10.dp else 8.dp).height(thumbH - 8.dp).shadow(2.dp, RoundedCornerShape(5.dp))
+                        .clip(RoundedCornerShape(5.dp)).background(if (dragging) V.brand else V.brand.copy(alpha = .78f))
+                        .border(1.dp, Color.White.copy(alpha = .7f), RoundedCornerShape(5.dp)),
+                )
+            }
+        }
+    }
+}
+
+private fun scrollFrac(state: LazyListState, m: Triple<Int, Int, Int>?): Float =
+    if (m == null) 0f else ((state.firstVisibleItemIndex * m.first + state.firstVisibleItemScrollOffset) / m.second.toFloat()).coerceIn(0f, 1f)
 
 private val pdfLock = Any()
 

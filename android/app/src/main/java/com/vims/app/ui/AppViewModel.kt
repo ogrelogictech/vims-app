@@ -319,8 +319,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     /* ------------------------------------------------------------------ findings */
 
-    fun addFinding(id: String, cat: Int, text: String, section: String, photoId: String?, item: String? = null) {
-        repo.updateFindings(id) { it + Finding(UUID.randomUUID().toString(), cat, text.trim().ifEmpty { "Finding noted" }, section, photoId, item = item) }
+    /**
+     * Saves a finding with its custom comment and quick comment as separate parts ([Finding.custom] / [Finding.quick]);
+     * [Finding.text] keeps the combined "custom — quick" line. A Concern finding's custom part is "<item>: <description>",
+     * or just "<item>" when no description was typed.
+     */
+    fun addFinding(id: String, cat: Int, custom: String, quick: String, section: String, photoId: String?, item: String? = null) {
+        val c = custom.trim().let { if (item == null) it else if (it.isEmpty()) item else "$item: $it" }
+        val q = quick.trim()
+        val text = listOf(c, q).filter { it.isNotEmpty() }.joinToString(" — ").ifEmpty { "Finding noted" }
+        repo.updateFindings(id) { it + Finding(UUID.randomUUID().toString(), cat, text, section, photoId, item = item, custom = c, quick = q) }
         if (photoId != null) repo.updatePhotos(id) { l -> l.map { if (it.id == photoId) it.copy(flag = cat) else it } }
         touch(id)
         toast("Finding added to summary")

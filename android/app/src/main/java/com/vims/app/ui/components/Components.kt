@@ -445,7 +445,7 @@ fun PickerField(value: String, placeholder: String, icon: ImageVector, onClick: 
  * the field (at least 260dp).
  */
 @Composable
-fun SelectBox(placeholder: String, options: List<String>, onSelect: (String) -> Unit, modifier: Modifier = Modifier, dark: Boolean = false, selected: String = "") {
+fun SelectBox(placeholder: String, options: List<String>, onSelect: (String) -> Unit, modifier: Modifier = Modifier, dark: Boolean = false, selected: String = "", clearLabel: String? = null) {
     var open by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(if (dark) 9.dp else 11.dp)
     val density = LocalDensity.current
@@ -463,6 +463,11 @@ fun SelectBox(placeholder: String, options: List<String>, onSelect: (String) -> 
             Icon(VIcons.chevDown, null, tint = if (dark) Color.White else V.ink, modifier = Modifier.padding(start = 6.dp).size(16.dp))
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }, containerColor = V.paper, modifier = Modifier.width(anchorW.coerceAtLeast(260.dp))) {
+            // Optional first row that clears the choice (onSelect("")), shown once something is selected.
+            if (clearLabel != null && selected.isNotEmpty()) {
+                DropdownMenuItem(text = { Text(clearLabel, style = T.ui(14.sp, color = V.ink3, lineHeight = 19.sp)) }, onClick = { open = false; onSelect("") },
+                    modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp))
+            }
             options.forEach { o ->
                 // DropdownMenuItem caps its content at 280dp; the full-width item + wrapping text shows every option whole.
                 DropdownMenuItem(text = { Text(o, style = T.ui(14.sp, color = V.ink, lineHeight = 19.sp), softWrap = true) }, onClick = { open = false; onSelect(o) },

@@ -135,14 +135,15 @@ fun SectionScreen(vm: AppViewModel, nav: NavHostController, inspId: String, name
         scroll = false,
         overlay = {
             SectionsDrawer(drawer, b, name, onClose = { drawer = false }, onLink = { drawer = false; nav.openLink(it, inspId) }, onSection = { drawer = false; nav.openSection(inspId, it) })
-            // Cancel only closes it (the option stays selected); Add saves "<item>: <description>" as a finding for this section.
+            // Cancel only closes it (the option stays selected); Add saves a finding for this section whose custom comment is
+            // "<item>: <description>" (or "<item>") and whose quick comment is the one picked, if any.
             val item = concernItem
             FindingSheet(
                 visible = item != null, vm = vm, initialText = "",
                 title = "Concern: ${item.orEmpty()}",
                 subtitle = "Describe the concern for this item and pick a category. It's added to the summary and the report automatically.",
                 onCancel = { concernItem = null },
-                onAdd = { cat, text -> if (item != null) vm.addFinding(inspId, cat, "$item: ${text.trim()}", name, null, item = item); concernItem = null },
+                onAdd = { cat, custom, quick -> if (item != null) vm.addFinding(inspId, cat, custom, quick, name, null, item = item); concernItem = null },
             )
         },
     ) {

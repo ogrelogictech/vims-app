@@ -323,7 +323,20 @@ data class Finding(
     val createdAt: Long = System.currentTimeMillis(),
     /** Checklist item question a "Concern(s)" finding was raised from (Standard / High Detail item), else null. */
     val item: String? = null,
-)
+    /**
+     * The two parts of [text], stored separately since Oct 16 (null on older findings, which only have [text]):
+     * the inspector's own words (a Concern finding's is "<item>: <description>", or "<item>") and the picked quick comment.
+     */
+    val custom: String? = null,
+    val quick: String? = null,
+) {
+    /**
+     * What follows the section name on the Summary screen and in the report (client, Oct 16): "custom comment — quick comment",
+     * empty parts left out. Findings saved before the split fall back to their stored [text].
+     */
+    val body: String get() = if (custom == null && quick == null) text
+        else listOfNotNull(custom?.trim()?.takeIf { it.isNotEmpty() }, quick?.trim()?.takeIf { it.isNotEmpty() }).joinToString(" — ").ifEmpty { text }
+}
 
 /** Everything stored for one inspection. `defs` is the checklist snapshot taken when the checklist was built. */
 data class InspectionBundle(
