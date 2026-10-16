@@ -461,3 +461,25 @@ Client update (Oct 12): section 39 Indoor Air Quality uses the new `airReading` 
   the new owner can transfer ownership again." A non-owner admin sees "Only the owner can transfer ownership." under the
   owner row; nobody can reclaim it themselves (no controls on your own row).
 - Screenshots: `screenshots/oct13-*.png`. Test APK: `../../VIMS-Android-test-v0.16.0-2026-10-13.apk`.
+
+## Client requests Oct 16 (v0.17.0)
+
+- **One finding line everywhere:** the Summary screen and the report's Summary of Findings both read **Section** — custom
+  comment — quick comment (empty parts left out, no dangling dash). The PDF keeps its per-category numbering, the app its
+  colored dots; the per-section "Findings" block in the PDF uses the same custom — quick text.
+  `Finding.custom` / `Finding.quick` are stored separately from now on (Flag a finding from a photo, the Concern sheet);
+  `Finding.text` still holds the combined line, and findings saved before the split (no `custom` / `quick`) show their
+  stored `text` (`Finding.body`). Findings are stored as JSON (`findings.json` column), so no Room migration.
+  Flag a finding: the quick-comment dropdown keeps its own choice (with "No quick comment" to clear it) instead of
+  overwriting the Description; Description (custom comment) is required only when no quick comment is picked. From a
+  photo it opens pre-filled with the photo's custom and quick comments. Concern findings: custom = "<item>: <description>",
+  or "<item>" when no description was typed.
+- **Photo markup:** no "Comment" label; the quick-comment dropdown takes the full row (Draw / Stamp labels stay).
+- **Report preview fast scroll:** a thumb on the right edge follows normal scrolling; dragging it jumps through the report
+  with a "Page X of N" bubble. Only the thumb takes touches (pages still scroll under the rest of the edge) and it sits
+  below the top bar. Checked on the phone and at 1600×2560 / 320 dpi, portrait and landscape.
+- **Cover footer:** "This inspection report is the property of <Company name>." — the name comes from the signed-in
+  inspector's Company profile (`{companyName}` in the cover layout) and is underlined in the PDF; the footer still wraps
+  beside the theme art.
+- Screenshots: `screenshots/oct16-*.png` (`oct16-summary-vs-pdf.png` = Summary screen next to the PDF summary page).
+  Test APK: `../../VIMS-Android-test-v0.17.0-2026-10-16.apk`.
