@@ -269,7 +269,7 @@
       +fh
       +'<div class="cvphoto" style="'+box(pb)+'"><img src="'+photo(0,'Front of property')+'" alt="Property"></div>'
       +(art?'<div class="cvartclip" style="'+box([0.5,0.68,7.48,9.52])+'"><img class="cvart" src="'+art.file+'" alt="" style="'+box([art.rect[0]-0.5,art.rect[1]-0.68,art.rect[2],art.rect[3]])+'"></div>':'')
-      +'<div class="cvfoot" style="left:'+inch(fl)+';width:'+inch(fr-fl)+';top:'+inch(9.38)+'">This inspection report is the property of '+COMPANY.name+'.<br>Any reproduction or distribution without written consent is prohibited.'+(STATE==='OR'?'<div style="font-weight:600;margin-top:'+inch(0.05)+'">'+OR_COVER+'</div>':'')+'</div>'
+      +'<div class="cvfoot" style="left:'+inch(fl)+';width:'+inch(fr-fl)+';top:'+inch(9.38)+'">This inspection report is the property of <u>'+COMPANY.name+'</u>.<br>Any reproduction or distribution without written consent is prohibited.'+(STATE==='OR'?'<div style="font-weight:600;margin-top:'+inch(0.05)+'">'+OR_COVER+'</div>':'')+'</div>'
       +'</div>';
   }
   pages.push(coverPage());
@@ -366,7 +366,7 @@
   [1,2,3].forEach(function(cat){
     var items=FIND[cat];
     sm+='<div class="sumcat c'+cat+'"><div class="sh"><div class="cn">'+cat+'</div><div><b>'+meta[cat][0]+'</b> <span>&middot; '+meta[cat][1]+'</span><div class="sh-note">'+subnote[cat]+'</div></div><div class="ct">'+items.length+'</div></div>';
-    items.forEach(function(f,i){ sm+='<div class="sfind"><span class="n">'+(i+1)+'</span><span>'+f[0]+' <span class="sec">('+f[1]+')</span></span></div>'; });
+    items.forEach(function(f,i){ sm+='<div class="sfind"><span class="n">'+(i+1)+'</span><span><b style="color:var(--ink)">'+f[1]+'</b> — '+f[0]+'</span></div>'; });
     sm+='</div>';
   });
   sm+=pfoot(8)+'</div>';
@@ -483,7 +483,7 @@
       var sm='<div class="page">'+rhead()+'<div class="ptitle">Summary of Findings</div><div class="psub">Findings grouped by category</div>'+okBox();
       var F={1:[['Handrail missing at the basement stairs.','I. Structural — I. Stairways'],['No GFCI protection at the exterior receptacles.','II. Electrical — B. Branch Circuits'],['Garage door auto-reverse did not activate.','V. Appliances — G. Garage Door Operators']],2:[['Minor settlement cracks at the NE corner of the slab.','I. Structural — A. Foundations'],['Soil sloped toward the foundation on the north side.','I. Structural — B. Grading and Drainage']],3:[['Front storm door does not latch.','I. Structural — G. Doors']]};
       [1,2,3].forEach(function(cat){ sm+='<div class="sumcat c'+cat+'"><div class="sh"><div class="cn">'+cat+'</div><div><b>'+CATMETA[cat][0]+'</b> <span>&middot; '+CATMETA[cat][1]+'</span><div class="sh-note">'+CATNOTE[cat]+'</div></div><div class="ct">'+F[cat].length+'</div></div>';
-        F[cat].forEach(function(f,i){ sm+='<div class="sfind"><span class="n">'+(i+1)+'</span><span>'+f[0]+' <span class="sec">('+f[1]+')</span></span></div>'; }); sm+='</div>'; });
+        F[cat].forEach(function(f,i){ sm+='<div class="sfind"><span class="n">'+(i+1)+'</span><span><b style="color:var(--ink)">'+f[1]+'</b> — '+f[0]+'</span></div>'; }); sm+='</div>'; });
       return sm+tfoot(n)+'</div>'; });
     total=tp.length+1;
     tp.forEach(function(fn,i){ pages.push(fn(i+2).replace('@T',total)); });

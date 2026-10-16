@@ -754,7 +754,7 @@
     <div class="vtop"><button onclick="closeViewer()" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button><b id="viewer-title">Photo</b><button style="margin-left:auto" onclick="openFinding()" aria-label="Flag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><path d="M4 22v-7"/></svg></button></div>
     <div class="vstage" id="vstage"><img class="vimg" id="vimg" alt="Inspection photo"><canvas id="vcanvas"></canvas></div>
     <div class="vtools">
-      <div class="toolrow"><span style="color:#9aa8ba;font-size:12px;font-family:var(--fm)">Comment</span><select class="qcsel" id="qcsel" onchange="applyQuickComment(this.value)"></select></div>
+      <div class="toolrow"><select class="qcsel" id="qcsel" aria-label="Quick comment" style="flex:1" onchange="applyQuickComment(this.value)"></select></div>
       <div class="toolrow"><input class="qcinput" id="qccustom" placeholder="Custom comment…"></div>
       <div class="toolrow"><span style="color:#9aa8ba;font-size:12px;font-family:var(--fm)">Draw</span><span class="swatch on" style="background:#e5483b" data-color="#e5483b" onclick="pickPen(this)"></span><span class="swatch" style="background:#f0c020" data-color="#f0c020" onclick="pickPen(this)"></span><span class="swatch" style="background:#3d8bf0" data-color="#3d8bf0" onclick="pickPen(this)"></span><button class="tbtn" onclick="undoDraw()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 5 5v1a5 5 0 0 1-5 5H9"/></svg></button><button class="tbtn" onclick="clearDraw()">Clear</button></div>
       <div class="toolrow"><span style="color:#9aa8ba;font-size:12px;font-family:var(--fm)">Stamp</span><button class="tbtn sym" onclick="setStamp('★')">★</button><button class="tbtn sym" onclick="setStamp('↑')">↑</button><button class="tbtn sym" onclick="setStamp('↓')">↓</button><button class="tbtn sym" onclick="setStamp('←')">←</button><button class="tbtn sym" onclick="setStamp('→')">→</button></div>
@@ -4613,7 +4613,7 @@ SEC['Wind Mitigation'].itemsHigh=[
   window.openConcern=function(item){ concernItem=item; setFindHead('Concern: '+item,"Describe the concern for this item and pick a category. It's added to the summary and the report automatically."); var t=document.getElementById('findtext'); t.value=''; var q=document.getElementById('qcsel-find'); if(q) q.value=''; document.getElementById('findmodal').classList.add('on'); setTimeout(function(){ t.focus(); },50); };
   window.closeModal=function(){ document.getElementById('findmodal').classList.remove('on'); };
   window.pickCat=function(b,n){ document.querySelectorAll('.catpick button').forEach(function(x){x.classList.remove('on');}); b.classList.add('on'); curCat=n; };
-  window.saveFinding=function(){ var t=document.getElementById('findtext').value.trim()||'Finding noted'; if(concernItem) t=concernItem+': '+t; FINDINGS.push({cat:curCat,txt:t,sec:curSection,item:concernItem||undefined}); concernItem=null; closeModal(); var rf=document.getElementById('rep-findings'); if(rf)rf.textContent=FINDINGS.length; toast('Finding added to summary'); };
+  window.saveFinding=function(){ var q=(document.getElementById('qcsel-find')||{}).value||''; var c=document.getElementById('findtext').value.trim(); if(c===q) c=''; if(concernItem && c) c=concernItem+': '+c; else if(concernItem && !c && !q) c=concernItem; var t=[c,q].filter(Boolean).join(' — ')||'Finding noted'; FINDINGS.push({cat:curCat,txt:t,custom:c,quick:q,sec:curSection,item:concernItem||undefined}); concernItem=null; closeModal(); var rf=document.getElementById('rep-findings'); if(rf)rf.textContent=FINDINGS.length; toast('Finding added to summary'); };
 
   // quick comments for photos & findings (Jeremy's canned list)
   var QUICK_COMMENTS=[
@@ -4630,6 +4630,8 @@ SEC['Wind Mitigation'].itemsHigh=[
   window.applyQuickComment=function(v){ if(v){ toast('Comment added'); } };
 
   // summary
+  // Finding line, same on the Summary screen and the report (client, Oct 16): Section (bold) — custom comment — quick comment.
+  function findingLine(f){ var parts=(f.custom!==undefined||f.quick!==undefined)?[f.custom,f.quick]:[f.txt]; return '<b>'+f.sec+'</b>'+parts.filter(Boolean).map(function(p){return ' — '+p;}).join(''); }
   function renderSummary(){
     var wrap=document.getElementById('summarywrap'); if(!wrap)return; wrap.innerHTML='';
     var sr=STATE_RULES[sel.state];
@@ -4640,7 +4642,7 @@ SEC['Wind Mitigation'].itemsHigh=[
     [1,2,3].forEach(function(cat){
       var items=FINDINGS.filter(function(f){return f.cat===cat;});
       var box=document.createElement('div'); box.className='sumcat c'+cat;
-      var its=items.map(function(f){return '<div class="sfind c'+cat+'"><span class="dt"></span><div><b>'+f.sec+'</b> — '+f.txt+'</div></div>';}).join('')||'<div class="empty">No findings in this category.</div>';
+      var its=items.map(function(f){ return '<div class="sfind c'+cat+'"><span class="dt"></span><div>'+findingLine(f)+'</div></div>';}).join('')||'<div class="empty">No findings in this category.</div>';
       box.innerHTML='<div class="sh"><div class="cn">'+cat+'</div><div><b>'+meta[cat][0]+'</b><span> · '+meta[cat][1]+'</span><div class="sh-note">'+subnote[cat]+'</div></div><div class="cnt">'+items.length+'</div></div>'+its;
       wrap.appendChild(box);
     });
