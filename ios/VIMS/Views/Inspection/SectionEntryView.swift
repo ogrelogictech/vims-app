@@ -47,14 +47,14 @@ struct SectionEntryView: View {
             .sheet(item: $findingPrompt) { prompt in
                 switch prompt {
                 case .flag:
-                    FindingSheet(section: section) { cat, text in
-                        store.addFinding(inspectionID, category: cat, text: text, section: section)
+                    FindingSheet(section: section) { cat, custom, quick in
+                        store.addFinding(inspectionID, category: cat, custom: custom, quick: quick, section: section)
                     }
                 case .concern(let item):
                     // Client Oct 9: choosing "Concerns" / "Concern" on a Standard / High Detail item opens this.
                     FindingSheet(section: section, title: "Concern: \(item)",
-                                 subtitle: "Describe the concern for this item and pick a category. It's added to the summary and the report automatically.") { cat, text in
-                        store.addFinding(inspectionID, category: cat, text: text, section: section, item: item)
+                                 subtitle: "Describe the concern for this item and pick a category. It's added to the summary and the report automatically.") { cat, custom, quick in
+                        store.addFinding(inspectionID, category: cat, custom: custom, quick: quick, section: section, item: item)
                     }
                 }
             }
@@ -551,19 +551,22 @@ struct FindingSheet: View {
     let section: String
     var title = "Flag a finding"
     var subtitle = "Pick a category and add a note. It's added to the summary and the report automatically."
-    let onAdd: (Int, String) -> Void
+    /// (category, custom comment = the Description, quick comment) — stored apart (client Oct 16).
+    let onAdd: (Int, String, String?) -> Void
 
     @State private var category = 2
     @State private var text: String
     @State private var quick: String?
+    @State private var missingDescription = false
 
-    init(section: String, initialText: String = "", title: String? = nil, subtitle: String? = nil,
-         onAdd: @escaping (Int, String) -> Void) {
+    init(section: String, initialText: String = "", initialQuick: String? = nil, title: String? = nil, subtitle: String? = nil,
+         onAdd: @escaping (Int, String, String?) -> Void) {
         self.section = section
         if let title { self.title = title }
         if let subtitle { self.subtitle = subtitle }
         self.onAdd = onAdd
         _text = State(initialValue: initialText)
+        _quick = State(initialValue: initialQuick)
     }
 
     var body: some View {
@@ -597,13 +600,23 @@ struct FindingSheet: View {
                 .padding(.bottom, 14)
 
                 FieldLabel(text: "Quick comment").padding(.bottom, 7)
-                QuickCommentMenu(placeholder: "Pick a quick comment…", selection: $quick, dark: false) { text = $0 }
+                // The pick stays in its own field (it's the finding's quick comment); the Description is the custom comment.
+                QuickCommentMenu(placeholder: "Pick a quick comment…", selection: $quick, dark: false, noneLabel: "No quick comment") { _ in
+                    missingDescription = false
+                }
                     .padding(.bottom, 13)
-                VTextArea(label: "Description", text: $text, placeholder: "Describe the concern…")
+                // Required only when no quick comment is picked (matches Android, Oct 16).
+                VTextArea(label: "Description", text: $text, placeholder: "Describe the concern…",
+                          error: missingDescription ? "Describe the finding or pick a quick comment." : nil)
+                    .onChange(of: text) { _, t in if !t.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { missingDescription = false } }
                 HStack(spacing: 10) {
                     Button("Cancel") { dismiss() }.buttonStyle(.vGhost)
                     Button("Add finding") {
-                        onAdd(category, text)
+                        guard quick != nil || !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                            missingDescription = true
+                            return
+                        }
+                        onAdd(category, text, quick)
                         dismiss()
                     }
                     .buttonStyle(.vPrimary)
@@ -628,7 +641,9 @@ struct QuickCommentMenu: View {
     let placeholder: String
     @Binding var selection: String?
     var dark = false
-    let onPick: (String) -> Void
+    /// When set, the list starts with this row, which clears the selection (Flag a finding: "No quick comment").
+    var noneLabel: String? = nil
+    let onPick: (String?) -> Void
     @State private var showList = false
     @State private var fieldWidth: CGFloat = 320
 
@@ -652,7 +667,7 @@ struct QuickCommentMenu: View {
             .accessibilityHint("Shows the quick comments")
     }
 
-    private func pick(_ c: String) {
+    private func pick(_ c: String?) {
         selection = c
         onPick(c)
         showList = false
@@ -661,6 +676,21 @@ struct QuickCommentMenu: View {
     private var rows: some View {
         let comments = store.config.findings.quickComments
         return VStack(spacing: 0) {
+            if let noneLabel {
+                Button { pick(nil) } label: {
+                    HStack(spacing: 10) {
+                        Text(noneLabel).font(VFont.ui(15)).foregroundStyle(VC.ink3)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        if selection == nil { ProtoIcon("check", size: 16, lineWidth: 2.4).foregroundStyle(VC.brand) }
+                    }
+                    .padding(.horizontal, 16).padding(.vertical, 12)
+                    .frame(minHeight: 48)
+                    .overlay(alignment: .bottom) { Rectangle().fill(VC.line2).frame(height: 1) }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(PressableStyle())
+                .accessibilityAddTraits(selection == nil ? .isSelected : [])
+            }
             ForEach(Array(comments.enumerated()), id: \.offset) { i, c in
                 Button { pick(c) } label: {
                     HStack(spacing: 10) {
@@ -706,7 +736,7 @@ struct QuickCommentMenu: View {
         let comments = store.config.findings.quickComments
         return ScrollView { rows }
             .frame(width: max(fieldWidth, 320))
-            .frame(minHeight: 200, idealHeight: min(CGFloat(comments.count) * 49 + 4, 460), maxHeight: 460)
+            .frame(minHeight: 200, idealHeight: min(CGFloat(comments.count + (noneLabel == nil ? 0 : 1)) * 49 + 4, 520), maxHeight: 520)
             .background(VC.paper)
             .presentationCompactAdaptation(.popover)
     }

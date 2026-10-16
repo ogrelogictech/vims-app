@@ -750,9 +750,10 @@ enum ReportRenderer {
                 if span.min - fl >= frr - span.max { frr = max(span.min - 0.05, 3.6) } else { fl = min(span.max + 0.05, 4.9) }
             }
             let footX = inch(fl), footW = inch(frr - fl)
-            let ownership = L.footer.text.replacingOccurrences(of: "{companyName}", with: d.companyName)
+            // Client Oct 16: the signed-in company's name (Company profile) is underlined.
             let ff = times(CGFloat(L.footer.size), bold: true), nf = times(9.5, bold: true)
-            let ownH = measureCentered(ownership, ff, w: footW)
+            let ownership = ownershipAttr(L.footer.text, ff)
+            let ownH = measureAttr(ownership, w: footW)
             let noticeH = d.coverNotice.isEmpty ? 0 : measureCentered(d.coverNotice, nf, w: footW) + 4
             let footH = ownH + noticeH
             let footY = min(inch(L.footer.centerY) - footH / 2, box.maxY - 6 - footH)
@@ -777,7 +778,7 @@ enum ReportRenderer {
                 cg.restoreGState()
             }
             // the footer text stays in front where wide art still reaches it (the client's Fall / 4th of July covers)
-            textCentered(ownership, ff, x: footX, y: footY, w: footW)
+            ownership.draw(with: CGRect(x: footX, y: footY, width: footW, height: ownH + 2), options: [.usesLineFragmentOrigin, .usesFontLeading], context: nil)
             if !d.coverNotice.isEmpty { textCentered(d.coverNotice, nf, x: footX, y: footY + ownH + 4, w: footW) }
         }
 
@@ -787,6 +788,25 @@ enum ReportRenderer {
             p.lineBreakMode = .byWordWrapping
             p.lineHeightMultiple = 1.08
             return NSAttributedString(string: s, attributes: [.font: font, .foregroundColor: UIColor.black, .paragraphStyle: p])
+        }
+
+        /// Cover ownership notice: `{companyName}` → the company's name, underlined; the rest as `centeredAttr`.
+        private func ownershipAttr(_ template: String, _ font: UIFont) -> NSAttributedString {
+            let parts = template.components(separatedBy: "{companyName}")
+            let a = NSMutableAttributedString()
+            for (i, part) in parts.enumerated() {
+                if i > 0 {
+                    let name = NSMutableAttributedString(attributedString: centeredAttr(d.companyName, font))
+                    name.addAttribute(.underlineStyle, value: NSUnderlineStyle.single.rawValue, range: NSRange(location: 0, length: name.length))
+                    a.append(name)
+                }
+                a.append(centeredAttr(part, font))
+            }
+            return a
+        }
+
+        private func measureAttr(_ a: NSAttributedString, w: CGFloat) -> CGFloat {
+            ceil(a.boundingRect(with: CGSize(width: w, height: .greatestFiniteMagnitude), options: [.usesLineFragmentOrigin, .usesFontLeading], context: nil).height)
         }
 
         func measureCentered(_ s: String, _ font: UIFont, w: CGFloat) -> CGFloat {
@@ -967,25 +987,34 @@ enum ReportRenderer {
             y += h + 14
         }
 
+        /// Section pages: "Cat N" badge + "custom — quick". Summary of Findings: the per-category number and the same
+        /// line as the app's Summary screen (client Oct 16) — **Section** — custom comment — quick comment.
         func findingLine(_ f: Finding, number: Int?) {
             let lead: CGFloat = 26
             let label = number.map(String.init) ?? "Cat \(f.category)"
-            let body = number == nil ? f.text : "\(f.text) (\(f.section))"
-            let h = measure(body, VFont.uUI(9.2), w: contentW - lead - 20) + 12
-            ensure(h)
             if number == nil {
+                let body = f.detail
+                let h = measure(body, VFont.uUI(9.2), w: contentW - lead - 20) + 12
+                ensure(h)
                 let c = [UIColor(hex: 0xD0584A), UIColor(hex: 0xC98A1A), UIColor(hex: 0x2F9E6B)][max(0, min(2, f.category - 1))]
                 fill(CGRect(x: m + 4, y: y + 6, width: 30, height: 13), c, radius: 6.5)
                 text(label, VFont.uUI(7, .bold), .white, x: m + 4, y: y + 7.5, w: 30, align: .center)
                 text(body, VFont.uUI(9.2), ink2, x: m + 42, y: y + 5, w: contentW - 50)
+                hline(y + h - 0.6, x: m, w: contentW, line2)
+                y += h
             } else {
+                let p = NSMutableParagraphStyle(); p.lineSpacing = 1.5
+                let a = NSMutableAttributedString(string: f.section, attributes: [.font: VFont.uUI(9.2, .bold), .foregroundColor: ink, .paragraphStyle: p])
+                a.append(NSAttributedString(string: f.lineParts.map { " — \($0)" }.joined(), attributes: [.font: VFont.uUI(9.2), .foregroundColor: ink2, .paragraphStyle: p]))
+                let w = contentW - lead - 24
+                let h = ceil(a.boundingRect(with: CGSize(width: w, height: .greatestFiniteMagnitude),
+                                            options: [.usesLineFragmentOrigin, .usesFontLeading], context: nil).height) + 12
+                ensure(h)
                 text(label, VFont.uUI(9.2, .bold), ink, x: m + 12, y: y + 5, w: 20)
-                let a = NSMutableAttributedString(string: f.text + " ", attributes: [.font: VFont.uUI(9.2), .foregroundColor: ink2])
-                a.append(NSAttributedString(string: "(\(f.section))", attributes: [.font: VFont.uUI(9.2), .foregroundColor: ink3]))
-                a.draw(with: CGRect(x: m + 12 + lead, y: y + 5, width: contentW - lead - 24, height: h), options: [.usesLineFragmentOrigin, .usesFontLeading], context: nil)
+                a.draw(with: CGRect(x: m + 12 + lead, y: y + 5, width: w, height: h), options: [.usesLineFragmentOrigin, .usesFontLeading], context: nil)
+                hline(y + h - 0.6, x: m, w: contentW, line2)
+                y += h
             }
-            hline(y + h - 0.6, x: m, w: contentW, line2)
-            y += h
         }
 
         func photos(_ s: ReportSection) {

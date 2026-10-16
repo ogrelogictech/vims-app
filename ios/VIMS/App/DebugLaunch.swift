@@ -24,6 +24,8 @@ enum DebugFlags {
     static var openCommentList = false
     static var openPreview = false
     static var openShare = false
+    /// -scrubTo F: the PDF preview scrolls to fraction F (0…1) and holds the page scroller's dragged look.
+    static var scrubTo: CGFloat?
 }
 
 #if DEBUG
@@ -56,6 +58,12 @@ enum DebugFlags {
 ///   -openPicker                with -screen wizard: open the State picker
 ///   -openComment               with -screen markup: open the quick-comment list
 ///   -openPreview               with -screen reportReady / report: open the PDF preview
+///   -scrubTo F                 with -openPreview: scroll the PDF to fraction F (0…1) and hold the page scroller's
+///                              dragged look ("Page X of N" bubble) for review screenshots
+///   -photoComment TEXT         with -screen markup / flag: the section's photos carry this saved comment
+///                              (e.g. "<quick comment> — <custom>", split back into the two fields)
+///   -sampleFindings            replace the chosen inspection's findings with the client's Oct 16 examples (+ one legacy)
+///   -companyName NAME          rename the signed-in company (Company profile name; report cover footer check)
 ///   -openShare                 with -screen reportReady: Email to client (share sheet without Mail);
 ///                              with -screen agreement: Download (agreement PDF share sheet)
 ///   -validate                  submit the form once so its validation errors show
@@ -169,6 +177,26 @@ enum DebugLaunch {
         print("IAQTEST mode=\(mode) depth=\(depth.rawValue) readings=\(keyed.filter { $0.item.kind == .airReading }.count)")
     }
 
+    /// -sampleFindings: replace the chosen inspection's findings with the client's Oct 16 examples, added through
+    /// `addFinding` like the Flag a finding / Concern / photo sheets, plus one pre-Oct 16 finding (text only).
+    @MainActor
+    static func seedOct16Findings(_ store: AppStore, _ id: UUID) {
+        store.update(id, markDirty: false) { $0.findings = [] }
+        let q = store.config.findings.quickComments
+        store.addFinding(id, category: 1, custom: "", quick: q[3], section: "Landscaping")
+        store.addFinding(id, category: 1, custom: "lets see how this attaches to the summary", quick: nil, section: "Exterior Walls")
+        // photo flag carried over as "quick — custom": the quick copy is dropped from the custom part
+        store.addFinding(id, category: 1, custom: "\(q[1]) — insulation is dry and cracking and falling off the coolant line", quick: q[1], section: "Outside Utilities")
+        store.addFinding(id, category: 2, custom: "water is leaking from the bottom of the swamp cooler I recommend adjusting the float to better control water levels in the pan",
+                         quick: q[4], section: "Outside Utilities")
+        store.addFinding(id, category: 2, custom: "loose at the northeast corner", quick: q[6], section: "Roof", item: "Gutters")
+        store.addFinding(id, category: 3, custom: "", quick: q[6], section: "Roof", item: "Flashing")
+        store.update(id, markDirty: false) {
+            $0.findings.append(Finding(category: 3, text: "Minor settling crack in the garage slab — monitor.", section: "Garage"))
+        }
+        for f in store.inspection(id)?.findings ?? [] { print("FINDINGTEST cat=\(f.category) \(f.section) | custom=\(f.custom ?? "nil") | quick=\(f.quick ?? "nil") | line=\(f.section) — \(f.detail)") }
+    }
+
     @MainActor
     static func apply(to store: AppStore) {
         let screen = value("-screen")
@@ -206,6 +234,8 @@ enum DebugLaunch {
             store.state.subscription.startedAt = Calendar.current.date(byAdding: .day, value: -2, to: Date())
             store.state.subscription.cancelledAt = nil
         }
+        // -companyName NAME: rename the signed-in company, as Company profile → Company name → Save does.
+        if let n = value("-companyName"), store.session != nil { store.state.company.name = n }
         if let v = value("-eulaVersion") { store.eula.version = v }
         if (screen != nil || has("-skipLogin")), !has("-eulaGate"), value("-eulaVersion") == nil { DebugFlags.skipEulaGate = true }
         if has("-eulaStatus"), let repo = store.repo as? SwiftDataRepository {
@@ -271,6 +301,7 @@ enum DebugLaunch {
         if has("-openComment") { DebugFlags.openCommentList = true }
         if has("-openPreview") { DebugFlags.openPreview = true }
         if has("-openShare") { DebugFlags.openShare = true }
+        if let f = value("-scrubTo").flatMap(Double.init) { DebugFlags.scrubTo = CGFloat(f) }
         if let g = value("-group") { DebugFlags.adminGroup = g }
         // Screens that don't need an inspection.
         let general: [String: [Route]] = [
@@ -307,8 +338,16 @@ enum DebugLaunch {
         }
         if let d = value("-depth"), let depth = Depth(rawValue: d) { store.update(id, markDirty: false) { $0.depth = depth } }
         if let mode = value("-iaq") { seedAirQuality(store, id, mode: mode) }
+        if has("-sampleFindings") { seedOct16Findings(store, id) }
         let depth = store.inspection(id)?.depth ?? .standard
         let section = value("-section") ?? (ridge.leafSections.contains("Roof") ? (depth == .high ? "Outside Utilities" : "Roof") : (ridge.leafSections.first ?? "Roof"))
+
+        // -photoComment TEXT: that section's photos carry this saved comment (markup / flag prefill checks).
+        if let pc = value("-photoComment") {
+            store.update(id, markDirty: false) { insp in
+                for (c, arr) in insp.photos[section] ?? [:] { for i in arr.indices { insp.photos[section]?[c]?[i].comment = pc } }
+            }
+        }
 
         switch screen {
         case "login": break

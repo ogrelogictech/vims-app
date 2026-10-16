@@ -500,14 +500,19 @@ final class AppStore {
 
     // MARK: Findings
 
-    /// `item`: a checklist item's question when the finding comes from its "Concern(s)" answer — the text is then
-    /// "<item>: <description>" (prototype `saveFinding`), and the item is kept on the finding.
-    func addFinding(_ id: UUID, category: Int, text: String, section: String, photo: (String, UUID)? = nil, item: String? = nil) {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        var t = trimmed.isEmpty ? "Finding noted" : trimmed
-        if let item { t = "\(item): \(t)" }
+    /// `custom` is the typed comment, `quick` the canned quick comment (client Oct 16: stored apart, shown as
+    /// "Section — custom — quick"). `item`: a checklist item's question when the finding comes from its "Concern(s)"
+    /// answer — the custom part is then "<item>: <description>", or just "<item>" without a description, and the
+    /// item is kept on the finding.
+    func addFinding(_ id: UUID, category: Int, custom: String, quick: String? = nil, section: String,
+                    photo: (String, UUID)? = nil, item: String? = nil) {
+        let q = (quick ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        var c = Finding.customPart(custom, quick: q)
+        if let item { c = c.isEmpty ? item : "\(item): \(c)" }
+        if c.isEmpty && q.isEmpty { c = "Finding noted" }
+        let text = [c, q].filter { !$0.isEmpty }.joined(separator: " — ")
         update(id) { insp in
-            insp.findings.append(Finding(category: category, text: t, section: section, photoID: photo?.1, item: item))
+            insp.findings.append(Finding(category: category, text: text, section: section, photoID: photo?.1, item: item, custom: c, quick: q))
             if let (cat, pid) = photo, let i = insp.photos[section]?[cat]?.firstIndex(where: { $0.id == pid }) {
                 insp.photos[section]?[cat]?[i].flag = category
             }

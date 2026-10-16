@@ -550,3 +550,32 @@ Screenshots: `screenshots/oct12-*.png` — `ipad-01…18` 13" (landscape 01–13
   account, Sam Rivera / inspect2026, on the demo company; then `-signInAs EMAIL`), `-agreementScroll first|last|N` in the
   agreement editor, `-editedAgreement` now saves the block format. UI-test plans gained `tapField` (a text field by label
   or placeholder). Screenshots: `screenshots/oct13-*.png` (iPhone 17; `oct13-ipad-*` on iPad Pro 13", portrait).
+
+## Client round Oct 16 (finding line, photo markup, report scroll bar, cover footer)
+
+- **One finding line everywhere:** the Summary screen and the PDF's Summary of Findings both read
+  **Section** — custom comment — quick comment (empty parts dropped, no dangling dashes); the PDF keeps its per-category
+  numbering, the app its colored dots. The per-section "Findings" block in the PDF uses the same "custom — quick" wording.
+  `Finding` gained optional `custom` / `quick` (stored apart from now on, plus the combined `text`); findings saved
+  before Oct 16 have neither and show their stored `text` unchanged (`Finding.lineParts` / `detail`). TODO(backend): sync both fields.
+- **Flag a finding / Concern / photo flag** (`FindingSheet`, `AppStore.addFinding(custom:quick:…)`): picking a quick
+  comment no longer overwrites the Description; the dropdown keeps its own value and starts with "No quick comment".
+  The Description is required only when no quick comment is picked ("Describe the finding or pick a quick comment.").
+  Concern findings: custom = "<item>: <description>", or "<item>" alone (so "**Section** — <item> — <quick>"). From a
+  photo, the sheet is prefilled with the photo's quick and custom comments (a saved "quick — custom" photo comment is
+  split back into the two fields; a description that repeats the quick comment is not stored twice).
+- **Photo markup:** no "Comment" label; the quick-comment dropdown takes the full row ("Draw" / "Stamp" labels stay).
+- **Report preview scroll bar** (`Views/Inspection/PDFScrubber.swift`, used by both the Generate-report preview and
+  the generated-PDF preview): a draggable blue thumb on the right edge, below the top bar; only the thumb takes
+  touches (normal scrolling everywhere else), a "Page X of N" bubble shows while dragging or scrolling and fades 1.2 s
+  after, the thumb dims when idle. Follows pinch-zoom, rotation and iPad window resizes; VoiceOver: adjustable, one
+  page per swipe.
+- **Cover footer:** "This inspection report is the property of <Company name>." with the name underlined; the name is
+  the signed-in company's Company profile name (`state.company.name` → `ReportData.companyName`, `{companyName}` in the
+  JSON template — nothing hard-coded). Still wraps beside the theme art.
+- DEBUG: `-sampleFindings` (the client's Oct 16 examples through `addFinding`, plus one pre-Oct 16 finding; prints
+  FINDINGTEST lines), `-photoComment TEXT` (markup / flag prefill), `-companyName NAME` (rename the company),
+  `-scrubTo F` (with `-openPreview`: scroll to fraction F and hold the dragged look).
+- Screenshots: `screenshots/oct16-*.png` — 01 Summary screen vs PDF summary page, 02–05 markup / flag sheet, 06–08
+  iPhone scroll bar (held, dragged, idle), 09–10 iPad Pro 13" portrait / landscape, 11–12 cover footer (demo company /
+  renamed company).

@@ -617,11 +617,12 @@ struct VTextArea: View {
     var placeholder: String = ""
     var minHeight: CGFloat = 84
     var maxLength: Int? = nil
+    var error: String? = nil
     @FocusState private var focused: Bool
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
             if let label { FieldLabel(text: label) }
-            FieldBox(focused: focused, minHeight: minHeight) {
+            FieldBox(focused: focused, minHeight: minHeight, error: error != nil) {
                 FilteredField(text: $text, kind: maxLength.map { .plain(max: $0) },
                               prompt: Text(placeholder).foregroundStyle(VC.placeholder), axis: .vertical)
                     .lineLimit(3...12)
@@ -629,6 +630,7 @@ struct VTextArea: View {
                     .focused($focused)
                     .frame(minHeight: minHeight - 24, alignment: .topLeading)
             }
+            if let error { FieldError(text: error) }
         }
         .padding(.bottom, 13)
     }

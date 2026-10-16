@@ -320,7 +320,11 @@ struct PhotoMarkupView: View {
                 darkButton("close", label: "Close") { dismiss() }
                 Text("\(section) — \(category)").font(VFont.ui(14, .semibold)).foregroundStyle(.white).lineLimit(1)
                 Spacer()
-                darkButton("flag", label: "Flag a finding") { showFinding = true }
+                darkButton("flag", label: "Flag a finding") {
+                    // Commit the custom comment being typed (incl. keyboard marked text) so the sheet gets all of it.
+                    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                    DispatchQueue.main.async { showFinding = true }
+                }
             }
             .padding(.horizontal, 14).padding(.top, 14).padding(.bottom, 10)
 
@@ -362,10 +366,8 @@ struct PhotoMarkupView: View {
             .clipped()
 
             VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 9) {
-                    toolLabel("Comment")
-                    QuickCommentMenu(placeholder: "Add a quick comment…", selection: $quick, dark: true) { _ in }
-                }
+                // Client Oct 16: no "Comment" label — the quick-comment dropdown takes the full row.
+                QuickCommentMenu(placeholder: "Add a quick comment…", selection: $quick, dark: true) { _ in }
                 FilteredTextField(text: $custom, kind: .plain(max: 200), placeholder: "Custom comment…", font: VFont.uUI(13),
                                   textColor: .white, placeholderColor: UIColor(hex: 0x9AA8BA), tint: .white)
                     .padding(.horizontal, 11).frame(minHeight: 44)
@@ -413,15 +415,19 @@ struct PhotoMarkupView: View {
         .onAppear {
             if let ref = store.photo(inspectionID, section: section, category: category, photoID: photoID) {
                 image = UIImage(contentsOfFile: store.repo.url(for: ref.file).path)
+                // The saved photo comment is "quick — custom" (combinedComment): split it back into the two fields.
                 if let c = ref.comment {
-                    if store.config.findings.quickComments.contains(c) { quick = c } else { custom = c }
+                    if let q = store.config.findings.quickComments.filter({ c == $0 || c.hasPrefix($0 + " — ") }).max(by: { $0.count < $1.count }) {
+                        quick = q
+                        custom = Finding.customPart(c, quick: q)
+                    } else { custom = c }
                 }
             }
             if DebugFlags.openFlag { DebugFlags.openFlag = false; showFinding = true }
         }
         .sheet(isPresented: $showFinding) {
-            FindingSheet(section: section, initialText: combinedComment() ?? "") { cat, text in
-                store.addFinding(inspectionID, category: cat, text: text, section: section, photo: (category, photoID))
+            FindingSheet(section: section, initialText: custom.trimmingCharacters(in: .whitespacesAndNewlines), initialQuick: quick) { cat, text, q in
+                store.addFinding(inspectionID, category: cat, custom: text, quick: q, section: section, photo: (category, photoID))
             }
         }
     }

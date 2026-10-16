@@ -122,6 +122,33 @@ struct Finding: Codable, Hashable, Identifiable {
     /// The checklist item a "Concern(s)" answer was flagged on (its question), nil for a section / photo finding.
     /// Optional so findings saved before it still decode. TODO(backend): sync with the finding.
     var item: String? = nil
+    /// Client Oct 16: the custom comment (a Concern's "<item>: <description>") and the quick comment, kept apart so
+    /// the Summary screen and the report print "Section — custom — quick". nil on findings saved before that; they
+    /// fall back to `text`, which stays the combined "custom — quick" line. TODO(backend): sync with the finding.
+    var custom: String? = nil
+    var quick: String? = nil
+
+    /// The comment parts after the bold section name, empty ones dropped (prototype `findingLine`).
+    var lineParts: [String] {
+        let parts = (custom != nil || quick != nil) ? [custom ?? "", quick ?? ""] : [text]
+        return parts.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+    }
+
+    /// "custom — quick" (or the stored text) — the finding without its section.
+    var detail: String { lineParts.joined(separator: " — ") }
+
+    /// The typed comment without a copy of the picked quick comment (a description that repeats it, or starts with
+    /// it, e.g. a photo comment carried over as "quick — custom"), so the line never shows the quick comment twice.
+    static func customPart(_ typed: String, quick: String) -> String {
+        var c = typed.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !quick.isEmpty else { return c }
+        if c == quick { return "" }
+        if c.hasPrefix(quick) {
+            c = String(c.dropFirst(quick.count))
+            c = String(c.drop { $0.isWhitespace || "—–-:;,.".contains($0) })
+        }
+        return c
+    }
 }
 
 // MARK: - Cover

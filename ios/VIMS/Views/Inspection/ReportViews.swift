@@ -76,7 +76,9 @@ struct SummaryCategoryCard: View {
             ForEach(findings) { f in
                 HStack(alignment: .top, spacing: 10) {
                     Circle().fill(VC.category(category.id)).frame(width: 7, height: 7).padding(.top, 6)
-                    (Text(f.section).font(VFont.ui(13.5, .bold)).foregroundColor(VC.ink) + Text(" — \(f.text)").font(VFont.ui(13.5)).foregroundColor(VC.ink2))
+                    // Same line as the report's Summary of Findings (client Oct 16): Section (bold) — custom — quick.
+                    (Text(f.section).font(VFont.ui(13.5, .bold)).foregroundColor(VC.ink)
+                        + Text(f.lineParts.map { " — \($0)" }.joined()).font(VFont.ui(13.5)).foregroundColor(VC.ink2))
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -525,18 +527,27 @@ struct PDFPreviewSheet: View {
     }
 }
 
+/// The PDF with the draggable page scroller on its right edge (client Oct 16, `PDFScrubber.swift`).
 struct PDFKitView: UIViewRepresentable {
     let url: URL
-    func makeUIView(context: Context) -> PDFView {
-        let v = FitWidthPDFView()
+    func makeUIView(context: Context) -> ScrubbablePDFView {
+        let c = ScrubbablePDFView()
+        let v = c.pdfView
         v.autoScales = true
         v.displayMode = .singlePageContinuous
         v.backgroundColor = UIColor(hex: 0x0C1119)
         v.document = PDFDocument(url: url)
-        return v
+        c.backgroundColor = UIColor(hex: 0x0C1119)
+        #if DEBUG
+        if let f = DebugFlags.scrubTo {
+            DebugFlags.scrubTo = nil
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { c.demoScrub(to: f) }
+        }
+        #endif
+        return c
     }
-    func updateUIView(_ v: PDFView, context: Context) {
-        if v.document?.documentURL != url { v.document = PDFDocument(url: url) }
+    func updateUIView(_ c: ScrubbablePDFView, context: Context) {
+        if c.pdfView.document?.documentURL != url { c.pdfView.document = PDFDocument(url: url) }
     }
 }
 
