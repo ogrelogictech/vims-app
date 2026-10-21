@@ -26,6 +26,10 @@ enum FieldKind: Equatable {
     case expiry
     case cvc(amex: Bool)
     case zip
+    /// Inspection City (client Oct 17): letters, spaces, . ' - (Coeur d'Alene, St. George, Winston-Salem), max 60.
+    case city
+    /// Inspection ZIP code (client Oct 17): digits, "-" inserted after the 5th digit → 84015 or 84015-1234.
+    case usZip
     case sectionName
     case question
     case option
@@ -42,7 +46,8 @@ enum FieldKind: Equatable {
         case .year: return 4
         case .sectionName, .option: return 60
         case .question: return 120
-        case .zip: return 10
+        case .zip, .usZip: return 10
+        case .city: return 60
         default: return nil
         }
     }
@@ -131,13 +136,19 @@ extension FieldKind {
         case .zip:
             // US 84015 / 84015-1234, Canada K1A 0B1, UK SW1A 1AA.
             s = String(s.filter { ($0.isASCII && ($0.isLetter || $0.isNumber)) || $0 == " " || $0 == "-" }).uppercased()
+        case .city:
+            s = String(s.filter { $0.isLetter || $0 == " " || $0 == "." || $0 == "'" || $0 == "’" || $0 == "-" })
+        case .usZip:
+            let d = String(s.filter { $0.isASCII && $0.isNumber }.prefix(9))
+            s = d.count > 5 ? "\(d.prefix(5))-\(d.dropFirst(5))" : d
         case .number(let limits):
             s = Validator.decimalOnly(s, maxDecimals: nil, grouping: limits.grouping)
         case .price:
             s = Validator.decimalOnly(s, maxDecimals: 2)
         case .temperature:
-            let neg = s.hasPrefix("-")
-            s = (neg ? "-" : "") + String(s.filter(\.isNumber))
+            // QA Oct 14: optional leading "-" and one decimal point (72.5, -4.5), one digit after it.
+            let neg = s.hasPrefix("-") || s.hasPrefix("−")
+            s = (neg ? "-" : "") + Validator.decimalOnly(s, maxDecimals: 1)
         case .cardNumber:
             s = Validator.formatCard(s)
         case .expiry:
@@ -290,7 +301,9 @@ enum Validator {
                 return d <= 0 ? "Enter a number greater than 0" : "Enter a number of at least \(Fmt.grouped(l.min))"
             }
         case .temperature:
-            guard let t = Int(v), (-60...140).contains(t) else { return "Enter a temperature between -60 and 140" }
+            guard let t = Double(v.replacingOccurrences(of: "−", with: "-")), t.isFinite, (-60...140).contains(t) else {
+                return "Enter a temperature between -60 and 140"
+            }
         case .url:
             let lower = v.lowercased()
             guard lower.hasPrefix("https://") || lower.hasPrefix("http://"),
@@ -313,6 +326,10 @@ enum Validator {
             if year > cy + 20 { return "Enter a valid expiry date" }
         case .cvc(let amex):
             if v.filter(\.isNumber).count != (amex ? 4 : 3) { return amex ? "Enter the 4-digit CVC" : "Enter the 3-digit CVC" }
+        case .city:
+            if !v.contains(where: \.isLetter) { return "Enter a valid city" }
+        case .usZip:
+            if v.range(of: #"^\d{5}(-\d{4})?$"#, options: .regularExpression) == nil { return "Enter a 5-digit ZIP code or ZIP+4 (84015-1234)" }
         case .zip:
             if !(3...10).contains(v.count) || !v.contains(where: { $0.isLetter || $0.isNumber }) {
                 return "Enter a valid billing ZIP / postal code"

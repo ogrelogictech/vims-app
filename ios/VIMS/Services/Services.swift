@@ -69,6 +69,37 @@ final class LocalAuthService: AuthService {
 
 // MARK: - Subscription (Square)
 
+/// The remembered payment card: a DISPLAY reference only (brand, last 4, expiry) — a placeholder for Square's card-on-file
+/// id (TODO(backend): Square Cards API customer card id in `squareCardID`). The card number and CVC are never stored.
+struct CardOnFile: Codable, Hashable {
+    var brand: String
+    var last4: String
+    var expMonth: Int
+    var expYear: Int          // 4 digits
+    var squareCardID: String? = nil
+
+    init(brand: String, last4: String, expMonth: Int, expYear: Int, squareCardID: String? = nil) {
+        self.brand = brand; self.last4 = last4; self.expMonth = expMonth; self.expYear = expYear; self.squareCardID = squareCardID
+    }
+
+    /// From the entered card: brand, last 4 and the MM/YY expiry (nil when the expiry can't be read).
+    init?(_ c: CardEntry) {
+        let d = c.expiry.filter(\.isNumber)
+        guard d.count == 4, let mm = Int(d.prefix(2)), let yy = Int(d.suffix(2)), (1...12).contains(mm), c.last4.count == 4 else { return nil }
+        self.init(brand: c.brand, last4: c.last4, expMonth: mm, expYear: 2000 + yy)
+    }
+
+    var expiryLabel: String { String(format: "%02d/%02d", expMonth, expYear % 100) }
+    /// "Visa •••• 4242 (exp 08/28)"
+    var display: String { "\(brand) •••• \(last4) (exp \(expiryLabel))" }
+
+    func isExpired(now: Date = Date()) -> Bool {
+        let cal = Calendar(identifier: .gregorian)
+        let y = cal.component(.year, from: now), m = cal.component(.month, from: now)
+        return expYear < y || (expYear == y && expMonth < m)
+    }
+}
+
 struct CardEntry {
     var number: String
     var expiry: String
@@ -84,9 +115,16 @@ struct CardEntry {
     }
 }
 
+/// How a subscription is paid: a newly entered card, or the card on file (QA Oct 14: "remember the card").
+enum SubscriptionPayment {
+    case newCard(CardEntry)
+    case cardOnFile(CardOnFile)
+}
+
 protocol SubscriptionService {
-    /// Returns a display label for the stored payment method, e.g. "Square · Visa ····4242".
-    func startSubscription(planID: String, seats: Int, card: CardEntry) async throws -> String
+    /// Starts / updates the subscription. Returns a display label for the payment method ("Square · Visa ····4242") and
+    /// the card-on-file reference to remember (never the card number or CVC).
+    func startSubscription(planID: String, seats: Int, payment: SubscriptionPayment) async throws -> (label: String, card: CardOnFile)
     /// Stops renewal at the end of the current billing period (EULA 12.3: no refunds or prorated charges).
     func cancelSubscription() async throws
     /// Undoes a pending cancellation before the period ends; auto-pay continues.
@@ -97,10 +135,21 @@ protocol SubscriptionService {
 // The real flow tokenizes the card with Square (never touching raw PAN) and the
 // backend creates the Square subscription. Phase 1 simulates success.
 final class LocalSubscriptionService: SubscriptionService {
-    func startSubscription(planID: String, seats: Int, card: CardEntry) async throws -> String {
+    func startSubscription(planID: String, seats: Int, payment: SubscriptionPayment) async throws -> (label: String, card: CardOnFile) {
         // Field validation happens in the form (docs/validation-rules.md); the real flow tokenizes with Square.
         try await Task.sleep(nanoseconds: 400_000_000)
-        return "Square · \(card.brand) ····\(card.last4)"
+        let card: CardOnFile
+        switch payment {
+        case .newCard(let c):
+            // TODO(backend): Square Cards API — CreateCard (customer card on file) from the card nonce; keep its card id
+            // in `squareCardID`. Only brand, last 4 and expiry are kept here; the number and CVC are never stored.
+            guard let ref = CardOnFile(c) else { throw ServiceError.invalid("Enter the expiry as MM/YY") }
+            card = ref
+        case .cardOnFile(let ref):
+            // TODO(backend): charge / attach the Square card on file (`squareCardID`) to the updated subscription.
+            card = ref
+        }
+        return ("Square · \(card.brand) ····\(card.last4)", card)
     }
 
     // TODO(backend): Square Subscriptions API — CancelSubscription (sets canceled_date to the end of the

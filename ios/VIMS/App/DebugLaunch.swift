@@ -10,7 +10,6 @@ enum DebugFlags {
     static var openDrawer = false
     static var openMarkup = false
     static var openFlag = false
-    static var coverStep: Int?
     static var suppressSplash = false
     static var adminGroup: String?
     static var openMenu = false
@@ -63,6 +62,9 @@ enum DebugFlags {
 ///   -photoComment TEXT         with -screen markup / flag: the section's photos carry this saved comment
 ///                              (e.g. "<quick comment> — <custom>", split back into the two fields)
 ///   -sampleFindings            replace the chosen inspection's findings with the client's Oct 16 examples (+ one legacy)
+///   -oct17 fill|blank          add Radon, Meth Test, Termite (WDI), Lead, Septic and Wind Mitigation (OIR-B1-1802) to the
+///                              chosen inspection, marked done; `fill` answers them, `blank` leaves the two forms unopened
+///                              (their prefill values print / fill in on first open). Prints OCT17TEST lines.
 ///   -companyName NAME          rename the signed-in company (Company profile name; report cover footer check)
 ///   -openShare                 with -screen reportReady: Email to client (share sheet without Mail);
 ///                              with -screen agreement: Download (agreement PDF share sheet)
@@ -74,7 +76,7 @@ enum DebugFlags {
 ///                              markup flag summary report reportReady settings company instructions manage
 ///                              editSection plans inspectors subscribe subscribed billing feedback phase1 phase2
 ///                              agreement agreementEditor
-///   -step N                    wizard step (1–4) / cover picker step (1–3)
+///   -step N                    wizard step (1–4)
 ///   -depth high|standard|fast  checklist depth for the demo inspection
 ///   -section NAME              section to open (default Roof / Outside Utilities for high)
 ///   -generate                  with -screen reportReady: regenerate the PDF first
@@ -177,6 +179,81 @@ enum DebugLaunch {
         print("IAQTEST mode=\(mode) depth=\(depth.rawValue) readings=\(keyed.filter { $0.item.kind == .airReading }.count)")
     }
 
+    /// -oct17 fill|blank: adds Lead, Meth Test, Radon, Septic, Termite (WDI) and Wind Mitigation (OIR-B1-1802) to the
+    /// chosen inspection and marks them done — `fill` answers them like an inspector would (Lead 3 samples with locations,
+    /// Meth "Other" area, a Radon level, every Wind Mitigation question, a WDI with findings B), `blank` leaves only the
+    /// prefill values (Wind Mitigation never opened). Prints OCT17TEST lines.
+    @MainActor
+    static func seedOct17(_ store: AppStore, _ id: UUID, mode: String) {
+        let names = ["Radon", "Meth Test", "Termite", "Lead", "Septic", "Wind Mitigation"]
+        guard var insp = store.inspection(id) else { return }
+        let missing = names.filter { !insp.tests.contains($0) }
+        if !missing.isEmpty { insp.tests += missing; store.buildChecklist(from: insp) }
+        let fill = mode == "fill"
+        let values: [String: [String: [String]]] = [
+            "Radon": ["Test performed": ["Yes"], "Measured level (pCi/L)": ["2.7"]],
+            "Meth Test": ["Test performed": ["Yes"], "Area tested": ["Kitchen", "Other"], "Other area tested": ["Hall closet behind the water heater"]],
+            "Lead": ["Test performed": ["Yes"], "Samples taken": ["3"], "Sample 1 location": ["Kitchen window sill"],
+                     "Sample 2 location": ["Front door trim"], "Sample 3 location": ["Basement stair rail"], "Sample 4 location": ["(hidden — not printed)"]],
+            "Septic": ["System type": ["Conventional"], "Tank material": ["Concrete"]],
+            "Termite": ["Company business license no.": ["UT-PC-20931"], "Structure(s) inspected": ["House and detached garage"],
+                        "Findings": ["B. Visible evidence of wood destroying insects was observed as follows:"],
+                        "1. Live insects (description and location)": ["Subterranean termites in the NE crawlspace sill plate"],
+                        "2. Dead insects, insect parts, frass, shelter tubes, exit holes, or staining (description and location)": ["Shelter tubes on the north foundation wall"],
+                        "3. Visible damage from wood destroying insects (description and location)": ["Damaged sill plate, about 4 ft, NE corner"],
+                        "Structure(s) appear to have been previously treated": ["Yes"],
+                        "Visible evidence of possible previous treatment": ["Drill holes in the garage slab"],
+                        "Recommendation": ["Recommend treatment"], "Recommend treatment for the control of": ["Subterranean termites"],
+                        "Crawlspace — obstructed or inaccessible": ["Stored items along the east wall"], "Attic — obstructed or inaccessible": ["Insulation over the ceiling joists"],
+                        "Additional comments": ["Wood-to-soil contact at the rear deck posts."], "Attachments": ["Photos (5)"]],
+            "Wind Mitigation": ["Contact person": ["Tysen Gough"], "County": ["Weber"], "Insurance company": ["Citizens Property Insurance"],
+                                "Policy #": ["CPI-4471-22"], "Year of home": ["2004"], "# of stories": ["2"],
+                                "Building code": ["A. Built in compliance with the FBC"], "Year built": ["2004"], "Building permit application date (FBC)": ["2003-05-14"],
+                                "Roof covering types in use": ["Asphalt/Fiberglass Shingle", "Metal"],
+                                "Asphalt/Fiberglass Shingle: permit application date": ["2018-06-02"], "Asphalt/Fiberglass Shingle: FBC or MDC product approval #": ["FL10124-R23"],
+                                "Asphalt/Fiberglass Shingle: year of original installation or replacement": ["2018"],
+                                "Metal: year of original installation or replacement": ["2004"], "Metal: no information provided for compliance": ["Yes"],
+                                "Roof covering compliance": ["C. One or more do not meet A or B"],
+                                "Roof deck attachment": ["B. Plywood/OSB min 7/16\" by 8d common nails max 12\" in the field, or equivalent (≥103 psf)"],
+                                "Roof to wall attachment": ["B. Clips"],
+                                "Minimal conditions for B, C or D (all visible metal connectors are)": ["Secured to truss/rafter with a minimum of three (3) nails"],
+                                "Clips — type": ["Metal connectors with a minimum of 1 strap that wraps over the top, secured with a minimum of 3 nails"],
+                                "Roof geometry": ["A. Hip roof"], "Total length of non-hip features (feet)": ["18"], "Total roof system perimeter (feet)": ["212"],
+                                "Secondary water resistance": ["B. No SWR"],
+                                "Windows or entry doors (glazed)": ["B"], "Garage doors (glazed)": ["N/A"], "Skylights": ["N/A"], "Glass block": ["N/A"],
+                                "Entry doors (non-glazed)": ["D"], "Garage doors (non-glazed)": ["A"], "Opening protection (weakest)": ["B.2"],
+                                "I hold an active license as a": ["Home inspector licensed under Section 468.8314, F.S., with hurricane mitigation training and proficiency exam"]]
+        ]
+        for name in names {
+            let keyed = ItemKeys.keyed(store.catalog.items(name, depth: store.catalog.isForm(name) ? .standard : (store.inspection(id)?.depth ?? .standard)).items)
+            var a = store.prefilled(store.defaultAnswers(name), id, name)
+            if fill || !store.catalog.isForm(name) {
+                for k in keyed {
+                    guard let v = values[name]?[k.item.q ?? ""] else { continue }
+                    switch k.item.kind {
+                    case .single, .multi: a.choices[k.id] = v
+                    default: a.text[k.id] = v.first
+                    }
+                }
+            }
+            let answers = a
+            // blank: a form section is left never opened (no answers) — the report prints its prefill values and opening
+            // it fills them in.
+            let neverOpened = !fill && store.catalog.isForm(name)
+            store.update(id, markDirty: false) { $0.answers[name] = neverOpened ? nil : answers; $0.status[name] = .done }
+            // fill: the form sections get a photo too (their pictures page prints right after the form).
+            if fill, store.catalog.isForm(name), let cat = store.catalog.photoCategories(name, depth: .standard).first,
+               let sample = store.inspection(id)?.photos.values.flatMap({ $0.values.flatMap { $0 } }).first {
+                var ref = sample
+                ref.id = UUID(); ref.flag = nil; ref.comment = "Sample photo for the \(store.catalog.title(name)) pictures page"
+                let photo = ref
+                store.update(id, markDirty: false) { $0.photos[name, default: [:]][cat] = [photo] }
+            }
+            let shown = ItemVisibility.visible(keyed, answers: answers).count
+            print("OCT17TEST \(name) title=\(store.catalog.title(name)) items=\(keyed.count) visible=\(shown) form=\(store.catalog.formReport(name) ?? "-") note=\(store.catalog.reportNote(name).count)")
+        }
+    }
+
     /// -sampleFindings: replace the chosen inspection's findings with the client's Oct 16 examples, added through
     /// `addFinding` like the Flag a finding / Concern / photo sheets, plus one pre-Oct 16 finding (text only).
     @MainActor
@@ -231,6 +308,7 @@ enum DebugLaunch {
         if has("-activeSub"), store.session != nil, !store.state.subscription.active {
             store.state.subscription.active = true
             store.state.subscription.paymentLabel = "Square · Visa ····4242"
+            store.state.subscription.cardOnFile = CardOnFile(brand: "Visa", last4: "4242", expMonth: 8, expYear: 2028)
             store.state.subscription.startedAt = Calendar.current.date(byAdding: .day, value: -2, to: Date())
             store.state.subscription.cancelledAt = nil
         }
@@ -339,6 +417,7 @@ enum DebugLaunch {
         if let d = value("-depth"), let depth = Depth(rawValue: d) { store.update(id, markDirty: false) { $0.depth = depth } }
         if let mode = value("-iaq") { seedAirQuality(store, id, mode: mode) }
         if has("-sampleFindings") { seedOct16Findings(store, id) }
+        if let mode = value("-oct17") { seedOct17(store, id, mode: mode) }
         let depth = store.inspection(id)?.depth ?? .standard
         let section = value("-section") ?? (ridge.leafSections.contains("Roof") ? (depth == .high ? "Outside Utilities" : "Roof") : (ridge.leafSections.first ?? "Roof"))
 
@@ -366,7 +445,7 @@ enum DebugLaunch {
         case "markup": DebugFlags.openMarkup = true; store.path = [.sections(id), .section(id, section), .photos(id, section)]
         case "flag": DebugFlags.openMarkup = true; DebugFlags.openFlag = true; store.path = [.sections(id), .section(id, section), .photos(id, section)]
         case "summary": store.path = [.sections(id), .summary(id)]
-        case "report": DebugFlags.coverStep = step; store.path = [.sections(id), .summary(id), .report(id)]
+        case "report": store.path = [.sections(id), .summary(id), .report(id)]
         case "reportReady":
             if has("-generate") {
                 Task { @MainActor in

@@ -23,11 +23,35 @@ struct ChecklistCatalog {
 
     func number(_ name: String) -> Int { section(name)?.number ?? 99 }
 
+    /// The name shown for a section (data v1.8 `title`, e.g. key "Septic" → "Septic System", "Termite" → "Wood Destroying
+    /// Organism Inspection"), keeping a numbered instance's suffix ("Bathroom 2"). The key (`name`) is what inspections,
+    /// answers, photos and findings store; only lists, headers, the wizard and the report show this.
+    func title(_ name: String) -> String {
+        let base = Self.baseName(name)
+        let t = [overrides.sections[base]?.title, overrides.sections[name]?.title,
+                 config.sections.first { $0.name == base }?.title, config.sections.first { $0.name == name }?.title]
+            .compactMap { $0?.trimmingCharacters(in: .whitespaces) }.first { !$0.isEmpty }
+        guard let t else { return name }
+        return config.sections.contains(where: { $0.name == name }) || base == name ? t : t + name.dropFirst(base.count)
+    }
+
+    /// v1.9 `formReport` key of a section ("oir-b1-1802", "wdi"), nil for a normal checklist section.
+    func formReport(_ name: String) -> String? {
+        section(name)?.formReport ?? config.sections.first { $0.name == Self.baseName(name) }?.formReport
+    }
+
+    /// Data v1.8 `reportNote`: paragraphs printed after the section's items, before Overall condition (Radon).
+    func reportNote(_ name: String) -> [String] {
+        (section(name)?.reportNote ?? config.sections.first { $0.name == Self.baseName(name) }?.reportNote ?? [])
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+    }
+
     func isForm(_ name: String) -> Bool { section(name)?.isForm ?? false }
     func isPhotosOnly(_ name: String) -> Bool { section(name)?.isPhotosOnly ?? false }
 
     /// Badge text for a form section (`formLabels[form]`).
     func formLabel(_ name: String) -> String? {
+        if let r = section(name)?.formReport { return config.formReports?.byKey[r]?.title ?? r }
         guard let f = section(name)?.form else { return nil }
         return config.formLabels?[f] ?? f
     }
@@ -146,6 +170,23 @@ struct ChecklistCatalog {
             }
         }
         return out
+    }
+}
+
+// MARK: - Conditional items (data v1.8 `visibleIf`)
+
+enum ItemVisibility {
+    /// The items currently shown for these answers: an item with `visibleIf` is kept only while the item it names (the
+    /// first item in the same section with that question) matches — `{q, atLeast: n}` / `{q, includes: o}`.
+    /// Hidden items are not shown, not validated and not printed (their saved answers are kept, so they come back if the
+    /// condition matches again).
+    static func visible(_ keyed: [KeyedItem], answers a: SectionAnswers) -> [KeyedItem] {
+        guard keyed.contains(where: { $0.item.visibleIf != nil }) else { return keyed }
+        return keyed.filter { k in
+            guard let rule = k.item.visibleIf else { return true }
+            guard let src = keyed.first(where: { $0.item.q == rule.q && !$0.item.isHeader }) else { return false }
+            return rule.matches(a.choices[src.id] ?? (a.text[src.id].map { [$0] } ?? []))
+        }
     }
 }
 

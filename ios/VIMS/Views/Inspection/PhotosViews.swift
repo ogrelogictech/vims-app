@@ -1,6 +1,7 @@
 import SwiftUI
 import PhotosUI
 import UIKit
+import UniformTypeIdentifiers
 
 // MARK: - 14 Photos by category
 
@@ -16,9 +17,9 @@ struct PhotosView: View {
     let section: String
 
     @State private var captureCategory: String?
-    @State private var showSourceDialog = false
     @State private var showCamera = false
     @State private var showLibrary = false
+    @State private var showFiles = false
     @State private var viewer: ViewerTarget?
     @Environment(\.horizontalSizeClass) private var sizeClass
 
@@ -31,7 +32,7 @@ struct PhotosView: View {
             let cats = store.catalog.photoCategories(section, depth: insp.depth)
             let existing = insp.photos[section] ?? [:]
             let extra = existing.keys.filter { !cats.contains($0) && !(existing[$0]?.isEmpty ?? true) }.sorted()
-            Screen(title: store.catalog.isPhotosOnly(section) ? section : "\(section) photos", subtitle: insp.addressLine1,
+            Screen(title: store.catalog.isPhotosOnly(section) ? store.catalog.title(section) : "\(store.catalog.title(section)) photos", subtitle: insp.addressLine1,
                    actions: [HeaderAction(symbol: "hdr-sections", label: "Sections") { store.popToSections(inspectionID) }, store.homeAction()],
                    maxContentWidth: 1100) {
                 let photosOnly = store.catalog.isPhotosOnly(section)
@@ -78,6 +79,14 @@ struct PhotosView: View {
                     .ignoresSafeArea()
                     .padPageSheet()
             }
+            // Files covers iCloud Drive, Google Drive and other file providers (document picker); images only.
+            .fileImporter(isPresented: $showFiles, allowedContentTypes: [.image], allowsMultipleSelection: false) { result in
+                guard case .success(let urls) = result, let url = urls.first else { captureCategory = nil; return }
+                if let img = PhotoFiles.image(at: url) { handleCaptured(img) } else {
+                    captureCategory = nil
+                    store.toast("Couldn't open that image")
+                }
+            }
             .fullScreenCover(item: $viewer) { t in
                 PhotoMarkupView(inspectionID: inspectionID, section: section, category: t.category, photoID: t.photoID,
                                 onReturnToSection: {
@@ -113,10 +122,15 @@ struct PhotosView: View {
                         store.toast("Photo deleted")
                     })
                 }
-                Button {
-                    endEditing()
-                    captureCategory = cat
-                    if cameraAvailable { showSourceDialog = true } else { showLibrary = true }
+                // Client Oct 17: choose the source first — Photo Library, Camera or Files (iCloud Drive, Google Drive…),
+                // like Jeremy's reference menu (Photos / Camera / Drive). A Menu on the tile, so on iPad it opens beside it.
+                Menu {
+                    Button { pick(cat) { showLibrary = true } } label: { sourceLabel("Photo Library", icon: "grid") }
+                    Button { pick(cat) { showCamera = true } } label: {
+                        sourceLabel(cameraAvailable ? "Camera" : "Camera (not on this device)", icon: "camera")
+                    }
+                    .disabled(!cameraAvailable)
+                    Button { pick(cat) { showFiles = true } } label: { sourceLabel("Files / Drive", icon: "file") }
                 } label: {
                     Color.clear
                     .aspectRatio(1, contentMode: .fit)
@@ -130,19 +144,24 @@ struct PhotosView: View {
                     .background(VC.paper)
                     .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
                     .overlay(RoundedRectangle(cornerRadius: 11, style: .continuous).strokeBorder(VC.brand, style: StrokeStyle(lineWidth: 1.5, dash: [4, 3])))
+                    .contentShape(Rectangle())
                 }
-                .buttonStyle(ChipPressStyle())
+                .menuOrder(.fixed)
+                .simultaneousGesture(TapGesture().onEnded { endEditing() })
                 .accessibilityLabel("Add photo to \(cat)")
-                // On the Add tile itself, so on iPad the choice pops up next to the tapped tile.
-                .confirmationDialog("Add a photo", isPresented: Binding(get: { showSourceDialog && captureCategory == cat },
-                                                                         set: { if !$0 { showSourceDialog = false } }),
-                                    titleVisibility: .visible) {
-                    Button("Take photo") { showCamera = true }
-                    Button("Choose from library") { showLibrary = true }
-                    Button("Cancel", role: .cancel) { captureCategory = nil }
-                }
+                .accessibilityHint("Choose Photo Library, Camera or Files")
             }
         }
+    }
+
+    private func pick(_ cat: String, _ open: () -> Void) {
+        endEditing()
+        captureCategory = cat
+        open()
+    }
+
+    private func sourceLabel(_ title: String, icon: String) -> some View {
+        Label { Text(title) } icon: { Image(uiImage: ProtoIcon.uiImage(icon, size: 22, color: .label).withRenderingMode(.alwaysTemplate)) }
     }
 
     /// Presenting a full-screen cover while the keyboard is still animating away can leave it with a
@@ -211,6 +230,20 @@ struct PhotoTile: View {
             }
             .accessibilityElement(children: .contain)
             .accessibilityAddTraits(.isButton)
+    }
+}
+
+/// An image picked in Files (iCloud Drive / Google Drive / On My iPhone): read through its security-scoped URL.
+enum PhotoFiles {
+    static func image(at url: URL) -> UIImage? {
+        let access = url.startAccessingSecurityScopedResource()
+        defer { if access { url.stopAccessingSecurityScopedResource() } }
+        var out: UIImage?
+        // Coordinated read so a cloud file not on the device yet is downloaded first.
+        NSFileCoordinator().coordinate(readingItemAt: url, options: [], error: nil) { u in
+            if let d = try? Data(contentsOf: u) { out = UIImage(data: d) }
+        }
+        return out
     }
 }
 

@@ -2,7 +2,8 @@ import SwiftUI
 import AVFoundation
 import UIKit
 
-/// Cold-launch splash (shared/media/vims-splash.mp4): muted, aspect-FIT (the whole 9:16 frame, including
+/// Cold-launch splash (shared/media/vims-splash.mp4, or vims-splash-wide.mp4 when the window is wider than tall —
+/// iPad landscape; team Oct 14, both 10 s): muted, aspect-FIT (the whole 9:16 frame, including
 /// the tagline, is always visible), plays once to its end, tap to skip. The bands around the frame use the video's
 /// own edge colors (sampled from a frame) so it blends in: above / below it on a tall screen (iPhone), and beside it
 /// on a wider one (iPad, either orientation), where each side band runs from that edge's top color to its bottom one.
@@ -15,6 +16,8 @@ struct VideoSplashView: View {
     /// Edge colors of the video frame (defaults measured from the Oct 12 vims-splash.mp4, the same through the
     /// whole video; re-sampled at launch so a replacement video still blends).
     @State private var edges = Edges()
+    /// Picked once from the window at launch (a rotation mid-play doesn't swap videos): true = the 1280 × 720 video.
+    @State private var wideVideo: Bool?
 
     /// Band colors: the top / bottom rows, and the top / bottom ends of the left and right columns.
     struct Edges {
@@ -23,18 +26,22 @@ struct VideoSplashView: View {
         var left: (Color, Color)? = nil
         var right: (Color, Color)? = nil
     }
-    /// 720 × 1280.
-    static let videoAspect: CGFloat = 9.0 / 16.0
+    /// 720 × 1280 portrait, 1280 × 720 wide.
+    var videoAspect: CGFloat { wideVideo == true ? 16.0 / 9.0 : 9.0 / 16.0 }
+    private var videoURL: URL? { wideVideo.flatMap { Self.videoURL(wide: $0) } }
 
     var body: some View {
         ZStack {
             GeometryReader { g in
-                if g.size.height > 0, g.size.width / g.size.height > Self.videoAspect {
+                Color.clear.onAppear {
+                    if wideVideo == nil { wideVideo = g.size.width > g.size.height && Self.videoURL(wide: true) != nil }
+                }
+                if g.size.height > 0, g.size.width / g.size.height > videoAspect {
                     // Wider than the video (iPad): bands left and right.
                     HStack(spacing: 0) {
                         LinearGradient(colors: [edges.left?.0 ?? edges.top, edges.left?.1 ?? edges.bottom], startPoint: .top, endPoint: .bottom)
                         // 1 pt under each side of the video, so no hairline of the screen below shows at its edges.
-                        Color.clear.frame(width: max(g.size.height * Self.videoAspect - 2, 0))
+                        Color.clear.frame(width: max(g.size.height * videoAspect - 2, 0))
                         LinearGradient(colors: [edges.right?.0 ?? edges.top, edges.right?.1 ?? edges.bottom], startPoint: .top, endPoint: .bottom)
                     }
                 } else {
@@ -50,7 +57,7 @@ struct VideoSplashView: View {
                 if let lastFrame {
                     Image(uiImage: lastFrame).resizable().scaledToFit().ignoresSafeArea()
                 }
-            } else if let url = Self.videoURL {
+            } else if let url = videoURL {
                 SplashPlayerView(url: url) { finish() }
                     .ignoresSafeArea()
             }
@@ -61,8 +68,12 @@ struct VideoSplashView: View {
         .accessibilityLabel("VIMS — Vision Inspection Management Solutions")
         .accessibilityHint("Double-tap to skip")
         .accessibilityAddTraits(.isButton)
-        .task {
-            guard let url = Self.videoURL else { finish(); return }
+        .task(id: wideVideo) {
+            guard wideVideo != nil else { return }
+            guard let url = videoURL else { finish(); return }
+            #if DEBUG
+            print("SPLASHTEST video=\(url.lastPathComponent)")
+            #endif
             if let sampled = await Self.edgeColors(of: url) { edges = sampled }
             if reduceMotion {
                 lastFrame = await Self.lastFrame(of: url)
@@ -70,16 +81,18 @@ struct VideoSplashView: View {
                 finish()
             } else {
                 // Safety net in case playback never reports the end: the video's own length plus 3 s, so a longer
-                // video (the Oct 12 one is 6.6 s) always plays to its end — the end-of-video notification finishes.
-                let loaded = (try? await AVURLAsset(url: url).load(.duration)).map(CMTimeGetSeconds) ?? 8
-                let length = loaded.isFinite ? min(max(loaded, 1), 30) : 8
+                // video (the Oct 14 ones are 10 s) always plays to its end — the end-of-video notification finishes.
+                let loaded = (try? await AVURLAsset(url: url).load(.duration)).map(CMTimeGetSeconds) ?? 11
+                let length = loaded.isFinite ? min(max(loaded, 1), 30) : 11
                 try? await Task.sleep(nanoseconds: UInt64((length + 3) * 1_000_000_000))
                 finish()
             }
         }
     }
 
-    static var videoURL: URL? { Bundle.main.url(forResource: "vims-splash", withExtension: "mp4") }
+    static func videoURL(wide: Bool) -> URL? {
+        Bundle.main.url(forResource: wide ? "vims-splash-wide" : "vims-splash", withExtension: "mp4")
+    }
 
     private func finish() {
         guard !finished else { return }

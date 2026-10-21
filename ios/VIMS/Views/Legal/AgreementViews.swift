@@ -159,6 +159,8 @@ struct AgreementCard: View {
     @Environment(AppStore.self) private var store
     let upload: () -> Void
     @State private var confirmRevert = false
+    /// QA Oct 14: the uploaded agreement (PDF, Word or an image) opens in Quick Look from the card.
+    @State private var quickLook: URL?
 
     var body: some View {
         let mode = store.agreementInUse
@@ -204,6 +206,12 @@ struct AgreementCard: View {
             Button("Use VIMS", role: .destructive) { store.useDefaultAgreement() }
             Button("Cancel", role: .cancel) {}
         } message: { Text("Your company\u{2019}s edited version of the agreement will be deleted.") }
+        .quickLookPreview($quickLook)
+    }
+
+    /// Quick Look the company's uploaded agreement file (toast when the file is gone).
+    func openOwn() {
+        if let url = store.ownAgreementURL { quickLook = url } else { store.toast("The agreement file is missing — upload it again") }
     }
 
     private var dot: some View { Text(" \u{00B7} ").font(VFont.ui(12)).foregroundStyle(VC.ink3).frame(minHeight: 28) }
@@ -250,13 +258,14 @@ extension AgreementCard {
             store.push(.agreement(state: nil))
         }
         let edit = CardLink(title: "Edit", hint: "Edit your company\u{2019}s copy of the agreement") { store.push(.agreementEditor) }
+        let open = CardLink(title: "Open", hint: "Opens your company\u{2019}s agreement file") { openOwn() }
         let revert = CardLink(title: "Use VIMS agreement", hint: "Switches back to the VIMS agreement") {
             if mode == .edited { confirmRevert = true } else { store.useDefaultAgreement() }
         }
         switch mode {
         case .vims: return store.isAdmin ? [view, edit] : [view]
         case .edited: return store.isAdmin ? [view, edit, revert] : [view]
-        case .uploaded: return store.isAdmin ? [revert] : []
+        case .uploaded: return store.isAdmin ? [open, revert] : [open]
         }
     }
 }

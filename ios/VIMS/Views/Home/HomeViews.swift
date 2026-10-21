@@ -212,6 +212,19 @@ struct TrialSplashView: View {
         let s = d == 1 ? "" : "s"
         ZStack {
             Color(hex: 0x0A0F16, alpha: 0.72).ignoresSafeArea()
+            // QA Oct 14: the card scrolls when it doesn't fit (small iPhones, large text, iPad landscape split view),
+            // so its buttons are never cut off; it stays centered when it fits.
+            GeometryReader { geo in
+                ScrollView {
+                    card(d: d, soon: soon, s: s)
+                        .frame(maxWidth: .infinity, minHeight: geo.size.height)
+                }
+                .scrollBounceBehavior(.basedOnSize)
+            }
+        }
+    }
+
+    private func card(d: Int, soon: Bool, s: String) -> some View {
             VStack(spacing: 0) {
                 Image("VimsLogo").resizable().scaledToFit().frame(width: 58, height: 58)
                     .frame(width: 72, height: 72)
@@ -232,6 +245,7 @@ struct TrialSplashView: View {
                 Text(soon ? "Only \(d) day\(s) left in your free look" : "Your free look is counting down")
                     .font(VFont.display(19, .bold)).foregroundStyle(VC.ink)
                     .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
                     .padding(.bottom, 8)
                 Text(soon
                      ? "You have \(d) day\(s) left to sign up. Set up your subscription so access continues without interruption when the free look ends."
@@ -257,6 +271,5 @@ struct TrialSplashView: View {
             .padding(24)
             .accessibilityElement(children: .contain)
             .accessibilityAddTraits(.isModal)
-        }
     }
 }

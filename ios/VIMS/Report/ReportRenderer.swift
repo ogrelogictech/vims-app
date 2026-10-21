@@ -18,9 +18,15 @@ struct ReportPhoto {
 
 struct ReportSection {
     let number: Int
+    /// The stable section key (findings / photos refer to it); `title` is what prints (data v1.8 `title`).
     let name: String
+    var title: String
     let rows: [ReportRow]
     var airTable: AirQualityTable? = nil
+    /// Data v1.8 `reportNote` (Radon): paragraphs after the items, before Overall condition.
+    var reportNote: [String] = []
+    /// v1.9 `formReport` sections (Wind Mitigation, Termite) print as form pages instead of the checklist page.
+    var form: FormReportData? = nil
     let overall: String?
     let comments: String
     let findings: [Finding]
@@ -82,6 +88,10 @@ struct ReportData {
     var findings: [Finding]
     var categories: [FindingCategoryDef]
     var reviewURL: String
+    /// Section key → display title (data v1.8 `title`: "Septic" → "Septic System") for finding lines.
+    var sectionTitles: [String: String] = [:]
+
+    func title(_ section: String) -> String { sectionTitles[section] ?? section }
 
     // Texas / 4 Point additions (reportLayouts)
     var layout: ReportLayout = .standard
@@ -157,15 +167,16 @@ struct ReportData {
             var a = insp.answers[name] ?? SectionAnswers()
             var rows: [ReportRow] = []
             var airTable: AirQualityTable?
-            if insp.depth == .fast {
+            if insp.depth == .fast && !cat.isForm(name) {
                 if !a.present.isEmpty { rows.append(ReportRow(kind: .line("Items reviewed", a.present.joined(separator: ", ")))) }
             } else {
-                let items = ItemKeys.keyed(cat.items(name, depth: insp.depth).items)
+                let items = ItemKeys.keyed(cat.items(name, depth: cat.isForm(name) ? .standard : insp.depth).items)
                 a = a.migratingLegacyAirRatings(items)
                 // Indoor Air Quality readings print as their own table after the other lines (High: Report Information).
                 airTable = AirQualityTable.make(items, answers: a, def: cat.section(name)?.airQuality)
                 var pendingHeader: String?
-                for k in items {
+                // Hidden conditional items (v1.8 `visibleIf`) are not printed.
+                for k in ItemVisibility.visible(items, answers: a) {
                     if let h = k.item.header { pendingHeader = h; continue }
                     if k.item.kind == .airReading { continue }
                     var value = ""
@@ -195,7 +206,14 @@ struct ReportData {
                     photos.append(ReportPhoto(url: repo.url(for: p.file), caption: c, flag: p.flag, comment: p.comment))
                 }
             }
-            sections.append(ReportSection(number: cat.number(name), name: name, rows: rows, airTable: airTable, overall: a.overall,
+            var form: FormReportData?
+            if let key = cat.formReport(name) {
+                form = FormReportData.make(key: key, def: cfg.formReports?.byKey[key], items: cat.items(name, depth: .standard).items,
+                                           answers: insp.answers[name] ?? SectionAnswers(), insp: insp,
+                                           inspector: insp.field("Inspector").isEmpty ? company.inspectorName : insp.field("Inspector"))
+            }
+            sections.append(ReportSection(number: cat.number(name), name: name, title: cat.title(name), rows: rows, airTable: airTable,
+                                          reportNote: cat.reportNote(name), form: form, overall: form == nil ? a.overall : nil,
                                           comments: a.comments, findings: insp.findings.filter { $0.section == name }, photos: photos))
         }
 
@@ -242,6 +260,8 @@ struct ReportData {
             categories: cfg.findings.categories,
             reviewURL: company.reviewURL
         )
+
+        data.sectionTitles = Dictionary(uniqueKeysWithValues: Set(insp.leafSections + insp.findings.map(\.section)).map { ($0, cat.title($0)) })
 
         // Per-type fields and form pages
         data.layout = cat.reportLayout(for: insp.inspType)
@@ -302,30 +322,6 @@ enum CoverArtImages {
         cache.setObject(img, forKey: art.file as NSString)
         return img
     }
-
-    /// Horizontal extent (inches on the page) of the artwork's visible pixels between two page y's (inches),
-    /// so the footer can wrap beside what is actually drawn rather than the art's whole rectangle.
-    static func visibleSpan(_ art: ThemeArtDef, top: Double, bottom: Double) -> (min: Double, max: Double)? {
-        guard art.rect.count == 4, let cg = image(art)?.cgImage else { return nil }
-        let r = art.rect
-        let y0 = max(top, r[1]), y1 = min(bottom, r[1] + r[3])
-        guard y1 > y0 else { return nil }
-        let w = 240, h = max(Int(Double(w) * r[3] / max(r[2], 0.01)), 1)
-        guard let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w,
-                                  space: CGColorSpaceCreateDeviceGray(), bitmapInfo: CGImageAlphaInfo.alphaOnly.rawValue),
-              let raw = ctx.data else { return nil }
-        ctx.draw(cg, in: CGRect(x: 0, y: 0, width: w, height: h))
-        let px = raw.bindMemory(to: UInt8.self, capacity: ctx.bytesPerRow * h)
-        let stride = ctx.bytesPerRow
-        // bitmap row 0 is the top of the image
-        let rowA = Int((y0 - r[1]) / r[3] * Double(h)), rowB = min(Int(ceil((y1 - r[1]) / r[3] * Double(h))), h)
-        var lo = w, hi = -1
-        for row in rowA..<rowB {
-            for col in 0..<w where px[row * stride + col] > 40 { lo = min(lo, col); hi = max(hi, col) }
-        }
-        guard hi >= lo else { return nil }
-        return (r[0] + Double(lo) / Double(w) * r[2], r[0] + Double(hi + 1) / Double(w) * r[2])
-    }
 }
 
 /// A state/insurance form section resolved against its answers, for the Texas and 4-Point pages.
@@ -354,7 +350,7 @@ struct FormSectionData {
         var groups: [Group] = []
         var title: String?
         var rows: [Row] = []
-        for k in ItemKeys.keyed(items) {
+        for k in ItemVisibility.visible(ItemKeys.keyed(items), answers: a) {
             if let h = k.item.header {
                 if title != nil || !rows.isEmpty { groups.append(Group(title: title, rows: rows)) }
                 title = h; rows = []
@@ -383,19 +379,29 @@ enum ReportRenderer {
         let fmt = UIGraphicsPDFRendererFormat()
         fmt.documentInfo = meta
         var pages = 0
-        func draw(total: Int) -> Data {
+        var formPages: [String: Int] = [:]
+        func draw(total: Int, formTotals: [String: Int] = [:]) -> Data {
             // A fresh renderer per pass: a UIGraphicsPDFRenderer produced empty data when reused.
             let renderer = UIGraphicsPDFRenderer(bounds: CGRect(origin: .zero, size: pageSize), format: fmt)
             return renderer.pdfData { ctx in
                 let w = Writer(ctx: ctx, data: data)
                 w.totalPages = total
+                w.formTotals = formTotals
                 w.cover()
                 switch data.layout {
                 case .standard:
                     w.propertyInformation()
                     w.beginningNotes()
-                    for s in data.sections { w.section(s) }
-                    for s in data.sections where !s.photos.isEmpty { w.photos(s) }
+                    // v1.9 form reports (Wind Mitigation OIR-B1-1802, WDI): the form pages, then that section's pictures.
+                    for s in data.sections {
+                        if let f = s.form {
+                            w.formReport(s, f)
+                            if !s.photos.isEmpty { w.photos(s) }
+                        } else {
+                            w.section(s)
+                        }
+                    }
+                    for s in data.sections where !s.photos.isEmpty && s.form == nil { w.photos(s) }
                     w.summary()
                 case .texas:
                     w.trecInfoPage()
@@ -407,10 +413,12 @@ enum ReportRenderer {
                     w.picturePages()
                 }
                 pages = w.page
+                formPages = w.formPagesUsed
             }
         }
         var pdf = draw(total: 0)
-        if data.layout != .standard { pdf = draw(total: pages) }   // second pass knows "Page X of Y"
+        // A second pass knows "Page X of Y" (Texas / 4-Point, and a form report's own "Page X of 4").
+        if data.layout != .standard { pdf = draw(total: pages) } else if !formPages.isEmpty { pdf = draw(total: 0, formTotals: formPages) }
         return (pdf, pages)
     }
 
@@ -423,6 +431,12 @@ enum ReportRenderer {
         var totalPages = 0
         /// Texas checklist/TREC pages have no running header (they reproduce the TREC form).
         var headerless = false
+        /// Form report pages (OIR-B1-1802) draw their own header/footer: set while one is printed, so an automatic page
+        /// break (`ensure`) starts another form page.
+        var pageStarter: (() -> Void)?
+        /// Pages each form report used (first pass) / their totals for "Page X of N" (second pass).
+        var formPagesUsed: [String: Int] = [:]
+        var formTotals: [String: Int] = [:]
         var y: CGFloat = 0
         let m: CGFloat = 40
         var contentW: CGFloat { ReportRenderer.pageSize.width - m * 2 }
@@ -526,6 +540,7 @@ enum ReportRenderer {
         // MARK: page furniture
 
         func newContentPage() {
+            if let starter = pageStarter { starter(); return }
             ctx.beginPage()
             page += 1
             if headerless { y = 40 } else { runningHeader(); y = 96 }
@@ -717,12 +732,16 @@ enum ReportRenderer {
                 hline(rowY + lf.lineHeight + 1.2, x: x, w: w, .black, width: 0.75)
             }
             var fy = inch(L.fields.top)
+            var lastVX = fx
             for (i, (l, v)) in rows.enumerated() {
-                var vx = fx
+                // Client Oct 17 (`fields.addressLine2`): the 2nd address line is symmetrical with the first — its
+                // underline starts and ends exactly under the first line's value underline, not under the label.
+                var vx = lastVX
                 if !l.isEmpty {
                     oneLine(l, lf, x: fx, y: fy, w: fr - fx)
                     vx = fx + (l as NSString).size(withAttributes: [.font: lf]).width + 5
                 }
+                lastVX = vx
                 underline(vx, fr - vx, fy)
                 oneLine(v, vf, x: vx + pad, y: fy, w: fr - vx - pad * 2)
                 let nextIsCont = i + 1 < rows.count && rows[i + 1].0.isEmpty
@@ -742,21 +761,27 @@ enum ReportRenderer {
                 oneLine(d.license, vf, x: lx + ll + pad, y: fy, w: licW - pad * 2)
             }
 
-            // footer: ownership notice (+ the state's cover notice, e.g. Oregon). When the theme art reaches the footer
-            // band it wraps into the free space beside the art's visible pixels (the larger side), like the client's covers.
+            // footer: ownership notice (+ the state's cover notice, e.g. Oregon). Client Oct 17 (`footer.box`): the same box
+            // on every cover — bottom-left, never past the page center line, sized like the Hobbies – F1 Racing cover;
+            // the mirror box on the right when the theme picture sits on the left (4th of July). Drawn above the art.
             let art = d.coverArt
-            var fl = 0.55, frr = 7.95
-            if let a = art, let span = CoverArtImages.visibleSpan(a, top: 9.35, bottom: 9.95) {
-                if span.min - fl >= frr - span.max { frr = max(span.min - 0.05, 3.6) } else { fl = min(span.max + 0.05, 4.9) }
+            let boxes = L.footer.box ?? CoverLayoutDef.fallback.footer.box!
+            let artOnLeft = (art?.rect.first ?? 8) < 2.0
+            let fbox = rect(artOnLeft ? boxes.right : boxes.left)
+            let footX = fbox.minX, footW = fbox.width
+            // Client Oct 16: the signed-in company's name (Company profile) is underlined. A long company name steps
+            // the size down (to 9 pt) so the notice stays inside its box.
+            var size = CGFloat(L.footer.size)
+            var ownership = ownershipAttr(L.footer.text, times(size, bold: true))
+            while size > 9, measureAttr(ownership, w: footW) > fbox.height {
+                size -= 0.5
+                ownership = ownershipAttr(L.footer.text, times(size, bold: true))
             }
-            let footX = inch(fl), footW = inch(frr - fl)
-            // Client Oct 16: the signed-in company's name (Company profile) is underlined.
-            let ff = times(CGFloat(L.footer.size), bold: true), nf = times(9.5, bold: true)
-            let ownership = ownershipAttr(L.footer.text, ff)
+            let nf = times(9.5, bold: true)
             let ownH = measureAttr(ownership, w: footW)
             let noticeH = d.coverNotice.isEmpty ? 0 : measureCentered(d.coverNotice, nf, w: footW) + 4
             let footH = ownH + noticeH
-            let footY = min(inch(L.footer.centerY) - footH / 2, box.maxY - 6 - footH)
+            let footY = min(fbox.midY - footH / 2, box.maxY - 6 - footH)
 
             // property photo: aspect-fill and clipped; the box gives way when a long footer (Oregon notice) needs the room
             var pb = rect(L.photoBox.rect)
@@ -852,8 +877,8 @@ enum ReportRenderer {
 
         func section(_ s: ReportSection) {
             newContentPage()
-            sectionTitle(s.number, s.name)
-            if s.rows.isEmpty && s.airTable == nil {
+            sectionTitle(s.number, s.title)
+            if s.rows.isEmpty && s.airTable == nil && s.reportNote.isEmpty {
                 note("No line items were recorded for this section.")
             }
             for r in s.rows {
@@ -880,6 +905,7 @@ enum ReportRenderer {
                 if !s.rows.isEmpty { y += 10 }
                 airQuality(t)
             }
+            if !s.reportNote.isEmpty { reportNote(s.reportNote) }
             if let o = s.overall {
                 ensure(40)
                 y += 10
@@ -897,6 +923,19 @@ enum ReportRenderer {
             if !s.findings.isEmpty {
                 blockLabel("Findings")
                 for f in s.findings { findingLine(f, number: nil) }
+            }
+        }
+
+        /// Data v1.8 `reportNote` (client Oct 17, Radon): the section's explanatory paragraphs under its lines (the
+        /// measured level) and above Overall condition. Generic: any section with a reportNote prints it here.
+        func reportNote(_ paragraphs: [String]) {
+            let f = VFont.uUI(9.2)
+            y += 10
+            for p in paragraphs {
+                let h = measure(p, f, w: contentW - 8, lineSpacing: 2)
+                ensure(h + 6)
+                text(p, f, ink2, x: m + 4, y: y, w: contentW - 8, lineSpacing: 2)
+                y += h + 6
             }
         }
 
@@ -1004,7 +1043,7 @@ enum ReportRenderer {
                 y += h
             } else {
                 let p = NSMutableParagraphStyle(); p.lineSpacing = 1.5
-                let a = NSMutableAttributedString(string: f.section, attributes: [.font: VFont.uUI(9.2, .bold), .foregroundColor: ink, .paragraphStyle: p])
+                let a = NSMutableAttributedString(string: d.title(f.section), attributes: [.font: VFont.uUI(9.2, .bold), .foregroundColor: ink, .paragraphStyle: p])
                 a.append(NSAttributedString(string: f.lineParts.map { " — \($0)" }.joined(), attributes: [.font: VFont.uUI(9.2), .foregroundColor: ink2, .paragraphStyle: p]))
                 let w = contentW - lead - 24
                 let h = ceil(a.boundingRect(with: CGSize(width: w, height: .greatestFiniteMagnitude),
@@ -1019,7 +1058,7 @@ enum ReportRenderer {
 
         func photos(_ s: ReportSection) {
             newContentPage()
-            sectionTitle(s.number, "\(s.name) · Photos")
+            sectionTitle(s.number, "\(s.title) · Photos")
             let cols = 2
             let gap: CGFloat = 14
             let cw = (contentW - gap) / CGFloat(cols)
@@ -1032,7 +1071,7 @@ enum ReportRenderer {
                     let rowH = cardH
                     if y + rowH > bottomLimit {
                         newContentPage()
-                        sectionTitle(s.number, "\(s.name) · Photos")
+                        sectionTitle(s.number, "\(s.title) · Photos")
                     }
                 }
                 let x = m + CGFloat(col) * (cw + gap)

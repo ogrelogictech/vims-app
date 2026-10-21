@@ -27,7 +27,7 @@ struct WizardView: View {
                         StepsBar(count: w.steps.count, current: step)
                         if draft != nil {
                             switch step {
-                            case 1: EntryList(entries: w.step1, draft: draftBinding, errors: errors, focus: focus, pairText: false, minDate: minDate, wide: wide.isWide)
+                            case 1: EntryList(entries: WizardRules.step1(store.config), draft: draftBinding, errors: errors, focus: focus, pairText: false, minDate: minDate, wide: wide.isWide)
                             case 2: EntryList(entries: w.step2, draft: draftBinding, errors: errors, focus: focus, pairText: true, minDate: minDate, wide: wide.isWide)
                             case 3: areas
                             default: tests
@@ -109,7 +109,7 @@ struct WizardView: View {
         HintText(text: "Choose every area to inspect — add or remove anything. This builds the checklist.")
             .padding(.top, 2).padding(.bottom, 2)
         SectionLabel(text: "Exterior areas")
-        ChipGroup(options: w.exteriorOptions, selection: draftBinding.exterior, single: false)
+        ChipGroup(options: w.exteriorOptions, selection: draftBinding.exterior, single: false, display: store.catalog.title)
         SectionLabel(text: "Room counts")
         ForEach(w.roomCounts, id: \.key) { rc in
             CounterRow(label: rc.label, value: Binding(
@@ -117,15 +117,16 @@ struct WizardView: View {
                 set: { draft?.counts[rc.key] = $0 }), range: StepperLimits.roomCount)
         }
         SectionLabel(text: "Interior rooms", top: 11)
-        ChipGroup(options: w.roomOptions, selection: draftBinding.rooms, single: false)
+        ChipGroup(options: w.roomOptions, selection: draftBinding.rooms, single: false, display: store.catalog.title)
         SectionLabel(text: "Utility & systems")
-        ChipGroup(options: w.utilityOptions, selection: draftBinding.utilities, single: false)
+        ChipGroup(options: w.utilityOptions, selection: draftBinding.utilities, single: false, display: store.catalog.title)
     }
 
     // Step 4 — secondary testing
     @ViewBuilder private var tests: some View {
         HintText(text: "Add any secondary testing for this inspection.").padding(.top, 2).padding(.bottom, 12)
-        ChipGroup(options: store.config.wizard.testOptions, selection: draftBinding.tests, single: false)
+        // Section keys stay stored ("Termite", "Septic"); the chips show the v1.8 titles.
+        ChipGroup(options: store.config.wizard.testOptions, selection: draftBinding.tests, single: false, display: store.catalog.title)
     }
 
     private func go(_ s: Int, _ proxy: ScrollViewProxy) {
@@ -136,7 +137,7 @@ struct WizardView: View {
     /// docs/validation-rules.md checks for the fields on a wizard step (typeFields ride along with step 1).
     private func stepFields(_ step: Int, _ d: Inspection) -> [(id: String, value: String, rule: FieldRule)] {
         let w = store.config.wizard
-        let entries = step == 1 ? w.step1 : step == 2 ? w.step2 : []
+        let entries = step == 1 ? WizardRules.step1(store.config) : step == 2 ? w.step2 : []
         var out: [(id: String, value: String, rule: FieldRule)] = []
         for e in entries where e.kind == "field" {
             if let r = WizardRules.rule(for: e.label, type: e.type) { out.append((e.label, d.field(e.label), r)) }
@@ -188,8 +189,9 @@ struct WizardView: View {
         guard let first = errs.first else { return true }
         let fieldScroll = errors.scrollTarget
         for (id, msg) in errs { errors.map[id] = msg }
-        let step1 = store.config.wizard.step1.map(\.label)
-        let before = Set(step1.prefix { $0 != "Inspection address" } + ["Inspection address"])
+        let step1 = WizardRules.step1(store.config)
+        let anchor = WizardRules.stateAnchor(step1)
+        let before = Set(step1.map(\.label).prefix { $0 != anchor } + [anchor])
         if fieldScroll == nil || !before.contains(fieldScroll!) { errors.scrollTarget = first.0 }
         return false
     }
@@ -209,6 +211,29 @@ enum WizardRules {
     /// Data v1.3 has a `states` list → the wizard shows the required State field on step 1.
     static func hasStateField(_ cfg: ChecklistConfig) -> Bool { !(cfg.states ?? []).isEmpty }
 
+    /// Client Oct 17: step 1 asks for the street ("Inspection address"), City, State and ZIP code. The shared JSON still
+    /// lists only "Inspection address", so City and ZIP code are inserted right after it (unless the JSON has them).
+    static func step1(_ cfg: ChecklistConfig) -> [WizardEntry] {
+        var out = cfg.wizard.step1
+        guard let i = out.firstIndex(where: { $0.label == Inspection.streetField }) else { return out }
+        var add: [WizardEntry] = []
+        if !out.contains(where: { $0.label == Inspection.cityField }) {
+            add.append(WizardEntry(kind: "field", label: Inspection.cityField, type: "text", placeholder: "City",
+                                   id: nil, single: nil, options: nil, default: nil))
+        }
+        if !out.contains(where: { $0.label == Inspection.zipField }) {
+            add.append(WizardEntry(kind: "field", label: Inspection.zipField, type: "text", placeholder: "84015",
+                                   id: nil, single: nil, options: nil, default: nil))
+        }
+        out.insert(contentsOf: add, at: i + 1)
+        return out
+    }
+
+    /// The State picker sits right after this field: City (street → City → State → ZIP code), else the address.
+    static func stateAnchor(_ entries: [WizardEntry]) -> String {
+        entries.contains { $0.label == Inspection.cityField } ? Inspection.cityField : Inspection.streetField
+    }
+
     /// Step-1 State checks (docs/validation-rules.md: State required) + the stateRules documents
     /// acknowledgment, as (field id, message) in screen order.
     static func stateErrors(_ d: Inspection, _ cfg: ChecklistConfig) -> [(String, String)] {
@@ -223,6 +248,8 @@ enum WizardRules {
         case "Client phone": return .opt(.phone, "Client phone")
         case "Client email": return .opt(.email, "Client email")
         case "Inspection address": return .req(.address, "Inspection address")
+        case Inspection.cityField: return .req(.city, "City")
+        case Inspection.zipField: return .opt(.usZip, "ZIP code")
         case "Real estate agent name": return .opt(.personName, "Agent name")
         case "Real estate agent email": return .opt(.email, "Agent email")
         case Inspection.licenseField: return .opt(.license, "License #")
@@ -281,6 +308,8 @@ private struct EntryList: View {
         entries.filter { $0.kind == "field" && ["text", "email", "tel"].contains($0.type ?? "text") }.map(\.label)
     }
     private var addressHasState: Bool { WizardRules.hasStateField(store.config) }
+    /// The field the State picker follows (City since Oct 17).
+    private var stateAnchor: String { WizardRules.stateAnchor(entries) }
 
     private func nextField(after label: String) -> String? {
         guard let i = chain.firstIndex(of: label), i + 1 < chain.count else { return nil }
@@ -338,11 +367,17 @@ private struct EntryList: View {
         var out: [Block] = []
         var pending: [WizardEntry?] = []
         let perRow = pairText ? 4 : 2
+        // The State rule card + agreement line go under the row holding the ZIP code (street → City | State → ZIP …),
+        // like the prototype's notes under State / ZIP code.
+        var detailsPending = false
         func flush() {
             guard !pending.isEmpty else { return }
             let hadState = pending.contains { $0 == nil }
+            let hasZip = pending.contains { $0?.label == Inspection.zipField }
+            let hasZipField = entries.contains { $0.label == Inspection.zipField }
             out.append(.row(pending))
-            if hadState { out.append(.stateDetails) }
+            if (hadState && (hasZip || !hasZipField)) || (detailsPending && !hadState) { out.append(.stateDetails); detailsPending = false }
+            else if hadState { detailsPending = true }
             pending = []
         }
         var i = 0
@@ -352,7 +387,7 @@ private struct EntryList: View {
             if isLine(e) {
                 pending.append(e)
                 if pending.count == perRow { flush() }
-                if e.label == "Inspection address", addressHasState {
+                if e.label == stateAnchor, addressHasState {
                     pending.append(nil)
                     if pending.count == perRow { flush() }
                 }
@@ -394,7 +429,7 @@ private struct EntryList: View {
                 ForEach(Array(items.enumerated()), id: \.offset) { _, e in
                     VStack(alignment: .leading, spacing: 0) {
                         if let e { field(e, bottom: 0) }
-                        else { StateFieldBlock(draft: $draft, errors: errors, focus: focus, nextField: nextField(after: "Inspection address"), part: .field) }
+                        else { StateFieldBlock(draft: $draft, errors: errors, focus: focus, nextField: nextField(after: stateAnchor), part: .field) }
                     }
                     .frame(maxWidth: .infinity, alignment: .topLeading)
                 }
@@ -411,9 +446,15 @@ private struct EntryList: View {
             switch e.kind {
             case "field":
                 field(e, bottom: 13)
-                // v1.3: required State right after Inspection address (list + rules from the shared JSON).
-                if e.label == "Inspection address", WizardRules.hasStateField(store.config) {
-                    StateFieldBlock(draft: $draft, errors: errors, focus: focus, nextField: nextField(after: e.label))
+                // v1.3: required State right after Inspection address (list + rules from the shared JSON); since Oct 17
+                // after City, with ZIP code next and the state's rule card + agreement line under the ZIP code
+                // (street → City → State → ZIP code → notes, as in the prototype).
+                if e.label == stateAnchor, WizardRules.hasStateField(store.config) {
+                    let split = stateAnchor == Inspection.cityField && entries.contains { $0.label == Inspection.zipField }
+                    StateFieldBlock(draft: $draft, errors: errors, focus: focus, nextField: nextField(after: e.label), part: split ? .field : .all)
+                }
+                if e.label == Inspection.zipField, stateAnchor == Inspection.cityField, WizardRules.hasStateField(store.config) {
+                    StateFieldBlock(draft: $draft, errors: errors, focus: focus, nextField: nil, part: .details)
                 }
             case "dynamic": dynamic(e)
             default: chips(e)
@@ -441,14 +482,18 @@ private struct EntryList: View {
         default:
             let kind = WizardRules.kind(for: e.label, type: e.type)
             let kb: UIKeyboardType = e.type == "email" ? .emailAddress : e.type == "tel" ? .phonePad :
-                e.label.hasPrefix("Temperature") ? .numbersAndPunctuation :
+                e.label.hasPrefix("Temperature") ? .numbersAndPunctuation : e.label == Inspection.zipField ? .numberPad :
                 (["Year of construction", "Total sq ft", "Lot size (acres)", "Valuation ($)"].contains(e.label) ? .decimalPad : .default)
             let isAddress = e.label == "Inspection address"
-            // The state now has its own field, so the address asks for "Street, City, ZIP" (prototype ca5ab5a;
-            // vims-checklists.json v1.3 still carries the older "Street, City, State" placeholder).
-            let placeholder = isAddress && WizardRules.hasStateField(store.config) ? "Street, City, ZIP" : (e.placeholder ?? "")
+            // City, State and ZIP code have their own fields (client Oct 17), so the address asks for the street only
+            // (prototype f887cf8; vims-checklists.json still carries the older "Street, City, State" placeholder).
+            let split = entries.contains { $0.label == Inspection.cityField }
+            let placeholder = isAddress && WizardRules.hasStateField(store.config) ? (split ? "Street address" : "Street, City, ZIP") : (e.placeholder ?? "")
+            let content: UITextContentType? = e.type == "email" ? .emailAddress : e.type == "tel" ? .telephoneNumber :
+                isAddress ? (split ? .streetAddressLine1 : .fullStreetAddress) :
+                e.label == Inspection.cityField ? .addressCity : e.label == Inspection.zipField ? .postalCode : nil
             VTextField(label: e.label, text: text(e.label), placeholder: placeholder, keyboard: kb,
-                       contentType: e.type == "email" ? .emailAddress : e.type == "tel" ? .telephoneNumber : (isAddress ? .fullStreetAddress : nil),
+                       contentType: content,
                        capitalization: e.type == "email" ? .never : (kind == .license ? .characters : .words),
                        bottom: bottom, kind: kind ?? .plain(max: isAddress ? 120 : nil), fieldID: e.label, errors: errors,
                        required: WizardRules.rule(for: e.label, type: e.type)?.required ?? false,
@@ -463,12 +508,12 @@ private struct EntryList: View {
     }
 
     private func returnKey(_ label: String) -> UIReturnKeyType {
-        (label == "Inspection address" && addressHasState) || nextField(after: label) != nil ? .next : .done
+        (label == stateAnchor && addressHasState) || nextField(after: label) != nil ? .next : .done
     }
 
-    /// Return / Next: Inspection address → the State picker (search focused); otherwise the next text field.
+    /// Return / Next: City (or the address without one) → the State picker (search focused); otherwise the next text field.
     private func submit(_ label: String) {
-        if label == "Inspection address", addressHasState {
+        if label == stateAnchor, addressHasState {
             // Drop the address keyboard right away (inside the Return key event), so nothing typed while the
             // picker opens can land back in the address (the Android bug); the picker's search field takes over.
             UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)

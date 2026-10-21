@@ -187,7 +187,14 @@ final class AppStore {
 
     /// Loads ONLY this user's inspections and their company's shared data.
     func loadSession(_ u: UserAccount) {
-        guard let c = repo.company(id: u.companyID) else { return }
+        guard var c = repo.company(id: u.companyID) else { return }
+        // QA Oct 14: the signed-in user's inspector row must carry the user's id (the demo seed and invited inspectors were
+        // created with their own ids), or the owner isn't recognized and Make owner / own-row checks fail. Healed once.
+        if !c.profile.inspectors.contains(where: { $0.id == u.id }),
+           let i = c.profile.inspectors.firstIndex(where: { !$0.email.isEmpty && $0.email.caseInsensitiveCompare(u.email) == .orderedSame }) {
+            c.profile.inspectors[i].id = u.id
+            repo.saveCompany(c)
+        }
         loadingSession = true
         defer { loadingSession = false }
         currentUser = u
@@ -199,6 +206,10 @@ final class AppStore {
                          company: c.profile, subscription: c.subscription, overrides: c.overrides,
                          settings: u.settings ?? blank.settings, seededAt: nil)
         inspections = repo.inspections(userID: u.id)
+        // Client Oct 17: older combined addresses become street / City / State / ZIP code (saved once).
+        for i in inspections.indices where inspections[i].splitLegacyAddress(states: config.states ?? []) {
+            repo.saveInspection(inspections[i], userID: u.id, companyID: c.id)
+        }
         sortInspections()
         repo.currentUserID = u.id
         path = []
@@ -341,6 +352,7 @@ final class AppStore {
     @discardableResult
     func buildChecklist(from draft: Inspection) -> UUID {
         var insp = draft
+        insp.splitLegacyAddress(states: config.states ?? [])
         insp.groups = catalog.buildGroups(for: insp)
         for n in insp.leafSections where insp.status[n] == nil { insp.status[n] = .todo }
         insp.needsSync = true
@@ -402,6 +414,22 @@ final class AppStore {
 
     func answers(_ id: UUID, _ section: String) -> SectionAnswers {
         inspection(id)?.answers[section] ?? defaultAnswers(section)
+    }
+
+    /// The signed-in inspector's name (the inspection's "Inspector" field wins where one is set).
+    var inspectorName: String { session?.name ?? company.inspectorName }
+
+    /// v1.9 `prefill`: on a form section's first open, its prefill items start with the inspection / company values
+    /// (Wind Mitigation owner name, address, city, ZIP, phone, email, license type, initials). Only empty answers.
+    func prefilled(_ a: SectionAnswers, _ id: UUID, _ section: String) -> SectionAnswers {
+        guard let insp = inspection(id), insp.answers[section] == nil else { return a }
+        var out = a
+        for k in ItemKeys.keyed(catalog.items(section, depth: .standard).items) {
+            guard let key = k.item.prefill, (out.text[k.id] ?? "").isEmpty else { continue }
+            let v = insp.prefillValue(key, inspector: inspectorName).trimmingCharacters(in: .whitespaces)
+            if !v.isEmpty { out.text[k.id] = v }
+        }
+        return out
     }
 
     /// Photos-only sections (Pictures) open straight on their photo screen.
@@ -630,24 +658,34 @@ final class AppStore {
         return true
     }
 
-    /// The signed-in user is the company's owner.
-    var isCompanyOwner: Bool {
-        guard let me = currentUser else { return false }
-        return state.company.inspectors.contains { $0.id == me.id && $0.owner }
+    /// The signed-in user's row in the company's inspector list (by id; by email for a row created before the account).
+    private var myInspectorIndex: Int? {
+        guard let me = currentUser else { return nil }
+        return state.company.inspectors.firstIndex { $0.id == me.id }
+            ?? state.company.inspectors.firstIndex { !$0.email.isEmpty && $0.email.caseInsensitiveCompare(me.email) == .orderedSame }
     }
+
+    /// The signed-in user's inspector id (the user id once `loadSession` has healed the row).
+    var myInspectorID: UUID? { myInspectorIndex.map { state.company.inspectors[$0].id } }
+
+    /// The signed-in user is the company's owner.
+    var isCompanyOwner: Bool { myInspectorIndex.map { state.company.inspectors[$0].owner } ?? false }
 
     /// Only the CURRENT owner can hand ownership to another team member (security: an admin can never take it). The new
     /// owner is made an admin; the old owner stays an admin and can only get ownership back from the new owner.
     /// TODO(backend): the server enforces this (owner-only transfer).
     func makeOwner(_ id: UUID) {
-        guard isCompanyOwner, let me = currentUser, id != me.id,
-              let t = state.company.inspectors.firstIndex(where: { $0.id == id }), !state.company.inspectors[t].email.isEmpty,
-              let m = state.company.inspectors.firstIndex(where: { $0.id == me.id }) else { return }
-        state.company.inspectors[m].owner = false
-        state.company.inspectors[m].admin = true
-        state.company.inspectors[t].owner = true
-        state.company.inspectors[t].admin = true
-        toast("\(state.company.inspectors[t].name) is now the owner")
+        guard isCompanyOwner, let m = myInspectorIndex, id != state.company.inspectors[m].id,
+              let t = state.company.inspectors.firstIndex(where: { $0.id == id }), !state.company.inspectors[t].email.isEmpty else { return }
+        var team = state.company.inspectors          // one write, so the change is saved as a whole
+        team[m].owner = false
+        team[m].admin = true
+        team[t].owner = true
+        team[t].admin = true
+        state.company.inspectors = team
+        state.session?.isAdmin = true
+        saveAppStateNow()
+        toast("\(team[t].name) is now the owner")
     }
 
     /// Other people on this company who have a VIMS account (not just an invite).
@@ -689,22 +727,28 @@ final class AppStore {
         toast("Your account was deleted")
     }
 
+    /// Admins only; never the owner or yourself. TODO(backend): DELETE the member on the server.
     func removeInspector(_ id: UUID) {
-        state.company.inspectors.removeAll { $0.id == id && !$0.owner }
+        guard isAdmin else { return }
+        state.company.inspectors.removeAll { $0.id == id && !$0.owner && $0.id != myInspectorID }
+        saveAppStateNow()
     }
 
+    /// Admins grant / take back admin access (never on the owner or their own row). Saved right away.
     func toggleAdmin(_ id: UUID) {
-        guard let i = state.company.inspectors.firstIndex(where: { $0.id == id }), !state.company.inspectors[i].owner else { return }
+        guard isAdmin, id != myInspectorID,
+              let i = state.company.inspectors.firstIndex(where: { $0.id == id }), !state.company.inspectors[i].owner else { return }
         state.company.inspectors[i].admin.toggle()
         let ins = state.company.inspectors[i]
-        if state.session?.inspectorID == ins.id { state.session?.isAdmin = ins.isAdmin }
+        saveAppStateNow()
         toast(ins.admin ? "\(ins.name) is now an admin" : "\(ins.name) is no longer an admin")
     }
 
-    func startSubscription(card: CardEntry) async throws {
-        let label = try await subscriptionService.startSubscription(planID: state.subscription.selectedPlan, seats: seats(), card: card)
+    func startSubscription(payment: SubscriptionPayment) async throws {
+        let (label, card) = try await subscriptionService.startSubscription(planID: state.subscription.selectedPlan, seats: seats(), payment: payment)
         state.subscription.active = true
         state.subscription.paymentLabel = label
+        state.subscription.cardOnFile = card
         state.subscription.startedAt = Date()
         state.subscription.cancelledAt = nil
     }
@@ -727,6 +771,7 @@ final class AppStore {
     // MARK: Company files (per company)
 
     func saveLogo(_ image: UIImage) {
+        guard isAdmin else { return }        // company profile edits are admin-only (QA Oct 14)
         // Normalize (orientation, max 1024 px) and keep transparency.
         let side = min(1024, max(image.size.width, image.size.height))
         let scale = side / max(image.size.width, image.size.height)
@@ -742,6 +787,7 @@ final class AppStore {
     }
 
     func removeLogo() {
+        guard isAdmin else { return }        // company profile edits are admin-only (QA Oct 14)
         guard let old = state.company.logoFile else { return }
         files.deleteFile(old)
         state.company.logoFile = nil
@@ -821,6 +867,7 @@ final class AppStore {
     /// "Edit agreement" → Save: the edited text becomes this company's agreement and replaces an uploaded file.
     /// TODO(backend): PUT the edited agreement (text + editedAt) to the company record.
     func saveEditedAgreement(_ text: String) {
+        guard isAdmin else { return }        // company profile edits are admin-only (QA Oct 14)
         if let old = state.company.agreementFile { files.deleteFile(old) }
         state.company.agreementFile = nil
         state.company.agreementName = nil
@@ -830,6 +877,7 @@ final class AppStore {
     }
 
     func saveAgreement(from url: URL) {
+        guard isAdmin else { return }        // company profile edits are admin-only (QA Oct 14)
         let access = url.startAccessingSecurityScopedResource()
         defer { if access { url.stopAccessingSecurityScopedResource() } }
         guard let data = try? Data(contentsOf: url) else { toast("Couldn't read that file"); return }
@@ -851,6 +899,7 @@ final class AppStore {
 
     /// "Use VIMS agreement": drop the uploaded file and/or the edited copy and go back to the VIMS default agreement.
     func useDefaultAgreement() {
+        guard isAdmin else { return }        // company profile edits are admin-only (QA Oct 14)
         if let old = state.company.agreementFile { files.deleteFile(old) }
         state.company.agreementFile = nil
         state.company.agreementName = nil

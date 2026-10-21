@@ -168,7 +168,10 @@ struct CompanyProfileView: View {
 
     var body: some View {
         Screen(title: "Company profile", actions: [store.homeAction()], errors: errors) {
-            if draft != nil {
+            if !store.isAdmin {
+                // QA Oct 14: a plain inspector sees the profile read-only (no edit controls, no Save).
+                readOnly
+            } else if draft != nil {
                 SectionLabel(text: "Company logo", top: 2)
                 Text("This logo appears on your report covers.").font(VFont.ui(12)).foregroundStyle(VC.ink3)
                     .padding(.top, -4).padding(.bottom, 10).padding(.horizontal, 2)
@@ -234,9 +237,57 @@ struct CompanyProfileView: View {
         }
         #endif
         .fileImporter(isPresented: $showImporter,
-                      allowedContentTypes: [.pdf] + ["doc", "docx"].compactMap { UTType(filenameExtension: $0) }) { result in
+                      allowedContentTypes: [.pdf, .image] + ["doc", "docx"].compactMap { UTType(filenameExtension: $0) }) { result in
             if case .success(let url) = result { store.saveAgreement(from: url) }
         }
+    }
+
+    /// Non-admins: the company's details as text, the agreement card (View only) and who can change them.
+    @ViewBuilder private var readOnly: some View {
+        let c = store.company
+        Banner(symbol: "info", tint: VC.brandDeep, background: VC.brand.opacity(0.08), border: Color(hex: 0xC9DEE6), textColor: VC.brandDeep,
+               text: md("Only your company **admin** can edit the company profile, logo and agreement."))
+            .padding(.top, 2).padding(.bottom, 14)
+        HStack(spacing: 14) {
+            CompanyLogoBadge(size: 76, radius: 16)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(c.name).font(VFont.ui(16, .bold)).foregroundStyle(VC.ink).fixedSize(horizontal: false, vertical: true)
+                Text("This logo appears on your report covers.").font(VFont.ui(12)).foregroundStyle(VC.ink3)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .vCard()
+        .padding(.bottom, 12)
+        SectionLabel(text: "Company details")
+        VStack(spacing: 0) {
+            let rows: [(String, String)] = [("Company name", c.name), ("Address", c.address), ("Lead inspector", c.inspectorName),
+                                            ("License #", c.license), ("Phone", c.phone), ("Email", c.email), ("Review URL", c.reviewURL)]
+            ForEach(Array(rows.enumerated()), id: \.offset) { i, r in
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(r.0).font(VFont.ui(12, .semibold)).foregroundStyle(VC.ink3)
+                    Text(r.1.isEmpty ? "—" : r.1).font(VFont.ui(14.5)).foregroundStyle(VC.ink)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .textSelection(.enabled)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 15).padding(.vertical, 11)
+                .overlay(alignment: .bottom) { if i < rows.count - 1 { Rectangle().fill(VC.line2).frame(height: 1) } }
+                .accessibilityElement(children: .combine)
+            }
+        }
+        .background(VC.paper)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(VC.line, lineWidth: 1))
+        .padding(.bottom, 4)
+        SectionLabel(text: "Inspection agreement")
+        Text("Every company starts with the VIMS agreement covering all 50 states. Your company admin can edit it or upload their own.")
+            .font(VFont.ui(12)).foregroundStyle(VC.ink3).padding(.top, -4).padding(.bottom, 10).padding(.horizontal, 2)
+            .fixedSize(horizontal: false, vertical: true)
+        AgreementCard { }
+            .vCard(EdgeInsets(top: 12, leading: 14, bottom: 12, trailing: 12))
+            .padding(.bottom, 12)
+            .id("agreement-card")
     }
 
     private func bind(_ kp: WritableKeyPath<CompanyProfile, String>) -> Binding<String> {
@@ -254,7 +305,7 @@ struct CompanyProfileView: View {
     }
 
     private func save() {
-        guard var d = draft else { return }
+        guard store.isAdmin, var d = draft else { return }
         let fields: [(id: String, value: String, rule: FieldRule)] = [
             ("name", d.name, .req(.companyName, "Company name")),
             ("address", d.address, .opt(.address, "Address")),

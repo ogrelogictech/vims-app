@@ -18,7 +18,7 @@ struct SectionEntryView: View {
     var body: some View {
         if let insp = store.inspection(inspectionID) {
             ZStack {
-                Screen(title: section, subtitle: insp.addressLine1,
+                Screen(title: store.catalog.title(section), subtitle: insp.addressLine1,
                        actions: [
                         HeaderAction(symbol: "hdr-photos", label: "Photos") { store.push(.photos(inspectionID, section)) },
                         HeaderAction(symbol: "hdr-sections", label: "Sections") { withAnimation(.easeOut(duration: 0.24)) { drawerOpen = true } },
@@ -36,7 +36,8 @@ struct SectionEntryView: View {
             .onAppear {
                 if !loaded {
                     // Pre-v1.7 Indoor Air Quality choices ("1 Good"…) become the matching reading's rating.
-                    answers = store.answers(inspectionID, section).migratingLegacyAirRatings(keyedItems(insp))
+                    answers = store.prefilled(store.answers(inspectionID, section).migratingLegacyAirRatings(keyedItems(insp)),
+                                              inspectionID, section)
                     loaded = true
                 }
                 if DebugFlags.openDrawer { DebugFlags.openDrawer = false; drawerOpen = true }
@@ -77,13 +78,16 @@ struct SectionEntryView: View {
         }
 
         if depth == .fast {
-            let questions = (store.catalog.section(section)?.items ?? []).compactMap(\.q)
+            // Conditional items (v1.8 `visibleIf`, e.g. Lead "Sample 2 location") have nothing to depend on here.
+            let questions = (store.catalog.section(section)?.items ?? []).filter { $0.visibleIf == nil }.compactMap(\.q)
             if !questions.isEmpty {
                 SectionLabel(text: "Items reviewed", top: 2)
                 ChipGroup(options: questions, selection: $answers.present, single: false)
             }
         } else {
-            let keyed = ItemKeys.keyed(resolved.items)
+            // v1.8 `visibleIf`: conditional items appear while the item they name matches (Lead "Sample N location" for
+            // "Samples taken" ≥ N, Meth "Other area tested" when "Area tested" includes Other).
+            let keyed = ItemVisibility.visible(ItemKeys.keyed(resolved.items), answers: answers)
             let card = { (k: KeyedItem, fill: Bool) in
                 ItemCard(item: k.item, key: k.id, answers: $answers, errors: errors,
                          showDetail: depth == .high && !resolved.usingHigh,
@@ -166,7 +170,8 @@ struct SectionEntryView: View {
         let isForm = store.catalog.isForm(section)
         let depth: Depth = isForm ? .standard : insp.depth
         guard depth != .fast else { return true }
-        let keyed = keyedItems(insp)
+        // Hidden conditional items (v1.8 `visibleIf`) are not validated.
+        let keyed = ItemVisibility.visible(keyedItems(insp), answers: answers)
         let fields: [(id: String, value: String, rule: FieldRule)] = keyed.compactMap { k in
             switch k.item.kind {
             case .num: return (k.id, answers.text[k.id] ?? "", .opt(.number(.checklistItem(question: k.item.q, placeholder: k.item.placeholder)), k.item.q ?? "Value"))
@@ -193,7 +198,7 @@ struct SectionEntryView: View {
         store.setAnswers(inspectionID, section, answers)
         store.markDone(inspectionID, section)
         if let next = store.nextSection(inspectionID, after: section) {
-            store.toast("Saved — next: \(next)")
+            store.toast("Saved — next: \(store.catalog.title(next))")
             replaceSection(next)
         } else {
             store.toast("Saved — last section")

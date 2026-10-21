@@ -153,14 +153,43 @@ struct Finding: Codable, Hashable, Identifiable {
 
 // MARK: - Cover
 
+/// The report cover: color, theme (category + picture; an empty `option` is "No picture") and style
+/// (Shaded / Framed / Solid). Client Oct 17 (data v1.8): Solid is a style, not a category, and may carry a picture.
 struct CoverChoice: Codable, Hashable {
     var color: String
     var category: String
     var option: String
     var style: String
 
-    var label: String { "\(color) · \(category == "Solid" ? "Solid" : option) · \(style)" }
-    var artLabel: String { category == "Solid" ? color : option }
+    /// Before v1.8 "Solid" was a theme category (with no picture).
+    static let legacySolidCategory = "Solid"
+
+    init(color: String, category: String, option: String, style: String) {
+        self.color = color; self.category = category; self.option = option; self.style = style
+        migrateLegacySolid()
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        color = try c.decode(String.self, forKey: .color)
+        category = try c.decode(String.self, forKey: .category)
+        option = try c.decodeIfPresent(String.self, forKey: .option) ?? ""
+        style = try c.decode(String.self, forKey: .style)
+        migrateLegacySolid()
+    }
+
+    /// A cover saved with the old "Solid" category becomes style Solid + No picture (no category chosen; the picker
+    /// then lists the first category's pictures).
+    private mutating func migrateLegacySolid() {
+        guard category == Self.legacySolidCategory else { return }
+        category = ""
+        option = ""
+        style = "Solid"
+    }
+
+    var hasPicture: Bool { !option.isEmpty }
+    var label: String { "\(color) · \(hasPicture ? option : "No picture") · \(style)" }
+    var artLabel: String { hasPicture ? option : color }
 }
 
 /// The client was given the state's required documents (stateRules[state].docs) with the inspection
@@ -225,6 +254,50 @@ struct Inspection: Codable, Hashable, Identifiable {
 
     var address: String { field("Inspection address") }
     var stateCode: String { state ?? "" }
+
+    // Client Oct 17: the address is split — "Inspection address" (street), City, State (existing), ZIP code.
+    static let streetField = "Inspection address"
+    static let cityField = "City"
+    static let zipField = "ZIP code"
+    var city: String { field(Self.cityField).trimmingCharacters(in: .whitespaces) }
+    var zip: String { field(Self.zipField).trimmingCharacters(in: .whitespaces) }
+    /// Inspections created before Oct 17 (or not yet split) keep one combined "Street, City, ZIP" text.
+    var hasSplitAddress: Bool { !city.isEmpty }
+    /// "City, ST ZIP" — the cover's 2nd address line and the list subtitle's place.
+    var cityStateZip: String {
+        let stZip = [stateCode, zip].filter { !$0.isEmpty }.joined(separator: " ")
+        return [city, stZip].filter { !$0.isEmpty }.joined(separator: ", ")
+    }
+
+    /// Splits an older combined address ("1428 Ridgeline Dr, Ogden, UT 84403", "210 Willow Park, Lot 17, Ogden 84401")
+    /// into the street, City, State and ZIP code fields. Only when it reads cleanly (a street, then a city); otherwise the
+    /// text stays as it is and still shows everywhere (the wizard then asks for the City on the next edit). A state
+    /// already chosen in the State field wins over one written in the text. Returns true when something changed.
+    @discardableResult
+    mutating func splitLegacyAddress(states: [StateDef]) -> Bool {
+        guard city.isEmpty else { return false }
+        var parts = address.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        guard parts.count >= 2 else { return false }
+        var street = parts.removeFirst()
+        while let p = parts.first, p.range(of: #"^((Lot|Unit|Apt|Suite|Ste|Space|Bldg)\b|#)"#, options: [.regularExpression, .caseInsensitive]) != nil {
+            street += ", " + p; parts.removeFirst()
+        }
+        let codes = Set(states.map(\.code))
+        var zip = "", st = ""
+        if var toks = parts.last?.split(separator: " ").map(String.init) {
+            if let t = toks.last, t.range(of: #"^\d{5}(-\d{4})?$"#, options: .regularExpression) != nil { zip = t; toks.removeLast() }
+            if let t = toks.last, t.count == 2, t == t.uppercased(), codes.contains(t) { st = t; toks.removeLast() }
+            if toks.isEmpty { parts.removeLast() } else { parts[parts.count - 1] = toks.joined(separator: " ") }
+        }
+        if st.isEmpty, let l = parts.last, l.count == 2, l == l.uppercased(), codes.contains(l) { st = l; parts.removeLast() }
+        let cityText = parts.joined(separator: ", ")
+        guard !cityText.isEmpty, !street.isEmpty else { return false }
+        fields[Self.streetField] = street
+        fields[Self.cityField] = cityText
+        if !zip.isEmpty { fields[Self.zipField] = zip }
+        if state == nil, !st.isEmpty { state = st }
+        return true
+    }
     /// Emailed reports include the agent (To) only when this is on.
     var sendsReportToAgent: Bool { sendToAgent ?? true }
 
@@ -232,6 +305,9 @@ struct Inspection: Codable, Hashable, Identifiable {
     /// the State field — "12 Elm St, Portland, OR 97201" (state before a trailing ZIP), else "…, OR".
     /// Left alone when there is no state or the address already names it (inspections before v1.3).
     var displayAddress: String {
+        if hasSplitAddress {
+            return [address.trimmingCharacters(in: .whitespaces), cityStateZip].filter { !$0.isEmpty }.joined(separator: ", ")
+        }
         let a = address.trimmingCharacters(in: .whitespaces)
         let st = stateCode
         guard !st.isEmpty, !a.isEmpty else { return a }
@@ -285,6 +361,7 @@ struct Inspection: Codable, Hashable, Identifiable {
 
     /// Street line, keeping unit/lot suffixes ("210 Willow Park, Lot 17").
     private var addressSplit: (String, String) {
+        if hasSplitAddress { return (address.trimmingCharacters(in: .whitespaces), cityStateZip) }
         let parts = displayAddress.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
         guard var line = parts.first else { return ("", "") }
         var i = 1
@@ -299,6 +376,7 @@ struct Inspection: Codable, Hashable, Identifiable {
     }
     var addressRest: String { addressSplit.1 }
     var cityShort: String {
+        if hasSplitAddress { return [city, stateCode].filter { !$0.isEmpty }.joined(separator: ", ") }
         // "Ogden, UT 84403" -> "Ogden, UT"
         let rest = addressRest
         let comps = rest.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
@@ -307,6 +385,25 @@ struct Inspection: Codable, Hashable, Identifiable {
         return "\(comps[0]), \(state)"
     }
     var clientName: String { field("Client name") }
+
+    /// v1.9 form `prefill` values (Wind Mitigation / WDI): the inspection's client and address, the inspector's initials.
+    /// `inspector` = the inspection's inspector (falls back to the signed-in user). "licenseType": VIMS inspectors are home
+    /// inspectors (there's no license-type field yet; editable on the form, same as Android).
+    func prefillValue(_ key: String, inspector: String) -> String {
+        switch key {
+        case "client": return clientName
+        case "street": return hasSplitAddress ? address.trimmingCharacters(in: .whitespaces) : addressLine1
+        case "city": return hasSplitAddress ? city : (cityShort.split(separator: ",").first.map { String($0).trimmingCharacters(in: .whitespaces) } ?? "")
+        case "zip": return hasSplitAddress ? zip : (displayAddress.range(of: #"\d{5}(-\d{4})?$"#, options: .regularExpression).map { String(displayAddress[$0]) } ?? "")
+        case "clientPhone": return field("Client phone")
+        case "clientEmail": return field("Client email")
+        case "licenseType": return "Home Inspector"
+        case "initials":
+            let name = field("Inspector").isEmpty ? inspector : field("Inspector")
+            return String(name.split(separator: " ").compactMap { $0.first(where: \.isLetter).map { String($0).uppercased() } }.joined().prefix(4))
+        default: return ""
+        }
+    }
 
     var scheduled: Date {
         let d = field("Date"), t = field("Time")
@@ -373,6 +470,8 @@ struct SubscriptionState: Codable, Hashable {
     var trialDays: Int
     var active: Bool = false
     var paymentLabel: String?
+    /// QA Oct 14: the remembered card (brand / last 4 / expiry only — see `CardOnFile`), offered on the next update.
+    var cardOnFile: CardOnFile?
     var startedAt: Date?
     /// Set when an owner/admin cancels: the subscription stays active until `nextBillingDate`,
     /// then stops renewing. Optional so older saved data still decodes.

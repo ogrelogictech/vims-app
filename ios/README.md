@@ -37,7 +37,7 @@ xcrun simctl launch --terminate-running-process "iPhone 17" com.vims.app -resetD
 
 `-screen` accepts: `login signup forgot join home splash wizard editWizard sections section drawer photos markup flag summary
 report reportReady settings company instructions manage editSection plans inspectors subscribe subscribed billing
-feedback reportBcc eula signupEula deleteAccount phase1 phase2 agreement agreementEditor`. Extras: `-step N` (wizard 1–4 / cover picker 1–3), `-depth high|standard|fast`,
+feedback reportBcc eula signupEula deleteAccount phase1 phase2 agreement agreementEditor`. Extras: `-step N` (wizard 1–4), `-depth high|standard|fast`,
 `-section NAME`, `-inspection PREFIX|TYPE` (e.g. `Texas`, `"4 Point Inspection"`), `-generate` (with
 `-screen reportReady`: regenerate the PDF first), `-group NAME` (Manage checklist), `-overview` (phase screens),
 `-trialDaysLeft N`, `-resetData` (wipes the SwiftData store + files and recreates the demo account),
@@ -579,3 +579,85 @@ Screenshots: `screenshots/oct12-*.png` — `ipad-01…18` 13" (landscape 01–13
 - Screenshots: `screenshots/oct16-*.png` — 01 Summary screen vs PDF summary page, 02–05 markup / flag sheet, 06–08
   iPhone scroll bar (held, dragged, idle), 09–10 iPad Pro 13" portrait / landscape, 11–12 cover footer (demo company /
   renamed company).
+
+## QA list Oct 14 + client round Oct 17 (shared data v1.8 / v1.9, built Oct 21)
+
+**QA (team, Oct 14)**
+
+1. **No auto-selection on focus.** The app's single-line field is now `CaretTextField`: a select-all UIKit issues while giving it
+   focus (hardware-keyboard Tab, Return-chain / programmatic focus) becomes a caret at the end; a Select All the user picks later
+   still works. The app-wide `TextSelection` guard (SwiftUI `TextField` / `TextEditor`, every UITextField / UITextView) now
+   re-checks 0.12 s and 0.3 s after focus too, since UIKit can apply the selection after the begin-editing callback.
+2. **Join a company → Company code** accepts the full code: typing the 3rd letter inserts the "-" (backspace removes it),
+   letters uppercase, digits after the dash (max 4), paste "vis-4827" / "VIS4827" works → `VIS-4827`.
+3. **Temperature (°F)**: optional leading "-" and one decimal point (one digit after it) — `72.5`, `-4.5`; −60 … 140.
+4. **Make owner / Make admin**: the signed-in user's inspector row wasn't recognized (the demo company's rows were seeded with
+   their own ids, so `isCompanyOwner` was false and Make owner never showed / did nothing). `AppStore.loadSession` now gives the
+   user's row (matched by email) the user's id once and saves it; owner detection also falls back to the email. Make owner
+   (after its confirmation) and Make admin write the team in one change and save immediately (`saveAppStateNow`); both survive
+   a relaunch. Only admins can toggle admin / remove; nobody can change the owner's row or their own.
+5. **Company profile is read-only for non-admins**: a note ("Only your company admin can edit…"), the logo, the details as text,
+   the agreement card with View / Open only — no Upload logo, fields, Save or agreement edit. The store refuses logo /
+   agreement / profile writes from non-admins too (TODO(backend): enforce on the server).
+6. **Subscription remembers the card**: only a display reference is stored — `SubscriptionState.cardOnFile`
+   (`CardOnFile`: brand, last 4, expiry month / year, `squareCardID` placeholder — TODO(backend): Square Cards API customer card
+   id). The card number and CVC are never stored. On update: "Use this card — Visa •••• 4242 (exp 08/28)" (default) or "Use a
+   different card" (shows the card form). An expired card isn't offered. Plan & billing → Payment shows the same line.
+7. **Remove inspector asks first**: "Remove <name>?" — what they lose — Remove / Cancel.
+8. **Uploaded agreement opens**: the agreement card had no link for an uploaded file. It now shows **Open** (everyone; Quick
+   Look for PDF, Word and images) beside Use VIMS agreement (admins); upload also accepts images.
+9. **Plan descriptions are multi-line**: each plan card has a wrapping description box (saved with Save), the add-plan form too
+   (200 characters, line breaks kept); the Subscription screen wraps them.
+10. (Android only.)
+11. **Trial "days left" dialog** scrolls inside the screen when it doesn't fit (large text, small windows) so its buttons are
+    never cut off; it stays centered when it fits.
+
+**Client (Jeremy, Oct 17)**
+
+1. **Photo source**: the Add tile opens a menu — **Photo Library**, **Camera**, **Files / Drive** (document picker: iCloud
+   Drive, Google Drive and other providers; images only, read with a coordinated security-scoped read), with icons like
+   Jeremy's reference. The picked image goes straight into markup as before. On iPad the menu hangs off the tile.
+2+3. **Cover picker is one page**: preview, **Color**, **Theme** (category), **Picture** ("No picture" first, then the
+   category's pictures with thumbnails) and **Style** (Shaded, Framed, Solid — the JSON order). Solid is a style and can carry
+   a picture (drawn over the solid fill). A cover saved with the old "Solid" category decodes as style Solid + No picture
+   (`CoverChoice` migration; the picker lists the first category's pictures). "No picture" is stored as an empty `option`.
+4. **Summary → long-press → Remove finding** asks "Remove this finding?" (the finding line, Remove / Cancel).
+5. **Cover footer box** (`covers.layout.footer.box`): the ownership notice sits in the same box on every cover — bottom-left
+   (0.55–4.25 in, never past the center line), the right-hand box when the picture is on the left (4th of July); centered in
+   the box, drawn above the art, company name underlined; a long company name steps the size down (to 9 pt) to stay inside.
+6. **Address of Inspection, 2nd line**: its underline starts and ends exactly under the first line's value underline.
+7. **Address split**: wizard step 1 is Inspection address (street, "Street address") → **City** (required) → State → **ZIP
+   code** (optional; digits, "-" inserted after 5 → `84015` / `84015-1234`, validated) → the state's notes. City / ZIP code are
+   inserted by the app until the shared JSON lists them (`WizardRules.step1`), stored in the inspection's `fields`
+   ("City", "ZIP code"). Cover line 2 = "City, ST ZIP"; list subtitle "City, ST"; emails "street, City, ST ZIP".
+   Existing inspections are split once at sign-in (`Inspection.splitLegacyAddress`: "1428 Ridgeline Dr, Ogden, UT 84403" →
+   street / Ogden / UT / 84403, unit suffixes kept); text that doesn't read cleanly stays as it was and still shows.
+8. **`visibleIf`** (generic, `ItemVisibility`): `{q, atLeast: n}` and `{q, includes: option}` on any item; hidden items are not
+   shown, validated or printed (their answers are kept). Lead shows "Sample N location" for N ≤ Samples taken.
+9. Meth Test photo category **Cartridge Result** (data) shows.
+10. Meth Test **Other** + "Other area tested" (visibleIf includes Other).
+11/14. **Section titles** (`title`): "Septic System", "Wood Destroying Organism Inspection" — wizard chips, Sections list,
+    drawer, section / photo headers, Summary, report contents, PDF section bands / photo pages / Summary of Findings, Manage
+    checklist. `name` stays the stored key (`ChecklistCatalog.title`).
+12. **`reportNote`** (generic): Radon's two paragraphs print under the measured level, above Overall condition.
+13. **Form reports** (data v1.9 `formReports`, `Report/FormReports.swift`): Wind Mitigation and Termite use the same form item
+    list on every depth (no Overall condition). On first open, `prefill` items take the inspection / company values (owner
+    name, street, city, ZIP, phone, email, license type "Home Inspector", inspector initials); never-opened forms print those
+    values too.
+    - **Wind Mitigation → OIR-B1-1802 (Rev. 01/12)**, 4 pages like the official form: header, Inspection Date, Owner
+      Information grid, NOTE, Q1–Q7 with every official answer in full and ☐/☒ boxes (filled values underlined), the 2.1
+      roof-covering table, the Opening Protection Level Chart with X marks (D shaded for glazed openings), A–X with .1–.3, the
+      qualified-inspector block (license checkboxes, printed name; signature / date / homeowner lines blank) and the statutory
+      text; every page footer "Inspectors Initials … Property Address …", the validity note and "OIR-B1-1802 (Rev. 01/12)
+      Adopted by Rule 69O-170.0155 · Page X of 4" (second render pass knows the total).
+    - **Termite → Wood Destroying Insect Inspection Report**: VIMS's own one-page layout (Sections I–V, ☐/☒ A/B with the 1–3
+      descriptions, previous treatment, recommendations, obstructions table, comments / attachments, blank seller and buyer
+      signature lines, one neutral line). Not a copy of NPMA-33 (copyrighted; no NPMA wording or marks).
+    - Each form's photos print on a pictures page right after it.
+- **Splash** (team Oct 14): `vims-splash.mp4` (720×1280) when the window is taller than wide, `vims-splash-wide.mp4` (1280×720)
+  when wider (iPad landscape); chosen once at launch; 10 s, timeout = length + 3 s (`SPLASHTEST ended after 10.46 s, at 10.00 of 10.00 s`).
+- DEBUG: `-oct17 fill|blank` (adds Radon, Meth Test, Termite, Lead, Septic, Wind Mitigation, marked done; `fill` answers them and
+  gives the forms a photo, `blank` leaves the forms unopened). UI-test plans gained `longPressAt`.
+- Screenshots `screenshots/oct21-*.png` (iPhone 17; `oct21-ipad-*` iPad Pro 13"): `a01`–`a11` QA items, `b01`–`b12` client
+  items, `c1-wind-page1…4-vs-official` (our PDF beside the client's OIR-B1-1802), `c1-wdi-report-vs-npma33-reference`,
+  `c1-*-pictures-page`, `c1-wind-page1-prefill-only`, `c2` wide splash.

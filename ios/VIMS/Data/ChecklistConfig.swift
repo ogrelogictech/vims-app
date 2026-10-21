@@ -25,6 +25,8 @@ struct ChecklistConfig: Decodable {
     /// v1.3: the property State picker (50 states + DC, in display order) and per-state rules.
     let states: [StateDef]?
     let stateRules: StateRulesDef?
+    /// v1.9: sections printed as official-style form pages (Wind Mitigation = OIR-B1-1802, Termite = WDI report).
+    let formReports: FormReportsDef?
 
     /// Keys of JSON objects whose order matters but that Swift dictionaries lose.
     var unitMixOrder: [String] = []
@@ -33,7 +35,7 @@ struct ChecklistConfig: Decodable {
     private enum CodingKeys: String, CodingKey {
         case version, depths, depthRules, overallCondition, overallConditionDefault, sectionGroups, sections,
              checklistBuilder, wizard, findings, covers, subscription, support, sample, formLabels, reportLayouts,
-             states, stateRules
+             states, stateRules, formReports
     }
 
     /// `stateRules[code]`, or nil when the state has no special rules (or no state is set).
@@ -83,6 +85,34 @@ struct StateDocDef: Decodable, Hashable {
     }
 }
 
+/// `formReports[key]` (v1.9): a section's form report — title, page count, the layout notes it follows.
+struct FormReportDef: Decodable, Hashable {
+    let title: String
+    let source: String?
+    let pages: Int?
+    let layout: String?
+}
+
+/// `formReports`: key ("oir-b1-1802", "wdi") -> definition (the object also carries an "_about" string).
+struct FormReportsDef: Decodable {
+    let byKey: [String: FormReportDef]
+
+    private struct Key: CodingKey {
+        var stringValue: String; var intValue: Int? { nil }
+        init?(stringValue: String) { self.stringValue = stringValue }
+        init?(intValue: Int) { nil }
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: Key.self)
+        var out: [String: FormReportDef] = [:]
+        for k in c.allKeys where !k.stringValue.hasPrefix("_") {
+            if let v = try? c.decode(FormReportDef.self, forKey: k) { out[k.stringValue] = v }
+        }
+        byKey = out
+    }
+}
+
 /// `stateRules`: state code -> rule (the object also carries an "_about" string).
 struct StateRulesDef: Decodable {
     let byState: [String: StateRuleDef]
@@ -121,8 +151,16 @@ struct SectionDef: Codable, Hashable {
     var photosOnly: Bool? = nil
     /// v1.7 Indoor Air Quality: the section's `airReading` items print as the client's readings table.
     var airQuality: AirQualityDef? = nil
+    /// v1.8 `sectionFields.title`: display name in lists, the wizard and the report ("Septic System" for key "Septic").
+    /// `name` stays the stable key saved inspections use.
+    var title: String? = nil
+    /// v1.8 `sectionFields.reportNote`: paragraphs printed after the section's items, before Overall condition (Radon).
+    var reportNote: [String]? = nil
+    /// v1.9 `formReport` ("oir-b1-1802" Wind Mitigation, "wdi" Termite): printed as form pages (see `formReports`); like
+    /// `form`, the section ignores the checklist depth and has no Overall condition row.
+    var formReport: String? = nil
 
-    var isForm: Bool { form != nil }
+    var isForm: Bool { form != nil || formReport != nil }
     var isPhotosOnly: Bool { photosOnly == true }
 }
 
@@ -138,6 +176,13 @@ struct ItemDef: Codable, Hashable {
     var unit: String?
     var reference: String?
     var action: String?
+    /// v1.8 `itemTypes.visibleIf`: shown only while another item in the same section matches (see `VisibleIf`).
+    var visibleIf: VisibleIf? = nil
+    /// v1.9 form items: `prefill` (client, street, city, zip, clientPhone, clientEmail, licenseType, initials) fills the
+    /// answer when the section is first opened; `formKey` / `formTable` say where the answer prints on the form.
+    var prefill: String? = nil
+    var formKey: String? = nil
+    var formTable: String? = nil
 
     var isHeader: Bool { header != nil }
     var kind: ItemKind {
@@ -155,6 +200,24 @@ struct ItemDef: Codable, Hashable {
 
     static func question(_ q: String, type: String = "single", options: [String]) -> ItemDef {
         ItemDef(q: q, type: type, options: options, header: nil, placeholder: nil)
+    }
+}
+
+/// v1.8 `visibleIf` on an item: `{q, atLeast: n}` — that single-choice answer read as a number is ≥ n (Lead "Sample N
+/// location"); `{q, includes: option}` — that answer (single or multi) includes the option (Meth "Other area tested").
+/// Hidden items are not validated and not printed. `q` names an item in the same section (first match by question).
+struct VisibleIf: Codable, Hashable {
+    var q: String
+    var atLeast: Double? = nil
+    var includes: String? = nil
+
+    /// `selected`: the options currently chosen on item `q`.
+    func matches(_ selected: [String]) -> Bool {
+        if let n = atLeast {
+            return selected.contains { Double($0.trimmingCharacters(in: .whitespaces)).map { $0 >= n } ?? false }
+        }
+        if let o = includes { return selected.contains(o) }
+        return true
     }
 }
 
@@ -294,16 +357,21 @@ struct CoverColorDef: Decodable, Hashable {
 struct CoversDef: Decodable {
     let colors: [CoverColorDef]
     let categories: [String: [String]]
+    /// v1.8: Shaded, Framed, Solid — in that order (Solid is a style, no longer a category).
     let styles: [String]
-    let solidStyle: String
+    /// v1.8: the Theme picker's "No picture" choice (stored as an empty `option`).
+    let noThemeOption: String?
     let `default`: CoverDefault
     /// v1.6: the client's cover layout (inches on US Letter) and the theme artwork per image option.
     let layout: CoverLayoutDef?
     let themeArt: [String: ThemeArtDef]?
 
-    /// The theme artwork for a cover choice (nil for the Solid category or an unknown option).
+    var noPictureLabel: String { noThemeOption ?? "No picture" }
+
+    /// The theme artwork for a cover choice (nil for "No picture" or an unknown option). Any style, Solid included,
+    /// can carry a picture (client Oct 17).
     func art(for c: CoverChoice) -> ThemeArtDef? {
-        c.category == "Solid" ? nil : themeArt?[c.option]
+        c.option.isEmpty ? nil : themeArt?[c.option]
     }
 }
 
@@ -313,7 +381,15 @@ struct CoverLayoutDef: Decodable {
     struct Title: Decodable { let text: String; let centerY: Double; let size: Double }
     struct Fields: Decodable { let top: Double; let lineGap: Double; let left: Double; let right: Double }
     struct PhotoBox: Decodable { let rect: [Double]; let border: Double }
-    struct Footer: Decodable { let centerY: Double; let size: Double; let text: String }
+    struct Footer: Decodable {
+        /// v1.8: the footer's fixed box on every cover — `left` (bottom-left, never past the page center line) and
+        /// `right` (the mirror box, used when the theme picture sits on the left, e.g. 4th of July). [x, y, w, h] inches.
+        struct FooterBox: Decodable { let left: [Double]; let right: [Double] }
+        let centerY: Double
+        let size: Double
+        let text: String
+        var box: FooterBox? = nil
+    }
 
     var pageBox: [Double] = [0.5, 0.68, 7.48, 9.52]
     var logo = Box(rect: [0.6, 0.75, 1.6, 1.1])
@@ -322,7 +398,8 @@ struct CoverLayoutDef: Decodable {
     var fields = Fields(top: 2.62, lineGap: 0.47, left: 1.3, right: 7.2)
     var photoBox = PhotoBox(rect: [1.2, 5.1, 6.08, 4.15], border: 1.25)
     var footer = Footer(centerY: 9.65, size: 11,
-                        text: "This inspection report is the property of {companyName}.\nAny reproduction or distribution without written consent is prohibited.")
+                        text: "This inspection report is the property of {companyName}.\nAny reproduction or distribution without written consent is prohibited.",
+                        box: .init(left: [0.55, 9.3, 3.7, 0.85], right: [4.25, 9.3, 3.7, 0.85]))
 
     static let fallback = CoverLayoutDef()
     init() {}

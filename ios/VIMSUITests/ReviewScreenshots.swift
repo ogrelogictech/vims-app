@@ -16,7 +16,7 @@ import UIKit
 /// Each shot launches the app with the DEBUG launch arguments (DebugLaunch.swift), rotates, runs the steps and saves
 /// `<out>/<name>.png` (also attached to the test result). Steps: `tap` (accessibility label / identifier / static
 /// text), `tapField` (a text field / view by label or placeholder), `tapAt` ([x, y] as fractions of the window), `type`, `swipeUp` / `swipeDown` (count), `wait` (seconds),
-/// `shot` (an extra screenshot named `<name>-<value>`).
+/// `longPressAt` ([x, y] fractions), `shot` (an extra screenshot named `<name>-<value>`).
 final class ReviewScreenshots: XCTestCase {
     struct Plan: Decodable {
         var out: String
@@ -34,6 +34,8 @@ final class ReviewScreenshots: XCTestCase {
         /// Taps the text field / text view with this accessibility label or placeholder (not a static text that says it).
         var tapField: String?
         var tapAt: [Double]?
+        /// Long-press at [x, y] (fractions of the window), e.g. a Summary finding's context menu.
+        var longPressAt: [Double]?
         var type: String?
         var swipeUp: Int?
         var swipeDown: Int?
@@ -82,6 +84,9 @@ final class ReviewScreenshots: XCTestCase {
             }
             if let p = step.tapAt, p.count == 2 {
                 app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: p[0], dy: p[1])).tap()
+            }
+            if let p = step.longPressAt, p.count == 2 {
+                app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: p[0], dy: p[1])).press(forDuration: 1.2)
             }
             if let t = step.type { app.typeText(t) }
             if let n = step.swipeUp { for _ in 0..<n { app.swipeUp() } }

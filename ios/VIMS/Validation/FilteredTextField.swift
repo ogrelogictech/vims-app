@@ -46,7 +46,7 @@ struct FilteredTextField: UIViewRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
     func makeUIView(context: Context) -> UITextField {
-        let tf = UITextField()
+        let tf = CaretTextField()
         tf.delegate = context.coordinator
         tf.addTarget(context.coordinator, action: #selector(Coordinator.changed(_:)), for: .editingChanged)
         tf.setContentHuggingPriority(.defaultLow, for: .horizontal)
@@ -114,7 +114,11 @@ struct FilteredTextField: UIViewRepresentable {
             let current = tf.text ?? ""
             guard let r = Range(range, in: current) else { return true }
             let proposed = current.replacingCharacters(in: r, with: string)
-            let filtered = filter(proposed)
+            var filtered = filter(proposed)
+            // Company code (QA Oct 14): typing the 3rd letter inserts the "-" (deleting it doesn't put it back).
+            if parent.kind == .joinCode, !string.isEmpty, filtered.range(of: #"^[A-Z]{3}$"#, options: .regularExpression) != nil {
+                filtered += "-"
+            }
             if filtered == proposed { return true }          // UIKit applies it; .editingChanged publishes
             // Apply the filtered/formatted value ourselves and keep the caret sensible.
             let atEnd = range.location + range.length >= (current as NSString).length
@@ -150,6 +154,27 @@ struct FilteredTextField: UIViewRepresentable {
     }
 }
 
+/// The app's single-line field: a select-all that UIKit issues as part of giving it focus (keyboard Tab navigation,
+/// programmatic focus) becomes a caret at the end. A Select All the user picks from the edit menu later still works.
+final class CaretTextField: UITextField {
+    private var focusedAt: Date?
+
+    override func becomeFirstResponder() -> Bool {
+        let ok = super.becomeFirstResponder()
+        if ok { focusedAt = Date() }
+        return ok
+    }
+
+    override func selectAll(_ sender: Any?) {
+        if let t = focusedAt, Date().timeIntervalSince(t) < 0.5 {
+            let end = endOfDocument
+            selectedTextRange = textRange(from: end, to: end)
+            return
+        }
+        super.selectAll(sender)
+    }
+}
+
 /// docs/validation-rules.md "Text selection": focusing a field never auto-selects its existing text — the caret goes
 /// where the user tapped, or to the end. UIKit can hand a field focus with its whole text selected (programmatic focus /
 /// Return-key chains, select-all restored from a previous edit, hardware-keyboard tabbing); right after focus, a
@@ -171,13 +196,18 @@ enum TextSelection {
         }
     }
 
-    /// Now and once more on the next run-loop turn (UIKit may apply its selection after the begin-editing callback).
+    /// Now, on the next run-loop turn and twice more shortly after: UIKit may apply its selection after the
+    /// begin-editing callback (QA Oct 14: hardware-keyboard Tab / Return-chain focus and prefilled fields still came up
+    /// selected). Only a selection covering the WHOLE text is collapsed, and only in this short focus window.
     static func collapseIfAllSelected(_ input: UITextInput & UIResponder) {
         collapse(input)
         DispatchQueue.main.async { collapse(input) }
+        for delay in [0.12, 0.3] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { collapse(input) }
+        }
     }
 
-    private static func collapse(_ input: UITextInput & UIResponder) {
+    static func collapse(_ input: UITextInput & UIResponder) {
         guard input.isFirstResponder, let sel = input.selectedTextRange, !sel.isEmpty else { return }
         let all = input.textRange(from: input.beginningOfDocument, to: input.endOfDocument)
         guard let all, input.compare(sel.start, to: all.start) == .orderedSame,

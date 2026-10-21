@@ -38,7 +38,7 @@ struct SummaryView: View {
     }
 
     private func categoryCard(_ c: FindingCategoryDef, _ insp: Inspection) -> some View {
-        SummaryCategoryCard(category: c, findings: insp.findings.filter { $0.category == c.id }) { f in
+        SummaryCategoryCard(category: c, findings: insp.findings.filter { $0.category == c.id }, title: store.catalog.title) { f in
             store.deleteFinding(inspectionID, findingID: f.id)
             store.toast("Finding removed")
         }
@@ -48,7 +48,11 @@ struct SummaryView: View {
 struct SummaryCategoryCard: View {
     let category: FindingCategoryDef
     let findings: [Finding]
+    /// Section key → display title (data v1.8 `title`).
+    var title: (String) -> String = { $0 }
     let onDelete: (Finding) -> Void
+    /// Client Oct 17: long-press → Remove finding asks first ("Remove this finding?" / Remove / Cancel).
+    @State private var confirming: Finding?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -77,7 +81,7 @@ struct SummaryCategoryCard: View {
                 HStack(alignment: .top, spacing: 10) {
                     Circle().fill(VC.category(category.id)).frame(width: 7, height: 7).padding(.top, 6)
                     // Same line as the report's Summary of Findings (client Oct 16): Section (bold) — custom — quick.
-                    (Text(f.section).font(VFont.ui(13.5, .bold)).foregroundColor(VC.ink)
+                    (Text(title(f.section)).font(VFont.ui(13.5, .bold)).foregroundColor(VC.ink)
                         + Text(f.lineParts.map { " — \($0)" }.joined()).font(VFont.ui(13.5)).foregroundColor(VC.ink2))
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .fixedSize(horizontal: false, vertical: true)
@@ -86,9 +90,16 @@ struct SummaryCategoryCard: View {
                 .overlay(alignment: .top) { Rectangle().fill(VC.line2).frame(height: 1) }
                 .contentShape(Rectangle())
                 .contextMenu {
-                    Button(role: .destructive) { onDelete(f) } label: { IconLabel("Remove finding", icon: "trash") }
+                    Button(role: .destructive) { confirming = f } label: { IconLabel("Remove finding", icon: "trash") }
                 }
             }
+        }
+        .alert("Remove this finding?", isPresented: Binding(get: { confirming != nil }, set: { if !$0 { confirming = nil } }),
+               presenting: confirming) { f in
+            Button("Remove", role: .destructive) { onDelete(f); confirming = nil }
+            Button("Cancel", role: .cancel) { confirming = nil }
+        } message: { f in
+            Text(([title(f.section)] + f.lineParts).joined(separator: " — ") + "\n\nIt will be removed from the summary and the report.")
         }
         .background(VC.paper)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -102,7 +113,6 @@ struct SummaryCategoryCard: View {
 struct ReportView: View {
     @Environment(AppStore.self) private var store
     let inspectionID: UUID
-    @State private var coverStep = 1
     @State private var pageEstimate: Int?
     @State private var generating = false
     @State private var preview: PreviewDoc?
@@ -122,7 +132,6 @@ struct ReportView: View {
                 }
             }
             .onAppear {
-                if let s = DebugFlags.coverStep { coverStep = s; DebugFlags.coverStep = nil }
                 Task { await estimate() }
             }
             .documentCover(item: $preview) { doc in PDFPreviewSheet(doc: doc) }
@@ -136,7 +145,7 @@ struct ReportView: View {
         // Reads the live cover (not this render's `insp` snapshot): a pick that changes several parts at once
         // (category → its first image + style) used to write back the stale category / image.
         CoverPicker(cover: Binding(get: { store.inspection(inspectionID)?.cover ?? insp.cover },
-                                   set: { c in store.update(inspectionID) { $0.cover = c } }), step: $coverStep)
+                                   set: { c in store.update(inspectionID) { $0.cover = c } }))
 
         SectionLabel(text: "Report pages")
         Text(Self.reportPages[store.catalog.reportLayout(for: insp.inspType)] ?? "")
@@ -161,7 +170,7 @@ struct ReportView: View {
                 HStack {
                     Text(String(format: "%02d", cat.number(n))).font(VFont.mono(14, .semibold)).foregroundStyle(VC.brandDeep)
                         .frame(width: 30, alignment: .leading)
-                    Text(n).font(VFont.ui(14)).foregroundStyle(VC.ink)
+                    Text(cat.title(n)).font(VFont.ui(14)).foregroundStyle(VC.ink)
                     Spacer()
                     Pill(kind: .done, text: "Included")
                 }
@@ -246,101 +255,88 @@ struct ReportView: View {
     }
 }
 
-// MARK: Cover picker — Color → Theme → Style with live preview
+// MARK: Cover picker — Color, Theme (category + picture / No picture) and Style on one page, with a live preview
+// (client Oct 17, data v1.8 `covers._pickerAbout`): Solid is a style like Shaded and Framed and can carry a picture.
 
 struct CoverPicker: View {
     @Environment(AppStore.self) private var store
     @Binding var cover: CoverChoice
-    @Binding var step: Int
 
     var body: some View {
         let covers = store.config.covers
+        let order = store.config.coverCategoryOrder
+        // A cover migrated from the old "Solid" category has no category: list the first one's pictures.
+        let shownCategory = order.contains(cover.category) ? cover.category : (order.first ?? "")
         VStack(alignment: .leading, spacing: 0) {
-            Button { step = 1 } label: {
-                HStack(spacing: 13) {
-                    CoverArt(cover: cover, size: CGSize(width: 78, height: 104), fontSize: 11)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(cover.label).font(VFont.ui(15, .bold)).foregroundStyle(VC.ink)
-                        Text("Tap to change color, theme, or style").font(VFont.ui(12.5)).foregroundStyle(VC.ink3)
-                    }
-                    Spacer(minLength: 0)
+            HStack(spacing: 13) {
+                CoverArt(cover: cover, size: CGSize(width: 78, height: 104), fontSize: 11)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(label(cover)).font(VFont.ui(15, .bold)).foregroundStyle(VC.ink)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text("Color, theme and style, all on this page").font(VFont.ui(12.5)).foregroundStyle(VC.ink3)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                .padding(13)
-                .background(VC.paper)
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(VC.line, lineWidth: 1))
+                Spacer(minLength: 0)
             }
-            .buttonStyle(ChipPressStyle())
-            .padding(.bottom, 14)
+            .padding(13)
+            .background(VC.paper)
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(VC.line, lineWidth: 1))
+            .accessibilityElement(children: .combine)
+            .padding(.bottom, 4)
 
-            HStack(spacing: 6) {
-                ForEach(1...3, id: \.self) { i in
-                    let label = ["1 · Color", "2 · Theme", "3 · Style"][i - 1]
-                    Button { step = i } label: {
-                        Text(label.uppercased()).font(VFont.mono(10)).tracking(0.6)
-                            .foregroundStyle(i == step ? .white : (i < step ? VC.brandDeep : VC.ink3))
-                            .frame(maxWidth: .infinity, minHeight: 30)
-                            .background(i == step ? VC.hdr : (i < step ? VC.brand.opacity(0.14) : VC.paper3))
-                            .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(.top, 2).padding(.bottom, 14)
-
-            switch step {
-            case 1:
-                HStack(spacing: 10) {
-                    ForEach(covers.colors, id: \.name) { c in
-                        let on = cover.color == c.name
-                        Button { cover.color = c.name } label: {
-                            VStack(spacing: 0) {
-                                LinearGradient(colors: [Color(hexString: c.from), Color(hexString: c.to)], startPoint: .topLeading, endPoint: .bottomTrailing)
-                                    .frame(height: 56)
-                                Text(c.name).font(VFont.ui(12.5, .semibold)).foregroundStyle(on ? VC.brand : VC.ink2)
-                                    .frame(maxWidth: .infinity).padding(.vertical, 9)
-                            }
-                            .background(VC.paper)
-                            .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
-                            .overlay(RoundedRectangle(cornerRadius: 13, style: .continuous).stroke(on ? VC.brand : VC.line, lineWidth: 2))
-                            .shadow(color: on ? VC.brand.opacity(0.15) : .clear, radius: 3)
+            SectionLabel(text: "Color")
+            HStack(spacing: 10) {
+                ForEach(covers.colors, id: \.name) { c in
+                    let on = cover.color == c.name
+                    Button { cover.color = c.name } label: {
+                        VStack(spacing: 0) {
+                            LinearGradient(colors: [Color(hexString: c.from), Color(hexString: c.to)], startPoint: .topLeading, endPoint: .bottomTrailing)
+                                .frame(height: 48)
+                            Text(c.name).font(VFont.ui(12.5, .semibold)).foregroundStyle(on ? VC.brand : VC.ink2)
+                                .frame(maxWidth: .infinity).padding(.vertical, 8)
                         }
-                        .buttonStyle(ChipPressStyle())
-                        .accessibilityAddTraits(on ? .isSelected : [])
+                        .background(VC.paper)
+                        .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 13, style: .continuous).stroke(on ? VC.brand : VC.line, lineWidth: 2))
+                        .shadow(color: on ? VC.brand.opacity(0.15) : .clear, radius: 3)
                     }
+                    .buttonStyle(ChipPressStyle())
+                    .accessibilityLabel("Color \(c.name)")
+                    .accessibilityAddTraits(on ? .isSelected : [])
                 }
-                Button("Next: theme") { step = 2 }.buttonStyle(.vPrimary).padding(.top, 12)
-            case 2:
-                SectionLabel(text: "Category", top: 2)
-                optionGrid(store.config.coverCategoryOrder, selected: cover.category) { cat in
-                    // One write for the whole change (category + its first image + style).
-                    var c = cover
-                    c.category = cat
-                    c.option = covers.categories[cat]?.first ?? ""
-                    if cat == "Solid" { c.style = covers.solidStyle } else if c.style == covers.solidStyle { c.style = covers.styles.first ?? "Framed" }
-                    cover = c
-                }
-                let opts = covers.categories[cover.category] ?? []
-                if !opts.isEmpty {
-                    SectionLabel(text: "Image")
-                    optionGrid(opts, selected: cover.option, art: { covers.themeArt?[$0] }) { cover.option = $0 }
-                }
-                HStack(spacing: 10) {
-                    Button("Back") { step = 1 }.buttonStyle(.vGhost)
-                    Button("Next: style") { step = 3 }.buttonStyle(.vPrimary)
-                }
-                .padding(.top, 12)
-            default:
-                SectionLabel(text: "Style", top: 2)
-                optionGrid(cover.category == "Solid" ? [covers.solidStyle] : covers.styles, selected: cover.style) { cover.style = $0 }
-                Button("Back") { step = 2 }.buttonStyle(.vGhost).padding(.top, 12)
             }
+
+            SectionLabel(text: "Theme")
+            optionGrid(order, selected: order.contains(cover.category) ? cover.category : "") { cat in
+                // One write for the whole change (category + its first picture), like the prototype.
+                var c = cover
+                c.category = cat
+                c.option = covers.categories[cat]?.first ?? ""
+                cover = c
+            }
+            SectionLabel(text: "Picture")
+            let pictures = covers.categories[shownCategory] ?? []
+            optionGrid([covers.noPictureLabel] + pictures, selected: cover.hasPicture ? cover.option : covers.noPictureLabel,
+                       art: { covers.themeArt?[$0] }) { o in
+                var c = cover
+                c.category = shownCategory
+                c.option = o == covers.noPictureLabel && !pictures.contains(o) ? "" : o
+                cover = c
+            }
+
+            SectionLabel(text: "Style")
+            optionGrid(covers.styles, selected: cover.style, columns: 3) { cover.style = $0 }
         }
     }
 
-    private func optionGrid(_ options: [String], selected: String, art: @escaping (String) -> ThemeArtDef? = { _ in nil },
+    private func label(_ c: CoverChoice) -> String {
+        "\(c.color) · \(c.hasPicture ? c.option : store.config.covers.noPictureLabel) · \(c.style)"
+    }
+
+    private func optionGrid(_ options: [String], selected: String, columns: Int = 2, art: @escaping (String) -> ThemeArtDef? = { _ in nil },
                             pick: @escaping (String) -> Void) -> some View {
-        LazyVGrid(columns: [GridItem(.flexible(), spacing: 9), GridItem(.flexible(), spacing: 9)], spacing: 9) {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 9), count: columns), spacing: 9) {
             ForEach(options, id: \.self) { o in
                 let on = o == selected
                 Button { pick(o) } label: {
@@ -352,6 +348,7 @@ struct CoverPicker: View {
                         }
                         Text(o).font(VFont.ui(13.5, .semibold)).foregroundStyle(on ? VC.brandDeep : VC.ink2)
                             .multilineTextAlignment(.leading)
+                            .fixedSize(horizontal: false, vertical: true)
                         Spacer(minLength: 4)
                         if on { ProtoIcon("link-my-account", size: 16).foregroundStyle(VC.brand) }
                     }
@@ -368,7 +365,7 @@ struct CoverPicker: View {
 }
 
 /// Cover swatch: the color's gradient with the chosen theme artwork in the corner (bottom-right, or bottom-left for
-/// art the client places on the left such as 4th of July), like the prototype's .coverprev. Solid shows the color name.
+/// art the client places on the left such as 4th of July), like the prototype's .coverprev. "No picture" shows the color name.
 struct CoverArt: View {
     @Environment(AppStore.self) private var store
     let cover: CoverChoice

@@ -113,6 +113,7 @@ struct SectionsOverviewView: View {
 }
 
 struct GroupAccordion: View {
+    @Environment(AppStore.self) private var store
     let group: ChecklistGroup
     let insp: Inspection
     let isOpen: Bool
@@ -180,7 +181,7 @@ struct GroupAccordion: View {
         return Button { openSection(n) } label: {
             HStack(spacing: 12) {
                 StatusDot(status: st, size: 9)
-                Text(n).font(VFont.ui(14, .medium)).foregroundStyle(VC.ink).frame(maxWidth: .infinity, alignment: .leading)
+                Text(store.catalog.title(n)).font(VFont.ui(14, .medium)).foregroundStyle(VC.ink).frame(maxWidth: .infinity, alignment: .leading)
                 Pill(kind: st.pillKind, text: st.label)
             }
             .padding(.leading, 18).padding(.trailing, 15).padding(.vertical, 12)
@@ -328,7 +329,7 @@ struct SectionsDrawer: View {
             HStack(spacing: 10) {
                 let st = insp.status[n] ?? .todo
                 StatusDot(status: st, size: 8)
-                Text(n).font(VFont.ui(13.5, on ? .semibold : .regular)).foregroundStyle(on ? VC.brandDeep : VC.ink2)
+                Text(store.catalog.title(n)).font(VFont.ui(13.5, on ? .semibold : .regular)).foregroundStyle(on ? VC.brandDeep : VC.ink2)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 Pill(kind: st.pillKind, text: st.label)
             }

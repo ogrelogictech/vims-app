@@ -197,11 +197,13 @@ struct ChipGroup: View {
     @Binding var selection: [String]
     var single = true
     var required = false
+    /// Shown text for an option (stored values stay the option keys), e.g. section keys → their display titles.
+    var display: (String) -> String = { $0 }
 
     var body: some View {
         FlowLayout(spacing: 8, lineSpacing: 8) {
             ForEach(Array(options.enumerated()), id: \.offset) { _, opt in
-                ChipButton(label: opt, on: selection.contains(opt)) { tap(opt) }
+                ChipButton(label: display(opt), on: selection.contains(opt)) { tap(opt) }
             }
         }
     }
