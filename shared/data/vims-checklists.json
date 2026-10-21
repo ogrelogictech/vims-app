@@ -1,7 +1,7 @@
 {
  "_about": "VIMS shared checklist + configuration data. Single source of truth for the native iOS (SwiftUI) and Android (Kotlin/Compose) apps. Extracted from the client-approved prototype (index.html, approved Sep 15, 2026). Edit here, not in app code.",
- "version": "1.7.1",
- "generated": "2026-10-12",
+ "version": "1.8.0",
+ "generated": "2026-10-21",
  "depths": [
   {
    "id": "high",
@@ -29,7 +29,8 @@
   "date": "date picker",
   "time": "time picker",
   "header": "sub-section header band (not an input)",
-  "airReading": "Indoor Air Quality reading: optional numeric 'Level measured' (decimal keypad, unit shown) + a 1–6 rating (single choice). Answer = {level, rating}. Carries code/unit/reference/action for the report table (see the section's airQuality block)."
+  "airReading": "Indoor Air Quality reading: optional numeric 'Level measured' (decimal keypad, unit shown) + a 1–6 rating (single choice). Answer = {level, rating}. Carries code/unit/reference/action for the report table (see the section's airQuality block).",
+  "visibleIf": "Optional on any item: show it only when another item in the same section matches. {q, atLeast: n} = that single-choice answer is a number ≥ n; {q, includes: option} = that answer (single or multi) includes the option. Hidden items are not validated and not printed."
  },
  "overallCondition": [
   "Satisfactory",
@@ -26054,6 +26055,10 @@
      "type": "text",
      "placeholder": "e.g. 2.7"
     }
+   ],
+   "reportNote": [
+    "Radon is a naturally occurring radioactive gas that has the symbol Rn and atomic number 86. It is colorless, odorless, and tasteless. It occurs naturally in minute quantities as a byproduct of radioactive decay of Thorium, Radium and Uranium.",
+    "Radon is measured in picocuries per liter (pCi/L), and the EPA recommends 1.3 pCi/L as an acceptable amount for an indoor living space. The EPA draws the line at 4.0 pCi/L as the “action level” at which you should take measures to reduce radon in your home."
    ]
   },
   {
@@ -26062,6 +26067,7 @@
    "icon": null,
    "photoCategories": [
     "Sample Area",
+    "Cartridge Result",
     "Concerns"
    ],
    "items": [
@@ -26082,8 +26088,18 @@
       "Kitchen",
       "Bedroom",
       "HVAC",
-      "Whole house"
+      "Whole house",
+      "Other"
      ]
+    },
+    {
+     "q": "Other area tested",
+     "type": "text",
+     "placeholder": "Describe the area tested",
+     "visibleIf": {
+      "q": "Area tested",
+      "includes": "Other"
+     }
     },
     {
      "q": "Contamination scale (1 worst … 10 best)",
@@ -26545,7 +26561,8 @@
       "No"
      ]
     }
-   ]
+   ],
+   "title": "Wood Destroying Organism Inspection"
   },
   {
    "name": "Lead",
@@ -26575,6 +26592,42 @@
       "3",
       "4"
      ]
+    },
+    {
+     "q": "Sample 1 location",
+     "type": "text",
+     "placeholder": "Where the sample was taken",
+     "visibleIf": {
+      "q": "Samples taken",
+      "atLeast": 1
+     }
+    },
+    {
+     "q": "Sample 2 location",
+     "type": "text",
+     "placeholder": "Where the sample was taken",
+     "visibleIf": {
+      "q": "Samples taken",
+      "atLeast": 2
+     }
+    },
+    {
+     "q": "Sample 3 location",
+     "type": "text",
+     "placeholder": "Where the sample was taken",
+     "visibleIf": {
+      "q": "Samples taken",
+      "atLeast": 3
+     }
+    },
+    {
+     "q": "Sample 4 location",
+     "type": "text",
+     "placeholder": "Where the sample was taken",
+     "visibleIf": {
+      "q": "Samples taken",
+      "atLeast": 4
+     }
     },
     {
      "q": "Lead present level (1 low … 10 high)",
@@ -27483,7 +27536,8 @@
      "type": "text",
      "placeholder": "notes"
     }
-   ]
+   ],
+   "title": "Septic System"
   },
   {
    "name": "Sewer Scope",
@@ -30888,7 +30942,6 @@
    }
   ],
   "categories": {
-   "Solid": [],
    "Activities": [
     "Horses",
     "Planes",
@@ -30917,10 +30970,10 @@
    ]
   },
   "styles": [
+   "Shaded",
    "Framed",
-   "Shaded"
+   "Solid"
   ],
-  "solidStyle": "Solid",
   "default": {
    "color": "Blue",
    "category": "Activities",
@@ -30967,7 +31020,8 @@
     "top": 2.62,
     "lineGap": 0.47,
     "left": 1.3,
-    "right": 7.2
+    "right": 7.2,
+    "addressLine2": "The second address line is symmetrical with the first: its underline starts and ends exactly where the first line's value underline does (under the value, not under the label)."
    },
    "photoBox": {
     "rect": [
@@ -30983,7 +31037,21 @@
     "centerY": 9.65,
     "size": 11,
     "text": "This inspection report is the property of {companyName}.\nAny reproduction or distribution without written consent is prohibited.",
-    "_about": "bold, centered; when theme art overlaps the footer area, wrap the footer into the free space beside the art (as the client's covers do)"
+    "_about": "Client Oct 17: the footer text sits in the same box on every cover: bottom-left, never crossing the page center line (4.25in), sized like the Hobbies – F1 Racing cover. Exception: when the theme picture is on the left (4th of July), the text uses the matching right-hand box. Text is drawn above the art. Company name underlined.",
+    "box": {
+     "left": [
+      0.55,
+      9.3,
+      3.7,
+      0.85
+     ],
+     "right": [
+      4.25,
+      9.3,
+      3.7,
+      0.85
+     ]
+    }
    },
    "themeArt": "drawn last, on top of everything, at covers.themeArt[option].rect, clipped to pageBox"
   },
@@ -31151,7 +31219,9 @@
     ]
    }
   },
-  "themeArtNote": "Extracted from the client's Word covers (Report Cover Pages, Oct 9 2026). Summer and Christmas (pngtree) and Spring (shutterstock) contain stock-site WATERMARKS: test builds only, licensed replacements needed before store release. 'May 5th' cover was not marked Done by the client and is not included yet."
+  "themeArtNote": "Extracted from the client's Word covers (Report Cover Pages, Oct 9 2026). Summer and Christmas (pngtree) and Spring (shutterstock) contain stock-site WATERMARKS: test builds only, licensed replacements needed before store release. 'May 5th' cover was not marked Done by the client and is not included yet.",
+  "noThemeOption": "No picture",
+  "_pickerAbout": "Client Oct 17: one page with Color, Theme (category + picture, or 'No picture') and Style (Shaded, Framed, Solid in that order). Solid is a style like the others and can carry a theme picture."
  },
  "subscription": {
   "trialDays": 30,
@@ -31511,5 +31581,9 @@
    "note": "New Hampshire: send the report to the real estate agent only with the client's written authorization.",
    "agentCopyDefault": false
   }
+ },
+ "sectionFields": {
+  "title": "Optional display name (lists, wizard, report). `name` stays the stable key used by saved inspections.",
+  "reportNote": "Optional paragraphs printed in the report after the section's items and before Overall condition."
  }
 }
