@@ -1,6 +1,6 @@
 {
  "_about": "VIMS shared checklist + configuration data. Single source of truth for the native iOS (SwiftUI) and Android (Kotlin/Compose) apps. Extracted from the client-approved prototype (index.html, approved Sep 15, 2026). Edit here, not in app code.",
- "version": "1.8.0",
+ "version": "1.9.0",
  "generated": "2026-10-21",
  "depths": [
   {
@@ -26424,145 +26424,316 @@
    "photoCategories": [
     "Evidence",
     "Damage",
+    "Previous Treatment",
+    "Obstructions",
     "Concerns"
    ],
    "items": [
     {
-     "q": "Areas inspected",
-     "type": "multi",
-     "options": [
-      "Deck",
-      "Garage",
-      "Attic",
-      "Main room",
-      "Kitchen",
-      "Pantry",
-      "Laundry",
-      "Basement",
-      "Crawlspace"
-     ]
+     "header": "Section I. General Information"
     },
     {
-     "q": "Insects / pests observed",
-     "type": "multi",
-     "options": [
-      "Termites",
-      "Wasps",
-      "Ants",
-      "Rodents",
-      "None"
-     ]
+     "q": "Company business license no.",
+     "type": "text"
+    },
+    {
+     "q": "Structure(s) inspected",
+     "type": "text",
+     "placeholder": "e.g. house and detached garage"
+    },
+    {
+     "header": "Section II. Inspection Findings"
     },
     {
      "q": "Findings",
      "type": "single",
      "options": [
-      "No visible evidence",
-      "Visible evidence observed"
-     ]
+      "A. No visible evidence of wood destroying insects was observed.",
+      "B. Visible evidence of wood destroying insects was observed as follows:"
+     ],
+     "formKey": "II"
     },
     {
-     "q": "Evidence type",
-     "type": "multi",
-     "options": [
-      "Live insects",
-      "Dead insects",
-      "Visible damage"
-     ]
-    }
-   ],
-   "itemsHigh": [
-    {
-     "header": "Report Information"
-    },
-    {
-     "q": "Report prepared for",
+     "q": "1. Live insects (description and location)",
      "type": "text",
-     "placeholder": "name"
+     "visibleIf": {
+      "q": "Findings",
+      "includes": "B. Visible evidence of wood destroying insects was observed as follows:"
+     }
     },
     {
-     "q": "Date of inspection",
-     "type": "date"
-    },
-    {
-     "q": "Property address",
+     "q": "2. Dead insects, insect parts, frass, shelter tubes, exit holes, or staining (description and location)",
      "type": "text",
-     "placeholder": "address"
+     "visibleIf": {
+      "q": "Findings",
+      "includes": "B. Visible evidence of wood destroying insects was observed as follows:"
+     }
     },
     {
-     "header": "Areas Inspected"
-    },
-    {
-     "q": "Areas inspected",
-     "type": "multi",
-     "options": [
-      "Deck",
-      "Garage",
-      "Attic",
-      "Main Room",
-      "Kitchen",
-      "Pantry",
-      "Laundry Room",
-      "Utility/Furnace Room",
-      "Basement",
-      "Crawlspace"
-     ]
-    },
-    {
-     "header": "Insects and Pests"
-    },
-    {
-     "q": "Observed",
-     "type": "multi",
-     "options": [
-      "Termites",
-      "Wasps",
-      "Ants",
-      "Rodents",
-      "None"
-     ]
-    },
-    {
-     "header": "Inspection Findings"
-    },
-    {
-     "q": "Evidence of wood destroying insects",
-     "type": "single",
-     "options": [
-      "No visible evidence observed",
-      "Visible evidence observed"
-     ]
-    },
-    {
-     "q": "Live insects/pests - description and location",
+     "q": "3. Visible damage from wood destroying insects (description and location)",
      "type": "text",
-     "placeholder": "describe"
+     "visibleIf": {
+      "q": "Findings",
+      "includes": "B. Visible evidence of wood destroying insects was observed as follows:"
+     }
     },
     {
-     "q": "Dead insects/pests - description and location",
-     "type": "text",
-     "placeholder": "describe"
-    },
-    {
-     "q": "Visible damage - description and location",
-     "type": "text",
-     "placeholder": "describe"
-    },
-    {
-     "q": "Recommendations",
-     "type": "text",
-     "placeholder": "notes"
-    },
-    {
-     "q": "No action necessary",
+     "q": "Structure(s) appear to have been previously treated",
      "type": "single",
      "options": [
       "Yes",
       "No"
      ]
+    },
+    {
+     "q": "Visible evidence of possible previous treatment",
+     "type": "text",
+     "visibleIf": {
+      "q": "Structure(s) appear to have been previously treated",
+      "includes": "Yes"
+     }
+    },
+    {
+     "header": "Section III. Recommendations"
+    },
+    {
+     "q": "Recommendation",
+     "type": "single",
+     "options": [
+      "No treatment recommended",
+      "Recommend treatment"
+     ]
+    },
+    {
+     "q": "Explanation (required if Section II box B is checked)",
+     "type": "text",
+     "visibleIf": {
+      "q": "Recommendation",
+      "includes": "No treatment recommended"
+     }
+    },
+    {
+     "q": "Recommend treatment for the control of",
+     "type": "text",
+     "visibleIf": {
+      "q": "Recommendation",
+      "includes": "Recommend treatment"
+     }
+    },
+    {
+     "header": "Section IV. Obstructions and Inaccessible Areas"
+    },
+    {
+     "q": "Basement — obstructed or inaccessible",
+     "type": "text",
+     "placeholder": "e.g. stored items, insulation, no access"
+    },
+    {
+     "q": "Crawlspace — obstructed or inaccessible",
+     "type": "text",
+     "placeholder": "e.g. stored items, insulation, no access"
+    },
+    {
+     "q": "Main level — obstructed or inaccessible",
+     "type": "text",
+     "placeholder": "e.g. stored items, insulation, no access"
+    },
+    {
+     "q": "Attic — obstructed or inaccessible",
+     "type": "text",
+     "placeholder": "e.g. stored items, insulation, no access"
+    },
+    {
+     "q": "Garage — obstructed or inaccessible",
+     "type": "text",
+     "placeholder": "e.g. stored items, insulation, no access"
+    },
+    {
+     "q": "Exterior — obstructed or inaccessible",
+     "type": "text",
+     "placeholder": "e.g. stored items, insulation, no access"
+    },
+    {
+     "q": "Porch — obstructed or inaccessible",
+     "type": "text",
+     "placeholder": "e.g. stored items, insulation, no access"
+    },
+    {
+     "q": "Addition — obstructed or inaccessible",
+     "type": "text",
+     "placeholder": "e.g. stored items, insulation, no access"
+    },
+    {
+     "q": "Other — obstructed or inaccessible",
+     "type": "text",
+     "placeholder": "e.g. stored items, insulation, no access"
+    },
+    {
+     "header": "Section V. Additional Comments and Attachments"
+    },
+    {
+     "q": "Additional comments",
+     "type": "text"
+    },
+    {
+     "q": "Attachments",
+     "type": "text"
     }
    ],
-   "title": "Wood Destroying Organism Inspection"
+   "itemsHigh": [
+    {
+     "header": "Section I. General Information"
+    },
+    {
+     "q": "Company business license no.",
+     "type": "text"
+    },
+    {
+     "q": "Structure(s) inspected",
+     "type": "text",
+     "placeholder": "e.g. house and detached garage"
+    },
+    {
+     "header": "Section II. Inspection Findings"
+    },
+    {
+     "q": "Findings",
+     "type": "single",
+     "options": [
+      "A. No visible evidence of wood destroying insects was observed.",
+      "B. Visible evidence of wood destroying insects was observed as follows:"
+     ],
+     "formKey": "II"
+    },
+    {
+     "q": "1. Live insects (description and location)",
+     "type": "text",
+     "visibleIf": {
+      "q": "Findings",
+      "includes": "B. Visible evidence of wood destroying insects was observed as follows:"
+     }
+    },
+    {
+     "q": "2. Dead insects, insect parts, frass, shelter tubes, exit holes, or staining (description and location)",
+     "type": "text",
+     "visibleIf": {
+      "q": "Findings",
+      "includes": "B. Visible evidence of wood destroying insects was observed as follows:"
+     }
+    },
+    {
+     "q": "3. Visible damage from wood destroying insects (description and location)",
+     "type": "text",
+     "visibleIf": {
+      "q": "Findings",
+      "includes": "B. Visible evidence of wood destroying insects was observed as follows:"
+     }
+    },
+    {
+     "q": "Structure(s) appear to have been previously treated",
+     "type": "single",
+     "options": [
+      "Yes",
+      "No"
+     ]
+    },
+    {
+     "q": "Visible evidence of possible previous treatment",
+     "type": "text",
+     "visibleIf": {
+      "q": "Structure(s) appear to have been previously treated",
+      "includes": "Yes"
+     }
+    },
+    {
+     "header": "Section III. Recommendations"
+    },
+    {
+     "q": "Recommendation",
+     "type": "single",
+     "options": [
+      "No treatment recommended",
+      "Recommend treatment"
+     ]
+    },
+    {
+     "q": "Explanation (required if Section II box B is checked)",
+     "type": "text",
+     "visibleIf": {
+      "q": "Recommendation",
+      "includes": "No treatment recommended"
+     }
+    },
+    {
+     "q": "Recommend treatment for the control of",
+     "type": "text",
+     "visibleIf": {
+      "q": "Recommendation",
+      "includes": "Recommend treatment"
+     }
+    },
+    {
+     "header": "Section IV. Obstructions and Inaccessible Areas"
+    },
+    {
+     "q": "Basement — obstructed or inaccessible",
+     "type": "text",
+     "placeholder": "e.g. stored items, insulation, no access"
+    },
+    {
+     "q": "Crawlspace — obstructed or inaccessible",
+     "type": "text",
+     "placeholder": "e.g. stored items, insulation, no access"
+    },
+    {
+     "q": "Main level — obstructed or inaccessible",
+     "type": "text",
+     "placeholder": "e.g. stored items, insulation, no access"
+    },
+    {
+     "q": "Attic — obstructed or inaccessible",
+     "type": "text",
+     "placeholder": "e.g. stored items, insulation, no access"
+    },
+    {
+     "q": "Garage — obstructed or inaccessible",
+     "type": "text",
+     "placeholder": "e.g. stored items, insulation, no access"
+    },
+    {
+     "q": "Exterior — obstructed or inaccessible",
+     "type": "text",
+     "placeholder": "e.g. stored items, insulation, no access"
+    },
+    {
+     "q": "Porch — obstructed or inaccessible",
+     "type": "text",
+     "placeholder": "e.g. stored items, insulation, no access"
+    },
+    {
+     "q": "Addition — obstructed or inaccessible",
+     "type": "text",
+     "placeholder": "e.g. stored items, insulation, no access"
+    },
+    {
+     "q": "Other — obstructed or inaccessible",
+     "type": "text",
+     "placeholder": "e.g. stored items, insulation, no access"
+    },
+    {
+     "header": "Section V. Additional Comments and Attachments"
+    },
+    {
+     "q": "Additional comments",
+     "type": "text"
+    },
+    {
+     "q": "Attachments",
+     "type": "text"
+    }
+   ],
+   "title": "Wood Destroying Organism Inspection",
+   "formReport": "wdi"
   },
   {
    "name": "Lead",
@@ -27736,181 +27907,137 @@
    "number": 41,
    "icon": null,
    "photoCategories": [
-    "Roof Deck",
-    "Roof-Wall Attachment",
-    "Openings",
+    "Building Code",
+    "Roof Covering",
+    "Roof Deck Attachment",
+    "Roof to Wall Attachment",
+    "Roof Geometry",
+    "Secondary Water Resistance",
+    "Opening Protection",
     "Concerns"
    ],
    "items": [
     {
-     "q": "1. Building code",
-     "type": "single",
-     "options": [
-      "A – FBC compliant",
-      "B – SFBC-94 (HVHZ)",
-      "C – Unknown / neither"
-     ]
-    },
-    {
-     "q": "2. Roof covering type",
-     "type": "multi",
-     "options": [
-      "Asphalt / fiberglass shingle",
-      "Concrete / clay tile",
-      "Metal",
-      "Built-up",
-      "Membrane",
-      "Other"
-     ]
-    },
-    {
-     "q": "2. Roof covering compliance",
-     "type": "single",
-     "options": [
-      "Meets FBC / Miami-Dade",
-      "HVHZ product approval",
-      "One+ do not meet",
-      "None meet"
-     ]
-    },
-    {
-     "q": "3. Roof deck attachment (weakest)",
-     "type": "single",
-     "options": [
-      "A",
-      "B",
-      "C",
-      "D – reinforced concrete",
-      "No attic access"
-     ]
-    },
-    {
-     "q": "4. Roof-to-wall attachment (weakest)",
-     "type": "single",
-     "options": [
-      "A – toe nails",
-      "B – clips",
-      "C – single wraps",
-      "D – double wraps",
-      "E – structural anchor",
-      "No attic access"
-     ]
-    },
-    {
-     "q": "5. Roof geometry",
-     "type": "single",
-     "options": [
-      "Hip",
-      "Flat",
-      "Other"
-     ]
-    },
-    {
-     "q": "6. Secondary water resistance",
-     "type": "single",
-     "options": [
-      "SWR (sealed deck)",
-      "No SWR",
-      "Unknown"
-     ]
-    },
-    {
-     "q": "7. Opening protection (weakest)",
-     "type": "single",
-     "options": [
-      "A",
-      "B",
-      "C",
-      "N",
-      "X – none / some glazed"
-     ]
-    }
-   ],
-   "itemsHigh": [
-    {
-     "header": "Property and Owner Information"
-    },
-    {
-     "q": "Inspection date",
-     "type": "date"
+     "header": "Owner Information"
     },
     {
      "q": "Owner name",
      "type": "text",
-     "placeholder": "name"
+     "prefill": "client",
+     "placeholder": "prefilled from the client name"
     },
     {
      "q": "Contact person",
-     "type": "text",
-     "placeholder": "name"
+     "type": "text"
     },
     {
      "q": "Address",
      "type": "text",
-     "placeholder": "address"
+     "prefill": "street",
+     "placeholder": "prefilled"
     },
     {
      "q": "City",
      "type": "text",
-     "placeholder": "city"
+     "prefill": "city"
     },
     {
      "q": "Zip",
      "type": "text",
-     "placeholder": "zip"
+     "prefill": "zip"
     },
     {
      "q": "County",
+     "type": "text"
+    },
+    {
+     "q": "Home phone",
+     "type": "text"
+    },
+    {
+     "q": "Work phone",
+     "type": "text"
+    },
+    {
+     "q": "Cell phone",
      "type": "text",
-     "placeholder": "county"
-    },
-    {
-     "q": "Insurance company",
-     "type": "text",
-     "placeholder": "company"
-    },
-    {
-     "q": "Policy number",
-     "type": "text",
-     "placeholder": "policy"
-    },
-    {
-     "q": "Year of home",
-     "type": "num",
-     "placeholder": "year"
-    },
-    {
-     "q": "Number of stories",
-     "type": "num",
-     "placeholder": "count"
+     "prefill": "clientPhone"
     },
     {
      "q": "Email",
      "type": "text",
-     "placeholder": "email"
+     "prefill": "clientEmail"
+    },
+    {
+     "q": "Insurance company",
+     "type": "text"
+    },
+    {
+     "q": "Policy #",
+     "type": "text"
+    },
+    {
+     "q": "Year of home",
+     "type": "num",
+     "placeholder": "e.g. 1998"
+    },
+    {
+     "q": "# of stories",
+     "type": "num",
+     "placeholder": "1–10"
     },
     {
      "header": "1. Building Code"
     },
     {
-     "q": "Building code compliance",
+     "q": "Building code",
      "type": "single",
      "options": [
       "A. Built in compliance with the FBC",
-      "B. HVHZ only - built in compliance with the SFBC-94",
+      "B. HVHZ only: built in compliance with the SFBC-94",
       "C. Unknown or does not meet A or B"
-     ]
+     ],
+     "formKey": "q1"
     },
     {
      "q": "Year built",
      "type": "num",
+     "visibleIf": {
+      "q": "Building code",
+      "includes": "A. Built in compliance with the FBC"
+     },
      "placeholder": "year"
+    },
+    {
+     "q": "Building permit application date (FBC)",
+     "type": "date",
+     "visibleIf": {
+      "q": "Building code",
+      "includes": "A. Built in compliance with the FBC"
+     }
+    },
+    {
+     "q": "Year built (SFBC-94)",
+     "type": "num",
+     "visibleIf": {
+      "q": "Building code",
+      "includes": "B. HVHZ only: built in compliance with the SFBC-94"
+     },
+     "placeholder": "year"
+    },
+    {
+     "q": "Building permit application date (SFBC-94)",
+     "type": "date",
+     "visibleIf": {
+      "q": "Building code",
+      "includes": "B. HVHZ only: built in compliance with the SFBC-94"
+     }
     },
     {
      "header": "2. Roof Covering"
     },
     {
-     "q": "Roof covering types",
+     "q": "Roof covering types in use",
      "type": "multi",
      "options": [
       "Asphalt/Fiberglass Shingle",
@@ -27919,62 +28046,386 @@
       "Built Up",
       "Membrane",
       "Other"
-     ]
+     ],
+     "formKey": "q2types"
+    },
+    {
+     "q": "Asphalt/Fiberglass Shingle: permit application date",
+     "type": "date",
+     "visibleIf": {
+      "q": "Roof covering types in use",
+      "includes": "Asphalt/Fiberglass Shingle"
+     }
+    },
+    {
+     "q": "Asphalt/Fiberglass Shingle: FBC or MDC product approval #",
+     "type": "text",
+     "visibleIf": {
+      "q": "Roof covering types in use",
+      "includes": "Asphalt/Fiberglass Shingle"
+     }
+    },
+    {
+     "q": "Asphalt/Fiberglass Shingle: year of original installation or replacement",
+     "type": "num",
+     "visibleIf": {
+      "q": "Roof covering types in use",
+      "includes": "Asphalt/Fiberglass Shingle"
+     },
+     "placeholder": "year"
+    },
+    {
+     "q": "Asphalt/Fiberglass Shingle: no information provided for compliance",
+     "type": "single",
+     "options": [
+      "Yes"
+     ],
+     "visibleIf": {
+      "q": "Roof covering types in use",
+      "includes": "Asphalt/Fiberglass Shingle"
+     }
+    },
+    {
+     "q": "Concrete/Clay Tile: permit application date",
+     "type": "date",
+     "visibleIf": {
+      "q": "Roof covering types in use",
+      "includes": "Concrete/Clay Tile"
+     }
+    },
+    {
+     "q": "Concrete/Clay Tile: FBC or MDC product approval #",
+     "type": "text",
+     "visibleIf": {
+      "q": "Roof covering types in use",
+      "includes": "Concrete/Clay Tile"
+     }
+    },
+    {
+     "q": "Concrete/Clay Tile: year of original installation or replacement",
+     "type": "num",
+     "visibleIf": {
+      "q": "Roof covering types in use",
+      "includes": "Concrete/Clay Tile"
+     },
+     "placeholder": "year"
+    },
+    {
+     "q": "Concrete/Clay Tile: no information provided for compliance",
+     "type": "single",
+     "options": [
+      "Yes"
+     ],
+     "visibleIf": {
+      "q": "Roof covering types in use",
+      "includes": "Concrete/Clay Tile"
+     }
+    },
+    {
+     "q": "Metal: permit application date",
+     "type": "date",
+     "visibleIf": {
+      "q": "Roof covering types in use",
+      "includes": "Metal"
+     }
+    },
+    {
+     "q": "Metal: FBC or MDC product approval #",
+     "type": "text",
+     "visibleIf": {
+      "q": "Roof covering types in use",
+      "includes": "Metal"
+     }
+    },
+    {
+     "q": "Metal: year of original installation or replacement",
+     "type": "num",
+     "visibleIf": {
+      "q": "Roof covering types in use",
+      "includes": "Metal"
+     },
+     "placeholder": "year"
+    },
+    {
+     "q": "Metal: no information provided for compliance",
+     "type": "single",
+     "options": [
+      "Yes"
+     ],
+     "visibleIf": {
+      "q": "Roof covering types in use",
+      "includes": "Metal"
+     }
+    },
+    {
+     "q": "Built Up: permit application date",
+     "type": "date",
+     "visibleIf": {
+      "q": "Roof covering types in use",
+      "includes": "Built Up"
+     }
+    },
+    {
+     "q": "Built Up: FBC or MDC product approval #",
+     "type": "text",
+     "visibleIf": {
+      "q": "Roof covering types in use",
+      "includes": "Built Up"
+     }
+    },
+    {
+     "q": "Built Up: year of original installation or replacement",
+     "type": "num",
+     "visibleIf": {
+      "q": "Roof covering types in use",
+      "includes": "Built Up"
+     },
+     "placeholder": "year"
+    },
+    {
+     "q": "Built Up: no information provided for compliance",
+     "type": "single",
+     "options": [
+      "Yes"
+     ],
+     "visibleIf": {
+      "q": "Roof covering types in use",
+      "includes": "Built Up"
+     }
+    },
+    {
+     "q": "Membrane: permit application date",
+     "type": "date",
+     "visibleIf": {
+      "q": "Roof covering types in use",
+      "includes": "Membrane"
+     }
+    },
+    {
+     "q": "Membrane: FBC or MDC product approval #",
+     "type": "text",
+     "visibleIf": {
+      "q": "Roof covering types in use",
+      "includes": "Membrane"
+     }
+    },
+    {
+     "q": "Membrane: year of original installation or replacement",
+     "type": "num",
+     "visibleIf": {
+      "q": "Roof covering types in use",
+      "includes": "Membrane"
+     },
+     "placeholder": "year"
+    },
+    {
+     "q": "Membrane: no information provided for compliance",
+     "type": "single",
+     "options": [
+      "Yes"
+     ],
+     "visibleIf": {
+      "q": "Roof covering types in use",
+      "includes": "Membrane"
+     }
+    },
+    {
+     "q": "Other: permit application date",
+     "type": "date",
+     "visibleIf": {
+      "q": "Roof covering types in use",
+      "includes": "Other"
+     }
+    },
+    {
+     "q": "Other: FBC or MDC product approval #",
+     "type": "text",
+     "visibleIf": {
+      "q": "Roof covering types in use",
+      "includes": "Other"
+     }
+    },
+    {
+     "q": "Other: year of original installation or replacement",
+     "type": "num",
+     "visibleIf": {
+      "q": "Roof covering types in use",
+      "includes": "Other"
+     },
+     "placeholder": "year"
+    },
+    {
+     "q": "Other: no information provided for compliance",
+     "type": "single",
+     "options": [
+      "Yes"
+     ],
+     "visibleIf": {
+      "q": "Roof covering types in use",
+      "includes": "Other"
+     }
+    },
+    {
+     "q": "Other roof covering type",
+     "type": "text",
+     "visibleIf": {
+      "q": "Roof covering types in use",
+      "includes": "Other"
+     },
+     "placeholder": "describe"
     },
     {
      "q": "Roof covering compliance",
      "type": "single",
      "options": [
-      "A. All meet FBC / permit on or after 3/1/02 / original 2004 or later",
-      "B. Miami-Dade approval / HVHZ permit 9/1/94 to 3/1/02 / original 1997 or later",
+      "A. All meet the FBC (product approval current at installation, permit on/after 3/1/02, or original roof built 2004+)",
+      "B. All have a Miami-Dade product approval (or HVHZ permit 9/1/94–3/1/02, or original roof built 1997+)",
       "C. One or more do not meet A or B",
-      "D. No roof coverings meet A or B"
-     ]
+      "D. None meet A or B"
+     ],
+     "formKey": "q2"
     },
     {
-     "header": "3. Roof Deck Attachment"
+     "header": "3. Roof Deck Attachment (weakest form)"
     },
     {
-     "q": "Weakest roof deck attachment",
+     "q": "Roof deck attachment",
      "type": "single",
      "options": [
-      "A. 6d nails or staples or equivalent below B or C",
-      "B. 8d nails 12 inch field or 103 psf",
-      "C. 8d nails 6 inch field or dimensional lumber or 182 psf",
-      "D. Reinforced Concrete Roof Deck",
+      "A. Plywood/OSB by staples or 6d nails 6\" edge / 12\" field, batten decking, or equivalent less than B or C",
+      "B. Plywood/OSB min 7/16\" by 8d common nails max 12\" in the field, or equivalent (≥103 psf)",
+      "C. Plywood/OSB min 7/16\" by 8d common nails max 6\" in the field, dimensional lumber/T&G decking, or equivalent (≥182 psf)",
+      "D. Reinforced concrete roof deck",
       "E. Other",
       "F. Unknown or unidentified",
       "G. No attic access"
-     ]
+     ],
+     "formKey": "q3"
     },
     {
-     "header": "4. Roof to Wall Attachment"
+     "q": "Roof deck attachment — other",
+     "type": "text",
+     "visibleIf": {
+      "q": "Roof deck attachment",
+      "includes": "E. Other"
+     },
+     "placeholder": "describe"
     },
     {
-     "q": "Weakest roof to wall connection",
+     "header": "4. Roof to Wall Attachment (weakest connection)"
+    },
+    {
+     "q": "Roof to wall attachment",
      "type": "single",
      "options": [
-      "A. Toe Nails",
+      "A. Toe nails",
       "B. Clips",
-      "C. Single Wraps",
-      "D. Double Wraps",
-      "E. Structural",
+      "C. Single wraps",
+      "D. Double wraps",
+      "E. Structural anchor bolts / reinforced concrete roof",
       "F. Other",
       "G. Unknown or unidentified",
       "H. No attic access"
+     ],
+     "formKey": "q4"
+    },
+    {
+     "q": "Toe nails — type",
+     "type": "multi",
+     "options": [
+      "Truss/rafter anchored to top plate with nails driven at an angle",
+      "Metal connectors that do not meet the minimal conditions of B, C or D"
+     ],
+     "visibleIf": {
+      "q": "Roof to wall attachment",
+      "includes": "A. Toe nails"
+     }
+    },
+    {
+     "q": "Minimal conditions for B, C or D (all visible metal connectors are)",
+     "type": "multi",
+     "options": [
+      "Secured to truss/rafter with a minimum of three (3) nails",
+      "Attached to the wall top plate or embedded in the bond beam, < ½\" gap, blocked ≤ 1.5\", free of visible severe corrosion"
      ]
+    },
+    {
+     "q": "Clips — type",
+     "type": "multi",
+     "options": [
+      "Metal connectors that do not wrap over the top of the truss/rafter",
+      "Metal connectors with a minimum of 1 strap that wraps over the top, secured with a minimum of 3 nails"
+     ],
+     "visibleIf": {
+      "q": "Roof to wall attachment",
+      "includes": "B. Clips"
+     }
+    },
+    {
+     "q": "Double wraps — type",
+     "type": "multi",
+     "options": [
+      "2 separate straps on either side of the truss/rafter, each wrapping over the top (2 nails front, 1 opposing)",
+      "Single strap wrapping over the top, secured to the wall on both sides, 3 nails each side"
+     ],
+     "visibleIf": {
+      "q": "Roof to wall attachment",
+      "includes": "D. Double wraps"
+     }
+    },
+    {
+     "q": "Roof to wall attachment — other",
+     "type": "text",
+     "visibleIf": {
+      "q": "Roof to wall attachment",
+      "includes": "F. Other"
+     },
+     "placeholder": "describe"
     },
     {
      "header": "5. Roof Geometry"
     },
     {
-     "q": "Roof shape",
+     "q": "Roof geometry",
      "type": "single",
      "options": [
-      "A. Hip Roof",
-      "B. Flat Roof",
-      "C. Other Roof"
-     ]
+      "A. Hip roof",
+      "B. Flat roof",
+      "C. Other roof"
+     ],
+     "formKey": "q5"
+    },
+    {
+     "q": "Total length of non-hip features (feet)",
+     "type": "num",
+     "visibleIf": {
+      "q": "Roof geometry",
+      "includes": "A. Hip roof"
+     }
+    },
+    {
+     "q": "Total roof system perimeter (feet)",
+     "type": "num",
+     "visibleIf": {
+      "q": "Roof geometry",
+      "includes": "A. Hip roof"
+     }
+    },
+    {
+     "q": "Roof area with slope less than 2:12 (sq ft)",
+     "type": "num",
+     "visibleIf": {
+      "q": "Roof geometry",
+      "includes": "B. Flat roof"
+     }
+    },
+    {
+     "q": "Total roof area (sq ft)",
+     "type": "num",
+     "visibleIf": {
+      "q": "Roof geometry",
+      "includes": "B. Flat roof"
+     }
     },
     {
      "header": "6. Secondary Water Resistance (SWR)"
@@ -27983,75 +28434,799 @@
      "q": "Secondary water resistance",
      "type": "single",
      "options": [
-      "A. SWR (Sealed Roof Deck)",
+      "A. SWR (sealed roof deck)",
       "B. No SWR",
       "C. Unknown or undetermined"
-     ]
+     ],
+     "formKey": "q6"
     },
     {
-     "header": "7. Opening Protection"
+     "header": "7. Opening Protection — level per opening type (N/A, A, B, C, D, N, X)"
     },
     {
-     "q": "Glazed opening protection level",
+     "q": "Windows or entry doors (glazed)",
      "type": "single",
      "options": [
-      "A. Cyclic pressure and 9-lb large missile",
-      "B. Cyclic pressure and 4-8 lb large missile",
-      "C. Wood structural panels meeting FBC 2007",
-      "N. Unverified shutter systems",
-      "X. No windborne debris protection"
-     ]
+      "N/A",
+      "A",
+      "B",
+      "C",
+      "N",
+      "X"
+     ],
+     "formTable": "q7"
     },
     {
-     "q": "Non-glazed opening protection level",
+     "q": "Garage doors (glazed)",
      "type": "single",
      "options": [
-      ".1 All non-glazed A, B, C, or none",
-      ".2 One or more Level D and no Level X",
-      ".3 One or more Level X"
-     ]
+      "N/A",
+      "A",
+      "B",
+      "C",
+      "N",
+      "X"
+     ],
+     "formTable": "q7"
+    },
+    {
+     "q": "Skylights",
+     "type": "single",
+     "options": [
+      "N/A",
+      "A",
+      "B",
+      "C",
+      "N",
+      "X"
+     ],
+     "formTable": "q7"
+    },
+    {
+     "q": "Glass block",
+     "type": "single",
+     "options": [
+      "N/A",
+      "A",
+      "B",
+      "C",
+      "N",
+      "X"
+     ],
+     "formTable": "q7"
+    },
+    {
+     "q": "Entry doors (non-glazed)",
+     "type": "single",
+     "options": [
+      "N/A",
+      "A",
+      "B",
+      "C",
+      "D",
+      "N",
+      "X"
+     ],
+     "formTable": "q7"
+    },
+    {
+     "q": "Garage doors (non-glazed)",
+     "type": "single",
+     "options": [
+      "N/A",
+      "A",
+      "B",
+      "C",
+      "D",
+      "N",
+      "X"
+     ],
+     "formTable": "q7"
+    },
+    {
+     "q": "Opening protection (weakest)",
+     "type": "single",
+     "options": [
+      "A.1",
+      "A.2",
+      "A.3",
+      "B.1",
+      "B.2",
+      "B.3",
+      "C.1",
+      "C.2",
+      "C.3",
+      "N.1",
+      "N.2",
+      "N.3",
+      "X"
+     ],
+     "formKey": "q7"
     },
     {
      "header": "Qualified Inspector"
     },
     {
-     "q": "Qualified inspector name",
-     "type": "text",
-     "placeholder": "name"
+     "q": "I hold an active license as a",
+     "type": "single",
+     "options": [
+      "Home inspector licensed under Section 468.8314, F.S., with hurricane mitigation training and proficiency exam",
+      "Building code inspector certified under Section 468.607, F.S.",
+      "General, building or residential contractor licensed under Section 489.111, F.S.",
+      "Professional engineer licensed under Section 471.015, F.S.",
+      "Professional architect licensed under Section 481.213, F.S.",
+      "Other individual or entity recognized by the insurer under Section 627.711(2), F.S."
+     ],
+     "formKey": "license"
     },
     {
      "q": "License type",
      "type": "text",
-     "placeholder": "type"
+     "prefill": "licenseType"
     },
     {
-     "q": "License or certificate number",
+     "q": "Inspector initials",
      "type": "text",
-     "placeholder": "number"
+     "prefill": "initials",
+     "placeholder": "e.g. JKH"
+    }
+   ],
+   "itemsHigh": [
+    {
+     "header": "Owner Information"
     },
     {
-     "q": "Inspection company",
+     "q": "Owner name",
      "type": "text",
-     "placeholder": "company"
+     "prefill": "client",
+     "placeholder": "prefilled from the client name"
     },
     {
-     "q": "Phone",
+     "q": "Contact person",
+     "type": "text"
+    },
+    {
+     "q": "Address",
      "type": "text",
-     "placeholder": "phone"
+     "prefill": "street",
+     "placeholder": "prefilled"
     },
     {
-     "q": "Inspector license held",
+     "q": "City",
+     "type": "text",
+     "prefill": "city"
+    },
+    {
+     "q": "Zip",
+     "type": "text",
+     "prefill": "zip"
+    },
+    {
+     "q": "County",
+     "type": "text"
+    },
+    {
+     "q": "Home phone",
+     "type": "text"
+    },
+    {
+     "q": "Work phone",
+     "type": "text"
+    },
+    {
+     "q": "Cell phone",
+     "type": "text",
+     "prefill": "clientPhone"
+    },
+    {
+     "q": "Email",
+     "type": "text",
+     "prefill": "clientEmail"
+    },
+    {
+     "q": "Insurance company",
+     "type": "text"
+    },
+    {
+     "q": "Policy #",
+     "type": "text"
+    },
+    {
+     "q": "Year of home",
+     "type": "num",
+     "placeholder": "e.g. 1998"
+    },
+    {
+     "q": "# of stories",
+     "type": "num",
+     "placeholder": "1–10"
+    },
+    {
+     "header": "1. Building Code"
+    },
+    {
+     "q": "Building code",
      "type": "single",
      "options": [
-      "Home inspector (s.468.8314)",
-      "Building code inspector (s.468.607)",
-      "General, building or residential contractor (s.489.111)",
-      "Professional engineer (s.471.015)",
-      "Professional architect (s.481.213)",
-      "Other recognized individual or entity"
+      "A. Built in compliance with the FBC",
+      "B. HVHZ only: built in compliance with the SFBC-94",
+      "C. Unknown or does not meet A or B"
+     ],
+     "formKey": "q1"
+    },
+    {
+     "q": "Year built",
+     "type": "num",
+     "visibleIf": {
+      "q": "Building code",
+      "includes": "A. Built in compliance with the FBC"
+     },
+     "placeholder": "year"
+    },
+    {
+     "q": "Building permit application date (FBC)",
+     "type": "date",
+     "visibleIf": {
+      "q": "Building code",
+      "includes": "A. Built in compliance with the FBC"
+     }
+    },
+    {
+     "q": "Year built (SFBC-94)",
+     "type": "num",
+     "visibleIf": {
+      "q": "Building code",
+      "includes": "B. HVHZ only: built in compliance with the SFBC-94"
+     },
+     "placeholder": "year"
+    },
+    {
+     "q": "Building permit application date (SFBC-94)",
+     "type": "date",
+     "visibleIf": {
+      "q": "Building code",
+      "includes": "B. HVHZ only: built in compliance with the SFBC-94"
+     }
+    },
+    {
+     "header": "2. Roof Covering"
+    },
+    {
+     "q": "Roof covering types in use",
+     "type": "multi",
+     "options": [
+      "Asphalt/Fiberglass Shingle",
+      "Concrete/Clay Tile",
+      "Metal",
+      "Built Up",
+      "Membrane",
+      "Other"
+     ],
+     "formKey": "q2types"
+    },
+    {
+     "q": "Asphalt/Fiberglass Shingle: permit application date",
+     "type": "date",
+     "visibleIf": {
+      "q": "Roof covering types in use",
+      "includes": "Asphalt/Fiberglass Shingle"
+     }
+    },
+    {
+     "q": "Asphalt/Fiberglass Shingle: FBC or MDC product approval #",
+     "type": "text",
+     "visibleIf": {
+      "q": "Roof covering types in use",
+      "includes": "Asphalt/Fiberglass Shingle"
+     }
+    },
+    {
+     "q": "Asphalt/Fiberglass Shingle: year of original installation or replacement",
+     "type": "num",
+     "visibleIf": {
+      "q": "Roof covering types in use",
+      "includes": "Asphalt/Fiberglass Shingle"
+     },
+     "placeholder": "year"
+    },
+    {
+     "q": "Asphalt/Fiberglass Shingle: no information provided for compliance",
+     "type": "single",
+     "options": [
+      "Yes"
+     ],
+     "visibleIf": {
+      "q": "Roof covering types in use",
+      "includes": "Asphalt/Fiberglass Shingle"
+     }
+    },
+    {
+     "q": "Concrete/Clay Tile: permit application date",
+     "type": "date",
+     "visibleIf": {
+      "q": "Roof covering types in use",
+      "includes": "Concrete/Clay Tile"
+     }
+    },
+    {
+     "q": "Concrete/Clay Tile: FBC or MDC product approval #",
+     "type": "text",
+     "visibleIf": {
+      "q": "Roof covering types in use",
+      "includes": "Concrete/Clay Tile"
+     }
+    },
+    {
+     "q": "Concrete/Clay Tile: year of original installation or replacement",
+     "type": "num",
+     "visibleIf": {
+      "q": "Roof covering types in use",
+      "includes": "Concrete/Clay Tile"
+     },
+     "placeholder": "year"
+    },
+    {
+     "q": "Concrete/Clay Tile: no information provided for compliance",
+     "type": "single",
+     "options": [
+      "Yes"
+     ],
+     "visibleIf": {
+      "q": "Roof covering types in use",
+      "includes": "Concrete/Clay Tile"
+     }
+    },
+    {
+     "q": "Metal: permit application date",
+     "type": "date",
+     "visibleIf": {
+      "q": "Roof covering types in use",
+      "includes": "Metal"
+     }
+    },
+    {
+     "q": "Metal: FBC or MDC product approval #",
+     "type": "text",
+     "visibleIf": {
+      "q": "Roof covering types in use",
+      "includes": "Metal"
+     }
+    },
+    {
+     "q": "Metal: year of original installation or replacement",
+     "type": "num",
+     "visibleIf": {
+      "q": "Roof covering types in use",
+      "includes": "Metal"
+     },
+     "placeholder": "year"
+    },
+    {
+     "q": "Metal: no information provided for compliance",
+     "type": "single",
+     "options": [
+      "Yes"
+     ],
+     "visibleIf": {
+      "q": "Roof covering types in use",
+      "includes": "Metal"
+     }
+    },
+    {
+     "q": "Built Up: permit application date",
+     "type": "date",
+     "visibleIf": {
+      "q": "Roof covering types in use",
+      "includes": "Built Up"
+     }
+    },
+    {
+     "q": "Built Up: FBC or MDC product approval #",
+     "type": "text",
+     "visibleIf": {
+      "q": "Roof covering types in use",
+      "includes": "Built Up"
+     }
+    },
+    {
+     "q": "Built Up: year of original installation or replacement",
+     "type": "num",
+     "visibleIf": {
+      "q": "Roof covering types in use",
+      "includes": "Built Up"
+     },
+     "placeholder": "year"
+    },
+    {
+     "q": "Built Up: no information provided for compliance",
+     "type": "single",
+     "options": [
+      "Yes"
+     ],
+     "visibleIf": {
+      "q": "Roof covering types in use",
+      "includes": "Built Up"
+     }
+    },
+    {
+     "q": "Membrane: permit application date",
+     "type": "date",
+     "visibleIf": {
+      "q": "Roof covering types in use",
+      "includes": "Membrane"
+     }
+    },
+    {
+     "q": "Membrane: FBC or MDC product approval #",
+     "type": "text",
+     "visibleIf": {
+      "q": "Roof covering types in use",
+      "includes": "Membrane"
+     }
+    },
+    {
+     "q": "Membrane: year of original installation or replacement",
+     "type": "num",
+     "visibleIf": {
+      "q": "Roof covering types in use",
+      "includes": "Membrane"
+     },
+     "placeholder": "year"
+    },
+    {
+     "q": "Membrane: no information provided for compliance",
+     "type": "single",
+     "options": [
+      "Yes"
+     ],
+     "visibleIf": {
+      "q": "Roof covering types in use",
+      "includes": "Membrane"
+     }
+    },
+    {
+     "q": "Other: permit application date",
+     "type": "date",
+     "visibleIf": {
+      "q": "Roof covering types in use",
+      "includes": "Other"
+     }
+    },
+    {
+     "q": "Other: FBC or MDC product approval #",
+     "type": "text",
+     "visibleIf": {
+      "q": "Roof covering types in use",
+      "includes": "Other"
+     }
+    },
+    {
+     "q": "Other: year of original installation or replacement",
+     "type": "num",
+     "visibleIf": {
+      "q": "Roof covering types in use",
+      "includes": "Other"
+     },
+     "placeholder": "year"
+    },
+    {
+     "q": "Other: no information provided for compliance",
+     "type": "single",
+     "options": [
+      "Yes"
+     ],
+     "visibleIf": {
+      "q": "Roof covering types in use",
+      "includes": "Other"
+     }
+    },
+    {
+     "q": "Other roof covering type",
+     "type": "text",
+     "visibleIf": {
+      "q": "Roof covering types in use",
+      "includes": "Other"
+     },
+     "placeholder": "describe"
+    },
+    {
+     "q": "Roof covering compliance",
+     "type": "single",
+     "options": [
+      "A. All meet the FBC (product approval current at installation, permit on/after 3/1/02, or original roof built 2004+)",
+      "B. All have a Miami-Dade product approval (or HVHZ permit 9/1/94–3/1/02, or original roof built 1997+)",
+      "C. One or more do not meet A or B",
+      "D. None meet A or B"
+     ],
+     "formKey": "q2"
+    },
+    {
+     "header": "3. Roof Deck Attachment (weakest form)"
+    },
+    {
+     "q": "Roof deck attachment",
+     "type": "single",
+     "options": [
+      "A. Plywood/OSB by staples or 6d nails 6\" edge / 12\" field, batten decking, or equivalent less than B or C",
+      "B. Plywood/OSB min 7/16\" by 8d common nails max 12\" in the field, or equivalent (≥103 psf)",
+      "C. Plywood/OSB min 7/16\" by 8d common nails max 6\" in the field, dimensional lumber/T&G decking, or equivalent (≥182 psf)",
+      "D. Reinforced concrete roof deck",
+      "E. Other",
+      "F. Unknown or unidentified",
+      "G. No attic access"
+     ],
+     "formKey": "q3"
+    },
+    {
+     "q": "Roof deck attachment — other",
+     "type": "text",
+     "visibleIf": {
+      "q": "Roof deck attachment",
+      "includes": "E. Other"
+     },
+     "placeholder": "describe"
+    },
+    {
+     "header": "4. Roof to Wall Attachment (weakest connection)"
+    },
+    {
+     "q": "Roof to wall attachment",
+     "type": "single",
+     "options": [
+      "A. Toe nails",
+      "B. Clips",
+      "C. Single wraps",
+      "D. Double wraps",
+      "E. Structural anchor bolts / reinforced concrete roof",
+      "F. Other",
+      "G. Unknown or unidentified",
+      "H. No attic access"
+     ],
+     "formKey": "q4"
+    },
+    {
+     "q": "Toe nails — type",
+     "type": "multi",
+     "options": [
+      "Truss/rafter anchored to top plate with nails driven at an angle",
+      "Metal connectors that do not meet the minimal conditions of B, C or D"
+     ],
+     "visibleIf": {
+      "q": "Roof to wall attachment",
+      "includes": "A. Toe nails"
+     }
+    },
+    {
+     "q": "Minimal conditions for B, C or D (all visible metal connectors are)",
+     "type": "multi",
+     "options": [
+      "Secured to truss/rafter with a minimum of three (3) nails",
+      "Attached to the wall top plate or embedded in the bond beam, < ½\" gap, blocked ≤ 1.5\", free of visible severe corrosion"
      ]
+    },
+    {
+     "q": "Clips — type",
+     "type": "multi",
+     "options": [
+      "Metal connectors that do not wrap over the top of the truss/rafter",
+      "Metal connectors with a minimum of 1 strap that wraps over the top, secured with a minimum of 3 nails"
+     ],
+     "visibleIf": {
+      "q": "Roof to wall attachment",
+      "includes": "B. Clips"
+     }
+    },
+    {
+     "q": "Double wraps — type",
+     "type": "multi",
+     "options": [
+      "2 separate straps on either side of the truss/rafter, each wrapping over the top (2 nails front, 1 opposing)",
+      "Single strap wrapping over the top, secured to the wall on both sides, 3 nails each side"
+     ],
+     "visibleIf": {
+      "q": "Roof to wall attachment",
+      "includes": "D. Double wraps"
+     }
+    },
+    {
+     "q": "Roof to wall attachment — other",
+     "type": "text",
+     "visibleIf": {
+      "q": "Roof to wall attachment",
+      "includes": "F. Other"
+     },
+     "placeholder": "describe"
+    },
+    {
+     "header": "5. Roof Geometry"
+    },
+    {
+     "q": "Roof geometry",
+     "type": "single",
+     "options": [
+      "A. Hip roof",
+      "B. Flat roof",
+      "C. Other roof"
+     ],
+     "formKey": "q5"
+    },
+    {
+     "q": "Total length of non-hip features (feet)",
+     "type": "num",
+     "visibleIf": {
+      "q": "Roof geometry",
+      "includes": "A. Hip roof"
+     }
+    },
+    {
+     "q": "Total roof system perimeter (feet)",
+     "type": "num",
+     "visibleIf": {
+      "q": "Roof geometry",
+      "includes": "A. Hip roof"
+     }
+    },
+    {
+     "q": "Roof area with slope less than 2:12 (sq ft)",
+     "type": "num",
+     "visibleIf": {
+      "q": "Roof geometry",
+      "includes": "B. Flat roof"
+     }
+    },
+    {
+     "q": "Total roof area (sq ft)",
+     "type": "num",
+     "visibleIf": {
+      "q": "Roof geometry",
+      "includes": "B. Flat roof"
+     }
+    },
+    {
+     "header": "6. Secondary Water Resistance (SWR)"
+    },
+    {
+     "q": "Secondary water resistance",
+     "type": "single",
+     "options": [
+      "A. SWR (sealed roof deck)",
+      "B. No SWR",
+      "C. Unknown or undetermined"
+     ],
+     "formKey": "q6"
+    },
+    {
+     "header": "7. Opening Protection — level per opening type (N/A, A, B, C, D, N, X)"
+    },
+    {
+     "q": "Windows or entry doors (glazed)",
+     "type": "single",
+     "options": [
+      "N/A",
+      "A",
+      "B",
+      "C",
+      "N",
+      "X"
+     ],
+     "formTable": "q7"
+    },
+    {
+     "q": "Garage doors (glazed)",
+     "type": "single",
+     "options": [
+      "N/A",
+      "A",
+      "B",
+      "C",
+      "N",
+      "X"
+     ],
+     "formTable": "q7"
+    },
+    {
+     "q": "Skylights",
+     "type": "single",
+     "options": [
+      "N/A",
+      "A",
+      "B",
+      "C",
+      "N",
+      "X"
+     ],
+     "formTable": "q7"
+    },
+    {
+     "q": "Glass block",
+     "type": "single",
+     "options": [
+      "N/A",
+      "A",
+      "B",
+      "C",
+      "N",
+      "X"
+     ],
+     "formTable": "q7"
+    },
+    {
+     "q": "Entry doors (non-glazed)",
+     "type": "single",
+     "options": [
+      "N/A",
+      "A",
+      "B",
+      "C",
+      "D",
+      "N",
+      "X"
+     ],
+     "formTable": "q7"
+    },
+    {
+     "q": "Garage doors (non-glazed)",
+     "type": "single",
+     "options": [
+      "N/A",
+      "A",
+      "B",
+      "C",
+      "D",
+      "N",
+      "X"
+     ],
+     "formTable": "q7"
+    },
+    {
+     "q": "Opening protection (weakest)",
+     "type": "single",
+     "options": [
+      "A.1",
+      "A.2",
+      "A.3",
+      "B.1",
+      "B.2",
+      "B.3",
+      "C.1",
+      "C.2",
+      "C.3",
+      "N.1",
+      "N.2",
+      "N.3",
+      "X"
+     ],
+     "formKey": "q7"
+    },
+    {
+     "header": "Qualified Inspector"
+    },
+    {
+     "q": "I hold an active license as a",
+     "type": "single",
+     "options": [
+      "Home inspector licensed under Section 468.8314, F.S., with hurricane mitigation training and proficiency exam",
+      "Building code inspector certified under Section 468.607, F.S.",
+      "General, building or residential contractor licensed under Section 489.111, F.S.",
+      "Professional engineer licensed under Section 471.015, F.S.",
+      "Professional architect licensed under Section 481.213, F.S.",
+      "Other individual or entity recognized by the insurer under Section 627.711(2), F.S."
+     ],
+     "formKey": "license"
+    },
+    {
+     "q": "License type",
+     "type": "text",
+     "prefill": "licenseType"
+    },
+    {
+     "q": "Inspector initials",
+     "type": "text",
+     "prefill": "initials",
+     "placeholder": "e.g. JKH"
     }
-   ]
+   ],
+   "formReport": "oir-b1-1802"
   },
   {
    "name": "Texas — I. Structural Systems",
@@ -31585,5 +32760,21 @@
  "sectionFields": {
   "title": "Optional display name (lists, wizard, report). `name` stays the stable key used by saved inspections.",
   "reportNote": "Optional paragraphs printed in the report after the section's items and before Overall condition."
+ },
+ "formReports": {
+  "_about": "Client Oct 17 (item 13): when these sections are in an inspection, the report prints them as the official-style form pages instead of the normal checklist page (same idea as Texas TREC and 4-Point). Both checklist depths use the same form items. Items with `prefill` start with the inspection/company value (client, street, city, zip, clientPhone, clientEmail, licenseType, initials) and stay editable. Photos print after the form on a pictures page.",
+  "oir-b1-1802": {
+   "title": "Uniform Mitigation Verification Inspection Form",
+   "source": "Florida OIR-B1-1802 (Rev. 01/12), adopted by Rule 69O-170.0155 (state form, public).",
+   "pages": 4,
+   "layout": "US Letter, 4 pages, like the official form: page header 'Uniform Mitigation Verification Inspection Form' + 'Maintain a copy of this form and any documentation provided with the insurance policy'; Inspection Date; Owner Information grid; the NOTE paragraph; questions 1–7 with every official answer printed with a ☐/☒ box (checked = the inspector's answer) and the official answer wording in full (use the option text; full official descriptions are in docs/forms/oir-b1-1802.txt); Q2 as the roof-covering table (type | permit application date | FBC/MDC product approval # | year installed | no information ☐); Q7 as the Opening Protection Level Chart table (rows N/A, A, B, C, D, N, X × columns Windows/Entry doors, Garage doors, Skylights, Glass block, Non-glazed Entry doors, Non-glazed Garage doors, with X marks) followed by the A.1…X answers; page 4 qualified-inspector block (name, license type, license or certificate #, company, phone, the six license checkboxes, the attestation sentence with the inspector's printed name, signature and date lines left blank for wet/e-signature, homeowner certification line blank) and the statutory warning paragraphs. Every page footer: 'Inspectors Initials ____ Property Address ____' filled, '*This verification form is valid for up to five (5) years provided no material changes have been made to the structure or inaccuracies found on the form.' and 'OIR-B1-1802 (Rev. 01/12) Adopted by Rule 69O-170.0155 Page X of 4'.",
+   "text": "docs/forms/oir-b1-1802.txt"
+  },
+  "wdi": {
+   "title": "Wood Destroying Insect Inspection Report",
+   "source": "Fields follow the structure of the NPMA-33 the client uses. NPMA-33 itself is copyrighted (© NPMA, 'no reproduction without the express permission of NPMA'), so the app prints its OWN report with the same data — not a copy of the NPMA-33 form, its page-2 consumer text, or NPMA marks. If the client gets NPMA permission/licensing, an exact NPMA-33 layout can be added later.",
+   "pages": 1,
+   "layout": "US Letter, our report styling (not NPMA's look): title 'Wood Destroying Insect Inspection Report'; Section I General Information (inspection company name, address & phone from Company profile; inspector name and license #; company business license no.; date of inspection; address of property inspected; structure(s) inspected); Section II findings with ☐/☒ A or B and the 1–3 descriptions, previous-treatment Yes/No + evidence; Section III recommendations; Section IV obstructions table (area | obstruction); Section V comments and attachments; signature lines for seller/owner and buyer left blank; one short neutral line: 'This report reflects a visual inspection of readily accessible areas on the date of inspection and is not a guarantee or warranty against latent, concealed or future infestations or damage.'"
+  }
  }
 }
