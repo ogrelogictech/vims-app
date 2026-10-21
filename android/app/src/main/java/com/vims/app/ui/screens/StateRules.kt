@@ -68,6 +68,7 @@ import androidx.compose.ui.semantics.contentDataType
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.TextRange
 import com.vims.app.data.StateDef
 import com.vims.app.util.Filters
 import androidx.core.content.FileProvider
@@ -113,7 +114,7 @@ const val STATE_ACK_KEY = "stateDocsAck"
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun StateField(vm: AppViewModel, nav: NavHostController, sel: WizardSelections, form: FormState) {
+fun StateField(vm: AppViewModel, nav: NavHostController, sel: WizardSelections, form: FormState, after: @Composable () -> Unit = {}) {
     val cfg = vm.config
     val rule = cfg.stateRule(sel.state)
     val err = form.check(STATE_KEY, sel.state) { if (sel.state.isBlank()) "Select the property's state" else null }
@@ -126,16 +127,19 @@ fun StateField(vm: AppViewModel, nav: NavHostController, sel: WizardSelections, 
     var focused by remember { mutableStateOf(false) }
     var open by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf(TextFieldValue(selectedName)) }
-    // Not focused: shows the chosen state's name (also after a pick or an edit-inspection load). Focused: starts empty
-    // (current state as the placeholder) — set here, after the tap that focused it has placed its cursor in the old text.
-    LaunchedEffect(selectedName, focused) { query = TextFieldValue(if (focused) "" else selectedName); if (focused) open = true }
-    val matches = remember(query.text, focused) { if (focused) stateMatches(cfg.states, query.text) else cfg.states }
+    /** The user typed since focusing (until then the whole list shows). */
+    var typed by remember { mutableStateOf(false) }
+    // Shows the chosen state's name. Focusing never clears or selects it (QA Oct 14): the cursor goes to the end and the full
+    // list opens; typing (after deleting or editing the name) narrows the list.
+    LaunchedEffect(selectedName, focused) { query = TextFieldValue(selectedName, TextRange(if (focused) selectedName.length else 0)); typed = false; if (focused) open = true }
+    val matches = remember(query.text, focused, typed) { if (focused && typed) stateMatches(cfg.states, query.text) else cfg.states }
     fun pick(code: String) { if (code != sel.state) vm.setInspState(code); query = TextFieldValue(cfg.stateName(code)); open = false }
     /** Exact name / code first, then the only (or, for Next, the first) remaining match. */
     fun typedMatch(first: Boolean): String? {
         val t = query.text.trim()
         if (t.isEmpty()) return null
         cfg.states.firstOrNull { it.code.equals(t, true) || it.name.equals(t, true) }?.let { return it.code }
+        if (!typed) return null
         return if (first || matches.size == 1) matches.firstOrNull()?.code else null
     }
     val shape = RoundedCornerShape(11.dp)
@@ -144,7 +148,13 @@ fun StateField(vm: AppViewModel, nav: NavHostController, sel: WizardSelections, 
         ExposedDropdownMenuBox(expanded = open && focused, onExpandedChange = { open = it }) {
             BasicTextField(
                 value = query,
-                onValueChange = { v -> query = v.copy(text = Filters.base(v.text, 40)); open = true },
+                onValueChange = { v ->
+                    val t = Filters.base(v.text, 40)
+                    if (t != query.text) typed = true
+                    // Never a whole-text selection that the user didn't make by editing (some keyboards select all on focus).
+                    query = if (t == query.text && t.isNotEmpty() && v.selection.min == 0 && v.selection.max == t.length && query.selection.collapsed) query else v.copy(text = t)
+                    open = true
+                },
                 singleLine = true,
                 textStyle = T.ui(15.sp, color = V.ink),
                 cursorBrush = SolidColor(V.brand),
@@ -170,7 +180,7 @@ fun StateField(vm: AppViewModel, nav: NavHostController, sel: WizardSelections, 
                     ) {
                         Box(Modifier.weight(1f)) {
                             if (query.text.isEmpty()) Text(
-                                if (focused && selectedName.isNotEmpty()) selectedName else if (focused) "Type the state or its 2-letter code" else "Select the property’s state…",
+                                if (focused) "Type the state or its 2-letter code" else "Select the property’s state…",
                                 style = T.ui(15.sp, color = V.placeholder), maxLines = 1, overflow = TextOverflow.Ellipsis,
                             )
                             inner()
@@ -195,6 +205,7 @@ fun StateField(vm: AppViewModel, nav: NavHostController, sel: WizardSelections, 
         }
         FieldError(err)
     }
+    after()
     // A rule whose note is about the agent copy (agentCopyDefault false, e.g. NH) shows it under the agent checkbox instead.
     val note = rule?.note?.takeIf { rule.agentCopy }
     if (note != null || rule?.docs?.isNotEmpty() == true) StateNoteCard(vm, nav, sel, note, rule.docs, ackErr, Modifier.formField(form, STATE_ACK_KEY))

@@ -14,8 +14,8 @@ android {
         applicationId = "com.vims.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 18
+        versionName = "0.18.0"
     }
 
     buildTypes {
@@ -80,6 +80,7 @@ val verifySharedAssets = tasks.register("verifySharedAssets") {
         "legal/eula.json", "legal/inspection-agreement.json", "icons/icons.json", "data/vims-checklists.json",
         "legal/state/oregon-home-inspection-consumer-notice.pdf",
         "legal/state/louisiana-standards-of-practice-code-of-ethics.pdf",
+        "media/vims-splash.mp4", "media/vims-splash-wide.mp4",
     )
     inputs.files(required.map { File(shared, it) }.filter { it.isFile })
     doLast {

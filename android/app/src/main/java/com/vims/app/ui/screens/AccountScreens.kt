@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -105,6 +106,16 @@ fun InspectorsScreen(vm: AppViewModel, nav: NavHostController) {
             "Make owner", { vm.makeOwner(id); ownerTo = null }, { ownerTo = null },
         )
     }
+    // QA Oct 14: removing an inspector is confirmed first.
+    var removeId by rememberSaveable { mutableStateOf<String?>(null) }
+    removeId?.let { id ->
+        val who = account.inspectors.firstOrNull { it.id == id }
+        if (who == null) removeId = null else com.vims.app.ui.components.ConfirmDialog(
+            "Remove ${who.name}?",
+            "**${who.name}**${if (who.email.isNotBlank()) " (${who.email})" else ""} loses access to your company's VIMS account. Their seat is freed on your license.",
+            "Remove", { vm.removeInspector(id); removeId = null }, { removeId = null }, danger = true,
+        )
+    }
     VScreen("Inspectors", companyName(vm), net(vm), backAction(nav), listOf(homeAction(nav))) {
         Hint("Add inspector accounts under your company license. First inspector is included; each additional is **${Fmt.money(account.extraInspectorMonthly)}/mo**.", Modifier.padding(top = 2.dp, bottom = 12.dp))
         Column(Modifier.padding(bottom = 14.dp).fillMaxWidth().clip(RoundedCornerShape(13.dp)).background(V.paper).dashedBorder(V.brand, 13.dp).padding(horizontal = 16.dp, vertical = 15.dp)) {
@@ -143,7 +154,7 @@ fun InspectorsScreen(vm: AppViewModel, nav: NavHostController) {
                     else if (canManage && !isMe) Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Pill(if (ins.admin) "Admin ✓" else "Make admin", if (ins.admin) PillKind.Prog else PillKind.New, dot = false) { vm.toggleAdmin(ins.id) }
                         if (iAmOwner && !isMe) Pill("Make owner", PillKind.Prog, dot = false) { ownerTo = ins.id }
-                        Pill("Remove", PillKind.Queued, dot = false) { vm.removeInspector(ins.id) }
+                        Pill("Remove", PillKind.Queued, dot = false) { removeId = ins.id }
                     }
                 },
             )
@@ -198,7 +209,7 @@ fun SubscribeScreen(vm: AppViewModel, nav: NavHostController) {
                 }
                 Column(Modifier.weight(1f)) {
                     Text(p.name, style = T.ui(15.sp, FontWeight.Bold))
-                    Text(p.desc, style = T.ui(12.5.sp, color = V.ink3))
+                    Text(p.desc, style = T.ui(12.5.sp, color = V.ink3, lineHeight = 17.sp), softWrap = true)
                     if (p.id == "portal") Text("Available when the web portal launches (Phase 2)", style = T.mono(9.sp, color = V.ink3),
                         modifier = Modifier.padding(top = 4.dp).clip(RoundedCornerShape(6.dp)).background(V.paper3).padding(horizontal = 6.dp, vertical = 2.dp))
                 }
@@ -220,6 +231,19 @@ fun SubscribeScreen(vm: AppViewModel, nav: NavHostController) {
             }
         }
         Lbl("Payment — via Square")
+        // QA Oct 14: an update remembers the card. Only brand + last 4 + expiry are kept (a stand-in for Square's card on file,
+        // TODO(backend): Square Cards API) — the number and CVC are never stored.
+        val onFile = account.cardOnFile?.takeIf { !it.expired() }
+        var useOnFile by rememberSaveable(onFile?.last4) { mutableStateOf(onFile != null) }
+        if (onFile != null) {
+            CardChoice(onFile.label, "Card on file", useOnFile) { useOnFile = true }
+            CardChoice("Use a different card", "Enter a new card below", !useOnFile) { useOnFile = false }
+            Spacer(Modifier.height(4.dp))
+        } else account.cardOnFile?.let { expired ->
+            Text("${expired.label} has expired — enter a new card.", style = T.ui(12.5.sp, color = V.c1), modifier = Modifier.padding(start = 2.dp, bottom = 10.dp))
+        }
+        val newCard = onFile == null || !useOnFile
+        if (newCard) {
         RequiredHint()
         // TODO(backend): replace with the Square In-App Payments SDK card entry (tokenized); raw card data is never stored.
         val brand = CardBrand.of(card)
@@ -244,11 +268,35 @@ fun SubscribeScreen(vm: AppViewModel, nav: NavHostController) {
         VField("Cardholder name", holder, { holder = it }, Modifier.padding(top = 13.dp).formField(form, "holder"), placeholder = "Name on card", caps = KeyboardCapitalization.Words, filter = Filters::personName, error = holderErr, required = true)
         // US ZIP or a Canadian / UK postal code: letters + digits, uppercase (text keyboard with caps).
         VField("Billing ZIP / postal code", zip, { zip = it }, Modifier.formField(form, "zip"), placeholder = "84015", caps = KeyboardCapitalization.Characters, filter = Filters::postalCode, error = zipErr, bottom = 0.dp, required = true)
+        }
         Row(Modifier.padding(start = 2.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Icon(VIcons.lock, null, tint = V.ink3, modifier = Modifier.size(14.dp))
             Text("Secured by Square · auto-renews monthly · cancel anytime", style = T.ui(12.sp, color = V.ink3))
         }
-        VBtn(if (account.active) "Update subscription" else "Start subscription", { if (form.submit()) vm.startSubscription(card) { card = ""; exp = ""; cvc = ""; nav.navigate(SubStartedR) { popUpTo<SubscribeR> { inclusive = true } } } }, Modifier.padding(top = 16.dp), icon = VIcons.check)
+        VBtn(if (account.active) "Update subscription" else "Start subscription", {
+            if (!newCard || form.submit()) vm.startSubscription(if (newCard) card else null, if (newCard) exp else null) {
+                card = ""; exp = ""; cvc = ""; nav.navigate(SubStartedR) { popUpTo<SubscribeR> { inclusive = true } }
+            }
+        }, Modifier.padding(top = 16.dp), icon = VIcons.check)
+    }
+}
+
+/** "Visa •••• 4242 (exp 08/28) — Use this card" / "Use a different card" radio row. */
+@Composable
+private fun CardChoice(title: String, sub: String, on: Boolean, onClick: () -> Unit) {
+    Row(
+        Modifier.padding(bottom = 10.dp).fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(V.paper).border(if (on) 2.dp else 1.5.dp, if (on) V.brand else V.line, RoundedCornerShape(14.dp))
+            .clickable(role = Role.RadioButton, onClick = onClick).padding(horizontal = 16.dp, vertical = 13.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(13.dp),
+    ) {
+        Box(Modifier.size(22.dp).clip(CircleShape).border(2.dp, if (on) V.brand else V.line, CircleShape), contentAlignment = Alignment.Center) {
+            if (on) Box(Modifier.size(11.dp).clip(CircleShape).background(V.brand))
+        }
+        Column(Modifier.weight(1f)) {
+            Text(title, style = T.ui(14.5.sp, FontWeight.Bold))
+            Text(if (sub == "Card on file") "Use this card" else sub, style = T.ui(12.5.sp, color = V.ink3))
+        }
+        if (sub == "Card on file") Icon(VIcons.card, null, tint = V.ink3, modifier = Modifier.size(20.dp))
     }
 }
 
@@ -281,7 +329,7 @@ fun BillingScreen(vm: AppViewModel, nav: NavHostController) {
             BinfoRow("Plan", "${a.plan.name} · ${Fmt.money(a.plan.price)}${a.plan.unit ?: "/mo"}")
             if (!a.plan.perReport) BinfoRow("Inspectors", "${a.seatCount} (${maxOf(0, a.seatCount - 1)} × ${Fmt.money(a.extraInspectorMonthly)})")
             BinfoRow(if (a.plan.perReport) "Billing" else "Monthly total", subTotalLabel(vm))
-            BinfoRow("Payment", if (a.active) "Square · Card ····${a.cardLast4 ?: "4242"}" else "Not set up")
+            BinfoRow("Payment", if (a.active) "Square · ${a.cardOnFile?.label ?: "Card"}" else "Not set up")
             val next = a.subscribedEpochDay?.let { Fmt.date(LocalDate.ofEpochDay(it).plusMonths(1)) }
             BinfoRow(if (a.active && a.cancelled) "Access ends" else if (a.active) "Next billing" else "Trial ends", if (a.active) next ?: "—" else "in ${vm.trialDaysLeft()} days", last = true)
         }

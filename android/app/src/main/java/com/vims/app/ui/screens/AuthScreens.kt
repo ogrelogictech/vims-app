@@ -60,7 +60,6 @@ import com.vims.app.ui.theme.V
 import com.vims.app.ui.theme.VIcons
 import com.vims.app.util.Checks
 import com.vims.app.util.Filters
-import com.vims.app.util.JoinCodeTransform
 import com.vims.app.util.formField
 import com.vims.app.util.rememberForm
 
@@ -166,8 +165,9 @@ fun JoinScreen(vm: AppViewModel, nav: NavHostController) {
         VField("Full name", name, { name = it }, Modifier.formField(form, "name"), placeholder = "Your name", caps = KeyboardCapitalization.Words, error = nameErr, filter = Filters::personName, required = true)
         VField("Email", email, { email = it }, Modifier.formField(form, "email"), placeholder = "you@email.com", keyboard = KeyboardType.Email, error = emailErr, required = true)
         PasswordField("Create a password", pw, { pw = it }, placeholder = "At least 8 characters", error = pwErr, modifier = Modifier.formField(form, "password"), required = true)
+        // The full code is typed as shown ("VIS-4827"): uppercase, "-" added after the 3 letters, no suggestions / composing text.
         VField("Company code", code, { code = it }, Modifier.formField(form, "code"), placeholder = "VIS-4827", mono = true, caps = KeyboardCapitalization.Characters,
-            error = codeErr, filter = Filters::joinCode, visual = JoinCodeTransform, required = true)
+            error = codeErr, filter = { Filters.joinCode(it, code) }, required = true, autoCorrect = false, keyboard = KeyboardType.Ascii)
         EulaCheckbox(agreed, { agreed = it }, eulaErr, onOpen = { nav.navigate(EulaR) }, modifier = Modifier.formField(form, "eula"))
         VBtn("Link my account", {
             if (form.submit()) vm.joinCompany(name, email, code, pw, onError = { e -> form.fail(e.field ?: "code", e.message, if (e.field == "email") email else code) }) { nav.toHomeFromAuth() }

@@ -86,10 +86,13 @@ object DemoSeed {
         val base = engine.defaultSelections(cfg.wizard.defaults.depth)
         fun sel(address: String, client: String, time: String, date: LocalDate, structure: String, extra: List<String> = emptyList(), chips: Map<String, String> = emptyMap(), fields: Map<String, String> = emptyMap()) =
             base.copy(
-                structure = structure,
+                structure = structure, state = "UT",
                 exterior = (base.exterior + extra).distinct(),
                 chips = base.chips + chips,
-                fields = mapOf(F_CLIENT to client, F_ADDRESS to address, F_DATE to date.toString(), F_TIME to time) + fields,
+                // Split address (client Oct 17): street / City / ZIP code, state UT.
+                fields = WizardSelections.splitLegacy(address, "UT").let { (street, city, zip) ->
+                    mapOf(F_CLIENT to client, F_ADDRESS to street, WizardSelections.F_CITY to city, WizardSelections.F_ZIP to zip, F_DATE to date.toString(), F_TIME to time)
+                } + fields,
             )
 
         // 1428 Ridgeline Dr — in progress, with answers, findings, and photos.
@@ -97,7 +100,7 @@ object DemoSeed {
             "1428 Ridgeline Dr, Ogden, UT 84403", "Tysen and Chantel Gough", "09:30", today, "Single Family",
             chips = mapOf("Basement" to "Unfinished"),
             fields = mapOf(
-                F_CLIENT_PHONE to "(801) 555-0134", F_CLIENT_EMAIL to "tysen.gough@example.com",
+                F_CLIENT_PHONE to "8015550134", F_CLIENT_EMAIL to "tysen.gough@example.com",
                 F_AGENT to "Cyndi Farrais", F_AGENT_EMAIL to "cyndi.farrais@example.com",
                 "Temperature (°F)" to "72", "Year of construction" to "1998", "Total sq ft" to "2400",
                 "Valuation ($)" to "450,000", "Lot size (acres)" to "0.25",

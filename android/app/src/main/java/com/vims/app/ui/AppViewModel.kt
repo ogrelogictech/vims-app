@@ -168,7 +168,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun startWizard(editId: String?) {
         val existing = editId?.let { bundle(it) }
-        _wizard.value = if (existing != null) WizardState(1, existing.inspection.selections, editId)
+        _wizard.value = if (existing != null) WizardState(1, editSelections(existing.inspection.selections), editId)
         else {
             // Prefill today's date and the next half hour.
             val now = LocalTime.now()
@@ -177,11 +177,28 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             val time = String.format(Locale.US, "%02d:%02d", mins / 60, mins % 60)
             // Inspector License # defaults to the lead inspector's license from the Company profile.
             val license = company.value.license.trim()
-            val prefill = mapOf(WizardSelections.F_DATE to LocalDate.now().toString(), WizardSelections.F_TIME to time) +
+            // City / ZIP keys present = the split address (client Oct 17), see WizardSelections.splitAddress.
+            val prefill = mapOf(WizardSelections.F_DATE to LocalDate.now().toString(), WizardSelections.F_TIME to time,
+                WizardSelections.F_CITY to "", WizardSelections.F_ZIP to "") +
                 (if (license.isNotEmpty()) mapOf(WizardSelections.F_LICENSE to license) else emptyMap())
             WizardState(1, sel.copy(fields = sel.fields + prefill), null)
         }
         if (debugWizardStep > 1) { _wizard.update { it.copy(step = debugWizardStep) }; debugWizardStep = 1 }
+    }
+
+    /**
+     * Edit wizard: an inspection made before the split address shows its "Street, City, ZIP" text in the new Inspection address /
+     * City / ZIP code fields (saved only on Update checklist; until then the inspection keeps its text as it was). A phone saved
+     * formatted ("(801) 555-0134") is shown from its digits.
+     */
+    private fun editSelections(sel: WizardSelections): WizardSelections {
+        var f = sel.fields
+        if (!sel.splitAddress) {
+            val (street, city, zip) = WizardSelections.splitLegacy(sel.address, sel.state)
+            f = f + mapOf(WizardSelections.F_ADDRESS to street, WizardSelections.F_CITY to city, WizardSelections.F_ZIP to zip)
+        }
+        f[WizardSelections.F_CLIENT_PHONE]?.let { p -> f = f + (WizardSelections.F_CLIENT_PHONE to com.vims.app.util.Filters.phone(p)) }
+        return sel.copy(fields = f)
     }
 
     /** Debug-only (screenshots): open the wizard / cover picker at a given step. */
@@ -217,6 +234,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun buildChecklist(): String? {
         val w = _wizard.value
         if (w.sel.address.isBlank()) { toast("Enter the inspection address"); _wizard.update { it.copy(step = 1) }; return null }
+        if (w.sel.splitAddress && w.sel.city.isBlank()) { toast("Enter the city"); _wizard.update { it.copy(step = 1) }; return null }
         if (w.sel.state.isBlank()) { toast("Select the property's state"); _wizard.update { it.copy(step = 1) }; return null }
         if (config.stateRule(w.sel.state)?.docs.orEmpty().isNotEmpty() && !w.sel.stateDocsAck) {
             toast("Confirm the required state notice was given to the client"); _wizard.update { it.copy(step = 1) }; return null
@@ -264,6 +282,38 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         return if (i >= 0 && i < leaves.size - 1) leaves[i + 1] else null
     }
 
+    /**
+     * Data v1.9 `prefill` (Wind Mitigation owner information / inspector, …): on opening a section, every item with a prefill key
+     * and no answer yet starts with the inspection's or company's value. Typed values are never overwritten; a cleared field
+     * stays as the inspector left it once the section has been started.
+     */
+    fun prefillSection(id: String, section: String) {
+        val b = bundle(id) ?: return
+        val def = sectionDef(id, section) ?: return
+        val items = ChecklistEngine.keyed(ChecklistEngine.itemsFor(def, ChecklistEngine.effectiveDepth(def, b.inspection.selections.depth)))
+            .filter { (k, it) -> k != null && it.prefill != null }
+        if (items.isEmpty()) return
+        val a = b.answers[section] ?: SectionAnswers()
+        if (a.status != SecStatus.TODO) return
+        val sel = b.inspection.selections
+        val legacy = if (sel.splitAddress) null else WizardSelections.splitLegacy(sel.address, sel.state)
+        val c = company.value
+        fun value(key: String): String = when (key) {
+            "client" -> sel.clientName
+            "street" -> sel.street
+            "city" -> legacy?.second ?: sel.city
+            "zip" -> legacy?.third ?: sel.zip
+            "clientPhone" -> sel.field(WizardSelections.F_CLIENT_PHONE).filter { it.isDigit() }.let { com.vims.app.util.formatPhone(it) }
+            "clientEmail" -> sel.clientEmail
+            // No license-type field exists yet: VIMS inspectors are home inspectors (editable on the form).
+            "licenseType" -> "Home Inspector"
+            "initials" -> c.inspectorName.ifBlank { session.value?.name.orEmpty() }.split(" ").filter { it.isNotBlank() && it.first().isLetter() }.joinToString("") { it.first().uppercase() }.take(4)
+            else -> ""
+        }
+        val add = items.mapNotNull { (k, it) -> if (a.inputs[k!!].isNullOrBlank()) value(it.prefill!!).trim().takeIf { v -> v.isNotEmpty() }?.let { v -> k to v } else null }.toMap()
+        if (add.isNotEmpty()) repo.updateAnswers(id, section) { it.copy(inputs = it.inputs + add) }
+    }
+
     fun sectionDef(id: String, section: String): SectionDef? =
         bundle(id)?.defs?.get(com.vims.app.data.baseName(section)) ?: engine.value.def(section)
 
@@ -292,7 +342,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             var sample = 1
             while (maxOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= 2048) sample *= 2
             val bmp = cr.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, BitmapFactory.Options().apply { inSampleSize = sample }) }
-            if (bmp == null) false else { FileOutputStream(file).use { bmp.compress(Bitmap.CompressFormat.JPEG, 88, it) }; bmp.recycle(); true }
+            if (bmp == null) false else {
+                FileOutputStream(file).use { bmp.compress(Bitmap.CompressFormat.JPEG, 88, it) }; bmp.recycle()
+                // The source's EXIF rotation (phone photos, Drive files) is applied, and the long side capped at 2048 px like captures.
+                val rotation = try { cr.openInputStream(uri)?.use { android.media.ExifInterface(it).getAttributeInt(android.media.ExifInterface.TAG_ORIENTATION, 1) } ?: 1 } catch (_: Exception) { 1 }
+                com.vims.app.util.Images.normalizeJpeg(file, orientation = rotation)
+                true
+            }
         } catch (_: Exception) { false }
         if (ok) withContext(Dispatchers.Main) { addPhoto(id, section, cat, pid, file) } else null
     }
@@ -383,6 +439,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Saves the profile form; the logo and agreement (upload / edit) are managed by their own actions and kept as they are. */
     fun saveCompany(p: CompanyProfile) {
+        if (!isAdmin) return // plain inspectors see the profile read-only
         repo.updateCompany { cur -> p.copy(logoFile = cur.logoFile, agreementName = cur.agreementName, agreementFile = cur.agreementFile, agreementText = cur.agreementText, agreementEditedAt = cur.agreementEditedAt) }
         toast("Company profile saved")
     }
@@ -402,6 +459,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         repo.setUserPhoto(null); toast("Profile photo removed")
     }
     fun removeLogo() {
+        if (!isAdmin) return
         val f = company.value.logoFile?.let { File(getApplication<Application>().filesDir, it) }
         repo.updateCompany { it.copy(logoFile = null) }; f?.delete(); logoVersion.update { it + 1 }; toast("Logo removed")
     }
@@ -430,12 +488,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (!iAmOwner()) { toast("Only the owner can transfer ownership."); return@launch }
         val target = account.value.inspectors.firstOrNull { it.id == inspectorId } ?: return@launch
         if (target.owner || target.email.equals(session.value?.email, ignoreCase = true)) return@launch
+        // The repository moves the signed-in user's role to Admin (it follows the inspectors list) and saves it.
         repo.updateAccount { a -> a.copy(inspectors = a.inspectors.map { i -> if (i.id == inspectorId) i.copy(owner = true, admin = true) else if (i.owner) i.copy(owner = false, admin = true) else i }) }
-        session.value?.let { repo.activate(it.copy(role = Role.ADMIN)) }
         toast("${target.name} is now the owner")
     }
 
     fun importLogo(uri: Uri) = viewModelScope.launch {
+        if (!isAdmin) return@launch
         val ok = withContext(Dispatchers.IO) {
             try {
                 val bmp = getApplication<Application>().contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) } ?: return@withContext false
@@ -453,7 +512,18 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun importAgreement(uri: Uri, name: String) = viewModelScope.launch {
         if (!isAdmin) return@launch
-        val ext = name.substringAfterLast('.', "pdf")
+        // The stored file's extension comes from the picked document's MIME type (a Drive file's name may have none), so it opens
+        // later with the right viewer; the name's own extension is the fallback.
+        val type = getApplication<Application>().contentResolver.getType(uri).orEmpty()
+        val ext = when {
+            type == "application/pdf" -> "pdf"
+            type == "application/msword" -> "doc"
+            type.contains("wordprocessingml") -> "docx"
+            type == "image/jpeg" -> "jpg"
+            type == "image/png" -> "png"
+            type.startsWith("image/") -> type.substringAfter('/').substringBefore('+').ifEmpty { "jpg" }
+            else -> name.substringAfterLast('.', "pdf").lowercase().takeIf { it.length in 2..5 && it.all(Char::isLetterOrDigit) } ?: "pdf"
+        }
         val ok = withContext(Dispatchers.IO) {
             try {
                 val f = File(repo.companyDir(), "agreement.$ext")
@@ -580,11 +650,22 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun monthlyTotal(a: AccountState = account.value): Double = if (a.plan.perReport) 0.0 else a.plan.price + maxOf(0, a.seatCount - 1) * a.extraInspectorMonthly
 
-    fun startSubscription(cardNumber: String, onOk: () -> Unit) = viewModelScope.launch {
+    /**
+     * Start / update the subscription. [cardNumber] + [expiry] ("MMYY") are a new card; null = keep the card on file.
+     * Only the card's brand, last 4 and expiry are kept (a stand-in for Square's card-on-file id) — never the number or CVC.
+     */
+    fun startSubscription(cardNumber: String?, expiry: String?, onOk: () -> Unit) = viewModelScope.launch {
         val a = account.value
+        val onFile = a.cardOnFile
+        if (cardNumber == null && onFile == null) { toast("Add a card"); return@launch }
         val r = container.subscriptions.startSubscription(a.plan, a.seatCount, cardNumber)
         if (r.ok) {
-            repo.updateAccount { it.copy(active = true, cancelled = false, cardLast4 = r.cardLast4, subscribedEpochDay = LocalDate.now().toEpochDay()) }
+            val card = if (cardNumber != null) com.vims.app.data.CardOnFile(
+                brand = com.vims.app.util.CardBrand.of(cardNumber.filter { it.isDigit() }).label.ifEmpty { "Card" },
+                last4 = r.cardLast4 ?: cardNumber.filter { it.isDigit() }.takeLast(4), expMonth = expiry.orEmpty().take(2).toIntOrNull() ?: 0,
+                expYear = expiry.orEmpty().drop(2).take(2).toIntOrNull()?.plus(2000) ?: 0, squareCardId = r.cardId,
+            ) else onFile
+            repo.updateAccount { it.copy(active = true, cancelled = false, cardLast4 = card?.last4, card = card, subscribedEpochDay = if (it.active) it.subscribedEpochDay else LocalDate.now().toEpochDay()) }
             onOk()
         } else toast(r.message ?: "Payment failed")
     }
@@ -596,14 +677,20 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         return true
     }
 
-    fun removeInspector(inspectorId: String) = repo.updateAccount { a ->
-        val l = a.inspectors.filterNot { it.id == inspectorId && !it.owner }
-        a.copy(inspectors = l, seats = maxOf(1, minOf(a.seats, l.size)))
+    /** Inspectors → Remove (confirmed on screen; owner / admins only, never the owner or yourself). */
+    fun removeInspector(inspectorId: String) {
+        val ins = account.value.inspectors.firstOrNull { it.id == inspectorId } ?: return
+        if (!isAdmin || ins.owner || ins.email.equals(session.value?.email, ignoreCase = true)) return
+        repo.updateAccount { a ->
+            val l = a.inspectors.filterNot { it.id == inspectorId }
+            a.copy(inspectors = l, seats = maxOf(1, minOf(a.seats, l.size)))
+        }
+        toast("${ins.name} removed")
     }
 
     fun toggleAdmin(inspectorId: String) {
         val ins = account.value.inspectors.firstOrNull { it.id == inspectorId } ?: return
-        if (ins.owner) return
+        if (ins.owner || !isAdmin) return
         repo.updateAccount { a -> a.copy(inspectors = a.inspectors.map { if (it.id == inspectorId) it.copy(admin = !it.admin) else it }) }
         toast(if (!ins.admin) "${ins.name} is now an admin" else "${ins.name} is no longer an admin")
     }
@@ -630,7 +717,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val p = com.vims.app.util.Num.parse(price)
         if (name.isBlank()) { toast("Enter a plan name"); return false }
         if (p == null || p < 0) { toast("Enter a valid price"); return false }
-        repo.updateAccount { a -> a.copy(plans = a.plans + Plan("plan${a.plans.size + 1}-${System.currentTimeMillis() % 10000}", name.trim(), p, desc.trim().ifEmpty { "Custom plan" })) }
+        repo.updateAccount { a -> a.copy(plans = a.plans + Plan("plan${a.plans.size + 1}-${System.currentTimeMillis() % 10000}", name.trim(), p, desc.trim().replace(Regex("\n{2,}"), "\n").ifEmpty { "Custom plan" })) }
         toast("Added “${name.trim()}”")
         return true
     }
@@ -651,13 +738,34 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         it.copy(selections = it.selections.copy(state = state.uppercase(), stateDocsAck = docs, stateDocsAckAt = if (docs) System.currentTimeMillis() else null,
             sendToAgent = config.stateRule(state)?.agentCopy ?: true))
     }
-    /** Debug-only helper (cover QA): set an inspection's cover from "Color|Category|Option|Style" (Solid category → Solid style). */
+    /** Debug-only helper (cover QA): set an inspection's cover from "Color|Category|Option|Style" (old "Solid" category → Solid + No picture). */
     fun debugSetCover(id: String, spec: String) = repo.updateInspection(id) {
-        val p = spec.split("|")
-        val cat = p.getOrNull(1).orEmpty().ifBlank { "Activities" }
-        it.copy(cover = CoverChoice(p.getOrNull(0).orEmpty().ifBlank { "Blue" }, cat, if (cat == "Solid") "" else p.getOrNull(2).orEmpty(),
-            if (cat == "Solid") config.covers.solidStyle else p.getOrNull(3).orEmpty().ifBlank { "Framed" }))
+        // "raw:" keeps the spec as given (QA: saves a pre-v1.8 "Solid" category cover to test the migration on the next launch).
+        val raw = spec.startsWith("raw:")
+        val p = spec.removePrefix("raw:").split("|")
+        val c = CoverChoice(p.getOrNull(0).orEmpty().ifBlank { "Blue" }, p.getOrNull(1).orEmpty().ifBlank { "Activities" },
+            p.getOrNull(2).orEmpty().ifBlank { CoverChoice.NO_PICTURE }, p.getOrNull(3).orEmpty().ifBlank { "Framed" })
+        it.copy(cover = if (raw) c else c.normalized())
     }
+    /**
+     * Debug-only (form QA): answers from filesDir/debug-answers.txt (copied in with `adb shell run-as`), one per line:
+     * `Section::Question=value` — single / multi values joined with " + ", other types as text (dates ISO). `Section::!done`
+     * marks the section done. The file is deleted after it is applied.
+     */
+    fun debugApplyAnswers(id: String) {
+        if (!com.vims.app.BuildConfig.DEBUG) return
+        val f = File(getApplication<Application>().filesDir, "debug-answers.txt").takeIf { it.isFile } ?: return
+        f.readLines().filter { "::" in it }.forEach { line ->
+            val sec = line.substringBefore("::").trim(); val rest = line.substringAfter("::")
+            if (rest.trim() == "!done") { saveSection(id, sec); return@forEach }
+            val q = rest.substringBefore("=").trim(); val v = rest.substringAfter("=", "").trim()
+            val def = sectionDef(id, sec) ?: return@forEach
+            val (key, item) = ChecklistEngine.keyed(ChecklistEngine.itemsFor(def, bundle(id)?.inspection?.selections?.depth ?: "standard")).firstOrNull { it.first != null && it.second.q == q } ?: return@forEach
+            editSection(id, sec) { a -> if (item.isChoice) a.copy(values = a.values + (key!! to v.split(" + ").map { it.trim() }.filter { it.isNotEmpty() })) else a.copy(inputs = a.inputs + (key!! to v)) }
+        }
+        f.delete()
+    }
+
     /** Debug-only helper (cover QA): set an inspection's type (e.g. Texas, 4 Point Inspection) to pick the report layout. */
     fun debugSetInspType(id: String, type: String) = repo.updateInspection(id) { it.copy(selections = it.selections.copy(inspType = type)) }
     suspend fun debugSignIn() {

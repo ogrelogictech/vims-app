@@ -138,7 +138,9 @@ fun AppHeader(title: String, subtitle: String, net: NetState, left: HdrAction?, 
         Row(Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 2.dp, bottom = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             if (left != null) HdrButton(left.icon, left.label, left.onClick)
             Column(Modifier.weight(1f)) {
-                Text(title, style = T.display(17.sp, FontWeight.Bold, Color.White), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                // Long section titles ("Wood Destroying Organism Inspection") wrap to a second, slightly smaller line instead of "…".
+                val long = title.length > 24
+                Text(title, style = T.display(if (long) 15.sp else 17.sp, FontWeight.Bold, Color.White, lineHeight = if (long) 18.sp else androidx.compose.ui.unit.TextUnit.Unspecified), maxLines = if (long) 2 else 1, overflow = TextOverflow.Ellipsis)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (subtitleLeading != null) { subtitleLeading(); Spacer(Modifier.width(6.dp)) }
                     Text(subtitle, style = T.ui(12.sp, color = V.hdrSub), maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -316,17 +318,29 @@ val LocalNoAutofill = staticCompositionLocalOf { false }
 class FieldText internal constructor() {
     private var last by mutableStateOf(TextFieldValue(""))
     private var focused = false
+    private var focusedAt = 0L
     /** What the field shows for [value]: the user's own selection while it matches, else [value] with the cursor at the end (focused) or start. */
     fun shown(value: String): TextFieldValue = if (last.text == value) last else TextFieldValue(value, TextRange(if (focused) value.length else 0))
     fun focus(isFocused: Boolean, value: String) {
         if (isFocused == focused) return
         focused = isFocused
+        focusedAt = if (isFocused) android.os.SystemClock.uptimeMillis() else 0L
         last = TextFieldValue(value, TextRange(if (isFocused) value.length else 0))
     }
-    /** Applies [filter] to an edit; keeps the cursor where the user was (moved back by any characters the filter dropped). */
+    /**
+     * Applies [filter] to an edit; keeps the cursor where the user was (moved back by any characters the filter dropped).
+     * QA Oct 14: a select-ALL that arrives right after focus without any typing (some keyboards / hardware Tab focus traversal
+     * do this) is dropped — the cursor stays at the end. A user's own long-press / double-tap selection later is kept.
+     */
     fun change(new: TextFieldValue, filter: (String) -> String): String {
         val t = filter(new.text)
-        last = if (t == new.text) new else TextFieldValue(t, TextRange((new.selection.end - (new.text.length - t.length)).coerceIn(0, t.length)))
+        val autoSelectAll = t == new.text && t == last.text && t.isNotEmpty() && new.selection.min == 0 && new.selection.max == t.length &&
+            last.selection.collapsed && android.os.SystemClock.uptimeMillis() - focusedAt < 600
+        last = when {
+            autoSelectAll -> TextFieldValue(t, TextRange(t.length))
+            t == new.text -> new
+            else -> TextFieldValue(t, TextRange((new.selection.end - (new.text.length - t.length)).coerceIn(0, t.length)))
+        }
         return t
     }
 }
@@ -345,6 +359,8 @@ fun VInput(
     visual: VisualTransformation = VisualTransformation.None, trailing: (@Composable () -> Unit)? = null,
     minHeight: Dp = if (multiline) 84.dp else 48.dp, textSize: Float = 15f, caps: KeyboardCapitalization = KeyboardCapitalization.None,
     error: String? = null, filter: ((String) -> String)? = null, imeAction: ImeAction = ImeAction.Default,
+    /** null = on for text, off for email / password / URL; false for codes (no suggestions, no composing text). */
+    autoCorrect: Boolean? = null,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val noAutofill = LocalNoAutofill.current
@@ -363,7 +379,7 @@ fun VInput(
         BasicTextField(
             value = field.shown(value), onValueChange = { onChange(field.change(it, apply)) }, singleLine = !multiline, textStyle = style, interactionSource = interaction,
             keyboardOptions = KeyboardOptions(
-                keyboardType = keyboard, autoCorrectEnabled = !noAuto,
+                keyboardType = keyboard, autoCorrectEnabled = autoCorrect ?: !noAuto,
                 capitalization = if (noAuto) KeyboardCapitalization.None else if (keyboard == KeyboardType.Text && caps == KeyboardCapitalization.None && !mono) KeyboardCapitalization.Sentences else caps,
                 imeAction = imeAction,
             ),
@@ -394,11 +410,13 @@ fun VField(
     label: String?, value: String, onChange: (String) -> Unit, modifier: Modifier = Modifier, placeholder: String = "",
     keyboard: KeyboardType = KeyboardType.Text, multiline: Boolean = false, mono: Boolean = false, bottom: Dp = 13.dp,
     caps: KeyboardCapitalization = KeyboardCapitalization.None, error: String? = null, filter: ((String) -> String)? = null,
-    visual: VisualTransformation = VisualTransformation.None, required: Boolean = false,
+    visual: VisualTransformation = VisualTransformation.None, required: Boolean = false, autoCorrect: Boolean? = null,
+    imeAction: ImeAction = ImeAction.Default,
 ) {
     Column(modifier.padding(bottom = bottom)) {
         if (label != null) FieldLabel(label, required)
-        VInput(value, onChange, placeholder = placeholder, keyboard = keyboard, multiline = multiline, mono = mono, caps = caps, error = error, filter = filter, visual = visual)
+        VInput(value, onChange, placeholder = placeholder, keyboard = keyboard, multiline = multiline, mono = mono, caps = caps, error = error, filter = filter, visual = visual,
+            autoCorrect = autoCorrect, imeAction = imeAction)
     }
 }
 
@@ -504,8 +522,8 @@ fun SingleChips(options: List<String>, selected: String?, onSelect: (String?) ->
 }
 
 @Composable
-fun MultiChips(options: List<String>, selected: Collection<String>, onToggle: (String) -> Unit, modifier: Modifier = Modifier) {
-    ChipFlow(modifier) { options.forEach { o -> VChip(o, o in selected, { onToggle(o) }) } }
+fun MultiChips(options: List<String>, selected: Collection<String>, onToggle: (String) -> Unit, modifier: Modifier = Modifier, label: (String) -> String = { it }) {
+    ChipFlow(modifier) { options.forEach { o -> VChip(label(o), o in selected, { onToggle(o) }) } }
 }
 
 /** Overall-condition segmented control (3-column grid, tap again to clear). */

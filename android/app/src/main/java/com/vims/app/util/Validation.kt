@@ -44,13 +44,27 @@ object Filters {
     fun address(v: String) = base(v, 120)
     /** Phone digits only (formatted on screen by [PhoneTransform]). */
     fun phone(v: String) = v.filter { it.isDigit() }.let { if (it.length == 11 && it.startsWith("1")) it.drop(1) else it }.take(10)
-    /** Join code stored as letters+digits ("VIS4827"); [JoinCodeTransform] shows "VIS-4827". */
-    fun joinCode(v: String): String {
+    /**
+     * Company code as typed, in its full form "VIS-4827" (QA Oct 14: the field took only 3 letters — the typed "-" was dropped
+     * and the keyboard's composing text was lost). Uppercase; 3 letters, then "-" (typed or inserted automatically once the
+     * third letter is typed — [prev] tells typing from deleting, so Backspace can remove it), then up to 4 digits. Pastes
+     * like "vis4827" / "VIS 4827" / "VIS-4827" all become "VIS-4827".
+     */
+    fun joinCode(v: String, prev: String = ""): String {
         val up = v.uppercase(Locale.US).filter { it.isLetterOrDigit() }
         val letters = up.takeWhile { it.isLetter() }.take(3)
-        val digits = up.drop(letters.length).filter { it.isDigit() }.take(4)
-        return letters + if (letters.length == 3) digits else ""
+        if (letters.length < 3) return letters
+        val digits = up.drop(3).filter { it.isDigit() }.take(4)
+        return when {
+            digits.isNotEmpty() -> "$letters-$digits"
+            v.length > prev.length || v.trimEnd().endsWith("-") -> "$letters-"
+            else -> letters
+        }
     }
+    /** City: letters, spaces and . ' - (e.g. "St. George", "Coeur d'Alene"), max 60. */
+    fun city(v: String) = base(v.filter { it.isLetter() || it == ' ' || it in ".'-’" }, 60)
+    /** ZIP code: 5 digits, or ZIP+4 with the "-" inserted after the 5th digit ("84015-1234"). */
+    fun zip(v: String): String { val d = v.filter { it.isDigit() }.take(9); return if (d.length > 5) d.take(5) + "-" + d.drop(5) else d }
     fun license(v: String) = base(v.filter { it.isLetterOrDigit() || it == ' ' || it == '-' }, 20)
     fun policy(v: String) = v.filter { it.isLetterOrDigit() || it == '-' }.take(30)
     fun year(v: String) = v.filter { it.isDigit() }.take(4)
@@ -62,7 +76,14 @@ object Filters {
     }
     /** Digits + one ".", grouping commas and a leading "$" are accepted and dropped (valuation "$450,000" → "450000"). */
     fun money(v: String) = decimal(Num.clean(v))
-    fun temperature(v: String): String { val neg = v.trimStart().startsWith("-"); return (if (neg) "-" else "") + v.filter { it.isDigit() }.take(3) }
+    /** Temperature °F: optional leading "-", digits and one "." with one decimal (72.5, -4.5); range checked by [Checks.temperature]. */
+    fun temperature(v: String): String {
+        val neg = v.trimStart().startsWith("-") || v.trimStart().startsWith("−")
+        val d = decimal(v, 6)
+        val i = d.indexOf('.')
+        val num = if (i >= 0) d.take(3.coerceAtMost(i)) + d.substring(i).take(2) else d.take(3)
+        return (if (neg) "-" else "") + num
+    }
     fun url(v: String) = v.filterNot { it.isWhitespace() }.take(300)
     /** Digits + ".", at most 2 decimals. */
     fun price(v: String): String { val d = decimal(v, 10); val i = d.indexOf('.'); return if (i >= 0) d.take(i + 3) else d }
@@ -133,7 +154,7 @@ object Checks {
     fun phone(digits: String): String? = if (digits.isNotEmpty() && digits.length != 10) "Enter a 10-digit phone number" else null
     fun joinCode(raw: String): String? = when {
         raw.isEmpty() -> "Enter your company code"
-        !Regex("^[A-Z]{3}[0-9]{4}$").matches(raw) -> "Codes are 3 letters and 4 numbers, like VIS-4827"
+        !Regex("^[A-Z]{3}-?[0-9]{4}$").matches(raw) -> "Codes are 3 letters and 4 numbers, like VIS-4827"
         else -> null
     }
     fun year(v: String): String? {
@@ -157,10 +178,12 @@ object Checks {
     /** Indoor Air Quality "Level measured": optional, 0 – 99,999 (0 ppm CO is a valid reading). */
     fun level(v: String): String? = upTo(v, Limits.CHECKLIST_NUM)
     fun temperature(v: String): String? {
-        if (v.isEmpty() || v == "-") return if (v == "-") "Enter a temperature" else null
-        val t = v.toIntOrNull() ?: return "Enter a temperature"
-        return if (t !in -60..140) "Enter a temperature between −60 and 140 °F" else null
+        if (v.isEmpty()) return null
+        val t = v.toDoubleOrNull()?.takeIf { !v.endsWith(".") } ?: return "Enter a temperature, like 72 or 72.5"
+        return if (t < -60.0 || t > 140.0) "Enter a temperature between −60 and 140 °F" else null
     }
+    /** Optional ZIP code: 5 digits or ZIP+4. */
+    fun zip(v: String): String? = if (v.isEmpty() || com.vims.app.data.WizardSelections.ZIP.matches(v)) null else "Enter a 5-digit ZIP code (or ZIP+4, like 84015-1234)"
     fun url(v: String): String? {
         if (v.isEmpty()) return null
         val ok = Regex("^https?://[^\\s/?#]+\\.[^\\s/?#]+.*$", RegexOption.IGNORE_CASE).matches(v)
@@ -254,11 +277,11 @@ fun formatGrouped(raw: String): String {
     return int.reversed().chunked(3).joinToString(",").reversed() + dec
 }
 
-val PhoneTransform: VisualTransformation = Grouping(::formatPhone)
+/** Digits are shown as "(801) 555-0134"; a value that isn't plain digits (saved formatted by an older build) shows as it is. */
+val PhoneTransform: VisualTransformation = Grouping { if (it.all(Char::isDigit)) formatPhone(it) else it }
 /** Valuation / sq ft show grouping commas while the stored value stays digits (docs: "may also show grouping commas"). */
 val GroupedNumberTransform: VisualTransformation = Grouping(::formatGrouped)
 val CardTransform: VisualTransformation = Grouping(::formatCard)
-val JoinCodeTransform: VisualTransformation = Grouping(::formatJoinCode)
 val ExpiryTransform: VisualTransformation = Grouping(::formatExpiry)
 
 /* ---------------------------------------------------------------- form state */

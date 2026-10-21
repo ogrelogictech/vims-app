@@ -37,10 +37,13 @@ object Images {
         return decode(file, max)?.also { cache.put(key, it) }
     }
 
-    /** Applies EXIF rotation and caps the size at 2048px (CameraX writes rotation as EXIF only). */
-    fun normalizeJpeg(file: File, max: Int = 2048) {
+    /**
+     * Applies EXIF rotation and caps the size at 2048px (CameraX writes rotation as EXIF only). [orientation] = the EXIF
+     * orientation of the original when [file] is a re-encoded copy without EXIF (imported photos), else read from [file].
+     */
+    fun normalizeJpeg(file: File, max: Int = 2048, orientation: Int? = null) {
         val rotation = try {
-            when (ExifInterface(file.path).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)) {
+            when (orientation ?: ExifInterface(file.path).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)) {
                 ExifInterface.ORIENTATION_ROTATE_90 -> 90f
                 ExifInterface.ORIENTATION_ROTATE_180 -> 180f
                 ExifInterface.ORIENTATION_ROTATE_270 -> 270f

@@ -97,6 +97,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.navigation.NavHostController
 import com.vims.app.data.ChecklistEngine
 import com.vims.app.data.Photo
+import com.vims.app.data.sectionTitle
 import com.vims.app.ui.AppViewModel
 import com.vims.app.ui.CameraR
 import com.vims.app.ui.MarkupR
@@ -137,14 +138,32 @@ fun PhotosScreen(vm: AppViewModel, nav: NavHostController, inspId: String, name:
     val picturesPage = def?.photosOnly == true
     val photos = b.photos.filter { it.section == name }
     var drawer by rememberSaveable { mutableStateOf(false) }
+    // Client Oct 17: Add asks where the picture comes from — Photos (Photo Picker), Camera (in-app capture) or Drive (the system
+    // document picker: Google Drive and other document providers), images only. A picked image opens in markup like a capture.
+    var sourceFor by rememberSaveable { mutableStateOf<String?>(null) }
+    var pickCat by rememberSaveable { mutableStateOf("") }
+    val scope = rememberCoroutineScope()
+    fun imported(uri: android.net.Uri?) {
+        if (uri == null) return
+        val cat = pickCat
+        scope.launch { vm.importPhoto(inspId, name, cat, uri)?.let { vm.toast("Photo added"); nav.navigate(MarkupR(inspId, it.id)) } ?: vm.toast("Could not read that image") }
+    }
+    val photosPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { imported(it) }
+    val drivePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { imported(it) }
+    sourceFor?.let { cat ->
+        PhotoSourceDialog(cat, onDismiss = { sourceFor = null },
+            onPhotos = { sourceFor = null; pickCat = cat; photosPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+            onCamera = { sourceFor = null; nav.navigate(CameraR(inspId, name, cat)) },
+            onDrive = { sourceFor = null; pickCat = cat; try { drivePicker.launch(arrayOf("image/*")) } catch (_: Exception) { vm.toast("No file picker on this device") } })
+    }
 
     VScreen(
-        if (picturesPage) name else "$name photos", b.inspection.selections.street, net(vm), backAction(nav),
+        if (picturesPage) sectionTitle(name) else "${sectionTitle(name)} photos", b.inspection.selections.street, net(vm), backAction(nav),
         listOf(HdrAction(VIcons.list, "Sections") { drawer = true }, homeAction(nav)),
         overlay = { SectionsDrawer(drawer, b, name, { drawer = false }, { drawer = false; nav.openLink(it, inspId) }, { drawer = false; nav.openSection(inspId, it) }) },
     ) {
         Hint((if (picturesPage) "These pictures print on the picture pages after the checklist. " else "") +
-            "Tap **Add** to capture a photo, tap a photo to mark it up or flag it, or tap **×** to delete one.", Modifier.padding(top = 2.dp, bottom = 14.dp))
+            "Tap **Add** to take a photo or pick one (Photos, Camera or Drive), tap a photo to mark it up or flag it, or tap **×** to delete one.", Modifier.padding(top = 2.dp, bottom = 14.dp))
         (cats + photos.map { it.category }.filter { it !in cats }.distinct()).forEach { cat ->
             val list = photos.filter { it.category == cat }
             Column(Modifier.padding(bottom = 16.dp)) {
@@ -157,7 +176,7 @@ fun PhotosScreen(vm: AppViewModel, nav: NavHostController, inspId: String, name:
                     Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         row.forEach { p ->
                             Box(Modifier.weight(1f).aspectRatio(1f)) {
-                                if (p == null) AddTile { nav.navigate(CameraR(inspId, name, cat)) }
+                                if (p == null) AddTile { sourceFor = cat }
                                 else PhotoTile(vm.repo.photoFile(p), p.flag, version, onOpen = { nav.navigate(MarkupR(inspId, p.id)) }, onDelete = { vm.deletePhoto(inspId, p.id) })
                             }
                         }
@@ -174,6 +193,21 @@ fun PhotosScreen(vm: AppViewModel, nav: NavHostController, inspId: String, name:
             }, Modifier.padding(top = 6.dp), icon = VIcons.checkNext)
         } else {
             VBtn("Done", { if (!nav.popBackStack<SectionR>(inclusive = false)) nav.openSection(inspId, name) }, Modifier.padding(top = 6.dp))
+        }
+    }
+}
+
+/** "Add photo from": Photos · Camera · Drive (the client's Android reference menu), then Cancel. */
+@Composable
+private fun PhotoSourceDialog(cat: String, onDismiss: () -> Unit, onPhotos: () -> Unit, onCamera: () -> Unit, onDrive: () -> Unit) {
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(V.paper).padding(vertical = 14.dp)) {
+            Text("Add photo", style = T.display(17.sp, FontWeight.Bold), modifier = Modifier.padding(start = 20.dp, end = 20.dp))
+            Text(cat, style = T.ui(12.5.sp, color = V.ink3), modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 6.dp))
+            com.vims.app.ui.components.ChooserRow(VIcons.image, "Photos", onClick = onPhotos)
+            com.vims.app.ui.components.ChooserRow(VIcons.camera, "Camera", onClick = onCamera)
+            com.vims.app.ui.components.ChooserRow(VIcons.drive, "Drive", onClick = onDrive)
+            com.vims.app.ui.components.ChooserRow(null, "Cancel", V.ink3, onClick = onDismiss)
         }
     }
 }
@@ -266,7 +300,7 @@ fun CameraScreen(vm: AppViewModel, nav: NavHostController, inspId: String, name:
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             DarkBtn(VIcons.close, "Close") { nav.back() }
-            Text("$name — $cat", style = T.ui(14.sp, FontWeight.SemiBold, Color.White), modifier = Modifier.weight(1f))
+            Text("${sectionTitle(name)} — $cat", style = T.ui(14.sp, FontWeight.SemiBold, Color.White), modifier = Modifier.weight(1f))
         }
         // bottom controls
         if (granted && !cameraError) Row(

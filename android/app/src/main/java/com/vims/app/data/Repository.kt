@@ -136,13 +136,18 @@ class RoomRepository(
         val co = dao.company(session.companyId)
         if (user == null || co == null) { clearMemory(); return@withContext }
         // TODO(backend): the platform-owner flag comes from the server; locally it is `support.platformOwners` in the shared JSON.
-        @Suppress("NAME_SHADOWING") val session = session.copy(platformOwner = owners.isOwner(user.email), eulaVersion = user.eulaVersion)
+        val acct = dec(AccountState.serializer(), co.accountJson, AccountState())
+        // The role always follows the company's inspectors list (Make admin / Make owner), also for a session restored at launch.
+        @Suppress("NAME_SHADOWING") val session = session.copy(platformOwner = owners.isOwner(user.email), eulaVersion = user.eulaVersion, role = roleIn(acct, session.email, session.role))
         val ins = dao.inspectionsFor(user.id)
         val answers = dao.answersFor(user.id).groupBy { it.inspectionId }
         val photos = dao.photosFor(user.id).groupBy { it.inspectionId }
         val findings = dao.findingsFor(user.id).groupBy { it.inspectionId }
+        val migrated = mutableListOf<Inspection>()
         val bundles = ins.mapNotNull { e ->
-            val insp = try { json.decodeFromString(Inspection.serializer(), e.json) } catch (_: Exception) { return@mapNotNull null }
+            var insp = try { json.decodeFromString(Inspection.serializer(), e.json) } catch (_: Exception) { return@mapNotNull null }
+            // Client Oct 17: covers saved with the old "Solid" category become style Solid + No picture (written back below).
+            if (insp.cover.isLegacySolid) { insp = insp.copy(cover = insp.cover.normalized()); migrated += insp }
             InspectionBundle(
                 inspection = insp,
                 answers = answers[e.id].orEmpty().associate { it.section to dec(SectionAnswers.serializer(), it.json, SectionAnswers()) },
@@ -152,9 +157,12 @@ class RoomRepository(
             )
         }.associateBy { it.id }
         _company.value = dec(CompanyProfile.serializer(), co.profileJson, CompanyProfile()).copy(agreementText = co.agreementText, agreementEditedAt = co.agreementEditedAt)
-        _account.value = dec(AccountState.serializer(), co.accountJson, AccountState())
+        _account.value = acct
         _edits.value = dec(ChecklistEdits.serializer(), co.editsJson, ChecklistEdits())
-        _settings.value = dec(AppSettings.serializer(), user.settingsJson, AppSettings())
+        _settings.value = dec(AppSettings.serializer(), user.settingsJson, AppSettings()).let { st ->
+            if (!st.defaultCover.isLegacySolid) st else st.copy(defaultCover = st.defaultCover.normalized()).also { dao.updateUserSettings(user.id, enc(AppSettings.serializer(), it)) }
+        }
+        migrated.forEach { i -> dao.updateInspectionJson(i.id, user.id, enc(Inspection.serializer(), i), System.currentTimeMillis()) }
         _inspections.value = bundles
         _userPhoto.value = user.photoFile
         _memberPhotos.value = dao.usersInCompany(co.id).mapNotNull { u -> u.photoFile?.let { u.email.lowercase() to it } }.toMap()
@@ -240,6 +248,17 @@ class RoomRepository(
 
     override fun updateAccount(f: (AccountState) -> AccountState) {
         val c = cid ?: return; _account.update(f); val v = enc(AccountState.serializer(), _account.value); write { dao.updateCompanyAccount(c, v) }
+        // Make admin / Make owner on the signed-in user's own row (or a transfer away from them) changes their role right away.
+        _session.value?.let { s ->
+            val role = roleIn(_account.value, s.email, s.role)
+            if (role != s.role) { val n = s.copy(role = role); _session.value = n; write { dao.putKv(KvEntity(KEY_SESSION, enc(Session.serializer(), n))) } }
+        }
+    }
+
+    /** Owner / Admin / Inspector from the company's inspectors list; [fallback] when the user isn't on it. */
+    private fun roleIn(a: AccountState, email: String, fallback: Role): Role {
+        val me = a.inspectors.firstOrNull { it.email.equals(email, ignoreCase = true) } ?: return fallback
+        return when { me.owner -> Role.OWNER; me.admin -> Role.ADMIN; else -> Role.INSPECTOR }
     }
     override fun updateCompany(f: (CompanyProfile) -> CompanyProfile) {
         val c = cid ?: return; _company.update(f); val p = _company.value; val v = enc(CompanyProfile.serializer(), p)

@@ -1,5 +1,6 @@
 package com.vims.app.ui.screens
 
+import com.vims.app.data.sectionTitle
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -173,7 +174,7 @@ private fun SecRow(name: String, st: String, last: Boolean, onClick: () -> Unit)
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Dot(st)
-            Text(name, style = T.ui(14.sp, FontWeight.Medium), modifier = Modifier.weight(1f))
+            Text(sectionTitle(name), style = T.ui(14.sp, FontWeight.Medium), modifier = Modifier.weight(1f))
             Text(statusWord(st), style = T.mono(10.5.sp, FontWeight.SemiBold, statusTextColor(st)))
         }
         if (!last) Box(Modifier.fillMaxWidth().height(1.dp).background(V.line2))
@@ -245,7 +246,7 @@ private fun DrawerRow(name: String, st: String, on: Boolean, onClick: () -> Unit
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Dot(st, 8)
-            Text(name, style = T.ui(13.5.sp, if (on) FontWeight.SemiBold else FontWeight.Normal, if (on) V.brandDeep else V.ink2), modifier = Modifier.weight(1f))
+            Text(sectionTitle(name), style = T.ui(13.5.sp, if (on) FontWeight.SemiBold else FontWeight.Normal, if (on) V.brandDeep else V.ink2), modifier = Modifier.weight(1f))
             Text(statusWord(st), style = T.mono(9.5.sp, FontWeight.SemiBold, statusTextColor(st)))
         }
     }

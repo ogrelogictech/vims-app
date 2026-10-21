@@ -41,11 +41,15 @@ interface AuthService {
     suspend fun signOut()
 }
 
-data class SubscriptionResult(val ok: Boolean, val cardLast4: String? = null, val message: String? = null)
+/** [cardId] = Square's card-on-file id once the backend exists (TODO(backend): Square Cards API); null in the local stub. */
+data class SubscriptionResult(val ok: Boolean, val cardLast4: String? = null, val message: String? = null, val cardId: String? = null)
 
 interface SubscriptionService {
-    /** Card details go straight to Square's tokenizer in production; the app never stores the card number. */
-    suspend fun startSubscription(plan: Plan, seats: Int, cardNumber: String): SubscriptionResult
+    /**
+     * Card details go straight to Square's tokenizer in production; the app never stores the card number.
+     * [cardNumber] null = charge the card on file (TODO(backend): Square Cards API card id).
+     */
+    suspend fun startSubscription(plan: Plan, seats: Int, cardNumber: String?): SubscriptionResult
     /** Stops renewal at the end of the current period (no refunds / proration — EULA 12.3). */
     suspend fun cancelSubscription(): Boolean
     suspend fun resumeSubscription(): Boolean
@@ -149,7 +153,8 @@ class LocalAuthService(private val dao: VimsDao, private val config: ChecklistCo
 // TODO(backend): Laravel API + Square Subscriptions API. Replace the raw card fields with the Square
 // In-App Payments SDK card entry (tokenized nonce); never send or persist the card number.
 class LocalSubscriptionService : SubscriptionService {
-    override suspend fun startSubscription(plan: Plan, seats: Int, cardNumber: String): SubscriptionResult {
+    override suspend fun startSubscription(plan: Plan, seats: Int, cardNumber: String?): SubscriptionResult {
+        if (cardNumber == null) return SubscriptionResult(ok = true) // card on file
         val digits = cardNumber.filter { it.isDigit() }
         return SubscriptionResult(ok = true, cardLast4 = if (digits.length >= 4) digits.takeLast(4) else "4242")
     }

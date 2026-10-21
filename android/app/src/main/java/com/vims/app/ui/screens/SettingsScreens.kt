@@ -186,10 +186,10 @@ fun SettingsScreen(vm: AppViewModel, nav: NavHostController) {
             Text("Applies to new inspections. High Detail asks for measurements; Fast Entry is quick condition & notes.", style = T.ui(12.sp, color = V.ink3, lineHeight = 16.sp), modifier = Modifier.padding(top = 4.dp, bottom = 11.dp))
             SingleChips(vm.config.depths.map { it.label }, vm.config.depthLabel(settings.defaultDepth), { v -> if (v != null) vm.setDefaultDepth(vm.config.depthId(v)) }, required = true)
         }
-        ListRow("Report cover", settings.defaultCover.let { "${it.color} · ${it.artLabel()}" })
-        ListRow("Photo size", "JPG · up to 2048 px")
-        // Version/data line is for developers only — never shown in release builds.
-        if (com.vims.app.BuildConfig.DEBUG) Text("Debug build · VIMS ${com.vims.app.BuildConfig.VERSION_NAME} · checklist data v${vm.config.version}", style = T.mono(10.5.sp, color = V.ink3), modifier = Modifier.padding(top = 8.dp, start = 2.dp))
+        // Same rows and values as iOS (QA Oct 14): the cover's full label, photo size "JPG · ~750 KB" (captures are JPEG, long side ≤ 2048 px).
+        // No app / data version line on this screen (team, Oct 1).
+        ListRow("Report cover", settings.defaultCover.label())
+        ListRow("Photo size", "JPG · ~750 KB")
     }
 }
 
@@ -225,6 +225,8 @@ fun CompanyScreen(vm: AppViewModel, nav: NavHostController) {
     }
     fun set(f: (CompanyProfile) -> CompanyProfile) { p = f(p) }
     val form = rememberForm()
+    // QA Oct 14: a plain inspector sees the company profile read-only (owner / admins edit it).
+    if (vm.session.collectAsState().value?.isAdmin == false) { CompanyReadOnly(vm, nav, saved); return }
 
     VScreen("Company profile", companyName(vm), net(vm), backAction(nav), listOf(homeAction(nav))) {
         Lbl("Company logo", first = true)
@@ -276,6 +278,8 @@ fun CompanyScreen(vm: AppViewModel, nav: NavHostController) {
                 Column(Modifier.weight(1f)) {
                     Text(own ?: if (edited) "Edited VIMS agreement" else "VIMS agreement", style = T.ui(14.sp, FontWeight.Bold), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     val links = buildList<Pair<String, () -> Unit>> {
+                        // QA Oct 14: the uploaded agreement opens in a viewer app (PDF / Word / image).
+                        if (own != null) add("Open" to { openOwnAgreement(ctx, vm) })
                         if (own == null || !admin) add("View" to { nav.navigate(com.vims.app.ui.AgreementR("")) })
                         if (own == null && admin) add("Edit" to { nav.navigate(com.vims.app.ui.AgreementEditR) })
                         if ((own != null || edited) && admin) add("Use VIMS agreement" to { if (edited) askRevert = true else vm.useDefaultAgreement() })
@@ -291,10 +295,40 @@ fun CompanyScreen(vm: AppViewModel, nav: NavHostController) {
                 }
             }
             // Full-width under the name so "Upload your own" never wraps on narrow phones.
-            if (admin) VBtn(if (own != null) "Replace" else "Upload your own", { docPicker.launch(arrayOf("application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")) },
+            if (admin) VBtn(if (own != null) "Replace" else "Upload your own", { docPicker.launch(arrayOf("application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "image/*")) },
                 Modifier.padding(top = 12.dp), BtnKind.Ghost, icon = VIcons.upload, minHeight = 48.dp)
         }
         VBtn("Save profile", { if (form.submit()) vm.saveCompany(p.copy(logoFile = saved.logoFile, agreementName = saved.agreementName, agreementFile = saved.agreementFile)) }, icon = VIcons.check)
+    }
+}
+
+/** Company profile for a plain inspector: the same information, nothing editable; the agreement can be viewed. */
+@Composable
+private fun CompanyReadOnly(vm: AppViewModel, nav: NavHostController, c: CompanyProfile) {
+    val ctx = LocalContext.current
+    VScreen("Company profile", companyName(vm), net(vm), backAction(nav), listOf(homeAction(nav))) {
+        com.vims.app.ui.components.Banner("Only your company's **owner or an admin** can change the company profile.", VIcons.lock, blue = true)
+        Lbl("Company logo", first = true)
+        VCard {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                CompanyMark(vm, 76.dp)
+                Text("This logo appears on your report covers.", style = T.ui(12.5.sp, color = V.ink3), modifier = Modifier.weight(1f))
+            }
+        }
+        Lbl("Company details")
+        Column(Modifier.padding(bottom = 12.dp).fillMaxWidth().vCard()) {
+            val rows = listOf("Company name" to c.name, "Address" to c.address, "Lead inspector" to c.inspectorName, "License #" to c.license,
+                "Phone" to com.vims.app.util.formatPhone(c.phone.filter { it.isDigit() }).ifBlank { c.phone }, "Email" to c.email, "Review URL" to c.reviewUrl)
+            rows.forEachIndexed { i, (k, v) ->
+                com.vims.app.ui.components.BinfoRow(label = { Text(k, style = T.ui(13.5.sp, color = V.ink3)) },
+                    value = { Text(v.ifBlank { "—" }, style = T.ui(14.sp, FontWeight.SemiBold, V.ink), textAlign = androidx.compose.ui.text.style.TextAlign.End, modifier = Modifier.padding(start = 12.dp)) },
+                    last = i == rows.lastIndex)
+            }
+        }
+        Lbl("Inspection agreement")
+        NavRow(VIcons.fileAgreement, c.uploadedAgreement ?: if (c.editedAgreement != null) "Edited VIMS agreement" else "VIMS agreement", "View the agreement in use") {
+            if (c.uploadedAgreement != null) openOwnAgreement(ctx, vm) else nav.navigate(com.vims.app.ui.AgreementR(""))
+        }
     }
 }
 

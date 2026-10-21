@@ -1,5 +1,6 @@
 package com.vims.app.ui.screens
 
+import com.vims.app.data.sectionTitle
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -119,7 +120,7 @@ fun AdminScreen(vm: AppViewModel, nav: NavHostController) {
                         Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(role = Role.Button) { nav.navigate(EditSecR(n)) }.padding(start = 18.dp, end = 15.dp, top = 12.dp, bottom = 12.dp),
                         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        Text(n, style = T.ui(14.sp, FontWeight.Medium), modifier = Modifier.weight(1f))
+                        Text(sectionTitle(n), style = T.ui(14.sp, FontWeight.Medium), modifier = Modifier.weight(1f))
                         Text("${engine.def(n)?.items?.count { it.q != null } ?: 0} items", style = T.mono(10.5.sp, FontWeight.SemiBold, V.ink2))
                         Icon(VIcons.chevRight, null, tint = V.chev, modifier = Modifier.size(18.dp))
                     }
@@ -161,7 +162,7 @@ fun EditSectionScreen(vm: AppViewModel, nav: NavHostController, name: String) {
         }
     }
 
-    VScreen(name, companyName(vm), net(vm), backAction(nav), listOf(homeAction(nav)), scroll = false) {
+    VScreen(sectionTitle(name), companyName(vm), net(vm), backAction(nav), listOf(homeAction(nav)), scroll = false) {
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 34.dp)) {
             item(key = "tier") {
                 Column {
@@ -308,7 +309,8 @@ fun PlansAdminScreen(vm: AppViewModel, nav: NavHostController) {
             val pErr = form.check("p", p) { Checks.price(p) }
             VField("Plan name", n, { n = it }, Modifier.formField(form, "n"), placeholder = "e.g. Team", filter = { Filters.base(it, 40) }, error = nErr, required = true, bottom = 0.dp)
             VField("Monthly price", p, { p = it }, Modifier.formField(form, "p"), placeholder = "e.g. 99.00", keyboard = KeyboardType.Decimal, filter = Filters::price, error = pErr, required = true, bottom = 0.dp)
-            VField("Description", d, { d = it }, placeholder = "Short description", filter = { Filters.base(it, 80) }, bottom = 0.dp)
+            // QA Oct 14: the short description is multi-line (wraps as typed, line breaks kept) and wraps on the plan cards.
+            VField("Description", d, { d = it }, placeholder = "Short description", multiline = true, filter = { Filters.base(it, 200, multiline = true) }, bottom = 0.dp)
             VBtn("Add plan", { if (form.submit() && vm.addPlan(n, p, d)) { n = ""; p = ""; d = ""; form.reset() } }, icon = VIcons.plus, minHeight = 48.dp)
         }
     }
@@ -334,6 +336,6 @@ private fun PlanCard(name: String, price: Double, unit: String, desc: String?, o
             Text(unit, style = T.ui(12.5.sp, color = V.ink3))
         }
         com.vims.app.ui.components.FieldError(err)
-        if (desc != null) Text(desc, style = T.ui(12.sp, color = V.ink3), modifier = Modifier.padding(top = 8.dp))
+        if (desc != null) Text(desc, style = T.ui(12.sp, color = V.ink3, lineHeight = 16.5.sp), softWrap = true, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
     }
 }

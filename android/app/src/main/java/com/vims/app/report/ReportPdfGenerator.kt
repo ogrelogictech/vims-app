@@ -19,6 +19,8 @@ import android.text.TextUtils
 import com.vims.app.data.AirQualityDef
 import com.vims.app.data.ChecklistConfig
 import com.vims.app.data.ChecklistEngine
+import com.vims.app.data.sectionTitle
+import com.vims.app.data.CoverFooterBoxDef
 import com.vims.app.data.CompanyProfile
 import com.vims.app.data.CoverLayoutDef
 import com.vims.app.data.InspectionBundle
@@ -103,7 +105,7 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
     }
 
     private fun finishPage() {
-        page?.let { if (pageNo > 1) footer(); doc.finishPage(it) }
+        page?.let { val f = pageFooter; if (f != null) f() else if (pageNo > 1) footer(); doc.finishPage(it) }
         page = null
     }
 
@@ -200,23 +202,25 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
     }
 
     /** Two-column key/value grid (`.info-grid` + `.frow2`). */
-    private fun infoGrid(rows: List<Pair<String, String>>) {
+    /** [compact] = tighter rows and 12pt text (the one-page WDI report). */
+    private fun infoGrid(rows: List<Pair<String, String>>, compact: Boolean = false) {
+        val fs = if (compact) 12f else 13f; val pad = if (compact) 8f else 16f; val gap = if (compact) 2f else 9f
         val colW = (CW - 26f) / 2
         rows.chunked(2).forEach { pair ->
             val layouts = pair.map { (k, v) ->
-                val kl = layout(k, tp(plex400, 13f, INK3), colW * .5f)
-                val vl = layout(v.ifBlank { "—" }, tp(plex600, 13f, INK), colW * .5f - 14f, Layout.Alignment.ALIGN_OPPOSITE)
+                val kl = layout(k, tp(plex400, fs, INK3), colW * .5f)
+                val vl = layout(v.ifBlank { "—" }, tp(plex600, fs, INK), colW * .5f - 14f, Layout.Alignment.ALIGN_OPPOSITE)
                 kl to vl
             }
-            val h = layouts.maxOf { maxOf(it.first.height, it.second.height) } + 16f
-            ensure(h + 9f)
+            val h = layouts.maxOf { maxOf(it.first.height, it.second.height) } + pad
+            ensure(h + gap)
             layouts.forEachIndexed { i, (kl, vl) ->
                 val x = PADX + i * (colW + 26f)
-                cv.drawLayout(kl, x, y + 8f)
-                cv.drawLayout(vl, x + colW - vl.width, y + 8f)
+                cv.drawLayout(kl, x, y + pad / 2)
+                cv.drawLayout(vl, x + colW - vl.width, y + pad / 2)
                 cv.drawRect(x, y + h - 1f, x + colW, y + h, fill(LINE2))
             }
-            y += h + 9f
+            y += h + gap
         }
     }
 
@@ -245,7 +249,8 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
         layoutKind = config.reportLayout(bundle.inspection.selections.inspType)
         // Company logo from Company profile; without one, an initials badge is drawn (same fallback as in the app).
         logo = company.logoFile?.let { BitmapFactory.decodeFile(File(context.filesDir, it).path) }
-        if (layoutKind != ChecklistConfig.LAYOUT_STANDARD) { render(); totalPages = pageNo; doc.close() }
+        // Texas / 4-Point "Page X of Y", and form sections' "Page X of N" (Wind Mitigation), are known after a first pass.
+        if (layoutKind != ChecklistConfig.LAYOUT_STANDARD || hasFormSections()) { render(); totalPages = pageNo; doc.close() }
         render()
 
         val dir = File(repo.inspectionDir(bundle.id), "report").apply { mkdirs() }
@@ -278,7 +283,11 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
                 beginningNotes()
                 val sections = b.inspection.leafSections.filter { b.status(it) == SecStatus.DONE }
                     .sortedWith(compareBy<String>({ ChecklistEngine.number(b.defs, it) }, { it }))
-                sections.forEach { s -> sectionPages(s); photoPages(s) }
+                // Data v1.9 formReports: Wind Mitigation prints as the OIR-B1-1802 form, Termite as the WDI report; photos follow.
+                sections.forEach { s ->
+                    when (b.defs[baseName(s)]?.formReport) { "oir-b1-1802" -> oirForm(s); "wdi" -> wdiReport(s); else -> sectionPages(s) }
+                    photoPages(s)
+                }
                 summary()
             }
         }
@@ -311,11 +320,11 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
         val sel = b.inspection.selections
         val cfg = config.covers
         val lay = cfg.layout
-        val cover = b.inspection.cover
+        val cover = b.inspection.cover.normalized()
         val pal = cfg.colors.firstOrNull { it.name == cover.color } ?: cfg.colors.firstOrNull()
         val light = Color.parseColor(pal?.light ?: "#F7FAFD"); val mid = Color.parseColor(pal?.mid ?: "#B5D2EC")
         val deep = Color.parseColor(pal?.deep ?: "#237AD4"); val solid = Color.parseColor(pal?.solid ?: "#8DBAE9")
-        val style = if (cover.category == "Solid") cfg.solidStyle else cover.style
+        val style = cover.style
         val box = lay.pageBox.inches(CoverLayoutDef().pageBox)
 
         // page box
@@ -323,7 +332,7 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
             "Shaded" -> cv.drawRect(box, Paint().apply {
                 shader = LinearGradient(0f, box.top, 0f, box.bottom, intArrayOf(light, light, mid, deep, deep), floatArrayOf(0f, .18f, .56f, .83f, 1f), Shader.TileMode.CLAMP)
             })
-            cfg.solidStyle -> cv.drawRect(box, fill(solid))
+            "Solid" -> cv.drawRect(box, fill(solid))
             else -> { coverGlow(box, deep); cv.drawRect(box, fill(light)) }
         }
         cv.drawRect(box, stroke(Color.BLACK, pt(.75f)))
@@ -382,10 +391,14 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
             cv.drawRect(x0, base + fs * .3f, x1, base + fs * .3f + ruleH, rule)
         }
         var top = f.top
+        var prevVx = left
         rows.forEachIndexed { i, (l, v) ->
             val base = inch(top) + fs * .9f
-            val vx = if (l.isEmpty()) left else { cv.drawText(l, left, base, pl); left + pl.measureText(l) + sp }
+            // Client Oct 17 (`fields.addressLine2`): the 2nd address line's underline starts and ends exactly where the first
+            // line's value underline does — under the value, not under the label.
+            val vx = if (l.isEmpty()) prevVx else { cv.drawText(l, left, base, pl); left + pl.measureText(l) + sp }
             valueLine(v, vx, right, base)
+            prevVx = vx
             top += if (gaps[i]) near else gap
         }
         // Name of Inspector with License # on the same line (every report type)
@@ -401,20 +414,16 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
             valueLine(inspectorLicense(), licX, right, inspBase)
         }
 
-        // theme art + footer: when the art's visible pixels reach the footer band, the footer wraps into the wider free side
-        // beside them (as on the client's covers), at least 3.3 in wide. Measured from the artwork's alpha, not its rect:
-        // the rects include transparent margins (Horses starts at 3.46 in but its first pixels are at 4.2 in).
+        // theme art + footer (client Oct 17, `footer.box`): the footer text sits in the SAME box on every cover — bottom-left, never
+        // past the page's center line (sized like Hobbies – F1 Racing) — or in the matching right-hand box when the theme picture
+        // is on the left (4th of July). The text is drawn after (above) the art; the company name is underlined.
         val art = cfg.art(cover)
         val artRect = art?.rect?.takeIf { it.size >= 4 }
         val artBmp = if (artRect != null) art?.file?.let { themeArt(it) } else null
-        var fl = .55f; var fr = 7.95f
-        val ext = if (artBmp != null && artRect != null) artBandExtent(artBmp, artRect, lay.footer.centerY - .3f, lay.footer.centerY + .3f) else null
-        if (ext != null) {
-            val minW = 3.3f
-            val leftFree = ext.first - .1f - fl; val rightFree = fr - (ext.second + .1f)
-            if (leftFree >= rightFree) fr = fl + maxOf(leftFree, minW) else fl = fr - maxOf(rightFree, minW)
-        }
-        val footW = inch(fr - fl)
+        val artLeft = artRect != null && artRect[0] + artRect[2] / 2f < 4.25f
+        val fb = (if (artLeft) lay.footer.box.right else lay.footer.box.left).takeIf { it.size >= 4 } ?: (if (artLeft) CoverFooterBoxDef().right else CoverFooterBoxDef().left)
+        val fl = fb[0]
+        val footW = inch(fb[2])
         // "{companyName}" is the signed-in inspector's Company profile name, underlined (client, Oct 16).
         val footText = android.text.SpannableStringBuilder().apply {
             lay.footer.text.split("{companyName}").forEachIndexed { i, part ->
@@ -425,13 +434,19 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
                 append(part)
             }
         }
-        val notice = layout(footText, tp(serifBold, pt(lay.footer.size), Color.BLACK), footW, Layout.Alignment.ALIGN_CENTER, 1.18f)
+        // Largest size up to footer.size that fits the box (a long company name or a state notice shrinks it, never below 7.5pt).
+        val stateText = config.stateRule(sel.state)?.coverNotice
+        var fsz = lay.footer.size
+        fun noticeAt(sz: Float) = layout(footText, tp(serifBold, pt(sz), Color.BLACK), footW, Layout.Alignment.ALIGN_CENTER, 1.12f)
+        fun stateAt(sz: Float) = stateText?.let { layout(it, tp(serifBold, pt(sz - 1.5f), Color.BLACK), footW, Layout.Alignment.ALIGN_CENTER, 1.08f) }
+        fun heightAt(sz: Float) = noticeAt(sz).height + (stateAt(sz)?.let { it.height + inch(.05f) } ?: 0f)
+        while (fsz > 7.5f && heightAt(fsz) > inch(fb[3] + (if (stateText != null) .25f else 0f))) fsz -= .5f
+        val notice = noticeAt(fsz)
         // stateRules.<STATE>.coverNotice (e.g. Oregon): extra line under the ownership notice, every layout.
-        val stateNotice = config.stateRule(sel.state)?.coverNotice?.let {
-            layout(it, tp(serifBold, pt(lay.footer.size - 1.5f), Color.BLACK), footW, Layout.Alignment.ALIGN_CENTER, 1.12f)
-        }
-        val footH = notice.height + (stateNotice?.let { it.height + inch(.06f) } ?: 0f)
-        val footTop = (inch(lay.footer.centerY) - footH / 2).coerceAtMost(box.bottom - inch(.06f) - footH)
+        val stateNotice = stateAt(fsz)
+        val footH = notice.height + (stateNotice?.let { it.height + inch(.05f) } ?: 0f)
+        // Centered in the box; kept inside the page box.
+        val footTop = (inch(fb[1] + fb[3] / 2f) - footH / 2).coerceAtMost(box.bottom - inch(.06f) - footH)
 
         // property photo (center-crop, clipped); without one, the empty box with the client's "Picture of Property." label
         val pr = RectF(pr0.left, maxOf(pr0.top, inspBase + fs * .3f + inch(.2f)), pr0.right, minOf(pr0.bottom, footTop - inch(.08f)))
@@ -455,7 +470,7 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
         }
         // footer last, so it stays readable where it has to overlap the art's edge (the client's covers do the same)
         cv.drawLayout(notice, inch(fl), footTop)
-        stateNotice?.let { cv.drawLayout(it, inch(fl), footTop + notice.height + inch(.06f)) }
+        stateNotice?.let { cv.drawLayout(it, inch(fl), footTop + notice.height + inch(.05f)) }
     }
 
     /**
@@ -600,7 +615,8 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
     private fun sectionPages(section: String) {
         startPage()
         val num = ChecklistEngine.number(b.defs, section)
-        secTitle(num, section)
+        val title = sectionTitle(section)
+        secTitle(num, title)
         val a = b.answers[section] ?: SectionAnswers()
         val def = b.defs[baseName(section)]
         val depth = b.inspection.selections.depth
@@ -609,7 +625,7 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
             val kl = layout(k, kP, CW * .52f - 12f)
             val vl = layout(v, vP, CW * .48f - 24f)
             val h = maxOf(kl.height, vl.height) + 14f
-            ensure(h) { secTitle(num, "$section (cont.)") }
+            ensure(h) { secTitle(num, "${sectionTitle(section)} (cont.)") }
             cv.drawLayout(kl, PADX + 6f, y + 7f)
             cv.drawLayout(vl, PADX + CW * .52f + 6f, y + 7f)
             if (dot > 0) cv.drawCircle(PADX + CW * .52f + 6f + vl.getLineWidth(0) + 11f, y + 7f + 8f, 4f, fill(C[dot]))
@@ -617,7 +633,7 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
             y += h
         }
         fun band(t: String) {
-            ensure(60f) { secTitle(num, "$section (cont.)") }
+            ensure(60f) { secTitle(num, "${sectionTitle(section)} (cont.)") }
             y += 14f
             val h = 30f
             cv.drawRoundRect(RectF(PADX, y, PADX + CW, y + h), 6f, 6f, fill(PAPER2))
@@ -629,7 +645,8 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
         if (depth == "fast") {
             if (a.present.isNotEmpty()) { row("Items reviewed", a.present.joinToString(", ")); any = true }
         } else if (def != null) {
-            val keyed = ChecklistEngine.keyed(ChecklistEngine.itemsFor(def, depth))
+            // `visibleIf` items that are hidden (e.g. "Sample 3 location" with 2 samples) are not printed.
+            val keyed = ChecklistEngine.visibleKeyed(ChecklistEngine.keyed(ChecklistEngine.itemsFor(def, depth)), a)
             val detail = ChecklistEngine.showDetailInput(def, depth)
             val aq = def.airQuality
             var pendingHeader: String? = null
@@ -652,6 +669,14 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
             }
         }
         if (!any) row("Line items", "No line items recorded")
+        // Data v1.8 `reportNote` (Radon): the section's note paragraphs, after its items (the measured level) and above Overall condition.
+        (def?.reportNote ?: config.section(baseName(section))?.reportNote).orEmpty().filter { it.isNotBlank() }.forEach { para ->
+            val l = layout(para, tp(plex400, 11.5f, INK2), CW - 12f, spacing = 1.18f)
+            ensure(l.height + 10f) { secTitle(num, "${sectionTitle(section)} (cont.)") }
+            y += 10f
+            cv.drawLayout(l, PADX + 6f, y)
+            y += l.height
+        }
         // overall condition
         val overall = (a.overall ?: config.overallConditionDefault).ifBlank { "Not recorded" }
         ensure(50f)
@@ -731,12 +756,12 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
         fun rowH(l: Triple<StaticLayout, StaticLayout, StaticLayout>) = 10f + maxOf(l.first.height.toFloat(), 22f) + 5f + maxOf(l.second.height, l.third.height) + 9f
         y += 8f
         // keep the column heads with the first reading
-        ensure(headH + (layouts.firstOrNull()?.let { rowH(it.first) } ?: 0f)) { secTitle(num, "$section (cont.)") }
+        ensure(headH + (layouts.firstOrNull()?.let { rowH(it.first) } ?: 0f)) { secTitle(num, "${sectionTitle(section)} (cont.)") }
         heads()
         layouts.forEachIndexed { idx, (l, key) ->
             val it = rows[idx].second
             val h = rowH(l)
-            ensure(h) { secTitle(num, "$section (cont.)"); heads() }
+            ensure(h) { secTitle(num, "${sectionTitle(section)} (cont.)"); heads() }
             val top = y + 10f
             cv.drawLayout(l.first, PADX + 6f, top)
             val base = top + l.first.getLineBaseline(0)
@@ -760,14 +785,14 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
         if (photos.isEmpty()) return
         val num = ChecklistEngine.number(b.defs, section)
         startPage()
-        secTitle(num, "$section · Photos")
+        secTitle(num, "${sectionTitle(section)} · Photos")
         val colW = (CW - 16f) / 2
         val imgH = colW * 2f / 3f
         val capP = tp(plex400, 11.5f, INK2)
         photos.chunked(2).forEach { pair ->
             val caps = pair.map { p -> layout(listOf(p.category, p.caption).filter { it.isNotBlank() }.joinToString(" — "), capP, colW - 22f - (if (p.flag > 0) 50f else 0f)) }
             val h = imgH + caps.maxOf { it.height } + 16f
-            if (y + h > BOTTOM) { startPage(); secTitle(num, "$section · Photos (cont.)") }
+            if (y + h > BOTTOM) { startPage(); secTitle(num, "${sectionTitle(section)} · Photos (cont.)") }
             pair.forEachIndexed { i, p ->
                 val x = PADX + i * (colW + 16f)
                 val card = RectF(x, y, x + colW, y + h)
@@ -803,7 +828,7 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
             val rows = items.mapIndexed { i, f ->
                 // Same line as the app's Summary screen (client, Oct 16): **Section** — custom comment — quick comment.
                 val l = layout(android.text.SpannableStringBuilder().apply {
-                    append(f.section); setSpan(android.text.style.StyleSpan(Typeface.BOLD), 0, length, 0); setSpan(android.text.style.ForegroundColorSpan(INK), 0, length, 0)
+                    append(sectionTitle(f.section)); setSpan(android.text.style.StyleSpan(Typeface.BOLD), 0, length, 0); setSpan(android.text.style.ForegroundColorSpan(INK), 0, length, 0)
                     f.body.takeIf { it.isNotBlank() }?.let { append(" — $it") }
                 }, tp(plex400, 12.5f, INK2), CW - 30f - 36f)
                 (i + 1) to l
@@ -1187,7 +1212,550 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
         }
         y += h
     }
+
+    // ================================================================== form reports (data v1.9 `formReports`, client Oct 17 item 13)
+
+    /** Footer drawn by [finishPage] instead of the running footer while form pages are being written. */
+    private var pageFooter: (() -> Unit)? = null
+    /** Pages each form section took in the first pass ("Page X of N"); kept across the two render passes. */
+    private val formPageCounts = HashMap<String, Int>()
+
+    /** True when the standard report includes a section printed as a form (needs the counting pass). */
+    private fun hasFormSections(): Boolean = layoutKind == ChecklistConfig.LAYOUT_STANDARD &&
+        b.inspection.leafSections.any { b.status(it) == SecStatus.DONE && b.defs[baseName(it)]?.formReport != null }
+
+    /** A form section's answers by question text (first occurrence), honoring `visibleIf`. */
+    private inner class FormAnswers(section: String) {
+        val a: SectionAnswers = b.answers[section] ?: SectionAnswers()
+        private val def = b.defs[baseName(section)]
+        val keyed = if (def == null) emptyList() else ChecklistEngine.keyed(ChecklistEngine.itemsFor(def, ChecklistEngine.effectiveDepth(def, b.inspection.selections.depth)))
+        private val byQ = keyed.filter { it.first != null }.groupBy { it.second.q.orEmpty() }.mapValues { it.value.first() }
+        fun item(q: String): ItemDef? = byQ[q]?.second
+        private fun visible(q: String): Boolean = byQ[q]?.let { ChecklistEngine.isVisible(it.second, keyed, a) } ?: false
+        /** Text / number / date ("MM/DD/YYYY") answer, or "" when unanswered or hidden. */
+        fun v(q: String): String {
+            val (k, it) = byQ[q] ?: return ""
+            if (!visible(q)) return ""
+            val raw = a.inputs[k!!].orEmpty().trim()
+            return when (it.type) { "date" -> if (raw.isBlank()) "" else Fmt.slash(raw); "single", "multi" -> a.values[k].orEmpty().joinToString(", "); else -> raw }
+        }
+        /** Chip answers of a single / multi item (empty when hidden). */
+        fun sel(q: String): List<String> { val (k, _) = byQ[q] ?: return emptyList(); return if (visible(q)) a.values[k!!].orEmpty() else emptyList() }
+        /** Index of the chosen option of a single item, or -1. */
+        fun idx(q: String): Int = sel(q).firstOrNull()?.let { s -> item(q)?.options.orEmpty().indexOf(s) } ?: -1
+        fun on(q: String, option: String): Boolean = sel(q).any { it.equals(option, ignoreCase = true) }
+    }
+
+    private val formSerif: Typeface = Typeface.create(Typeface.SERIF, Typeface.NORMAL)
+    private val formSerifBold: Typeface = Typeface.create(Typeface.SERIF, Typeface.BOLD)
+    private val formSerifItalic: Typeface = Typeface.create(Typeface.SERIF, Typeface.ITALIC)
+
+    /**
+     * Mini markup for form text: **bold**, __underline__, //italic//, {question} = that answer underlined (or a blank line
+     * "________" when unanswered), {=text} = a filled value given inline.
+     */
+    private fun formText(markup: String, fa: FormAnswers?, valueColor: Int = BRAND_DEEP): CharSequence {
+        val sb = android.text.SpannableStringBuilder()
+        var bold = -1; var under = -1; var ital = -1
+        var i = 0
+        while (i < markup.length) {
+            when {
+                // A run of 3+ underscores is a blank line to write on, not an underline marker.
+                markup.startsWith("___", i) -> { var j = i; while (j < markup.length && markup[j] == '_') j++; sb.append(markup, i, j); i = j }
+                markup.startsWith("**", i) -> { if (bold < 0) bold = sb.length else { sb.setSpan(android.text.style.StyleSpan(Typeface.BOLD), bold, sb.length, 0); bold = -1 }; i += 2 }
+                markup.startsWith("__", i) -> { if (under < 0) under = sb.length else { sb.setSpan(android.text.style.UnderlineSpan(), under, sb.length, 0); under = -1 }; i += 2 }
+                markup.startsWith("//", i) -> { if (ital < 0) ital = sb.length else { sb.setSpan(android.text.style.StyleSpan(Typeface.ITALIC), ital, sb.length, 0); ital = -1 }; i += 2 }
+                markup[i] == '{' && markup.indexOf('}', i) > i -> {
+                    val end = markup.indexOf('}', i)
+                    val key = markup.substring(i + 1, end)
+                    val v = if (key.startsWith("=")) key.drop(1) else fa?.v(key).orEmpty()
+                    if (v.isBlank()) sb.append("__________") else {
+                        val st = sb.length; sb.append(" $v ")
+                        sb.setSpan(android.text.style.UnderlineSpan(), st, sb.length, 0)
+                        sb.setSpan(android.text.style.ForegroundColorSpan(valueColor), st, sb.length, 0)
+                        sb.setSpan(android.text.style.TypefaceSpan(plex600), st, sb.length, 0)
+                    }
+                    i = end + 1
+                }
+                else -> { sb.append(markup[i]); i++ }
+            }
+        }
+        return sb
+    }
+
+    /** A ☐ / ☒ box drawn as vector lines (not a font glyph), top-left at (x, top). */
+    private fun checkBox(x: Float, top: Float, on: Boolean, size: Float = 11f) {
+        cv.drawRect(x, top, x + size, top + size, stroke(Color.BLACK, 1f))
+        if (on) {
+            val p = stroke(BRAND_DEEP, 1.8f)
+            cv.drawLine(x + 2f, top + 2f, x + size - 2f, top + size - 2f, p); cv.drawLine(x + size - 2f, top + 2f, x + 2f, top + size - 2f, p)
+        }
+    }
+
+    // ---------------------------------------------------------------- OIR-B1-1802 (Wind Mitigation), Florida state form (public)
+
+    private fun fp(size: Float = BODY, tf: Typeface = formSerif, color: Int = Color.BLACK) = tp(tf, size, color)
+
+    private fun formEnsure(h: Float) { if (y + h > F_BOTTOM) { startPage(header = false); y = 52f } }
+
+    /** Paragraph across the form width (wraps; moves to the next page whole when it doesn't fit). */
+    private fun fpara(markup: String, fa: FormAnswers?, x: Float = FX, w: Float = FW, size: Float = BODY, tf: Typeface = formSerif, gapAfter: Float = 6f, align: Layout.Alignment = Layout.Alignment.ALIGN_NORMAL) {
+        val l = layout(formText(markup, fa), fp(size, tf), w, align, 1.03f)
+        formEnsure(l.height.toFloat())
+        cv.drawLayout(l, x, y)
+        y += l.height + gapAfter
+    }
+
+    /** One ☐/☒ answer: box at [indent], wrapped text beside it. */
+    private fun fopt(on: Boolean, markup: String, fa: FormAnswers?, indent: Float = 26f, size: Float = BODY, keep: Float = 0f) {
+        val tx = FX + indent + 20f
+        val l = layout(formText(markup, fa), fp(size), FW - (tx - FX), Layout.Alignment.ALIGN_NORMAL, 1.02f)
+        formEnsure(l.height + keep)
+        checkBox(FX + indent, y + size * .12f, on, 10f)
+        cv.drawLayout(l, tx, y)
+        y += l.height + 3.5f
+    }
+
+    /** "1. **__Building Code__**: question" heading with a hanging number. */
+    private fun fq(num: String, markup: String, fa: FormAnswers?, keep: Float = 60f) {
+        y += 4f
+        val l = layout(formText(markup, fa), fp(), FW - 26f, Layout.Alignment.ALIGN_NORMAL, 1.02f)
+        formEnsure(l.height + keep)
+        cv.drawText(num, FX, y + BODY * .95f, fp())
+        cv.drawLayout(l, FX + 26f, y)
+        y += l.height + 4f
+    }
+
+    /** OIR-B1-1802 page footer: initials + property address (filled), validity note, form id and "Page X of N". */
+    private fun oirFooter(start: Int, section: String, initials: String) {
+        val sel = b.inspection.selections
+        var fy = 978f
+        val bold = fp(13f, formSerifBold)
+        val lead = "Inspectors Initials "
+        cv.drawText(lead, FX + 10f, fy, bold)
+        var x = FX + 10f + bold.measureText(lead)
+        val vp = tp(plex600, 12.5f, BRAND_DEEP)
+        val iw = maxOf(60f, vp.measureText(initials) + 16f)
+        cv.drawText(initials, x + 8f, fy - 1f, vp); cv.drawRect(x, fy + 3f, x + iw, fy + 4f, fill(Color.BLACK)); x += iw + 10f
+        cv.drawText("Property Address", x, fy, bold); x += bold.measureText("Property Address") + 4f
+        val addr = listOf(sel.street, sel.cityLine).filter { it.isNotBlank() }.joinToString(", ")
+        cv.drawText(ellipsize(addr, vp, FX + FW - 30f - x - 8f), x + 8f, fy - 1f, vp); cv.drawRect(x, fy + 3f, FX + FW - 30f, fy + 4f, fill(Color.BLACK))
+        fy += 14f
+        val v = layout(VALID, fp(12.5f, formSerifBold), FW - 20f)
+        cv.drawLayout(v, FX + 10f, fy); fy += v.height + 13f
+        cv.drawText(FORM_ID, FX + 10f, fy, fp(12.5f, formSerifBold))
+        val total = formPageCounts[section]?.let { " of $it" }.orEmpty()
+        cv.drawText("Page ${pageNo - start + 1}$total", FX + FW - 60f, fy, fp(13f, formSerifItalic).apply { textAlign = Paint.Align.RIGHT })
+    }
+
+    /** Florida Uniform Mitigation Verification Inspection Form (OIR-B1-1802) for the Wind Mitigation section. */
+    private fun oirForm(section: String) {
+        val fa = FormAnswers(section)
+        val sel = b.inspection.selections
+        val initials = fa.v("Inspector initials")
+        startPage(header = false)
+        val start = pageNo
+        pageFooter = { oirFooter(start, section, initials) }
+        y = 44f
+        cv.drawText("Uniform Mitigation Verification Inspection Form", PW / 2, y + 20f, fp(22f, formSerifBold).apply { textAlign = Paint.Align.CENTER })
+        y += 28f
+        val sub = "Maintain a copy of this form and any documentation provided with the insurance policy"
+        val sp = fp(15f).apply { textAlign = Paint.Align.CENTER; isUnderlineText = true }
+        cv.drawText(sub, PW / 2, y + 14f, sp)
+        y += 24f
+
+        // Owner Information grid
+        val c1 = FX; val c2 = FX + FW * .33f; val c3 = FX + FW * .665f; val c4 = FX + FW
+        val rowH = 21f
+        fun cell(x0: Float, x1: Float, label: String, value: String, boldLabel: Boolean = false) {
+            cv.drawRect(x0, y, x1, y + rowH, stroke(Color.BLACK, 1f))
+            val lp = fp(13.5f, if (boldLabel) formSerifBold else formSerif)
+            cv.drawText(label, x0 + 8f, y + 16.5f, lp)
+            if (value.isNotBlank()) {
+                val vx = x0 + 8f + lp.measureText(label) + 6f
+                val vp = tp(plex600, 12.5f, BRAND_DEEP)
+                cv.drawText(ellipsize(value, vp, x1 - vx - 6f), vx, y + 16.5f, vp)
+            }
+        }
+        cell(c1, c4, "Inspection Date:", Fmt.slash(sel.date)); y += rowH
+        cell(c1, c4, "Owner Information", "", boldLabel = true); y += rowH
+        cell(c1, c3, "Owner Name:", fa.v("Owner name")); cell(c3, c4, "Contact Person:", fa.v("Contact person")); y += rowH
+        cell(c1, c3, "Address:", fa.v("Address")); cell(c3, c4, "Home Phone:", fa.v("Home phone")); y += rowH
+        cell(c1, c2, "City:", fa.v("City")); cell(c2, c3, "Zip:", fa.v("Zip")); cell(c3, c4, "Work Phone:", fa.v("Work phone")); y += rowH
+        cell(c1, c2, "County:", fa.v("County")); cell(c2, c3, "", ""); cell(c3, c4, "Cell Phone:", fa.v("Cell phone")); y += rowH
+        cell(c1, c3, "Insurance Company:", fa.v("Insurance company")); cell(c3, c4, "Policy #:", fa.v("Policy #")); y += rowH
+        cell(c1, c2, "Year of Home:", fa.v("Year of home")); cell(c2, c3, "# of Stories:", fa.v("# of stories")); cell(c3, c4, "Email:", fa.v("Email")); y += rowH
+        y += 10f
+        fpara(NOTE, null, size = 12.4f)
+
+        // 1. Building Code
+        fq("1.", "**__Building Code__**:  Was the structure built in compliance with the Florida Building Code (FBC 2001 or later) OR for homes located in the HVHZ (Miami-Dade or Broward counties), South Florida Building Code (SFBC-94)?", fa)
+        val q1 = fa.idx("Building code")
+        Q1.forEachIndexed { i, t -> fopt(q1 == i, t, fa) }
+
+        // 2. Roof Covering
+        fq("2.", "**__Roof Covering:__** Select all roof covering types in use. Provide the permit application date OR FBC/MDC Product Approval number OR Year of Original Installation/Replacement OR indicate that no information was available to verify compliance for each roof covering identified.", fa, keep = 200f)
+        roofCoveringTable(fa)
+        val q2 = fa.idx("Roof covering compliance")
+        Q2.forEachIndexed { i, t -> fopt(q2 == i, t, fa) }
+
+        // 3. Roof Deck Attachment
+        fq("3.", "**__Roof Deck Attachment__**: What is the __**weakest**__ form of roof deck attachment?", fa)
+        val q3 = fa.idx("Roof deck attachment")
+        Q3.forEachIndexed { i, t -> fopt(q3 == i, t, fa) }
+
+        // 4. Roof to Wall Attachment
+        fq("4.", "**__Roof to Wall Attachment__**: What is the __**WEAKEST**__ roof to wall connection? (Do not include attachment of hip/valley jacks within 5 feet of the inside or outside corner of the roof in determination of WEAKEST type)", fa)
+        val q4 = fa.idx("Roof to wall attachment")
+        fun subs(texts: List<String>, q: String, indent: Float = 52f) {
+            val opts = fa.item(q)?.options.orEmpty()
+            texts.forEachIndexed { i, t -> fopt(opts.getOrNull(i)?.let { fa.on(q, it) } == true, t, fa, indent, SMALL + 1f) }
+        }
+        Q4.forEachIndexed { i, t ->
+            fopt(q4 == i, t, fa, keep = if (i == 0 || i == 1 || i == 3) 40f else 0f)
+            when (i) {
+                0 -> {
+                    subs(Q4_TOE, "Toe nails — type")
+                    fpara("Minimal conditions to qualify for categories B, C, or D. All visible metal connectors are:", fa, x = FX + 46f, w = FW - 46f, size = SMALL + 1f, gapAfter = 4f)
+                    subs(Q4_MIN, "Minimal conditions for B, C or D (all visible metal connectors are)")
+                }
+                1 -> subs(Q4_CLIPS, "Clips — type")
+                3 -> subs(Q4_DOUBLE, "Double wraps — type")
+            }
+        }
+
+        // 5. Roof Geometry
+        fq("5.", "**__Roof Geometry__**: What is the roof shape? (Do not consider roofs of porches or carports that are attached only to the fascia or wall of the host structure over unenclosed space in the determination of roof perimeter or roof area for roof geometry classification).", fa)
+        val q5 = fa.idx("Roof geometry")
+        Q5.forEachIndexed { i, t -> fopt(q5 == i, t, fa) }
+
+        // 6. Secondary Water Resistance
+        fq("6.", "**__Secondary Water Resistance (SWR)__**: (standard underlayments or hot-mopped felts do not qualify as an SWR)", fa)
+        val q6 = fa.idx("Secondary water resistance")
+        Q6.forEachIndexed { i, t -> fopt(q6 == i, t, fa) }
+
+        // 7. Opening Protection (the chart is kept with the question)
+        fq("7.", "**__Opening Protection__:** What is the **__weakest__** form of wind borne debris protection installed on the structure? **First**, use the table to determine the weakest form of protection for each category of opening. **Second**, (a) check one answer below (A, B, C, N, or X) based upon the lowest protection level for ALL Glazed openings **and** (b) check the protection level for all Non-Glazed openings (.1, .2, or .3) as applicable.", fa, keep = 320f)
+        openingChart(fa)
+        val weakest = fa.sel("Opening protection (weakest)").firstOrNull().orEmpty()
+        Q7.forEach { (letter, text, subList) ->
+            fopt(weakest == letter || weakest.startsWith("$letter."), text, fa, indent = 18f, keep = 50f)
+            subList.forEach { t -> fopt(weakest == t.substringBefore(' '), t, fa, indent = 40f, size = SMALL + 1f) }
+            y += 4f
+        }
+
+        // Qualified inspector block
+        y += 6f
+        formEnsure(140f)
+        run {
+            val top = y
+            val hp = fp(15f, Typeface.create(formSerif, Typeface.BOLD_ITALIC)).apply { textAlign = Paint.Align.CENTER }
+            cv.drawText("MITIGATION INSPECTIONS MUST BE CERTIFIED BY A QUALIFIED INSPECTOR.", PW / 2, y + 19f, hp)
+            cv.drawText("Section 627.711(2), Florida Statutes, provides a listing of individuals who may sign this form.", PW / 2, y + 38f, fp(13.5f, Typeface.create(formSerif, Typeface.BOLD_ITALIC)).apply { textAlign = Paint.Align.CENTER })
+            y += 46f
+            val ch = 36f
+            fun icell(x0: Float, x1: Float, label: String, value: String) {
+                cv.drawRect(x0, y, x1, y + ch, stroke(Color.BLACK, 1f))
+                cv.drawText(label, x0 + 8f, y + 13f, fp(11.5f))
+                if (value.isNotBlank()) { val vp = tp(plex600, 12.5f, BRAND_DEEP); cv.drawText(ellipsize(value, vp, x1 - x0 - 16f), x0 + 8f, y + 29f, vp) }
+            }
+            icell(FX, FX + FW * .46f, "Qualified Inspector Name:", company.inspectorName)
+            icell(FX + FW * .46f, FX + FW * .73f, "License Type:", fa.v("License type"))
+            icell(FX + FW * .73f, FX + FW, "License or Certificate #:", inspectorLicense())
+            y += ch
+            icell(FX, FX + FW * .665f, "Inspection Company:", company.name)
+            icell(FX + FW * .665f, FX + FW, "Phone:", com.vims.app.util.formatPhone(company.phone.filter { it.isDigit() }).ifBlank { company.phone })
+            y += ch
+            cv.drawRect(FX, top, FX + FW, y, stroke(Color.BLACK, 1.2f))
+            y += 12f
+        }
+        fpara("**__Qualified Inspector – I hold an active license as a__: (check one)**", fa, size = 17f, gapAfter = 6f)
+        val lic = fa.idx("I hold an active license as a")
+        LICENSES.forEachIndexed { i, t -> fopt(lic == i, t, fa, indent = 4f, size = SMALL + 1f) }
+        y += 4f
+        boxed {
+            fpara(CERT_EMPLOYEES, fa, x = FX + 10f, w = FW - 20f, size = 12.2f)
+            fpara("**I, {=${company.inspectorName}} am a qualified inspector and I personally performed the inspection or (//licensed contractors and professional engineers only//) I had my employee (__________________) perform the inspection and I agree to be responsible for his/her work.**", fa, x = FX + 10f, w = FW - 20f, size = 12.6f)
+            fpara("**Qualified Inspector Signature: ________________________________  Date: __________________**", fa, x = FX + 10f, w = FW - 20f, size = 13.5f, gapAfter = 10f)
+            fpara(FRAUD, fa, x = FX + 10f, w = FW - 20f, size = 12.2f)
+        }
+        boxed {
+            fpara("**__Homeowner to complete__:** I certify that the named Qualified Inspector or his or her employee did perform an inspection of the residence identified on this form and that proof of identification was provided to me or my Authorized Representative.", fa, x = FX + 10f, w = FW - 20f, size = 12.6f)
+            fpara("**Signature: ________________________________  Date: ____________________**", fa, x = FX + 10f, w = FW - 20f, size = 14f, gapAfter = 8f)
+        }
+        boxed { fpara(MISDEMEANOR, fa, x = FX + 10f, w = FW - 20f, size = 12.2f) }
+        y += 4f
+        fpara(DEFINITIONS, fa, size = 12.2f)
+        finishPage()
+        pageFooter = null
+        formPageCounts[section] = pageNo - start + 1
+    }
+
+    /** Draws [content] and a rectangle around it (the official form's boxed paragraphs); moves to a new page first if needed. */
+    private fun boxed(content: () -> Unit) {
+        formEnsure(90f)
+        val top = y; val startPageNo = pageNo
+        y += 6f
+        content()
+        if (pageNo == startPageNo) cv.drawRect(FX, top, FX + FW, y + 2f, stroke(Color.BLACK, 1f))
+        y += 7f
+    }
+
+    /** Q2 roof covering table: type | permit application date | FBC or MDC product approval # | year installed | no information. */
+    private fun roofCoveringTable(fa: FormAnswers) {
+        val types = fa.item("Roof covering types in use")?.options.orEmpty().ifEmpty { listOf("Asphalt/Fiberglass Shingle", "Concrete/Clay Tile", "Metal", "Built Up", "Membrane", "Other") }
+        val xs = floatArrayOf(FX + 46f, FX + FW * .29f, FX + FW * .46f, FX + FW * .64f, FX + FW * .83f)
+        val ws = floatArrayOf(0f, FW * .14f, FW * .16f, FW * .14f, 0f)
+        val hp = fp(11f, formSerifBold).apply { textAlign = Paint.Align.CENTER }
+        formEnsure(40f + types.size * 26f)
+        cv.drawText("2.1 Roof Covering Type:", xs[0], y + 38f, fp(11f, formSerifBold))
+        listOf("Permit Application\nDate", "FBC or MDC\nProduct Approval #", "Year of Original\nInstallation or\nReplacement", "No Information\nProvided for\nCompliance").forEachIndexed { i, h ->
+            val lines = h.split("\n"); val cx = if (i == 3) xs[4] + 7f else xs[i + 1] + ws[i + 1] / 2
+            lines.forEachIndexed { li, t -> cv.drawText(t, cx, y + 38f - (lines.size - 1 - li) * 12f, hp) }
+        }
+        y += 50f
+        val vp = tp(plex600, 12f, BRAND_DEEP)
+        fun blank(x: Float, w: Float, v: String) {
+            cv.drawRect(x, y + 15f, x + w, y + 16f, fill(Color.BLACK))
+            if (v.isNotBlank()) cv.drawText(ellipsize(v, vp, w), x + w / 2, y + 12f, vp.apply { textAlign = Paint.Align.CENTER })
+        }
+        types.forEachIndexed { i, t ->
+            val on = fa.on("Roof covering types in use", t)
+            checkBox(xs[0], y + 3f, on)
+            val label = "${i + 1}. $t"
+            val lp = fp(11.5f)
+            cv.drawText(label, xs[0] + 18f, y + 13f, lp)
+            if (t == "Other") {
+                val ox = xs[0] + 18f + lp.measureText(label) + 2f
+                blank(ox, xs[1] - ox - 14f, fa.v("Other roof covering type"))
+            }
+            blank(xs[1], ws[1], fa.v("$t: permit application date"))
+            blank(xs[2], ws[2], fa.v("$t: FBC or MDC product approval #"))
+            blank(xs[3], ws[3], fa.v("$t: year of original installation or replacement"))
+            checkBox(xs[4] + 1f, y + 3f, fa.on("$t: no information provided for compliance", "Yes"))
+            y += 22f
+        }
+        y += 4f
+    }
+
+    /** Q7 Opening Protection Level Chart with an X in each opening type's column at its chosen level (D is grayed for glazed openings). */
+    private fun openingChart(fa: FormAnswers) {
+        val cols = fa.keyed.filter { it.first != null && it.second.formTable == "q7" }.map { it.second.q.orEmpty() }
+        val leftW = FW * .56f
+        val glazedW = (FW - leftW - 8f) * .68f; val nonW = FW - leftW - 8f - glazedW
+        val colX = FloatArray(6); val colW = FloatArray(6)
+        for (i in 0 until 4) { colW[i] = glazedW / 4; colX[i] = FX + leftW + i * colW[i] }
+        for (i in 0 until 2) { colW[4 + i] = nonW / 2; colX[4 + i] = FX + leftW + glazedW + 8f + i * colW[4 + i] }
+        val headH = 104f
+        val rowHs = Q7_ROWS.map { (_, d) -> layout(d, tp(plex400, 10.5f), leftW - 52f).height + 10f }
+        formEnsure(headH + rowHs.sum() + 10f)
+        val top = y
+        val edge = stroke(Color.BLACK, 1f); val heavy = stroke(Color.BLACK, 2.6f)
+        // header: title + instruction (left), column groups and names (right)
+        cv.drawText("Opening Protection Level Chart", FX + 8f, y + 22f, tp(plex700, 17f, Color.BLACK))
+        cv.drawLayout(layout("Place an “X” in each row to identify all forms of protection in use for each opening type. Check only one answer below (A thru X), based on the weakest form of protection (lowest row) for any of the Glazed openings and indicate the weakest form of protection (lowest row) for Non-Glazed openings.",
+            tp(plex700, 10.5f, Color.BLACK), leftW - 14f), FX + 8f, y + 30f)
+        val gp = tp(plex700, 10.5f, Color.BLACK).apply { textAlign = Paint.Align.CENTER }
+        cv.drawText("Glazed Openings", colX[0] + glazedW / 2, y + 24f, gp)
+        cv.drawText("Non-Glazed", colX[4] + nonW / 2, y + 17f, gp); cv.drawText("Openings", colX[4] + nonW / 2, y + 30f, gp)
+        val names = listOf("Windows\nor Entry\nDoors", "Garage\nDoors", "Skylights", "Glass\nBlock", "Entry\nDoors", "Garage\nDoors")
+        names.forEachIndexed { i, n ->
+            val ls = n.split("\n"); val cy = y + 40f + (64f - ls.size * 13f) / 2 + 10f
+            ls.forEachIndexed { li, t -> cv.drawText(t, colX[i] + colW[i] / 2, cy + li * 13f, gp) }
+            cv.drawRect(colX[i], y + 38f, colX[i] + colW[i], y + headH, edge)
+        }
+        cv.drawRect(colX[0], y, colX[0] + glazedW, y + 38f, edge); cv.drawRect(colX[4], y, colX[4] + nonW, y + 38f, edge)
+        y += headH
+        Q7_ROWS.forEachIndexed { r, (code, desc) ->
+            val h = rowHs[r]
+            cv.drawRect(FX, y, FX + 44f, y + h, edge); cv.drawRect(FX + 44f, y, FX + leftW, y + h, edge)
+            cv.drawText(code, FX + 22f, y + h / 2 + 4f, tp(plex700, 11f, Color.BLACK).apply { textAlign = Paint.Align.CENTER })
+            cv.drawLayout(layout(desc, tp(plex400, 10.5f, Color.BLACK), leftW - 52f), FX + 50f, y + 5f)
+            for (i in 0 until 6) {
+                val cell = RectF(colX[i], y, colX[i] + colW[i], y + h)
+                if (code == "D" && i < 4) cv.drawRect(cell, fill(Color.parseColor("#8C8C8C")))
+                cv.drawRect(cell, edge)
+                val q = cols.getOrNull(i) ?: continue
+                if (fa.on(q, code)) cv.drawText("X", cell.centerX(), cell.centerY() + 6f, tp(plex700, 16f, BRAND_DEEP).apply { textAlign = Paint.Align.CENTER })
+            }
+            y += h
+        }
+        cv.drawRect(FX, top, FX + leftW, y, heavy); cv.drawRect(colX[0], top, colX[0] + glazedW, y, heavy); cv.drawRect(colX[4], top, colX[4] + nonW, y, heavy)
+        y += 12f
+    }
+
+    // ---------------------------------------------------------------- Wood Destroying Insect report (our own layout; NPMA-33 is copyrighted)
+
+    /**
+     * Wood Destroying Insect Inspection Report (formReports.wdi): the client's NPMA-33 data in VIMS report styling — Section I
+     * general information, II findings (☐/☒ A or B + descriptions, previous treatment), III recommendations, IV obstructions,
+     * V comments, blank signature lines and a neutral scope line. Not a copy of the NPMA-33 form, its text or marks.
+     */
+    private fun wdiReport(section: String) {
+        val fa = FormAnswers(section)
+        val sel = b.inspection.selections
+        startPage()
+        title("Wood Destroying Insect Inspection Report", listOf(sel.street, sel.cityLine).filter { it.isNotBlank() }.joinToString(", ") + " · " + Fmt.date(sel.date))
+        fun head(t: String) { ensure(60f); y += 4f; val h = 24f
+            cv.drawRoundRect(RectF(PADX, y, PADX + CW, y + h), 6f, 6f, fill(PAPER2)); cv.drawRect(PADX, y, PADX + 3f, y + h, fill(BRAND))
+            cv.drawText(t, PADX + 11f, y + 16.5f, tp(archivo700, 12f, BRAND_DEEP)); y += h + 6f }
+        fun opt(on: Boolean, text: CharSequence, indent: Float = 6f) {
+            val l = layout(text, tp(plex400, 12.5f, INK), CW - indent - 22f)
+            ensure(l.height + 6f)
+            checkBox(PADX + indent, y + 3f, on, 12f)
+            cv.drawLayout(l, PADX + indent + 22f, y); y += l.height + 4f
+        }
+        fun kv(k: String, v: String, indent: Float = 28f) {
+            val kl = layout(k, tp(plex400, 12f, INK3), CW * .45f - indent); val vl = layout(v.ifBlank { "—" }, tp(plex600, 12.5f, INK), CW * .55f - 8f)
+            val h = maxOf(kl.height, vl.height) + 6f; ensure(h)
+            cv.drawLayout(kl, PADX + indent, y + 3f); cv.drawLayout(vl, PADX + CW * .45f + 8f, y + 3f)
+            cv.drawRect(PADX + indent, y + h - 1f, PADX + CW, y + h, fill(LINE2)); y += h
+        }
+        head("Section I. General Information")
+        infoGrid(listOf(
+            "Inspection company" to company.name, "Company address" to company.address,
+            "Company phone" to com.vims.app.util.formatPhone(company.phone.filter { it.isDigit() }).ifBlank { company.phone }, "Company business license no." to fa.v("Company business license no."),
+            "Inspector" to company.inspectorName, "Inspector license #" to inspectorLicense(),
+            "Date of inspection" to Fmt.slash(sel.date), "Structure(s) inspected" to fa.v("Structure(s) inspected"),
+        ), compact = true)
+        kv("Address of property inspected", listOf(sel.street, sel.cityLine).filter { it.isNotBlank() }.joinToString(", "), indent = 0f)
+        head("Section II. Inspection Findings")
+        val findings = fa.item("Findings")?.options.orEmpty()
+        findings.forEachIndexed { i, o -> opt(fa.on("Findings", o), o) }
+        val boxB = findings.getOrNull(1)?.let { fa.on("Findings", it) } == true
+        listOf("1. Live insects (description and location)", "2. Dead insects, insect parts, frass, shelter tubes, exit holes, or staining (description and location)",
+            "3. Visible damage from wood destroying insects (description and location)").forEach { q -> kv(q, if (boxB) fa.v(q) else "") }
+        y += 6f
+        val prev = "Structure(s) appear to have been previously treated"
+        ensure(40f)
+        cv.drawText("Structure(s) appear to have been previously treated:", PADX + 6f, y + 13f, tp(plex600, 12.5f, INK))
+        var px = PADX + 6f + tp(plex600, 12.5f).measureText("Structure(s) appear to have been previously treated:") + 14f
+        listOf("Yes", "No").forEach { o -> checkBox(px, y + 3f, fa.on(prev, o), 12f); cv.drawText(o, px + 18f, y + 13f, tp(plex400, 12.5f, INK)); px += 60f }
+        y += 22f
+        kv("Visible evidence of possible previous treatment", fa.v("Visible evidence of possible previous treatment"))
+        head("Section III. Recommendations")
+        fa.item("Recommendation")?.options.orEmpty().forEach { o -> opt(fa.on("Recommendation", o), o) }
+        fa.v("Explanation (required if Section II box B is checked)").takeIf { it.isNotBlank() }?.let { kv("Explanation", it) }
+        fa.v("Recommend treatment for the control of").takeIf { it.isNotBlank() }?.let { kv("Recommend treatment for the control of", it) }
+        head("Section IV. Obstructions and Inaccessible Areas")
+        val areas = fa.keyed.filter { it.first != null && it.second.q.orEmpty().endsWith("— obstructed or inaccessible") }.map { it.second.q.orEmpty() }
+        // Areas with an obstruction, then one line naming the areas without any (keeps the report to one page).
+        val (blocked, clear) = areas.partition { fa.v(it).isNotBlank() }
+        if (blocked.isNotEmpty()) infoGrid(blocked.map { q -> q.substringBefore(" —") to fa.v(q) }, compact = true)
+        if (clear.isNotEmpty()) kv(if (blocked.isEmpty()) "Obstructed or inaccessible areas" else "No obstructions observed", if (blocked.isEmpty()) "None observed" else clear.joinToString(", ") { it.substringBefore(" —") }, indent = 0f)
+        head("Section V. Additional Comments and Attachments")
+        kv("Additional comments", fa.v("Additional comments"), indent = 6f)
+        kv("Attachments", fa.v("Attachments"), indent = 6f)
+        // Signature lines (left blank) + scope line.
+        ensure(90f)
+        y += 8f
+        val sp = tp(plex400, 11.5f, INK2)
+        listOf("Signature of seller(s) or owner(s) if refinancing" to PADX, "Buyer’s signature" to PADX + CW / 2 + 10f).forEach { (t, x) ->
+            cv.drawRect(x, y + 22f, x + CW / 2 - 30f, y + 23f, fill(INK)); cv.drawText(t, x, y + 38f, sp)
+            cv.drawText("Date", x + CW / 2 - 70f, y + 38f, sp)
+        }
+        y += 46f
+        val l = layout("This report reflects a visual inspection of readily accessible areas on the date of inspection and is not a guarantee or warranty against latent, concealed or future infestations or damage.",
+            tp(Typeface.create(plex400, Typeface.ITALIC), 11.5f, INK3), CW)
+        ensure(l.height + 4f); cv.drawLayout(l, PADX, y); y += l.height
+    }
 }
+
+/** Florida OIR-B1-1802 (Rev. 01/12) wording (state form, public) — docs/forms/oir-b1-1802.txt — and the form layout constants. */
+
+private const val FX = 52f
+private const val FW = 746f
+private const val F_BOTTOM = 962f
+private const val BODY = 12.9f
+private const val SMALL = 11.6f
+private const val NOTE = "**NOTE: Any documentation used in validating the compliance or existence of each construction or mitigation attribute must accompany this form. At least one photograph must accompany this form to validate each attribute marked in questions 3 though 7. The insurer may ask additional questions regarding the mitigated feature(s) verified on this form.**"
+private val Q1 = listOf(
+    "A. Built in compliance with the FBC: Year Built {Year built}. For homes built in 2002/2003 provide a permit application with a date after 3/1/2002: Building Permit Application Date (MM/DD/YYYY) {Building permit application date (FBC)}",
+    "B. For the HVHZ Only: Built in compliance with the SFBC-94: Year Built {Year built (SFBC-94)}. For homes built in 1994, 1995, and 1996 provide a permit application with a date after 9/1/1994: Building Permit Application Date (MM/DD/YYYY) {Building permit application date (SFBC-94)}",
+    "C. Unknown or does not meet the requirements of Answer “A” or “B”",
+)
+private val Q2 = listOf(
+    "A. All roof coverings listed above meet the FBC with a FBC or Miami-Dade Product Approval listing current at time of installation OR have a roofing permit application date on or after 3/1/02 OR the roof is original and built in 2004 or later.",
+    "B. All roof coverings have a Miami-Dade Product Approval listing current at time of installation OR (for the HVHZ only) a roofing permit application after 9/1/1994 and before 3/1/2002 OR the roof is original and built in 1997 or later.",
+    "C. One or more roof coverings do not meet the requirements of Answer “A” or “B”.",
+    "D. No roof coverings meet the requirements of Answer “A” or “B”.",
+)
+private val Q3 = listOf(
+    "A. Plywood/Oriented strand board (OSB) roof sheathing attached to the roof truss/rafter (spaced a maximum of 24” inches o.c.) by staples or 6d nails spaced at 6” along the edge and 12” in the field. -OR- Batten decking supporting wood shakes or wood shingles. -OR- Any system of screws, nails, adhesives, other deck fastening system or truss/rafter spacing that has an equivalent mean uplift less than that required for Options B or C below.",
+    "B. Plywood/OSB roof sheathing with a minimum thickness of 7/16”inch attached to the roof truss/rafter (spaced a maximum of 24”inches o.c.) by 8d common nails spaced a maximum of 12” inches in the field.-OR- Any system of screws, nails, adhesives, other deck fastening system or truss/rafter spacing that is shown to have an equivalent or greater resistance 8d nails spaced a maximum of 12 inches in the field or has a mean uplift resistance of at least 103 psf.",
+    "C. Plywood/OSB roof sheathing with a minimum thickness of 7/16”inch attached to the roof truss/rafter (spaced a maximum of 24”inches o.c.) by 8d common nails spaced a maximum of 6” inches in the field. -OR- Dimensional lumber/Tongue & Groove decking with a minimum of 2 nails per board (or 1 nail per board if each board is equal to or less than 6 inches in width). -OR- Any system of screws, nails, adhesives, other deck fastening system or truss/rafter spacing that is shown to have an equivalent or greater resistance than 8d common nails spaced a maximum of 6 inches in the field or has a mean uplift resistance of at least 182 psf.",
+    "D. Reinforced Concrete Roof Deck.",
+    "E. Other: {Roof deck attachment — other}",
+    "F. Unknown or unidentified.",
+    "G. No attic access.",
+)
+private val Q4 = listOf(
+    "A. Toe Nails", "B. Clips",
+    "C. Single Wraps\nMetal connectors consisting of a single strap that wraps over the top of the truss/rafter and is secured with a minimum of 2 nails on the front side and a minimum of 1 nail on the opposing side.",
+    "D. Double Wraps", "E. Structural Anchor bolts structurally connected or reinforced concrete roof.", "F. Other: {Roof to wall attachment — other}",
+    "G. Unknown or unidentified", "H. No attic access",
+)
+private val Q4_TOE = listOf("Truss/rafter anchored to top plate of wall using nails driven at an angle through the truss/rafter and attached to the top plate of the wall, or",
+    "Metal connectors that do not meet the minimal conditions or requirements of B, C, or D")
+private val Q4_MIN = listOf("Secured to truss/rafter with a minimum of three (3) nails, and",
+    "Attached to the wall top plate of the wall framing, or embedded in the bond beam, with less than a ½\" gap from the blocking or truss/rafter and blocked no more than 1.5” of the truss/rafter, and free of visible severe corrosion.")
+private val Q4_CLIPS = listOf("Metal connectors that do not wrap over the top of the truss/rafter, or",
+    "Metal connectors with a minimum of 1 strap that wraps over the top of the truss/rafter and does not meet the nail position requirements of C or D, but is secured with a minimum of 3 nails.")
+private val Q4_DOUBLE = listOf("Metal Connectors consisting of 2 separate straps that are attached to the wall frame, or embedded in the bond beam, on either side of the truss/rafter where each strap wraps over the top of the truss/rafter and is secured with a minimum of 2 nails on the front side, and a minimum of 1 nail on the opposing side, or",
+    "Metal connectors consisting of a single strap that wraps over the top of the truss/rafter, is secured to the wall on both sides, and is secured to the top plate with a minimum of three nails on each side.")
+private val Q5 = listOf(
+    "A. Hip Roof  Hip roof with no other roof shapes greater than 10% of the total roof system perimeter.\nTotal length of non-hip features: {Total length of non-hip features (feet)} feet; Total roof system perimeter: {Total roof system perimeter (feet)} feet",
+    "B. Flat Roof  Roof on a building with 5 or more units where at least 90% of the main roof area has a roof slope of less than 2:12. Roof area with slope less than 2:12 {Roof area with slope less than 2:12 (sq ft)} sq ft; Total roof area {Total roof area (sq ft)} sq ft",
+    "C. Other Roof  Any roof that does not qualify as either (A) or (B) above.",
+)
+private val Q6 = listOf(
+    "A. SWR (also called Sealed Roof Deck) Self-adhering polymer modified-bitumen roofing underlayment applied directly to the sheathing or foam adhesive SWR barrier (not foamed-on insulation) applied as a supplemental means to protect the dwelling from water intrusion in the event of roof covering loss.",
+    "B. No SWR.", "C. Unknown or undetermined.",
+)
+private val Q7_ROWS = listOf(
+    "N/A" to "Not Applicable- there are no openings of this type on the structure",
+    "A" to "Verified cyclic pressure & large missile (9-lb for windows doors/4.5 lb for skylights)",
+    "B" to "Verified cyclic pressure & large missile (4-8 lb for windows doors/2 lb for skylights)",
+    "C" to "Verified plywood/OSB meeting Table 1609.1.2 of the FBC 2007",
+    "D" to "Verified Non-Glazed Entry or Garage doors indicating compliance with ASTM E 330, ANSI/DASMA 108, or PA/TAS 202 for wind pressure resistance",
+    "N" to "Opening Protection products that appear to be A or B but are not verified\nOther protective coverings that cannot be identified as A, B, or C",
+    "X" to "No Windborne Debris Protection",
+)
+/** Q7 answers: letter, heading + text, bullets, sub-answers (.1 / .2 / .3). */
+private val Q7: List<Triple<String, String, List<String>>> = listOf(
+    Triple("A", "**__A. Exterior Openings Cyclic Pressure and 9-lb Large Missile (4.5 lb for skylights only)__** All Glazed openings are protected at a minimum, with impact resistant coverings or products listed as wind borne debris protection devices in the product approval system of the State of Florida or Miami-Dade County and meet the requirements of one of the following for “Cyclic Pressure and Large Missile Impact” (Level A in the table above).\n•  Miami-Dade County PA 201, 202, __and__ 203\n•  Florida Building Code Testing Application Standard (TAS) 201, 202, __and__ 203\n•  American Society for Testing and Materials (ASTM) E 1886 __and__ ASTM E 1996\n•  Southern Standards Technical Document (SSTD) 12\n•  For Skylights Only: ASTM E 1886 __and__ ASTM E 1996\n•  For Garage Doors Only: ANSI/DASMA 115",
+        listOf("A.1 All Non-Glazed openings classified as A in the table above, or no Non-Glazed openings exist",
+            "A.2 One or More Non-Glazed openings classified as Level D in the table above, and no Non-Glazed openings classified as Level B, C, N, or X in the table above",
+            "A.3 One or More Non-Glazed Openings is classified as Level B, C, N, or X in the table above")),
+    Triple("B", "**__B. Exterior Opening Protection- Cyclic Pressure and 4 to 8-lb Large Missile (2-4.5 lb for skylights only)__** All Glazed openings are protected, at a minimum, with impact resistant coverings or products listed as windborne debris protection devices in the product approval system of the State of Florida or Miami-Dade County and meet the requirements of one of the following for “Cyclic Pressure and Large Missile Impact” (Level B in the table above):\n•  ASTM E 1886 __and__ ASTM E 1996 (Large Missile – 4.5 lb.)\n•  SSTD 12 (Large Missile – 4 lb. to 8 lb.)\n•  For Skylights Only: ASTM E 1886 __and__ ASTM E 1996 (Large Missile - 2 to 4.5 lb.)",
+        listOf("B.1 All Non-Glazed openings classified as A or B in the table above, or no Non-Glazed openings exist",
+            "B.2 One or More Non-Glazed openings classified as Level D in the table above, and no Non-Glazed openings classified as Level C, N, or X in the table above",
+            "B.3 One or More Non-Glazed openings is classified as Level C, N, or X in the table above")),
+    Triple("C", "**__C. Exterior Opening Protection- Wood Structural Panels meeting FBC 2007__** All Glazed openings are covered with plywood/OSB meeting the requirements of Table 1609.1.2 of the FBC 2007 (Level C in the table above).",
+        listOf("C.1 All Non-Glazed openings classified as A, B, or C in the table above, or no Non-Glazed openings exist",
+            "C.2 One or More Non-Glazed openings classified as Level D in the table above, and no Non-Glazed openings classified as Level N or X in the table above",
+            "C.3 One or More Non-Glazed openings is classified as Level N or X in the table above")),
+    Triple("N", "**__N. Exterior Opening Protection (unverified shutter systems with no documentation)__** All Glazed openings are protected with protective coverings not meeting the requirements of Answer “A”, “B”, or C” or systems that appear to meet Answer “A” or “B” with no documentation of compliance (Level N in the table above).",
+        listOf("N.1 All Non-Glazed openings classified as Level A, B, C, or N in the table above, or no Non-Glazed openings exist",
+            "N.2 One or More Non-Glazed openings classified as Level D in the table above, and no Non-Glazed openings classified as Level X in the table above",
+            "N.3 One or More Non-Glazed openings is classified as Level X in the table above")),
+    Triple("X", "**__X. None or Some Glazed Openings__** One or more Glazed openings classified and Level X in the table above.", emptyList()),
+)
+private val LICENSES = listOf(
+    "Home inspector licensed under Section 468.8314, Florida Statutes who has completed the statutory number of hours of hurricane mitigation training approved by the Construction Industry Licensing Board and completion of a proficiency exam.",
+    "Building code inspector certified under Section 468.607, Florida Statutes.",
+    "General, building or residential contractor licensed under Section 489.111, Florida Statutes.",
+    "Professional engineer licensed under Section 471.015, Florida Statutes.",
+    "Professional architect licensed under Section 481.213, Florida Statutes.",
+    "Any other individual or entity recognized by the insurer as possessing the necessary qualifications to properly complete a uniform mitigation verification form pursuant to Section 627.711(2), Florida Statutes.",
+)
+private const val CERT_EMPLOYEES = "**__Individuals other than licensed contractors licensed under Section 489.111, Florida Statutes, or professional engineer licensed under Section 471.015, Florida Statues, must inspect the structures personally and not through employees or other persons. Licensees under s.471.015 or s.489.111 may authorize a direct employee who possesses the requisite skill, knowledge, and experience to conduct a mitigation verification inspection.__**"
+private const val FRAUD = "**__An individual or entity who knowingly or through gross negligence provides a false or fraudulent mitigation verification form is subject to investigation by the Florida Division of Insurance Fraud and may be subject to administrative action by the appropriate licensing agency or to criminal prosecution. (Section 627.711(4)-(7), Florida Statutes) The Qualified Inspector who certifies this form shall be directly liable for the misconduct of employees as if the authorized mitigation inspector personally performed the inspection.__**"
+private const val MISDEMEANOR = "**An individual or entity who knowingly provides or utters a false or fraudulent mitigation verification form with the intent to obtain or receive a discount on an insurance premium to which the individual or entity is not entitled commits a misdemeanor of the first degree. (Section 627.711(7), Florida Statutes)**"
+private const val DEFINITIONS = "**The definitions on this form are for inspection purposes only and cannot be used to certify any product or construction feature as offering protection from hurricanes.**"
+private const val VALID = "*This verification form is valid for up to five (5) years provided no material changes have been made to the structure or inaccuracies found on the form."
+private const val FORM_ID = "OIR-B1-1802 (Rev. 01/12) Adopted by Rule 69O-170.0155"
+
 
 /** TREC REI 7-6 (8/9/21) promulgated text for page 1 of the Texas report (verbatim from report.html). */
 private sealed interface TrecBlock {

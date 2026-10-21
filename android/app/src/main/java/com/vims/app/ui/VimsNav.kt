@@ -176,8 +176,10 @@ fun VimsRoot(vm: AppViewModel, debug: DebugLaunch?) {
 }
 
 private suspend fun applyDebug(vm: AppViewModel, nav: NavHostController, d: DebugLaunch) {
-    val id = d.insp ?: "demo-ridgeline"
     if (d.screen != "login") vm.debugSignIn()
+    // "latest" = the most recently created inspection (QA of inspections made in the wizard).
+    val id = if (d.insp == "latest") vm.inspections.value.values.maxByOrNull { it.inspection.createdAt }?.id ?: "demo-ridgeline" else d.insp ?: "demo-ridgeline"
+    vm.debugApplyAnswers(id)
     d.depth?.let { vm.debugSetDepth(id, it) }
     d.state?.let { vm.debugSetState(id, it) }
     d.cover?.let { vm.debugSetCover(id, it) }
@@ -192,7 +194,7 @@ private suspend fun applyDebug(vm: AppViewModel, nav: NavHostController, d: Debu
         "forgot" -> ForgotR
         "join" -> JoinR
         "home" -> HomeR
-        "wizard" -> WizardR(d.insp)
+        "wizard" -> WizardR(d.insp?.let { id })
         "sections" -> SectionsR(id)
         "section" -> SectionR(id, sec)
         "photos" -> PhotosR(id, sec)

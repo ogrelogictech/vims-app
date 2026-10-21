@@ -43,9 +43,9 @@ private val EdgeTop = Color(0xFFCCD6DF)
 private val EdgeBottom = Color(0xFFBDC7D3)
 
 /** Averages the top and bottom pixel rows of a mid-video frame so the fit-inside letterbox blends seamlessly. */
-private fun sampleEdges(ctx: android.content.Context): Pair<Color, Color>? = try {
+private fun sampleEdges(ctx: android.content.Context, asset: String): Pair<Color, Color>? = try {
     val r = MediaMetadataRetriever()
-    ctx.assets.openFd(ASSET).use { fd -> r.setDataSource(fd.fileDescriptor, fd.startOffset, fd.length) }
+    ctx.assets.openFd(asset).use { fd -> r.setDataSource(fd.fileDescriptor, fd.startOffset, fd.length) }
     val durUs = (r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 5000L) * 1000
     val bmp = r.getFrameAtTime(durUs / 2, MediaMetadataRetriever.OPTION_CLOSEST_SYNC).also { r.release() } ?: throw IllegalStateException()
     fun avg(y0: Int, y1: Int): Color {
@@ -55,17 +55,22 @@ private fun sampleEdges(ctx: android.content.Context): Pair<Color, Color>? = try
     }
     (avg(0, 6) to avg(bmp.height - 6, bmp.height)).also { bmp.recycle() }
 } catch (_: Exception) { null }
-private const val ASSET = "media/vims-splash.mp4"
+/** shared/media (Oct 21): portrait 720×1280 for screens taller than wide, wide 1280×720 for landscape tablets. Both 10 s. */
+private const val ASSET_PORTRAIT = "media/vims-splash.mp4"
+private const val ASSET_WIDE = "media/vims-splash-wide.mp4"
 
 /**
  * Cold-launch splash (shared/media/vims-splash.mp4): full-screen, muted, fit-inside (whole frame visible, letterbox in the
- * video's edge colors), played once (6.6 s), tap to skip.
+ * video's edge colors), played once to the end (10 s), tap to skip; [ASSET_WIDE] when the screen is wider than tall.
  * With animations turned off (Animator duration scale 0) the last frame is shown for ~1 s instead.
  */
 @OptIn(UnstableApi::class)
 @Composable
 fun SplashVideo(onDone: () -> Unit) {
     val ctx = LocalContext.current
+    // Chosen once per launch from the screen's shape (wider than tall → the wide video); played to its end (10 s).
+    val conf = androidx.compose.ui.platform.LocalConfiguration.current
+    val asset = remember { if (conf.screenWidthDp > conf.screenHeightDp) ASSET_WIDE else ASSET_PORTRAIT }
     var finished by remember { mutableStateOf(false) }
     val t0 = remember { android.os.SystemClock.elapsedRealtime() }
     fun log(m: String) { if (com.vims.app.BuildConfig.DEBUG) android.util.Log.d("VIMS-Splash", "+${android.os.SystemClock.elapsedRealtime() - t0} ms $m") }
@@ -80,7 +85,7 @@ fun SplashVideo(onDone: () -> Unit) {
             frame = withContext(Dispatchers.IO) {
                 try {
                     val r = MediaMetadataRetriever()
-                    ctx.assets.openFd(ASSET).use { fd -> r.setDataSource(fd.fileDescriptor, fd.startOffset, fd.length) }
+                    ctx.assets.openFd(asset).use { fd -> r.setDataSource(fd.fileDescriptor, fd.startOffset, fd.length) }
                     val durUs = (r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 5000L) * 1000
                     r.getFrameAtTime((durUs - 100_000).coerceAtLeast(0), MediaMetadataRetriever.OPTION_CLOSEST).also { r.release() }
                 } catch (_: Exception) { null }
@@ -104,7 +109,7 @@ fun SplashVideo(onDone: () -> Unit) {
         ExoPlayer.Builder(ctx, renderers).build().apply {
             volume = 0f
             repeatMode = Player.REPEAT_MODE_OFF
-            setMediaItem(MediaItem.fromUri("asset:///$ASSET"))
+            setMediaItem(MediaItem.fromUri("asset:///$asset"))
             prepare(); playWhenReady = true
         }
     }
@@ -122,13 +127,13 @@ fun SplashVideo(onDone: () -> Unit) {
         player.addListener(l)
         onDispose { player.removeListener(l); player.release() }
     }
-    // Safety nets (the video is 6.6 s and normally ends itself): if it hasn't started within 8 s, move on; once it has
+    // Safety nets (the video is 10 s and normally ends itself): if it hasn't started within 8 s, move on; once it has
     // started, wait for its whole length plus 1.5 s (8 s when the length is unknown) so it is never cut off.
     LaunchedEffect(Unit) { delay(8000); if (durationMs == null) finish("not started in 8 s") }
     LaunchedEffect(durationMs) { durationMs?.let { d -> delay(if (d > 0) d + 1500 else 8000); finish("safety timeout") } }
     // Fit-inside: the whole frame (incl. the tagline) is visible; letterbox bands use the video's own edge colors.
     var edges by remember { mutableStateOf(EdgeTop to EdgeBottom) }
-    LaunchedEffect(Unit) { withContext(Dispatchers.IO) { sampleEdges(ctx) }?.let { edges = it } }
+    LaunchedEffect(Unit) { withContext(Dispatchers.IO) { sampleEdges(ctx, asset) }?.let { edges = it } }
     Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Brush.verticalGradient(0f to edges.first, 0.5f to edges.first, 0.5f to edges.second, 1f to edges.second))) {
         AndroidView(
             factory = { c ->

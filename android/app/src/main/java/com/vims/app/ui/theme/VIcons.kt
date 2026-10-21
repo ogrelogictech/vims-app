@@ -110,6 +110,8 @@ object VIcons {
     val lock by lazy { s("secured-by-square") { icon("lock", r(3f, 11f, 18f, 11f, 2f), "M7 11V7a5 5 0 0 1 10 0v4") } }
     val arrowRight by lazy { s("build-checklist-next") { icon("arrowRight", "M5 12h14M12 5l7 7-7 7") } }
     val image by lazy { icon("image", r(3f, 3f, 18f, 18f, 2f), c(8.5f, 8.5f, 1.5f), "M21 15l-5-5L5 21") }
+    /** Drive (cloud documents): the triangle mark, outline only (photo source menu, client Oct 17). */
+    val drive by lazy { icon("drive", "M8.5 3h7l6.5 11-3.5 6h-13L2 14z", "M8.5 3l6.5 11h7M2 14h13l-3.5 6") }
     val share by lazy { icon("share", c(18f, 5f, 3f), c(6f, 12f, 3f), c(18f, 19f, 3f), "M8.59 13.51l6.83 3.98M15.41 6.51l-6.82 3.98") }
     val grid by lazy { s("grid") { icon("grid", r(3f, 3f, 7f, 7f, 1f), r(14f, 3f, 7f, 7f, 1f), r(14f, 14f, 7f, 7f, 1f), r(3f, 14f, 7f, 7f, 1f)) } }
     val switchCamera by lazy { icon("switchCamera", "M20 16v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-4M4 8V4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v4M9 12H3M21 12h-6") }

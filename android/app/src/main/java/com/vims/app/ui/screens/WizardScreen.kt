@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.vims.app.data.WizardFieldDef
 import com.vims.app.data.WizardSelections
+import com.vims.app.data.sectionTitle
 import com.vims.app.ui.AppViewModel
 import com.vims.app.ui.SectionsR
 import com.vims.app.ui.WizardR
@@ -109,7 +110,7 @@ fun WizardScreen(vm: AppViewModel, nav: NavHostController, inspId: String?) {
                 3 -> {
                     Hint("Choose every area to inspect — add or remove anything. This builds the checklist.", Modifier.padding(top = 2.dp, bottom = 12.dp))
                     Lbl("Exterior areas", first = true)
-                    MultiChips(cfg.exteriorOptions, w.sel.exterior, { o -> vm.updateSel { it.copy(exterior = it.exterior.toggle(o)) } })
+                    MultiChips(cfg.exteriorOptions, w.sel.exterior, { o -> vm.updateSel { it.copy(exterior = it.exterior.toggle(o)) } }, label = ::sectionTitle)
                     Lbl("Room counts")
                     cfg.roomCounts.forEach { rc ->
                         Counter(rc.label, w.sel.count(rc.key),
@@ -120,11 +121,11 @@ fun WizardScreen(vm: AppViewModel, nav: NavHostController, inspId: String?) {
                     Lbl("Interior rooms")
                     MultiChips(cfg.roomOptions, w.sel.rooms, { o -> vm.updateSel { it.copy(rooms = it.rooms.toggle(o)) } })
                     Lbl("Utility & systems")
-                    MultiChips(cfg.utilityOptions, w.sel.utilOpt, { o -> vm.updateSel { it.copy(utilOpt = it.utilOpt.toggle(o)) } })
+                    MultiChips(cfg.utilityOptions, w.sel.utilOpt, { o -> vm.updateSel { it.copy(utilOpt = it.utilOpt.toggle(o)) } }, label = ::sectionTitle)
                 }
                 else -> {
                     Hint("Add any secondary testing for this inspection.", Modifier.padding(top = 2.dp, bottom = 12.dp))
-                    MultiChips(cfg.testOptions, w.sel.tests, { o -> vm.updateSel { it.copy(tests = it.tests.toggle(o)) } })
+                    MultiChips(cfg.testOptions, w.sel.tests, { o -> vm.updateSel { it.copy(tests = it.tests.toggle(o)) } }, label = ::sectionTitle)
                 }
             }
             BtnRow(Modifier.padding(top = 10.dp)) {
@@ -150,7 +151,8 @@ private fun keyboardFor(f: WizardFieldDef, step2: Boolean): KeyboardType = when 
     f.type == "tel" -> KeyboardType.Phone
     f.type == "email" -> KeyboardType.Email
     f.label.startsWith("Lot size") -> KeyboardType.Decimal
-    step2 || f.label.startsWith("Temperature") -> KeyboardType.Number
+    f.label.startsWith("Temperature") -> KeyboardType.Decimal
+    step2 -> KeyboardType.Number
     else -> KeyboardType.Text
 }
 
@@ -181,8 +183,9 @@ private fun WizardFields(vm: AppViewModel, nav: NavHostController, defs: List<Wi
                         FieldLabel(f.label)
                         val tv = sel.fields[f.label].orEmpty()
                         val terr = form.check(f.label, tv) { Checks.temperature(tv) }
+                        // QA Oct 14: decimals (72.5) and a leading "-" are allowed; −60 to 140 °F.
                         VInput(tv, { v -> vm.updateSel { it.copy(fields = it.fields + (f.label to v)) } }, Modifier.width(if (terr != null) 300.dp else 120.dp).formField(form, f.label),
-                            placeholder = f.placeholder.orEmpty(), keyboard = KeyboardType.Number, filter = Filters::temperature, error = terr, imeAction = ImeAction.Next)
+                            placeholder = f.placeholder.orEmpty(), keyboard = KeyboardType.Decimal, filter = Filters::temperature, error = terr, imeAction = ImeAction.Next)
                     }
                     SingleChips(nextDef.options.orEmpty(), sel.chip(nextDef.label), { v -> vm.updateSel { it.copy(chips = it.chips + (nextDef.label to v.orEmpty())) } }, modifier = Modifier.padding(bottom = 14.dp))
                     i += 2; continue
@@ -190,8 +193,13 @@ private fun WizardFields(vm: AppViewModel, nav: NavHostController, defs: List<Wi
                 Column(Modifier.padding(bottom = 13.dp)) {
                     FieldCell(vm, f, sel, Modifier, step2, form)
                 }
-                // Data v1.3: required State dropdown (+ state rules) directly after Inspection address.
-                if (f.label == WizardSelections.F_ADDRESS && !step2) StateField(vm, nav, sel, form)
+                // Client Oct 17: Inspection address (street) → City → State (data v1.3, + state rules) → ZIP code.
+                if (f.label == WizardSelections.F_ADDRESS && !step2) {
+                    Column(Modifier.padding(bottom = 13.dp)) { FieldCell(vm, cityDef, sel, Modifier, false, form) }
+                    StateField(vm, nav, sel, form) {
+                        Column(Modifier.padding(bottom = 13.dp)) { FieldCell(vm, zipDef, sel, Modifier, false, form) }
+                    }
+                }
                 if (f.label == WizardSelections.F_AGENT_EMAIL) {
                     SendToAgentCheck(vm, sel)
                     Text("Client & agent emails are used to send the finished report.", style = T.ui(12.sp, color = V.ink3), modifier = Modifier.padding(start = 2.dp, end = 2.dp, top = 0.dp, bottom = 12.dp))
@@ -294,22 +302,21 @@ private fun FieldCell(vm: AppViewModel, f: WizardFieldDef, sel: WizardSelections
             "date" -> PickerField(if (v.isBlank()) "" else Fmt.date(v), "Select date", VIcons.calendar, { pickDate(ctx, v, minDate, set) }, error = err)
             "time" -> PickerField(if (v.isBlank()) "" else Fmt.time(v), "Select time", VIcons.clock, { pickTime(ctx, v, set) }, error = err)
             "textarea" -> VInput(v, set, placeholder = f.placeholder.orEmpty(), multiline = true, filter = { Filters.base(it, 1000, multiline = true) }, error = err)
-            else -> VInput(v, set, placeholder = placeholderFor(f), keyboard = keyboardFor(f, step2), error = err, filter = wizardFilter(f.label),
+            else -> VInput(v, set, placeholder = placeholderFor(f), keyboard = if (f.label == WizardSelections.F_ZIP) KeyboardType.Number else keyboardFor(f, step2), error = err, filter = wizardFilter(f.label),
                 visual = if (f.type == "tel") PhoneTransform else if (f.label in groupedFields) GroupedNumberTransform else androidx.compose.ui.text.input.VisualTransformation.None,
-                caps = if (f.label.contains("name", true) || f.label.contains("address", true)) KeyboardCapitalization.Words else KeyboardCapitalization.None,
+                caps = if (f.label.contains("name", true) || f.label.contains("address", true) || f.label == WizardSelections.F_CITY) KeyboardCapitalization.Words else KeyboardCapitalization.None,
                 // Keyboard "Next" walks the form in order (Inspection address → State → Real estate agent name → …).
                 imeAction = ImeAction.Next)
         }
     }
 }
 
-/**
- * The address no longer asks for the state (it has its own field since data v1.3): "Street, City, ZIP". Until
- * shared/data's wizard.step1 placeholder is updated from "Street, City, State", that one value is swapped here.
- */
-private fun placeholderFor(f: WizardFieldDef): String =
-    if (f.label == WizardSelections.F_ADDRESS && f.placeholder.orEmpty().endsWith("State")) f.placeholder.orEmpty().removeSuffix("State") + "ZIP"
-    else f.placeholder.orEmpty()
+/** Client Oct 17: Inspection address is the street only (City, State and ZIP code have their own fields), as in the prototype. */
+private fun placeholderFor(f: WizardFieldDef): String = if (f.label == WizardSelections.F_ADDRESS) "Street address" else f.placeholder.orEmpty()
+
+/** The two address fields the shared wizard.step1 doesn't list (client Oct 17, prototype f887cf8). */
+private val cityDef = WizardFieldDef(kind = "field", label = WizardSelections.F_CITY, type = "text", placeholder = "City")
+private val zipDef = WizardFieldDef(kind = "field", label = WizardSelections.F_ZIP, type = "text", placeholder = "84015")
 
 /** Shown with grouping commas ("450,000") while the stored value is digits. */
 private val groupedFields = setOf("Valuation ($)", "Total sq ft")
@@ -319,6 +326,8 @@ private fun wizardFilter(key: String): ((String) -> String)? = when (key) {
     WizardSelections.F_CLIENT, WizardSelections.F_AGENT, "sponsorName", "insuredName" -> Filters::personName
     WizardSelections.F_CLIENT_PHONE -> Filters::phone
     WizardSelections.F_ADDRESS -> Filters::address
+    WizardSelections.F_CITY -> Filters::city
+    WizardSelections.F_ZIP -> Filters::zip
     WizardSelections.F_LICENSE, "sponsorLicense" -> Filters::license
     "policyNumber" -> Filters::policy
     "Year of construction" -> Filters::year
@@ -335,7 +344,9 @@ private fun isWizardRequired(label: String) = wizardCheck(label, "") != null
 
 private fun wizardCheck(label: String, v: String): String? = when (label) {
     WizardSelections.F_CLIENT -> Checks.required(v, "Enter the client's name")
-    WizardSelections.F_ADDRESS -> Checks.required(v, "Enter the inspection address")
+    WizardSelections.F_ADDRESS -> Checks.required(v, "Enter the street address")
+    WizardSelections.F_CITY -> Checks.required(v, "Enter the city")
+    WizardSelections.F_ZIP -> Checks.zip(v)
     WizardSelections.F_DATE -> Checks.required(v, "Choose the inspection date")
     WizardSelections.F_CLIENT_PHONE -> Checks.phone(v)
     WizardSelections.F_CLIENT_EMAIL, WizardSelections.F_AGENT_EMAIL -> Checks.email(v, required = false)

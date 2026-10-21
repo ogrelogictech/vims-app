@@ -1,5 +1,6 @@
 package com.vims.app.ui.screens
 
+import com.vims.app.data.sectionTitle
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
@@ -128,7 +129,6 @@ fun ReportScreen(vm: AppViewModel, nav: NavHostController, inspId: String) {
     val b = all[inspId] ?: run { MissingInspection(vm, nav); return }
     val generating by vm.generating.collectAsState()
     var drawer by rememberSaveable { mutableStateOf(false) }
-    var step by rememberSaveable { mutableIntStateOf(vm.debugCoverStep.also { vm.debugCoverStep = 1 }) }
     val cover = b.inspection.cover
     val s = b.inspection.selections
 
@@ -151,7 +151,7 @@ fun ReportScreen(vm: AppViewModel, nav: NavHostController, inspId: String) {
             }
         }
         Lbl("Report cover")
-        CoverPicker(vm, cover, step, { step = it }) { vm.setCover(inspId, it) }
+        CoverPicker(vm, cover) { vm.setCover(inspId, it) }
         Lbl("Report pages")
         Text(reportPagesText(vm.config.reportLayout(s.inspType)), style = T.ui(13.sp, color = V.ink2, lineHeight = 19.5.sp),
             modifier = Modifier.padding(bottom = 12.dp).fillMaxWidth().vCard().padding(horizontal = 14.dp, vertical = 12.dp))
@@ -167,7 +167,7 @@ fun ReportScreen(vm: AppViewModel, nav: NavHostController, inspId: String) {
                 val num = ChecklistEngine.number(b.defs, n)
                 BinfoRow({
                     Text(if (num >= 99) "—" else String.format(Locale.US, "%02d", num), style = T.mono(14.sp, FontWeight.Bold, V.brandDeep), modifier = Modifier.padding(end = 8.dp))
-                    Text(n, style = T.ui(14.sp))
+                    Text(sectionTitle(n), style = T.ui(14.sp))
                 }, { Pill("Included", PillKind.Done) }, last = i == done.lastIndex)
             }
         }
@@ -202,10 +202,15 @@ fun Busy(text: String) {
     }
 }
 
-/** Cascading cover picker: Color → Theme → Style, with a live preview (options from `covers` in the JSON). */
+/**
+ * Cover picker on ONE page (client Oct 17, `covers._pickerAbout`): Color, Theme (category + picture, or "No picture") and
+ * Style (Shaded, Framed, Solid — `covers.styles` order; Solid can carry a picture), with a live preview tile.
+ */
 @Composable
-fun CoverPicker(vm: AppViewModel, cover: CoverChoice, step: Int, onStep: (Int) -> Unit, onChange: (CoverChoice) -> Unit) {
+fun CoverPicker(vm: AppViewModel, saved: CoverChoice, onChange: (CoverChoice) -> Unit) {
     val cfg = vm.config.covers
+    val cover = saved.normalized()
+    val noPic = cfg.noThemeOption
     // Theme artwork (shared/covers, data v1.6) for the preview tile, decoded off the main thread.
     val ctx = LocalContext.current
     val artFile = cfg.art(cover)?.file
@@ -217,9 +222,9 @@ fun CoverPicker(vm: AppViewModel, cover: CoverChoice, step: Int, onStep: (Int) -
         }
     }
     // preview
-    Row(Modifier.padding(bottom = 14.dp).fillMaxWidth().vCard().clickable(role = Role.Button) { onStep(1) }.padding(13.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(13.dp)) {
+    Row(Modifier.padding(bottom = 6.dp).fillMaxWidth().vCard().padding(13.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(13.dp)) {
         Box(Modifier.width(78.dp).height(104.dp).clip(RoundedCornerShape(9.dp)).background(coverBrush(vm, cover.color))) {
-            // The chosen theme's artwork in the corner of the color tile (like the prototype's .coverprev); Solid shows the color name.
+            // The chosen theme's artwork in the corner of the color tile (like the prototype's .coverprev); No picture shows the color name.
             val a = art
             if (artFile != null && a != null) {
                 Image(a, "${cover.option} cover artwork", Modifier.align(Alignment.BottomEnd).fillMaxWidth(.92f).fillMaxHeight(.92f), alignment = Alignment.BottomEnd, contentScale = ContentScale.Fit)
@@ -231,59 +236,37 @@ fun CoverPicker(vm: AppViewModel, cover: CoverChoice, step: Int, onStep: (Int) -
         }
         Column(Modifier.weight(1f)) {
             Text(cover.label(), style = T.ui(15.sp, FontWeight.Bold))
-            Text("Tap to change color, theme, or style", style = T.ui(12.5.sp, color = V.ink3))
+            Text("Color, theme and style, all on this page", style = T.ui(12.5.sp, color = V.ink3))
         }
     }
-    Row(Modifier.padding(top = 2.dp, bottom = 14.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        listOf("1 · Color", "2 · Theme", "3 · Style").forEachIndexed { i, t ->
-            val n = i + 1
-            val (bg, fg) = when { n == step -> V.hdr to Color.White; n < step -> V.brand.copy(alpha = .14f) to V.brandDeep; else -> V.paper3 to V.ink3 }
-            Box(Modifier.weight(1f).heightIn(min = 36.dp).clip(RoundedCornerShape(9.dp)).background(bg).clickable(role = Role.Tab) { onStep(n) }.padding(horizontal = 4.dp, vertical = 7.dp), contentAlignment = Alignment.Center) {
-                Text(t.uppercase(), style = T.mono(10.sp, color = fg, letterSpacing = 0.06.em))
+    Lbl("Color")
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        cfg.colors.forEach { c ->
+            val on = cover.color == c.name
+            Column(
+                Modifier.weight(1f).clip(RoundedCornerShape(13.dp)).background(V.paper).border(2.dp, if (on) V.brand else V.line, RoundedCornerShape(13.dp))
+                    .clickable(role = Role.RadioButton) { onChange(cover.copy(color = c.name)) },
+            ) {
+                Box(Modifier.fillMaxWidth().height(48.dp).background(Brush.linearGradient(listOf(hex(c.from), hex(c.to)))))
+                Text(c.name, style = T.ui(12.5.sp, FontWeight.SemiBold, if (on) V.brand else V.ink2), textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(vertical = 9.dp))
             }
         }
     }
-    when (step) {
-        1 -> {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                cfg.colors.forEach { c ->
-                    val on = cover.color == c.name
-                    Column(
-                        Modifier.weight(1f).clip(RoundedCornerShape(13.dp)).background(V.paper).border(2.dp, if (on) V.brand else V.line, RoundedCornerShape(13.dp))
-                            .clickable(role = Role.RadioButton) { onChange(cover.copy(color = c.name)) },
-                    ) {
-                        Box(Modifier.fillMaxWidth().height(56.dp).background(Brush.linearGradient(listOf(hex(c.from), hex(c.to)))))
-                        Text(c.name, style = T.ui(12.5.sp, FontWeight.SemiBold, if (on) V.brand else V.ink2), textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(vertical = 9.dp))
-                    }
-                }
-            }
-            VBtn("Next: theme", { onStep(2) }, Modifier.padding(top = 12.dp))
-        }
-        2 -> {
-            Lbl("Category", first = true)
-            OptGrid(cfg.categories.keys.toList(), cover.category) { cat ->
-                val opts = cfg.categories[cat].orEmpty()
-                onChange(cover.copy(category = cat, option = opts.firstOrNull().orEmpty(), style = if (cat == "Solid") cfg.solidStyle else if (cover.style == cfg.solidStyle) cfg.styles.first() else cover.style))
-            }
-            val opts = cfg.categories[cover.category].orEmpty()
-            if (opts.isNotEmpty()) {
-                Lbl("Image")
-                OptGrid(opts, cover.option) { onChange(cover.copy(option = it)) }
-            }
-            BtnRow { VBtn("Back", { onStep(1) }, Modifier.weight(1f), BtnKind.Ghost); VBtn("Next: style", { onStep(3) }, Modifier.weight(1f)) }
-        }
-        else -> {
-            Lbl("Style", first = true)
-            OptGrid(if (cover.category == "Solid") listOf(cfg.solidStyle) else cfg.styles, cover.style) { onChange(cover.copy(style = it)) }
-            VBtn("Back", { onStep(2) }, Modifier.padding(top = 12.dp), BtnKind.Ghost)
-        }
+    Lbl("Theme")
+    OptGrid(cfg.categories.keys.toList(), cover.category) { cat ->
+        // A new category starts on its first picture; the style is kept (every style can carry a picture).
+        onChange(cover.copy(category = cat, option = cfg.categories[cat].orEmpty().firstOrNull() ?: noPic))
     }
+    Lbl("Picture")
+    OptGrid(listOf(noPic) + cfg.categories[cover.category].orEmpty(), if (cover.hasPicture) cover.option else noPic) { onChange(cover.copy(option = it)) }
+    Lbl("Style")
+    OptGrid(cfg.styles.ifEmpty { listOf("Shaded", "Framed", "Solid") }, cover.style, columns = 3) { onChange(cover.copy(style = it)) }
 }
 
 @Composable
-private fun OptGrid(options: List<String>, selected: String, onPick: (String) -> Unit) {
+private fun OptGrid(options: List<String>, selected: String, columns: Int = 2, onPick: (String) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
-        options.chunked(2).forEach { row ->
+        options.chunked(columns).forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                 row.forEach { o ->
                     val on = o == selected
@@ -296,7 +279,7 @@ private fun OptGrid(options: List<String>, selected: String, onPick: (String) ->
                         if (on) Icon(VIcons.check, null, tint = V.brand, modifier = Modifier.size(16.dp))
                     }
                 }
-                if (row.size == 1) Spacer(Modifier.weight(1f))
+                repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
             }
         }
     }

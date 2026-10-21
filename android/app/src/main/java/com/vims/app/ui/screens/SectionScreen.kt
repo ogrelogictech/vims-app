@@ -39,6 +39,7 @@ import com.vims.app.data.AirQualityDef
 import com.vims.app.data.ChecklistEngine
 import com.vims.app.data.ItemDef
 import com.vims.app.data.SectionAnswers
+import com.vims.app.data.sectionTitle
 import com.vims.app.ui.AppViewModel
 import com.vims.app.ui.PhotosR
 import com.vims.app.ui.SectionsR
@@ -121,16 +122,20 @@ fun SectionScreen(vm: AppViewModel, nav: NavHostController, inspId: String, name
     val ctx = LocalContext.current
     var drawer by rememberSaveable { mutableStateOf(false) }
     val listState = rememberLazyListState()
-    val keyed = remember(def, depth) { if (def == null) emptyList() else ChecklistEngine.keyed(ChecklistEngine.itemsFor(def, depth)) }
+    val allKeyed = remember(def, depth) { if (def == null) emptyList() else ChecklistEngine.keyed(ChecklistEngine.itemsFor(def, depth)) }
+    // Data v1.8 `visibleIf`: e.g. "Sample 2 location" shows once "Samples taken" is 2 or more; hidden items aren't validated or printed.
+    val keyed = ChecklistEngine.visibleKeyed(allKeyed, a)
     val detail = def != null && ChecklistEngine.showDetailInput(def, depth)
     val actionPrefix = (def?.airQuality ?: AirQualityDef()).actionPrefix
     fun edit(f: (SectionAnswers) -> SectionAnswers) = vm.editSection(inspId, name, f)
+    // Data v1.9 `prefill`: owner / inspector fields start with the inspection's values on first open.
+    androidx.compose.runtime.LaunchedEffect(inspId, name) { vm.prefillSection(inspId, name) }
     // Choosing "Concerns" / "Concern" on an item opens the Flag-a-finding sheet for that item (client request Oct 9).
     var concernItem by rememberSaveable { mutableStateOf<String?>(null) }
     BackHandler(enabled = concernItem != null) { concernItem = null }
 
     VScreen(
-        name, b.inspection.selections.street, net(vm), backAction(nav),
+        sectionTitle(name), b.inspection.selections.street, net(vm), backAction(nav),
         listOf(HdrAction(VIcons.camera, "Photos") { nav.navigate(PhotosR(inspId, name)) }, HdrAction(VIcons.list, "Sections") { drawer = true }, homeAction(nav)),
         scroll = false,
         overlay = {
@@ -150,7 +155,7 @@ fun SectionScreen(vm: AppViewModel, nav: NavHostController, inspId: String, name
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 34.dp)) {
             item(key = "mode") { ModeTile(depth, def?.form, def?.form?.let { vm.config.formLabels[it] }) }
             if (depth == "fast") {
-                val quick = def?.items.orEmpty().filter { it.q != null }.map { it.q!! }.distinct()
+                val quick = def?.items.orEmpty().filter { it.q != null && it.visibleIf == null }.map { it.q!! }.distinct()
                 if (quick.isNotEmpty()) item(key = "present") {
                     Column {
                         Lbl("Items reviewed", first = true)
@@ -180,7 +185,7 @@ fun SectionScreen(vm: AppViewModel, nav: NavHostController, inspId: String, name
                     VBtn("Save & next section", {
                         vm.saveSection(inspId, name)
                         val next = vm.nextSection(inspId, name)
-                        if (next != null) { vm.toast("Saved — next: $next"); nav.openSection(inspId, next) }
+                        if (next != null) { vm.toast("Saved — next: ${sectionTitle(next)}"); nav.openSection(inspId, next) }
                         else { vm.toast("Saved — last section"); if (b.inspection.hasSummary) nav.navigate(SummaryR(inspId)) else nav.navigate(ReportR(inspId)) }
                     }, Modifier.padding(top = 10.dp), icon = VIcons.checkNext)
                 }

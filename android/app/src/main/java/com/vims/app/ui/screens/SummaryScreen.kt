@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.vims.app.data.ChecklistEngine
+import com.vims.app.data.sectionTitle
 import com.vims.app.ui.AppViewModel
 import com.vims.app.ui.ReportR
 import com.vims.app.ui.components.HdrAction
@@ -50,6 +51,16 @@ fun SummaryScreen(vm: AppViewModel, nav: NavHostController, inspId: String) {
     val all by vm.inspections.collectAsState()
     val b = all[inspId] ?: run { MissingInspection(vm, nav); return }
     var drawer by rememberSaveable { mutableStateOf(false) }
+    // Client Oct 17: long-press asks before a finding is removed.
+    var removeId by rememberSaveable { mutableStateOf<String?>(null) }
+    removeId?.let { id ->
+        val f = b.findings.firstOrNull { it.id == id }
+        if (f == null) removeId = null else com.vims.app.ui.components.ConfirmDialog(
+            "Remove this finding?", "**${sectionTitle(f.section)}**" + f.body.takeIf { it.isNotBlank() }?.let { " — $it" }.orEmpty() +
+                "\n\nIt's removed from the summary and the report.",
+            "Remove", { vm.deleteFinding(inspId, id); removeId = null }, { removeId = null }, danger = true,
+        )
+    }
     VScreen(
         "Summary", b.inspection.selections.street, net(vm), backAction(nav), listOf(HdrAction(VIcons.list, "Sections") { drawer = true }, homeAction(nav)),
         overlay = { SectionsDrawer(drawer, b, null, { drawer = false }, { drawer = false; nav.openLink(it, inspId) }, { drawer = false; nav.openSection(inspId, it) }) },
@@ -78,13 +89,13 @@ fun SummaryScreen(vm: AppViewModel, nav: NavHostController, inspId: String) {
                     Box(Modifier.fillMaxWidth().height(1.dp).background(V.line2))
                     Row(
                         Modifier.fillMaxWidth().combinedClickable(onClickLabel = "Open section", onLongClickLabel = "Remove finding",
-                            onLongClick = { vm.deleteFinding(inspId, f.id) }, onClick = { nav.openSection(inspId, f.section) }).padding(horizontal = 15.dp, vertical = 11.dp),
+                            onLongClick = { removeId = f.id }, onClick = { nav.openSection(inspId, f.section) }).padding(horizontal = 15.dp, vertical = 11.dp),
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
                         Box(Modifier.padding(top = 7.dp).size(7.dp).clip(CircleShape).background(V.cat(cat.id)))
                         // Same line as the report's Summary of Findings (client, Oct 16): **Section** — custom comment — quick comment.
                         Text(buildAnnotatedString {
-                            withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = V.ink)) { append(f.section) }
+                            withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = V.ink)) { append(sectionTitle(f.section)) }
                             f.body.takeIf { it.isNotBlank() }?.let { append(" — $it") }
                         }, style = T.ui(13.5.sp, color = V.ink2, lineHeight = 18.sp))
                     }

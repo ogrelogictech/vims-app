@@ -134,13 +134,51 @@ class ChecklistEngine(val config: ChecklistConfig, val edits: ChecklistEdits) {
             val out = defs.mapValues { (name, d) ->
                 val cur = byName[name] ?: return@mapValues d
                 val types = pickers(cur.items) + pickers(cur.itemsHigh)
-                if (types.isEmpty()) return@mapValues d
-                val u = d.copy(items = up(d.items, types)!!, itemsHigh = up(d.itemsHigh, types))
+                var u = if (types.isEmpty()) d else d.copy(items = up(d.items, types)!!, itemsHigh = up(d.itemsHigh, types))
+                // Data v1.8 section fields that only affect display / print (never the saved answers): the display title,
+                // the report note, and photo categories added later (Meth Test "Cartridge Result") — so older snapshots get them too.
+                if (u.title == null && cur.title != null) u = u.copy(title = cur.title)
+                if (u.reportNote == null && cur.reportNote != null) u = u.copy(reportNote = cur.reportNote)
+                u = u.copy(photoCategories = mergeCats(u.photoCategories, cur.photoCategories),
+                    photoCategoriesHigh = u.photoCategoriesHigh?.let { h -> cur.photoCategoriesHigh?.let { mergeCats(h, it) } ?: h })
                 if (u != d) changed = true
                 u
             }
             return if (changed) out else defs
         }
+
+        /** [mine] plus any category of [current] it lacks, each inserted after its predecessor in [current] ("Concerns" stays last). */
+        private fun mergeCats(mine: List<String>, current: List<String>): List<String> {
+            if (mine.isEmpty() || current.all { it in mine }) return mine
+            val out = mine.toMutableList()
+            current.forEachIndexed { i, c ->
+                if (c in out) return@forEachIndexed
+                val prev = current.take(i).lastOrNull { it in out }
+                out.add(if (prev == null) 0 else out.indexOf(prev) + 1, c)
+            }
+            return out
+        }
+
+        /**
+         * `visibleIf` (data v1.8): whether [item] shows, given the section's answers. The rule's `q` is another item of the
+         * same list ([keyed]); `atLeast` compares its single answer's leading number ("3" ≥ 2), `includes` checks the answer
+         * (single or multi) contains the option. A rule whose question isn't in the list hides the item.
+         */
+        fun isVisible(item: ItemDef, keyed: List<Pair<String?, ItemDef>>, a: SectionAnswers): Boolean {
+            val rule = item.visibleIf ?: return true
+            val key = keyed.firstOrNull { (k, it) -> k != null && it.q == rule.q }?.first ?: return false
+            val answer = a.values[key].orEmpty()
+            rule.atLeast?.let { n ->
+                val v = answer.firstOrNull()?.let { Regex("^\\s*(\\d+(\\.\\d+)?)").find(it)?.groupValues?.get(1)?.toDoubleOrNull() } ?: return false
+                if (v < n) return false
+            }
+            rule.includes?.let { o -> if (answer.none { it.equals(o, ignoreCase = true) }) return false }
+            return true
+        }
+
+        /** [keyed] without the items hidden by `visibleIf` (sub-section headers stay). */
+        fun visibleKeyed(keyed: List<Pair<String?, ItemDef>>, a: SectionAnswers): List<Pair<String?, ItemDef>> =
+            if (keyed.none { it.second.visibleIf != null }) keyed else keyed.filter { (k, it) -> k == null || isVisible(it, keyed, a) }
 
         fun number(defs: Map<String, SectionDef>, name: String): Int = defs[baseName(name)]?.number ?: 99
 

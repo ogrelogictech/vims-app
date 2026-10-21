@@ -468,12 +468,29 @@ private fun LockedFormBlock(lines: List<String>) {
     }
 }
 
-/** Opens the company's own uploaded agreement (PDF / Word) in another app via FileProvider. */
+/**
+ * Opens the company's own uploaded agreement (PDF / Word / image) in another app: ACTION_VIEW on a FileProvider URI with the
+ * file's real MIME type (QA Oct 14: it couldn't be opened). No app for that type → a toast says so.
+ */
 fun openOwnAgreement(ctx: Context, vm: AppViewModel) {
     val f = vm.ownAgreementFile()?.takeIf { it.isFile } ?: run { vm.toast("Your agreement file isn't on this device"); return }
-    val mime = MimeTypeMap.getSingleton().getMimeTypeFromExtension(f.extension.lowercase()) ?: "application/octet-stream"
+    val mime = agreementMime(f.extension)
     val uri = FileProvider.getUriForFile(ctx, "${ctx.packageName}.fileprovider", f)
     val view = Intent(Intent.ACTION_VIEW).setDataAndType(uri, mime).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     if (com.vims.app.BuildConfig.DEBUG) android.util.Log.d("VIMS-Share", "ACTION_VIEW own agreement uri=$uri type=$mime")
-    try { ctx.startActivity(view) } catch (_: ActivityNotFoundException) { vm.toast("No app installed to open ${f.extension.uppercase()} files") }
+    try { ctx.startActivity(view) } catch (_: ActivityNotFoundException) {
+        vm.toast("No app on this device opens ${f.extension.uppercase().ifEmpty { "this" }} files — install a PDF or document viewer")
+    }
+}
+
+/** MIME type for an uploaded agreement's extension (MimeTypeMap misses docx on some devices). */
+fun agreementMime(ext: String): String = when (ext.lowercase()) {
+    "pdf" -> "application/pdf"
+    "doc" -> "application/msword"
+    "docx" -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    "jpg", "jpeg" -> "image/jpeg"
+    "png" -> "image/png"
+    "webp" -> "image/webp"
+    "heic" -> "image/heic"
+    else -> MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext.lowercase()) ?: "application/pdf"
 }

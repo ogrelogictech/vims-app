@@ -53,6 +53,8 @@ import com.vims.app.ui.LoginR
 import com.vims.app.ui.PlansR
 import com.vims.app.ui.SettingsR
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -268,12 +270,16 @@ fun TrialSplash(vm: AppViewModel, nav: NavHostController) {
         val d = vm.trialDaysLeft()
         val soon = d <= 10
         val plural = if (d == 1) "" else "s"
+        // QA Oct 14: in phone landscape the card is taller than the screen — it stays inside the safe area and scrolls, so
+        // "Continue to app" is always reachable.
         Box(
-            Modifier.fillMaxSize().background(Color(0xB80A0F16)).clickable(remember { MutableInteractionSource() }, null) {}.padding(24.dp),
+            Modifier.fillMaxSize().background(Color(0xB80A0F16)).clickable(remember { MutableInteractionSource() }, null) {}
+                .windowInsetsPadding(WindowInsets.safeDrawing).padding(horizontal = 24.dp, vertical = 12.dp),
             contentAlignment = Alignment.Center,
         ) {
             Column(
-                Modifier.widthIn(max = 340.dp).fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(V.paper).padding(horizontal = 22.dp, vertical = 26.dp),
+                Modifier.widthIn(max = 340.dp).fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(V.paper)
+                    .verticalScroll(rememberScrollState()).padding(horizontal = 22.dp, vertical = 26.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Box(Modifier.size(72.dp).clip(RoundedCornerShape(18.dp)).background(Color.White).border(1.dp, V.line, RoundedCornerShape(18.dp)), contentAlignment = Alignment.Center) {

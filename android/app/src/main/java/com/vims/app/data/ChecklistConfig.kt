@@ -121,7 +121,42 @@ data class SectionDef(
     val photosOnly: Boolean = false,
     /** Data v1.7 (Indoor Air Quality): the report prints this section's `airReading` items as the client's readings table. */
     val airQuality: AirQualityDef? = null,
-)
+    /**
+     * Data v1.8 `sectionFields.title`: display name in lists, the wizard, section headers and the report ("Septic System",
+     * "Wood Destroying Organism Inspection"). [name] stays the stable key saved inspections use. Read through [sectionTitle].
+     */
+    val title: String? = null,
+    /** Data v1.8 `sectionFields.reportNote`: paragraphs printed after the section's items and before Overall condition (Radon). */
+    val reportNote: List<String>? = null,
+    /**
+     * Data v1.9 `formReport` (key of `formReports`): the report prints this section as form pages — "oir-b1-1802" (Wind
+     * Mitigation, Florida's Uniform Mitigation Verification Inspection Form) or "wdi" (Wood Destroying Insect report). Only
+     * snapshots taken from v1.9 data carry it; older inspections keep the normal checklist page.
+     */
+    val formReport: String? = null,
+) {
+    /** What the app and the report show for this section. */
+    val displayName: String get() = title?.takeIf { it.isNotBlank() } ?: name
+}
+
+/**
+ * Display name for a section key, e.g. "Septic" → "Septic System", "Termite" → "Wood Destroying Organism Inspection"
+ * (data v1.8 `title`); numbered rooms keep their number ("Bedroom 2"); admin-added sections show their own name.
+ * Uses the live shared data (registered by [ChecklistLoader.load]), so inspections built before v1.8 show the new titles too.
+ */
+fun sectionTitle(name: String): String = SectionTitles.of(name)
+
+object SectionTitles {
+    @Volatile private var titles: Map<String, String> = emptyMap()
+    fun register(config: ChecklistConfig) {
+        titles = config.sections.mapNotNull { s -> s.title?.takeIf { it.isNotBlank() && it != s.name }?.let { s.name to it } }.toMap()
+    }
+    fun of(name: String): String {
+        titles[name]?.let { return it }
+        val base = baseName(name)
+        return if (base != name) titles[base]?.let { it + name.removePrefix(base) } ?: name else name
+    }
+}
 
 /**
  * `sections[].airQuality` (data v1.7): legend (top-right of the table), rating → word, the two value column heads and the
@@ -152,6 +187,13 @@ data class ItemDef(
     val unit: String? = null,
     val reference: String? = null,
     val action: String? = null,
+    /** Data v1.8 `itemTypes.visibleIf`: shown only when another item in the same section matches (see [VisibleIf]). */
+    val visibleIf: VisibleIf? = null,
+    /** Data v1.9: starts with an inspection / company value on first open (client, street, city, zip, clientPhone, clientEmail, licenseType, initials). */
+    val prefill: String? = null,
+    /** Data v1.9 form-report hints: the form question an item answers (q1 … q7, II, license) / the table it fills (q7 chart). */
+    val formKey: String? = null,
+    val formTable: String? = null,
 ) {
     val isHeader: Boolean get() = header != null
     val isChoice: Boolean get() = type == "single" || type == "multi"
@@ -161,6 +203,14 @@ data class ItemDef(
         const val TYPE_AIR_READING = "airReading"
     }
 }
+
+/**
+ * `visibleIf` (data v1.8): `{q, atLeast: n}` = that item's single-choice answer is a number ≥ n ("Samples taken" ≥ 2);
+ * `{q, includes: option}` = that item's answer (single or multi) includes the option ("Area tested" includes "Other").
+ * Hidden items are not validated and not printed. Evaluated by [ChecklistEngine.isVisible].
+ */
+@Serializable
+data class VisibleIf(val q: String, val atLeast: Double? = null, val includes: String? = null)
 
 @Serializable
 data class ChecklistBuilderDef(
@@ -255,15 +305,17 @@ data class FindingCategoryDef(val id: Int, val label: String, val note: String =
 data class CoversDef(
     val colors: List<CoverColorDef> = emptyList(),
     val categories: Map<String, List<String>> = emptyMap(),
-    val styles: List<String> = emptyList(),
-    val solidStyle: String = "Solid",
+    /** Data v1.8: Shaded, Framed, Solid (in that order). Solid is a style like the others and can carry a theme picture. */
+    val styles: List<String> = listOf("Shaded", "Framed", "Solid"),
+    /** Data v1.8: the theme option for a cover without a picture. */
+    val noThemeOption: String = CoverChoice.NO_PICTURE,
     @SerialName("default") val defaultCover: CoverChoice = CoverChoice(),
     /** Data v1.6: the client's cover design (positions in inches on US Letter, origin top-left). */
     val layout: CoverLayoutDef = CoverLayoutDef(),
     /** Data v1.6: theme option → its artwork (asset path under shared/) and where it sits on the cover, in inches. */
     val themeArt: Map<String, ThemeArtDef> = emptyMap(),
 ) {
-    fun art(cover: CoverChoice): ThemeArtDef? = if (cover.category == "Solid") null else themeArt[cover.option]
+    fun art(cover: CoverChoice): ThemeArtDef? = cover.normalized().takeIf { it.hasPicture }?.let { themeArt[it.option] }
 }
 
 /**
@@ -302,6 +354,13 @@ data class CoverTitleDef(val text: String = "Inspection Report", val centerY: Fl
 @Serializable
 data class CoverFieldsDef(val top: Float = 2.62f, val lineGap: Float = 0.47f, val left: Float = 1.3f, val right: Float = 7.2f)
 
+/** `covers.layout.footer.box` (data v1.8), [x, y, w, h] in inches: the footer text box, left half (right half when the art is on the left). */
+@Serializable
+data class CoverFooterBoxDef(
+    val left: List<Float> = listOf(0.55f, 9.3f, 3.7f, 0.85f),
+    val right: List<Float> = listOf(4.25f, 9.3f, 3.7f, 0.85f),
+)
+
 @Serializable
 data class CoverPhotoBoxDef(val rect: List<Float> = listOf(1.2f, 5.1f, 6.08f, 4.15f), val border: Float = 1.25f)
 
@@ -310,6 +369,7 @@ data class CoverFooterDef(
     val centerY: Float = 9.65f,
     val size: Float = 11f,
     val text: String = "This inspection report is the property of {companyName}.\nAny reproduction or distribution without written consent is prohibited.",
+    val box: CoverFooterBoxDef = CoverFooterBoxDef(),
 )
 
 @Serializable
@@ -366,4 +426,5 @@ object ChecklistLoader {
 
     fun load(context: Context): ChecklistConfig =
         context.assets.open(ASSET_PATH).bufferedReader().use { json.decodeFromString(ChecklistConfig.serializer(), it.readText()) }
+            .also { SectionTitles.register(it) }
 }

@@ -18,14 +18,25 @@ data class Plan(
 @Serializable
 data class CoverChoice(
     val color: String = "Blue",
+    /** Theme category (Activities, Hobbies, Holidays, Seasonal). Before data v1.8 "Solid" was a category (no picture, Solid style). */
     val category: String = "Activities",
+    /** Theme picture, or [NO_PICTURE] (data v1.8 `covers.noThemeOption`). */
     val option: String = "Mountains",
+    /** Shaded, Framed or Solid (data v1.8: Solid is a style and can carry a picture). */
     val style: String = "Framed",
 ) {
-    /** "Blue · Mountains · Framed" (or "Blue · Solid · Solid") — same label as the prototype. */
-    fun label(): String = "$color · ${if (category == "Solid") "Solid" else option} · $style"
-    fun artLabel(): String = if (category == "Solid") color else option
-    fun tag(): String = if (category == "Solid") "$color · Solid" else "$color · $category · $option · $style"
+    /** A cover saved before v1.8 with the old "Solid" category becomes style Solid + No picture (client, Oct 17). */
+    val isLegacySolid: Boolean get() = category == LEGACY_SOLID
+    fun normalized(): CoverChoice = if (isLegacySolid) copy(category = "", option = NO_PICTURE, style = LEGACY_SOLID) else this
+    val hasPicture: Boolean get() = !isLegacySolid && option.isNotBlank() && option != NO_PICTURE
+    /** "Blue · Mountains · Framed" / "Blue · No picture · Solid". */
+    fun label(): String = normalized().let { "${it.color} · ${if (it.hasPicture) it.option else NO_PICTURE} · ${it.style}" }
+    fun artLabel(): String = normalized().let { if (it.hasPicture) it.option else it.color }
+
+    companion object {
+        const val NO_PICTURE = "No picture"
+        private const val LEGACY_SOLID = "Solid"
+    }
 }
 
 enum class Role { OWNER, ADMIN, INSPECTOR }
@@ -75,6 +86,8 @@ data class AccountState(
     val inspectors: List<Inspector> = emptyList(),
     val feedbackEmail: String = "",
     val cardLast4: String? = null,
+    /** Card on file for subscription updates (QA Oct 14): brand + last 4 + expiry only — never the number or CVC. */
+    val card: CardOnFile? = null,
     val subscribedEpochDay: Long? = null,
     /** Cancelled subscriptions stay active until the end of the current billing period (EULA 12.3). */
     val cancelled: Boolean = false,
@@ -83,6 +96,20 @@ data class AccountState(
     val periodEndEpochDay: Long? get() = subscribedEpochDay?.let { java.time.LocalDate.ofEpochDay(it).plusMonths(1).toEpochDay() }
     val plan: Plan get() = plans.firstOrNull { it.id == planId } ?: plans.firstOrNull() ?: Plan("app", "App", 0.0)
     val seatCount: Int get() = maxOf(seats, inspectors.size, 1)
+    /** The remembered card (subscriptions started before Oct 21 only kept the last 4 — shown as "Card •••• 1234"). */
+    val cardOnFile: CardOnFile? get() = card ?: cardLast4?.takeIf { active && it.isNotBlank() }?.let { CardOnFile("Card", it, 0, 0) }
+}
+
+/**
+ * The subscription's remembered card. A placeholder for Square's card on file: TODO(backend): Square Cards API — store the
+ * customer's card id ([squareCardId]) from CreateCard and charge it on renewal; the app only ever keeps brand, last 4, expiry.
+ */
+@Serializable
+data class CardOnFile(val brand: String, val last4: String, val expMonth: Int, val expYear: Int, val squareCardId: String? = null) {
+    /** "Visa •••• 4242 (exp 08/28)". */
+    val label: String get() = "$brand •••• $last4" + if (expMonth in 1..12 && expYear > 0) String.format(java.util.Locale.US, " (exp %02d/%02d)", expMonth, expYear % 100) else ""
+    fun expired(today: java.time.LocalDate = java.time.LocalDate.now()): Boolean =
+        expMonth in 1..12 && expYear > 0 && java.time.LocalDate.of(expYear, expMonth, 1).plusMonths(1).isBefore(today.plusDays(1))
 }
 
 /**
@@ -183,9 +210,17 @@ data class WizardSelections(
     fun count(key: String): Int = counts[key] ?: 0
 
     val address: String get() = field(F_ADDRESS)
-    val street: String get() = address.substringBefore(",").trim()
-    /** City line with the State field merged in: "Portland, 97201" + OR → "Portland, OR 97201". */
-    val cityLine: String get() = withState(if (address.contains(",")) address.substringAfter(",").trim() else "", state)
+    /**
+     * Client Oct 17: the address is split into "Inspection address" (street), "City", State and "ZIP code". Inspections made
+     * before keep their combined "Street, City, ZIP" text in [F_ADDRESS] and no City / ZIP keys — they read as before.
+     */
+    val splitAddress: Boolean get() = F_CITY in fields || F_ZIP in fields
+    val street: String get() = if (splitAddress) address else address.substringBefore(",").trim()
+    val city: String get() = field(F_CITY)
+    val zip: String get() = field(F_ZIP)
+    /** Cover line 2 / list subtitle: "Ogden, UT 84403" (split address), or the older free text's city part with the State merged in. */
+    val cityLine: String get() = if (splitAddress) listOf(city, listOf(state.trim().uppercase(), zip).filter { it.isNotBlank() }.joinToString(" ")).filter { it.isNotBlank() }.joinToString(", ")
+        else withState(if (address.contains(",")) address.substringAfter(",").trim() else "", state)
     /** Street + city line (incl. state), e.g. for email bodies. */
     val fullAddress: String get() = listOf(street, cityLine).filter { it.isNotBlank() }.joinToString(", ")
     val clientName: String get() = field(F_CLIENT)
@@ -202,13 +237,34 @@ data class WizardSelections(
         const val F_CLIENT_PHONE = "Client phone"
         const val F_CLIENT_EMAIL = "Client email"
         const val F_ADDRESS = "Inspection address"
+        /** Client Oct 17 (not in wizard.step1 of the shared data): shown after Inspection address / after State. */
+        const val F_CITY = "City"
+        const val F_ZIP = "ZIP code"
         const val F_AGENT = "Real estate agent name"
         const val F_AGENT_EMAIL = "Real estate agent email"
         const val F_DATE = "Date"
         const val F_TIME = "Time"
         const val F_LICENSE = "Inspector License #"
 
-        private val ZIP = Regex("^\\d{5}(-\\d{4})?$")
+        val ZIP = Regex("^\\d{5}(-\\d{4})?$")
+
+        /**
+         * Splits an older combined "Street, City, ZIP" / "Street, City, ST ZIP" address into (street, city, zip) for the
+         * edit wizard. The state is dropped (it has its own field); nothing that can't be placed is lost — it stays in the city.
+         */
+        fun splitLegacy(address: String, state: String): Triple<String, String, String> {
+            val parts = address.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+            if (parts.size <= 1) return Triple(address.trim(), "", "")
+            val street = parts.first()
+            var rest = parts.drop(1).joinToString(", ")
+            var zip = ""
+            Regex("(\\d{5}(-\\d{4})?)\\s*$").find(rest)?.let { m -> zip = m.groupValues[1]; rest = rest.substring(0, m.range.first).trim().trimEnd(',').trim() }
+            val st = state.trim().uppercase()
+            if (st.isNotEmpty()) rest = rest.replace(Regex("(,\\s*|\\s+)$st$", RegexOption.IGNORE_CASE), "").let { if (it.equals(st, true)) "" else it }.trim().trimEnd(',').trim()
+            // Any other trailing ", ST" (a state typed into the old free text that differs from the State field) is left out too.
+            rest = rest.replace(Regex(",\\s*[A-Za-z]{2}$"), "").trim()
+            return Triple(street, rest, zip)
+        }
 
         /** Adds the state code to an address's city part unless it's already there (addresses typed before v1.3). */
         fun withState(city: String, state: String): String {
