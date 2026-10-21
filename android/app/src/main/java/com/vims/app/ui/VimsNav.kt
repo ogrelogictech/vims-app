@@ -229,7 +229,7 @@ private suspend fun applyDebug(vm: AppViewModel, nav: NavHostController, d: Debu
     } else {
         nav.navigate(LoginR) { popUpTo(0) { inclusive = true } }
     }
-    if (d.splash) vm.maybeShowSplash()
+    if (d.splash) vm.maybeShowSplash(force = true)
 }
 
 @Composable

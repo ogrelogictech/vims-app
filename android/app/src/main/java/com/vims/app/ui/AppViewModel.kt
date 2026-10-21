@@ -120,7 +120,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val _splash = MutableStateFlow(false)
     val splash: StateFlow<Boolean> = _splash.asStateFlow()
     fun closeSplash() { _splash.value = false }
-    fun maybeShowSplash() { if (!account.value.active) _splash.value = true }
+    /** [force]: debug launches (`--ez splash true`) show it also for a subscribed company (QA screenshots). */
+    fun maybeShowSplash(force: Boolean = false) { if (force || !account.value.active) _splash.value = true }
 
     fun trialDaysLeft(): Int = account.value.let { trialDaysLeft(it.trialDays, it.trialStartEpochDay) }
 

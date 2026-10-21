@@ -48,12 +48,14 @@ private fun sampleEdges(ctx: android.content.Context, asset: String): Pair<Color
     ctx.assets.openFd(asset).use { fd -> r.setDataSource(fd.fileDescriptor, fd.startOffset, fd.length) }
     val durUs = (r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 5000L) * 1000
     val bmp = r.getFrameAtTime(durUs / 2, MediaMetadataRetriever.OPTION_CLOSEST_SYNC).also { r.release() } ?: throw IllegalStateException()
-    fun avg(y0: Int, y1: Int): Color {
+    fun avg(y0: Int, y1: Int, x0: Int = 0, x1: Int = bmp.width): Color {
         var rr = 0L; var gg = 0L; var bb = 0L; var n = 0
-        for (y in y0 until y1) for (x in 0 until bmp.width step 4) { val c = bmp.getPixel(x, y); rr += (c shr 16) and 255; gg += (c shr 8) and 255; bb += c and 255; n++ }
+        for (y in y0 until y1) for (x in x0 until x1 step 4) { val c = bmp.getPixel(x, y); rr += (c shr 16) and 255; gg += (c shr 8) and 255; bb += c and 255; n++ }
         return Color((rr / n).toInt(), (gg / n).toInt(), (bb / n).toInt())
     }
-    (avg(0, 6) to avg(bmp.height - 6, bmp.height)).also { bmp.recycle() }
+    // Wide video (pillarbox bands left / right): the colors at the top and bottom of its side edges, blended top → bottom.
+    val wide = bmp.width > bmp.height
+    (if (wide) avg(0, 6, 0, 24) to avg(bmp.height - 6, bmp.height, 0, 24) else avg(0, 6) to avg(bmp.height - 6, bmp.height)).also { bmp.recycle() }
 } catch (_: Exception) { null }
 /** shared/media (Oct 21): portrait 720×1280 for screens taller than wide, wide 1280×720 for landscape tablets. Both 10 s. */
 private const val ASSET_PORTRAIT = "media/vims-splash.mp4"
@@ -118,7 +120,7 @@ fun SplashVideo(onDone: () -> Unit) {
     DisposableEffect(player) {
         val l = object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {
-                if (state == Player.STATE_READY && durationMs == null) { durationMs = player.duration.takeIf { it > 0 } ?: 0L; log("ready, video ${durationMs} ms") }
+                if (state == Player.STATE_READY && durationMs == null) { durationMs = player.duration.takeIf { it > 0 } ?: 0L; log("ready, $asset ${durationMs} ms") }
                 if (state == Player.STATE_ENDED) finish("video ended")
             }
             override fun onRenderedFirstFrame() { log("first frame") }
@@ -134,7 +136,9 @@ fun SplashVideo(onDone: () -> Unit) {
     // Fit-inside: the whole frame (incl. the tagline) is visible; letterbox bands use the video's own edge colors.
     var edges by remember { mutableStateOf(EdgeTop to EdgeBottom) }
     LaunchedEffect(Unit) { withContext(Dispatchers.IO) { sampleEdges(ctx, asset) }?.let { edges = it } }
-    Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Brush.verticalGradient(0f to edges.first, 0.5f to edges.first, 0.5f to edges.second, 1f to edges.second))) {
+    val bands = if (asset == ASSET_WIDE) androidx.compose.ui.graphics.Brush.verticalGradient(listOf(edges.first, edges.second))
+        else androidx.compose.ui.graphics.Brush.verticalGradient(0f to edges.first, 0.5f to edges.first, 0.5f to edges.second, 1f to edges.second)
+    Box(Modifier.fillMaxSize().background(bands)) {
         AndroidView(
             factory = { c ->
                 (android.view.LayoutInflater.from(c).inflate(com.vims.app.R.layout.splash_player, null) as PlayerView).apply {

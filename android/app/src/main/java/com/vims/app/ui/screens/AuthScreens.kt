@@ -165,9 +165,11 @@ fun JoinScreen(vm: AppViewModel, nav: NavHostController) {
         VField("Full name", name, { name = it }, Modifier.formField(form, "name"), placeholder = "Your name", caps = KeyboardCapitalization.Words, error = nameErr, filter = Filters::personName, required = true)
         VField("Email", email, { email = it }, Modifier.formField(form, "email"), placeholder = "you@email.com", keyboard = KeyboardType.Email, error = emailErr, required = true)
         PasswordField("Create a password", pw, { pw = it }, placeholder = "At least 8 characters", error = pwErr, modifier = Modifier.formField(form, "password"), required = true)
-        // The full code is typed as shown ("VIS-4827"): uppercase, "-" added after the 3 letters, no suggestions / composing text.
+        // The full code is typed as shown ("VIS-4827"): uppercase, "-" added after the 3 letters, no suggestions; the keyboard
+        // switches to the number pad once the 3 letters are in (and back to letters when one is deleted). Pastes are cleaned up.
+        val lettersDone = code.length >= 3 && code.take(3).all { it.isLetter() }
         VField("Company code", code, { code = it }, Modifier.formField(form, "code"), placeholder = "VIS-4827", mono = true, caps = KeyboardCapitalization.Characters,
-            error = codeErr, filter = { Filters.joinCode(it, code) }, required = true, autoCorrect = false, keyboard = KeyboardType.Ascii)
+            error = codeErr, filter = { Filters.joinCode(it, code) }, required = true, autoCorrect = false, keyboard = if (lettersDone) KeyboardType.Number else KeyboardType.Ascii)
         EulaCheckbox(agreed, { agreed = it }, eulaErr, onOpen = { nav.navigate(EulaR) }, modifier = Modifier.formField(form, "eula"))
         VBtn("Link my account", {
             if (form.submit()) vm.joinCompany(name, email, code, pw, onError = { e -> form.fail(e.field ?: "code", e.message, if (e.field == "email") email else code) }) { nav.toHomeFromAuth() }
