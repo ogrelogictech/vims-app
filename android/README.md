@@ -483,3 +483,69 @@ Client update (Oct 12): section 39 Indoor Air Quality uses the new `airReading` 
   beside the theme art.
 - Screenshots: `screenshots/oct16-*.png` (`oct16-summary-vs-pdf.png` = Summary screen next to the PDF summary page).
   Test APK: `../../VIMS-Android-test-v0.17.0-2026-10-16.apk`.
+
+## QA round Oct 14 + client requests Oct 17 + shared v1.9 (v0.18.0)
+
+QA list (Oct 14):
+- **No auto-select on focus:** every field goes through `FieldText`; a whole-text selection that arrives within 0.6 s of
+  focus without typing (some keyboards / Tab traversal) is dropped, so the cursor stays at the end. The wizard's State
+  field no longer clears itself on focus: it keeps the state's name (cursor at the end) and opens the full list; typing
+  narrows it.
+- **Company code:** typed as shown, "VIS-4827": uppercase, the "-" is inserted after the 3rd letter (Backspace removes it),
+  digits only after it, no suggestions; the keyboard switches to the number pad once the letters are in. Pastes such as
+  "vis4827" / "VIS 4827" become "VIS-4827".
+- **Temperature (°F):** one "." and an optional leading "-", decimal keypad; −60 to 140 (72.5, −4.5).
+- **Make owner / Make admin:** the session role now always follows the company's inspectors list (on load / restore and
+  after every inspectors change), so a transfer or admin change takes effect at once and survives a restart (demo rows
+  are matched by email). Make owner keeps its confirmation.
+- **Remove inspector:** "Remove <name>?" confirmation (owner / admins only; never the owner or yourself).
+- **Company profile:** read-only for plain inspectors (details as rows, logo shown, agreement View / Open only; the
+  view model also refuses saves, logo and agreement changes from non-admins).
+- **Subscription:** the card is remembered as brand + last 4 + expiry only (`AccountState.card` / `CardOnFile`, a stand-in
+  for Square's card on file — TODO(backend): Square Cards API); the number and CVC are never stored. Updating shows
+  "Visa •••• 4242 (exp 08/28) — Use this card" / "Use a different card"; an expired card asks for a new one.
+- **Uploaded agreement:** opens in a viewer app ("Open" on the agreement card) via FileProvider with the real MIME type;
+  the stored file's extension comes from the picked document's MIME type (Drive files may have no extension); images are
+  accepted too; no viewer → toast.
+- **Plans & pricing:** the short description is multi-line (up to 200 characters, line breaks kept) and wraps on the plan
+  cards and the subscribe screen.
+- **Settings:** the same rows as iOS — Report cover shows the full cover label, Photo size "JPG · ~750 KB"; the version /
+  checklist-data line was removed (also in debug builds).
+- **Trial dialog:** stays inside the safe area and scrolls, so "Continue to app" is reachable in phone landscape.
+
+Client (Jeremy, Oct 17):
+- **Photo source:** Add asks "Photos" (Photo Picker), "Camera" (in-app CameraX) or "Drive" (system document picker, which
+  includes Google Drive), images only; a picked image is EXIF-rotated, capped at 2048 px and opens in markup like a capture.
+- **Cover picker on one page:** Color, Theme (category), Picture ("No picture" first) and Style (Shaded, Framed, Solid —
+  Solid can carry a picture). Covers saved with the old "Solid" category are migrated on load to style Solid + No picture
+  (written back). Labels: "Blue · No picture · Solid".
+- **Cover footer:** always in `covers.layout.footer.box.left` (bottom-left, never past 4.25 in), or the right box when the
+  theme art sits on the left (4th of July); centered in the box, shrinks to fit (incl. a state notice), drawn above the art,
+  company name underlined. **2nd address line** starts and ends exactly under the first line's value underline.
+- **Split address:** Inspection address (street) → City (required) → State → ZIP code (optional, 12345 or 12345-6789; the
+  dash is inserted). Stored as wizard fields "City" / "ZIP code"; cover line 2 / list subtitle / emails read
+  "City, ST ZIP". Older inspections keep their combined text and print as before; opening one in the edit wizard fills
+  street / City / ZIP from it (saved only on Update checklist). No Room migration.
+- **Summary:** long-press asks "Remove this finding?" (Remove / Cancel).
+- **visibleIf** (data v1.8, `ChecklistEngine.isVisible`): `{q, atLeast}` and `{q, includes}`; hidden items aren't shown,
+  validated or printed (Lead sample locations, Meth "Other area tested", WDI and Wind Mitigation follow-ups). Older
+  checklist snapshots don't get the new items; they do get the new photo categories (Meth "Cartridge Result").
+- **Section titles:** `title` is shown everywhere (wizard chips, section lists / drawer, headers, PDF, summary, admin):
+  "Septic System", "Wood Destroying Organism Inspection"; `name` stays the key. Long titles wrap to 2 header lines.
+- **Radon:** the section's `reportNote` paragraphs print after its items and before Overall condition.
+
+Shared v1.9 (client item 13):
+- **Wind Mitigation** prints as the 4-page Uniform Mitigation Verification Inspection Form (OIR-B1-1802 Rev. 01/12,
+  official wording): owner grid, Q1–Q7 with ☐/☒ boxes and filled values, roof-covering table, Opening Protection Level
+  Chart with X marks, qualified-inspector block (signature / date and homeowner lines left blank), every page footer with
+  initials, property address, validity note and "Page X of 4" (a counting pass sets N). **Termite** prints as our own
+  one-page Wood Destroying Insect Inspection Report (NPMA-33 is not reproduced). Photos follow on the section's photo page.
+  Only inspections built from v1.9 data use the forms; older Wind Mitigation / Termite snapshots keep the checklist page.
+- **Prefill** on first open (until the section is started): client, street, city, zip, client phone / email, license type
+  ("Home Inspector"), inspector initials (from the Company profile's lead inspector). Typed values are never overwritten.
+- **Splash:** `vims-splash-wide.mp4` when the screen is wider than tall, else the portrait video; both play their full
+  10 s (`verifySharedAssets` checks both files).
+- Debug: `--es insp latest` opens the most recent inspection; `filesDir/debug-answers.txt` lines
+  `Section::Question=value` (`Section::!done`) are applied on a debug launch (copy in with `adb shell run-as`).
+- Screenshots: `screenshots/oct21-*.png`; `screenshots/sample-report-wind-mitigation-wdi.pdf`.
+  Test APK: `../../VIMS-Android-test-v0.18.0-2026-10-21.apk`.
