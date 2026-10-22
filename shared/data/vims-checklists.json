@@ -1,7 +1,7 @@
 {
  "_about": "VIMS shared checklist + configuration data. Single source of truth for the native iOS (SwiftUI) and Android (Kotlin/Compose) apps. Extracted from the client-approved prototype (index.html, approved Sep 15, 2026). Edit here, not in app code.",
- "version": "1.9.0",
- "generated": "2026-10-21",
+ "version": "1.9.1",
+ "generated": "2026-10-22",
  "depths": [
   {
    "id": "high",
@@ -24,7 +24,7 @@
  "itemTypes": {
   "single": "one option (tap again to deselect)",
   "multi": "any number of options",
-  "num": "numeric text input (decimal keypad)",
+  "num": "numeric input. Decimal keypad with at most 2 decimal places, or `decimals: n` for another limit; `integer: true` = whole numbers only (number pad, no '.'). Limits per docs/validation-rules.md.",
   "text": "free text input",
   "date": "date picker",
   "time": "time picker",
@@ -1192,7 +1192,8 @@
     {
      "q": "Number of regular vents",
      "type": "num",
-     "placeholder": "e.g. 4"
+     "placeholder": "e.g. 4",
+     "integer": true
     },
     {
      "q": "Vents condition",
@@ -1378,12 +1379,14 @@
     {
      "q": "Number of panels",
      "type": "num",
-     "placeholder": "e.g. 12"
+     "placeholder": "e.g. 12",
+     "integer": true
     },
     {
      "q": "Age of panels",
      "type": "num",
-     "placeholder": "years"
+     "placeholder": "years",
+     "integer": true
     },
     {
      "q": "Any Pitting",
@@ -6356,7 +6359,8 @@
     {
      "q": "Number of chargers",
      "type": "num",
-     "placeholder": "e.g. 2"
+     "placeholder": "e.g. 2",
+     "integer": true
     },
     {
      "q": "Condition of Chargers",
@@ -6734,7 +6738,8 @@
     {
      "q": "Number of raisers",
      "type": "num",
-     "placeholder": "count"
+     "placeholder": "count",
+     "integer": true
     },
     {
      "q": "Height of raisers",
@@ -7323,7 +7328,8 @@
     {
      "q": "Number of raisers",
      "type": "num",
-     "placeholder": "count"
+     "placeholder": "count",
+     "integer": true
     },
     {
      "q": "Height of raisers",
@@ -7745,7 +7751,8 @@
     {
      "q": "Number of raisers",
      "type": "num",
-     "placeholder": "count"
+     "placeholder": "count",
+     "integer": true
     },
     {
      "q": "Height of raisers",
@@ -9017,7 +9024,8 @@
     {
      "q": "Number of chargers",
      "type": "num",
-     "placeholder": "count"
+     "placeholder": "count",
+     "integer": true
     },
     {
      "q": "EV charger condition",
@@ -11146,7 +11154,8 @@
     {
      "q": "Number of chargers",
      "type": "num",
-     "placeholder": "count"
+     "placeholder": "count",
+     "integer": true
     },
     {
      "q": "EV charger condition",
@@ -14800,12 +14809,14 @@
     {
      "q": "Number of Steps",
      "type": "num",
-     "placeholder": "count"
+     "placeholder": "count",
+     "integer": true
     },
     {
      "q": "Number of landings",
      "type": "num",
-     "placeholder": "count"
+     "placeholder": "count",
+     "integer": true
     },
     {
      "q": "Covering",
@@ -15569,12 +15580,14 @@
     {
      "q": "Number of Steps",
      "type": "num",
-     "placeholder": "count"
+     "placeholder": "count",
+     "integer": true
     },
     {
      "q": "Number of landings",
      "type": "num",
-     "placeholder": "count"
+     "placeholder": "count",
+     "integer": true
     },
     {
      "q": "Covering",
@@ -16374,12 +16387,14 @@
     {
      "q": "Number of Steps",
      "type": "num",
-     "placeholder": "count"
+     "placeholder": "count",
+     "integer": true
     },
     {
      "q": "Number of landings",
      "type": "num",
-     "placeholder": "count"
+     "placeholder": "count",
+     "integer": true
     },
     {
      "q": "Covering",
@@ -17419,12 +17434,14 @@
     {
      "q": "Number of Steps",
      "type": "num",
-     "placeholder": "count"
+     "placeholder": "count",
+     "integer": true
     },
     {
      "q": "Number of landings",
      "type": "num",
-     "placeholder": "count"
+     "placeholder": "count",
+     "integer": true
     },
     {
      "q": "Covering",
@@ -25298,7 +25315,8 @@
     {
      "q": "Age of unit (years)",
      "type": "num",
-     "placeholder": "years"
+     "placeholder": "years",
+     "integer": true
     },
     {
      "q": "Capacity of unit (gallons)",
@@ -25922,7 +25940,8 @@
     {
      "q": "Number of vents",
      "type": "num",
-     "placeholder": "e.g. 4"
+     "placeholder": "e.g. 4",
+     "integer": true
     },
     {
      "q": "Ventilation",
@@ -26028,8 +26047,9 @@
     },
     {
      "q": "Measured level (pCi/L)",
-     "type": "text",
-     "placeholder": "e.g. 2.7"
+     "type": "num",
+     "placeholder": "e.g. 2.7",
+     "decimals": 1
     }
    ],
    "itemsHigh": [
@@ -26052,8 +26072,9 @@
     },
     {
      "q": "Measured level (pCi/L)",
-     "type": "text",
-     "placeholder": "e.g. 2.7"
+     "type": "num",
+     "placeholder": "e.g. 2.7",
+     "decimals": 1
     }
    ],
    "reportNote": [
@@ -26133,17 +26154,12 @@
      "placeholder": "address"
     },
     {
-     "q": "Test date and time",
-     "type": "text",
-     "placeholder": "date and time"
+     "q": "Test date",
+     "type": "date"
     },
     {
-     "q": "AM/PM",
-     "type": "single",
-     "options": [
-      "AM",
-      "PM"
-     ]
+     "q": "Test time",
+     "type": "time"
     },
     {
      "q": "Specified area chosen for the test",
@@ -27401,8 +27417,9 @@
     },
     {
      "q": "System number",
-     "type": "text",
-     "placeholder": "e.g. 1 of 2"
+     "type": "num",
+     "placeholder": "e.g. 1",
+     "integer": true
     },
     {
      "q": "Weather conditions for inspection",
@@ -27447,12 +27464,14 @@
     {
      "q": "Number of kitchens",
      "type": "num",
-     "placeholder": "count"
+     "placeholder": "count",
+     "integer": true
     },
     {
      "q": "Number of bathrooms",
      "type": "num",
-     "placeholder": "count"
+     "placeholder": "count",
+     "integer": true
     },
     {
      "q": "Sump pump drains to septic system",
@@ -27497,7 +27516,8 @@
     {
      "q": "Age of system (years)",
      "type": "num",
-     "placeholder": "years"
+     "placeholder": "years",
+     "integer": true
     },
     {
      "q": "Any loads on or over the tank",
@@ -27531,7 +27551,8 @@
     {
      "q": "Number of lids",
      "type": "num",
-     "placeholder": "count"
+     "placeholder": "count",
+     "integer": true
     },
     {
      "q": "Risers in place",
@@ -27979,12 +28000,14 @@
     {
      "q": "Year of home",
      "type": "num",
-     "placeholder": "e.g. 1998"
+     "placeholder": "e.g. 1998",
+     "integer": true
     },
     {
      "q": "# of stories",
      "type": "num",
-     "placeholder": "1–10"
+     "placeholder": "1–10",
+     "integer": true
     },
     {
      "header": "1. Building Code"
@@ -28006,7 +28029,8 @@
       "q": "Building code",
       "includes": "A. Built in compliance with the FBC"
      },
-     "placeholder": "year"
+     "placeholder": "year",
+     "integer": true
     },
     {
      "q": "Building permit application date (FBC)",
@@ -28023,7 +28047,8 @@
       "q": "Building code",
       "includes": "B. HVHZ only: built in compliance with the SFBC-94"
      },
-     "placeholder": "year"
+     "placeholder": "year",
+     "integer": true
     },
     {
      "q": "Building permit application date (SFBC-94)",
@@ -28634,12 +28659,14 @@
     {
      "q": "Year of home",
      "type": "num",
-     "placeholder": "e.g. 1998"
+     "placeholder": "e.g. 1998",
+     "integer": true
     },
     {
      "q": "# of stories",
      "type": "num",
-     "placeholder": "1–10"
+     "placeholder": "1–10",
+     "integer": true
     },
     {
      "header": "1. Building Code"
@@ -28661,7 +28688,8 @@
       "q": "Building code",
       "includes": "A. Built in compliance with the FBC"
      },
-     "placeholder": "year"
+     "placeholder": "year",
+     "integer": true
     },
     {
      "q": "Building permit application date (FBC)",
@@ -28678,7 +28706,8 @@
       "q": "Building code",
       "includes": "B. HVHZ only: built in compliance with the SFBC-94"
      },
-     "placeholder": "year"
+     "placeholder": "year",
+     "integer": true
     },
     {
      "q": "Building permit application date (SFBC-94)",
@@ -31706,12 +31735,13 @@
      "VA",
      "Conventional"
     ],
-    "default": "Conventional"
+    "default": null
    },
    {
     "kind": "dynamic",
     "label": "Type of inspection",
-    "id": "wtype"
+    "id": "wtype",
+    "required": true
    },
    {
     "kind": "chips",
@@ -31726,7 +31756,7 @@
      "Flipper",
      "Bank Owned"
     ],
-    "default": "Owner Occupied"
+    "default": null
    },
    {
     "kind": "field",
@@ -31747,7 +31777,7 @@
      "Rainy",
      "Snowing"
     ],
-    "default": "Sunny"
+    "default": null
    },
    {
     "kind": "chips",
@@ -31759,7 +31789,7 @@
      "No",
      "Unknown"
     ],
-    "default": "Yes"
+    "default": null
    },
    {
     "kind": "chips",
@@ -31771,7 +31801,7 @@
      "No",
      "Unknown"
     ],
-    "default": "Yes"
+    "default": null
    },
    {
     "kind": "chips",
@@ -31783,7 +31813,7 @@
      "No",
      "Unknown"
     ],
-    "default": "Yes"
+    "default": null
    },
    {
     "kind": "field",
@@ -31840,7 +31870,7 @@
      "Tri-Level",
      "Log Home"
     ],
-    "default": "Ranch"
+    "default": null
    },
    {
     "kind": "chips",
@@ -31855,7 +31885,7 @@
      "3",
      "Other"
     ],
-    "default": "1.5"
+    "default": null
    },
    {
     "kind": "chips",
@@ -31869,7 +31899,7 @@
      "Walk-out",
      "Crawl space"
     ],
-    "default": "None"
+    "default": null
    },
    {
     "kind": "chips",
@@ -31883,7 +31913,7 @@
      "Detached",
      "Living space above"
     ],
-    "default": "Attached"
+    "default": null
    },
    {
     "kind": "chips",
@@ -31895,7 +31925,7 @@
      "Attached",
      "Detached"
     ],
-    "default": "None"
+    "default": null
    },
    {
     "kind": "chips",
@@ -31909,7 +31939,7 @@
      "4",
      "5 or more"
     ],
-    "default": "2"
+    "default": null
    },
    {
     "kind": "chips",
@@ -31921,7 +31951,7 @@
      "Standard",
      "Fast Entry"
     ],
-    "default": "Standard"
+    "default": null
    }
   ],
   "exteriorOptions": [
@@ -31981,8 +32011,8 @@
    }
   ],
   "defaults": {
-   "inspType": "Real Estate Sale",
-   "loan": "Conventional",
+   "inspType": null,
+   "loan": null,
    "structure": "Single Family",
    "depth": "standard",
    "bedrooms": 4,
@@ -32055,7 +32085,8 @@
     }
    ]
   },
-  "inspectorLicenseNote": "'Inspector License #' (step 1) prints on every report cover to the right of the inspector's name. Prefill from Company profile → License # if set."
+  "inspectorLicenseNote": "'Inspector License #' (step 1) prints on every report cover to the right of the inspector's name. Prefill from Company profile → License # if set.",
+  "defaultsNote": "Team QA Oct 22: no single-choice option is preselected on New Inspection (type of loan, type of inspection, property status, weather, utilities, construction style, stories, basement, etc.). Type of inspection is required. Counts (bedrooms, rooms…) keep their default numbers; date/time default to now."
  },
  "findings": {
   "categories": [

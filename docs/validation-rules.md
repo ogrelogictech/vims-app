@@ -60,3 +60,17 @@ Focusing a field never auto-selects its existing text: the cursor goes to the en
 
 ## Checklist `num` items while typing
 Only digits and one `.` can be typed (other characters are dropped as typed, pasted text filtered); an inline error appears immediately if the value is above the max. Text items such as "System number" ("e.g. 1 of 2") stay free text with the general text rules.
+
+## Team QA Oct 22
+| Field | While typing | On submit |
+|---|---|---|
+| Temperature (°F) | Digits, one `.`, optional leading `-`; at most 1 decimal; max 5 characters (e.g. `-12.5`, `105.5`) — longer input is not accepted | −60 – 140 |
+| Total sq ft | Whole number only (no `.`), grouping commas shown | 1 – 100,000 |
+| Valuation ($) | Digits, at most 2 decimals, grouping commas shown | 1 – 100,000,000 |
+| Lot size (acres) | Digits, at most 2 decimals | 0.01 – 10,000 |
+| Checklist `num` items | Decimal keypad, at most 2 decimals (`decimals` overrides); `integer: true` → number pad, whole numbers only | per Number limits |
+| Septic "System number" | Number pad, digits only | 1 – 99 |
+| Radon "Measured level (pCi/L)" | Decimal keypad, 1 decimal | 0 – 999.9 |
+
+- Every numeric field enforces its max length/value while typing (characters beyond the limit are not accepted), not only on Next/Save.
+- Tapping anywhere outside the active field closes the keyboard (all screens; scrolling content keeps working).
