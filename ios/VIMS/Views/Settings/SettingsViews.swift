@@ -503,6 +503,8 @@ struct DeleteAccountView: View {
     @State private var confirmText = ""
     @State private var errors = FormErrors()
     @State private var busy = false
+    /// Team QA Oct 22: a last centered "Delete your account?" alert after DELETE is typed.
+    @State private var confirmFinal = false
 
     var body: some View {
         let blocked = store.isCompanyOwner && !store.otherCompanyUsers.isEmpty
@@ -548,6 +550,13 @@ struct DeleteAccountView: View {
                 .disabled(busy)
             }
         }
+        .alert("Delete your account?", isPresented: $confirmFinal) {
+            Button("Delete", role: .destructive) { performDelete() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(store.isCompanyOwner ? "Your account, inspections and \(store.company.name) are removed. This can't be undone."
+                 : "Your account and inspections are removed. This can't be undone.")
+        }
         #if DEBUG
         .task { try? await Task.sleep(nanoseconds: 1_200_000_000); debugConfirm() }
         #endif
@@ -556,7 +565,8 @@ struct DeleteAccountView: View {
     #if DEBUG
     /// -confirmDelete: type DELETE and submit (review/testing only).
     private func debugConfirm() {
-        if DebugLaunch.has("-confirmDelete") { confirmText = "DELETE"; submit() }
+        if DebugLaunch.has("-confirmDelete") { confirmText = "DELETE"; if typedDelete() { performDelete() } }
+        if DebugLaunch.has("-confirmAlert") { confirmText = "DELETE"; submit() }
     }
     #endif
 
@@ -567,9 +577,18 @@ struct DeleteAccountView: View {
         }
     }
 
+    private func typedDelete() -> Bool {
+        errors.validate([("confirm", confirmText, .req(.plain(max: nil), "Confirmation",
+                                                       custom: { $0.trimmingCharacters(in: .whitespaces) == "DELETE" ? nil : "Type DELETE in capital letters to confirm" }))])
+    }
+
     private func submit() {
-        guard errors.validate([("confirm", confirmText, .req(.plain(max: nil), "Confirmation",
-                                                              custom: { $0.trimmingCharacters(in: .whitespaces) == "DELETE" ? nil : "Type DELETE in capital letters to confirm" }))]) else { return }
+        guard typedDelete() else { return }
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        confirmFinal = true
+    }
+
+    private func performDelete() {
         busy = true
         Task {
             do { try await store.deleteAccount() }

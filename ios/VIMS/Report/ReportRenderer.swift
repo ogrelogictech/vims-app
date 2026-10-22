@@ -171,7 +171,7 @@ struct ReportData {
                 if !a.present.isEmpty { rows.append(ReportRow(kind: .line("Items reviewed", a.present.joined(separator: ", ")))) }
             } else {
                 let items = ItemKeys.keyed(cat.items(name, depth: cat.isForm(name) ? .standard : insp.depth).items)
-                a = a.migratingLegacyAirRatings(items)
+                a = a.migratingLegacy(items)
                 // Indoor Air Quality readings print as their own table after the other lines (High: Report Information).
                 airTable = AirQualityTable.make(items, answers: a, def: cat.section(name)?.airQuality)
                 var pendingHeader: String?

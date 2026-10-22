@@ -41,10 +41,14 @@ struct AppHeader: View {
                     EmptyView()
                 }
                 VStack(alignment: .leading, spacing: 1) {
+                    // Team QA Oct 22: long section titles ("Wood Destroying Organism Inspection", the Texas sections) wrap —
+                    // and shrink a little if they must — instead of being cut off next to three header buttons on small phones.
                     Text(title)
                         .font(VFont.display(17, .bold))
                         .foregroundStyle(.white)
-                        .lineLimit(1)
+                        .lineLimit(3)
+                        .minimumScaleFactor(0.82)
+                        .fixedSize(horizontal: false, vertical: true)
                         .accessibilityAddTraits(.isHeader)
                     Text(subtitle)
                         .font(VFont.ui(12))

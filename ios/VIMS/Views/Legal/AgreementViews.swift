@@ -202,7 +202,7 @@ struct AgreementCard: View {
             }
         }
         // Going back to the VIMS agreement deletes an edited version, so ask first (an upload just switches back).
-        .confirmationDialog("Use the VIMS agreement?", isPresented: $confirmRevert, titleVisibility: .visible) {
+        .alert("Use the VIMS agreement?", isPresented: $confirmRevert) {
             Button("Use VIMS", role: .destructive) { store.useDefaultAgreement() }
             Button("Cancel", role: .cancel) {}
         } message: { Text("Your company\u{2019}s edited version of the agreement will be deleted.") }
@@ -325,7 +325,7 @@ struct AgreementEditorView: View {
                 bottomBar
             }
         }
-        .confirmationDialog("Discard changes?", isPresented: $confirmDiscard, titleVisibility: .visible) {
+        .alert("Discard your changes?", isPresented: $confirmDiscard) {
             Button("Discard", role: .destructive) { store.back() }
             Button("Keep editing", role: .cancel) {}
         } message: { Text("Your edits to the agreement haven\u{2019}t been saved.") }
@@ -499,7 +499,7 @@ private struct AgreementBlockCard: View {
                 smallButton("hdr-add", "Add paragraph after this \(item.block.editorLabel.lowercased())", tint: VC.brand, action: addAfter)
                 if !item.locked, !isTitle {
                     smallButton("trash", "Delete this \(item.block.editorLabel.lowercased())", tint: VC.c1) { confirmDelete = true }
-                        .confirmationDialog("Delete this \(kindNoun)?", isPresented: $confirmDelete, titleVisibility: .visible) {
+                        .alert("Delete this \(kindNoun)?", isPresented: $confirmDelete) {
                             Button("Delete", role: .destructive, action: delete)
                             Button("Cancel", role: .cancel) {}
                         } message: { Text("It will be removed from your company\u{2019}s agreement when you save.") }

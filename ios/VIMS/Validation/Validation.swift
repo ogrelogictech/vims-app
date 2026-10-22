@@ -34,6 +34,14 @@ enum FieldKind: Equatable {
     case question
     case option
 
+    /// Number-like fields: a typed character they can't take is rejected outright (FilteredTextField).
+    var isNumeric: Bool {
+        switch self {
+        case .number, .temperature, .price: return true
+        default: return false
+        }
+    }
+
     var maxLength: Int? {
         switch self {
         case .plain(let m): return m
@@ -48,6 +56,8 @@ enum FieldKind: Equatable {
         case .question: return 120
         case .zip, .usZip: return 10
         case .city: return 60
+        case .temperature: return 5          // QA Oct 22: "-12.5", "105.5"
+        case .number(let l): return l.maxLength
         default: return nil
         }
     }
@@ -59,23 +69,50 @@ struct NumberLimits: Equatable {
     var max: Double
     /// Valuation / sq ft may show grouping commas ("450,000"); they're ignored when the value is read.
     var grouping = false
+    /// Decimal places accepted while typing (team QA Oct 22): 0 = whole numbers only (no "." at all), nil = any.
+    var maxDecimals: Int? = nil
 
-    static let sqft = NumberLimits(min: 1, max: 100_000, grouping: true)
-    static let valuation = NumberLimits(min: 1, max: 100_000_000, grouping: true)
-    static let lotSize = NumberLimits(min: 0.01, max: 10_000)
-    /// Checklist `num` items (sizes, readings, gallons, amps…).
-    static let checklist = NumberLimits(min: 0, max: 99_999)
+    static let sqft = NumberLimits(min: 1, max: 100_000, grouping: true, maxDecimals: 0)
+    static let valuation = NumberLimits(min: 1, max: 100_000_000, grouping: true, maxDecimals: 2)
+    static let lotSize = NumberLimits(min: 0.01, max: 10_000, maxDecimals: 2)
+    /// Checklist `num` items (sizes, readings, gallons, amps…): at most 2 decimals unless the item says otherwise.
+    static let checklist = NumberLimits(min: 0, max: 99_999, maxDecimals: 2)
     /// Checklist room counts ("Number of kitchens / bathrooms …").
-    static let count = NumberLimits(min: 0, max: 20)
+    static let count = NumberLimits(min: 0, max: 20, maxDecimals: 0)
     /// Indoor Air Quality "Level measured".
     static let reading = NumberLimits(min: 0, max: 99_999)
+    /// Septic "System number" (v1.9.1: `num`, `integer`).
+    static let systemNumber = NumberLimits(min: 1, max: 99, maxDecimals: 0)
+    /// Radon "Measured level (pCi/L)" (v1.9.1: `num`, `decimals: 1`).
+    static let radonLevel = NumberLimits(min: 0, max: 999.9, maxDecimals: 1)
+
+    var isInteger: Bool { maxDecimals == 0 }
+    /// Digits allowed before the "." — as many as the max has (100,000 → 6), so a longer number can't be typed.
+    var maxIntegerDigits: Int { String(Int(max.rounded(.down))).count }
+    /// Characters a value can have at most: integer digits, grouping commas, "." and decimals (nil when decimals are open).
+    var maxLength: Int? {
+        guard let d = maxDecimals else { return nil }
+        let n = maxIntegerDigits
+        return n + (grouping ? (n - 1) / 3 : 0) + (d > 0 ? d + 1 : 0)
+    }
 
     /// The limits for a checklist `num` item: room counts ("Number of kitchens / bathrooms / bedrooms / stories …") 0 – 20,
-    /// every other `num` item 0 – 99,999 (same rule as Android's `checklistMax`).
-    static func checklistItem(question: String?, placeholder: String? = nil) -> NumberLimits {
+    /// Septic "System number" 1 – 99, Radon "Measured level (pCi/L)" 0 – 999.9, every other `num` item 0 – 99,999 (same
+    /// rule as Android's `checklistMax`). Decimals (v1.9.1): `integer: true` → none, else `decimals`, else at most 2.
+    static func checklistItem(question: String?, placeholder: String? = nil, decimals: Int? = 2) -> NumberLimits {
         let q = (question ?? "").trimmingCharacters(in: .whitespaces)
         let roomCount = #"^number of (kitchens?|bath(room)?s?|half[- ]baths?|bedrooms?|stories|hallways?|rooms?|living|family|dining|garages?)"#
-        return q.range(of: roomCount, options: [.regularExpression, .caseInsensitive]) != nil ? .count : .checklist
+        var l: NumberLimits
+        if q.range(of: roomCount, options: [.regularExpression, .caseInsensitive]) != nil { l = .count }
+        else if q.caseInsensitiveCompare("System number") == .orderedSame { l = .systemNumber }
+        else if q.lowercased().hasPrefix("measured level") { l = .radonLevel }
+        else { l = .checklist }
+        l.maxDecimals = decimals
+        return l
+    }
+
+    static func checklistItem(_ item: ItemDef) -> NumberLimits {
+        checklistItem(question: item.q, placeholder: item.placeholder, decimals: item.numDecimals)
     }
 }
 
@@ -142,13 +179,18 @@ extension FieldKind {
             let d = String(s.filter { $0.isASCII && $0.isNumber }.prefix(9))
             s = d.count > 5 ? "\(d.prefix(5))-\(d.dropFirst(5))" : d
         case .number(let limits):
-            s = Validator.decimalOnly(s, maxDecimals: nil, grouping: limits.grouping)
+            // QA Oct 22: decimals and integer digits beyond the field's limits are not accepted while typing.
+            s = Validator.decimalOnly(limits.grouping ? s.replacingOccurrences(of: ",", with: "") : s,
+                                      maxDecimals: limits.maxDecimals, maxIntegerDigits: limits.maxIntegerDigits)
+            // Total sq ft / Valuation show grouping commas while typing ("450,000"); they're ignored when read.
+            if limits.grouping { s = Validator.groupThousands(s) }
         case .price:
             s = Validator.decimalOnly(s, maxDecimals: 2)
         case .temperature:
-            // QA Oct 14: optional leading "-" and one decimal point (72.5, -4.5), one digit after it.
+            // QA Oct 14: optional leading "-" and one decimal point (72.5, -4.5), one digit after it; QA Oct 22: at most
+            // 5 characters (maxLength), 3 digits before the point.
             let neg = s.hasPrefix("-") || s.hasPrefix("−")
-            s = (neg ? "-" : "") + Validator.decimalOnly(s, maxDecimals: 1)
+            s = (neg ? "-" : "") + Validator.decimalOnly(s, maxDecimals: 1, maxIntegerDigits: 3)
         case .cardNumber:
             s = Validator.formatCard(s)
         case .expiry:
@@ -165,6 +207,8 @@ extension FieldKind {
 
 enum Validator {
     static let emailRegex = #"^[^@\s]+@[^@\s]+\.[^@\s]{2,}$"#
+    /// Brief hint when a "." is typed or pasted into a whole-number field (the "." and what follows are discarded).
+    static let wholeNumbersOnly = "Whole numbers only"
 
     /// No leading space; never two spaces in a row (pasted text too).
     static func collapseSpaces(_ s: String) -> String {
@@ -206,22 +250,39 @@ enum Validator {
     }
 
     /// Digits and one "."; with `grouping`, also "," before the "." (valuation / sq ft "450,000").
-    static func decimalOnly(_ s: String, maxDecimals: Int?, grouping: Bool = false) -> String {
+    /// `maxDecimals` 0 = whole numbers: the text stops at a "." (a pasted "2450.5" → "2450"). `maxIntegerDigits` caps
+    /// the digits before the ".".
+    static func decimalOnly(_ s: String, maxDecimals: Int?, grouping: Bool = false, maxIntegerDigits: Int? = nil) -> String {
         var out = ""
         var seenDot = false
         var decimals = 0
+        var intDigits = 0
         for ch in s {
             if grouping, ch == ",", !seenDot, !out.isEmpty, out.last != "," {
                 out.append(ch)
             } else if ch.isASCII && ch.isNumber {
                 if seenDot { if let m = maxDecimals, decimals >= m { continue }; decimals += 1 }
+                else { if let m = maxIntegerDigits, intDigits >= m { continue }; intDigits += 1 }
                 out.append(ch)
             } else if ch == "." && !seenDot {
+                if maxDecimals == 0 { break }
                 seenDot = true
                 out.append(ch)
             }
         }
         return out
+    }
+
+    /// "4500000.5" → "4,500,000.5" (commas in the whole-number part only).
+    static func groupThousands(_ s: String) -> String {
+        let parts = s.split(separator: ".", maxSplits: 1, omittingEmptySubsequences: false)
+        let int = Array(parts.first.map(String.init) ?? "")
+        var out = ""
+        for (i, ch) in int.enumerated() {
+            if i > 0, (int.count - i) % 3 == 0 { out.append(",") }
+            out.append(ch)
+        }
+        return parts.count > 1 ? out + "." + parts[1] : out
     }
 
     static func formatCard(_ s: String) -> String {

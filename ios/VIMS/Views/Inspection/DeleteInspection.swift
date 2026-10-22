@@ -25,16 +25,17 @@ struct DeleteInspectionConfirmation: ViewModifier {
     let leave: Bool
 
     func body(content: Content) -> some View {
-        content.confirmationDialog("Delete this inspection?", isPresented: $isPresented, titleVisibility: .visible) {
+        // Team QA Oct 22: a centered alert with a short title and message and explicit buttons (on iOS 26 the
+        // confirmation dialog became a cramped popover with long text and no visible Cancel).
+        content.alert("Delete this inspection?", isPresented: $isPresented) {
             if store.reportURL(insp.id) != nil {
                 // Opens the share sheet (Save to Files, Mail, AirDrop…); the inspection is kept.
                 Button("Save report first") { store.shareReport(insp.id, from: anchor, afterDismiss: true) }
             }
-            Button("Delete inspection", role: .destructive) { delete() }
+            Button("Delete", role: .destructive) { delete() }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This permanently removes \(insp.addressLine1), its checklist, photos and report from this device. "
-                 + "Some states require inspection reports to be kept for 3–5 years — save or email the report first.")
+            Text(DeleteCopy.inspection(insp.addressLine1))
         }
     }
 
@@ -53,6 +54,15 @@ struct DeleteInspectionConfirmation: ViewModifier {
             withAnimation(.easeOut(duration: 0.25)) { store.deleteInspection(id) }
             store.toast("Inspection deleted")
         }
+    }
+}
+
+/// Short, clear wording for the delete / remove alerts (team QA Oct 22).
+enum DeleteCopy {
+    static func inspection(_ address: String) -> String {
+        let a = address.trimmingCharacters(in: .whitespaces)
+        return "This removes the checklist, photos and report for \(a.isEmpty ? "this inspection" : a) from this device. "
+            + "Some states require keeping reports for 3–5 years."
     }
 }
 

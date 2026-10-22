@@ -36,7 +36,13 @@ final class AppStore {
 
     /// Signed-in user's view of the data. When signed out this is an empty placeholder.
     var state: AppState {
-        didSet { scheduleAppSave() }
+        didSet {
+            scheduleAppSave()
+            // Auto-sync switched on (or a session loaded with it on): send what's waiting.
+            if state.settings.autoSync, !oldValue.settings.autoSync || oldValue.session?.email != state.session?.email {
+                requestAutoSync(after: 1)
+            }
+        }
     }
     /// Only the signed-in user's inspections are ever loaded.
     var inspections: [Inspection] = []
@@ -54,6 +60,13 @@ final class AppStore {
     var syncing = false
 
     @ObservationIgnored private var inspectionSaveTasks: [UUID: Task<Void, Never>] = [:]
+    @ObservationIgnored private var autoSyncTask: Task<Void, Never>?
+    /// Inspections edited while a sync was uploading: they stay queued (and sync again) instead of being marked synced.
+    @ObservationIgnored private var editedDuringSync: Set<UUID> = []
+    #if DEBUG
+    /// -offlineFor N: the connection reads as offline until this time (auto-sync on reconnect test).
+    @ObservationIgnored var debugOfflineUntil: Date?
+    #endif
     @ObservationIgnored private var appSaveTask: Task<Void, Never>?
     @ObservationIgnored private var loadingSession = false
 
@@ -81,7 +94,7 @@ final class AppStore {
         }
         if let uid = repo.currentUserID, let u = repo.user(id: uid) { loadSession(u) } else { repo.currentUserID = nil }
 
-        connectivity.onChange = { [weak self] online in self?.isOnline = online }
+        connectivity.onChange = { [weak self] online in self?.setOnline(online) }
         connectivity.start()
     }
 
@@ -309,7 +322,11 @@ final class AppStore {
     func update(_ id: UUID, markDirty: Bool = true, _ body: (inout Inspection) -> Void) {
         guard let i = inspections.firstIndex(where: { $0.id == id }) else { return }
         body(&inspections[i])
-        if markDirty { inspections[i].needsSync = true }
+        if markDirty {
+            inspections[i].needsSync = true
+            if syncing { editedDuringSync.insert(id) }
+            requestAutoSync()
+        }
         scheduleSave(inspections[i].id)
     }
 
@@ -336,7 +353,7 @@ final class AppStore {
         fields["Time"] = Fmt.date(Calendar.current.date(bySetting: .minute, value: 0, of: Date().addingTimeInterval(3600)) ?? Date(), "HH:mm")
         return Inspection(
             fields: fields,
-            inspType: d.inspType,
+            inspType: d.inspType ?? "",          // v1.9.1: nothing preselected; Type of inspection is required
             structure: d.structure,
             depth: state.settings.defaultDepth,
             exterior: w.exteriorOptions.filter { (d.exterior[$0] ?? 0) > 0 },
@@ -356,6 +373,8 @@ final class AppStore {
         insp.groups = catalog.buildGroups(for: insp)
         for n in insp.leafSections where insp.status[n] == nil { insp.status[n] = .todo }
         insp.needsSync = true
+        if syncing { editedDuringSync.insert(insp.id) }
+        requestAutoSync()
         if let i = inspections.firstIndex(where: { $0.id == insp.id }) {
             inspections[i] = insp
         } else {
@@ -586,18 +605,58 @@ final class AppStore {
 
     // MARK: Sync
 
-    func syncNow() async {
+    /// Settings → Sync now (always available, with or without auto-sync).
+    func syncNow() async { await performSync(manual: true) }
+
+    /// Team QA Oct 22: with "Auto-sync when online" on, queued inspections sync by themselves — when the connection
+    /// comes back, when the app comes to the foreground, and a few seconds after a save / report (the delay restarts on
+    /// every edit, so typing doesn't sync each keystroke). Off = Sync now only. Quiet: no toast; the header pill and
+    /// "N inspections waiting" update as inspections go out. TODO(backend): the upload itself is `syncService`.
+    func requestAutoSync(after seconds: Double = 3) {
+        guard state.settings.autoSync, state.session != nil else { return }
+        autoSyncTask?.cancel()
+        autoSyncTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+            guard !Task.isCancelled, let self else { return }
+            guard self.state.settings.autoSync, self.state.session != nil, self.isOnline, self.pendingSyncCount > 0 else { return }
+            if self.syncing { self.requestAutoSync(after: 1); return }
+            await self.performSync(manual: false)
+        }
+    }
+
+    func setOnline(_ online: Bool) {
+        var online = online
+        #if DEBUG
+        if let until = debugOfflineUntil {
+            if Date() < until { online = false } else { debugOfflineUntil = nil }
+        }
+        #endif
+        let cameOnline = online && !isOnline
+        if isOnline != online { isOnline = online }
+        if cameOnline { requestAutoSync(after: 1) }
+    }
+
+    private func performSync(manual: Bool) async {
+        guard !syncing else { return }
         syncing = true
-        defer { syncing = false }
+        editedDuringSync = []
         do {
+            // TODO(backend): Laravel API upload (LocalSyncService is the on-device stub).
             let ids = try await syncService.sync(inspections)
-            for id in ids {
+            let synced = ids.filter { !editedDuringSync.contains($0) }
+            for id in synced {
                 update(id, markDirty: false) { $0.needsSync = false; $0.syncedAt = Date() }
             }
-            toast("Synced to portal")
+            #if DEBUG
+            print("AUTOSYNC \(manual ? "manual" : "auto") synced=\(synced.count) stillQueued=\(pendingSyncCount) online=\(isOnline)")
+            #endif
+            if manual { toast("Synced to portal") }
         } catch {
-            toast("Sync failed — will retry when online")
+            if manual { toast("Sync failed — will retry when online") }
         }
+        syncing = false
+        // Edited mid-upload: they're still queued, so go again shortly.
+        if !editedDuringSync.isEmpty { editedDuringSync = []; requestAutoSync() }
     }
 
     // MARK: Admin — checklist

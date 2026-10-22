@@ -36,7 +36,7 @@ struct SectionEntryView: View {
             .onAppear {
                 if !loaded {
                     // Pre-v1.7 Indoor Air Quality choices ("1 Good"…) become the matching reading's rating.
-                    answers = store.prefilled(store.answers(inspectionID, section).migratingLegacyAirRatings(keyedItems(insp)),
+                    answers = store.prefilled(store.answers(inspectionID, section).migratingLegacy(keyedItems(insp)),
                                               inspectionID, section)
                     loaded = true
                 }
@@ -162,7 +162,8 @@ struct SectionEntryView: View {
         return ItemKeys.keyed(store.catalog.items(section, depth: depth).items)
     }
 
-    /// `num` items: digits + one "." while typing, 0 – 99,999 when entered (counts "Number of …" 0 – 20); a value above
+    /// `num` items: digits + one "." (none for `integer`) while typing, at most 2 decimals (or `decimals`), 0 – 99,999 when
+    /// entered (counts "Number of …" 0 – 20, Septic "System number" 1 – 99, Radon level 0 – 999.9); a value above
     /// the max shows its error while typing (docs/validation-rules.md "Number limits").
     /// `airReading` levels: same filter, optional, 0 – 99,999 (a CO reading is often 0 ppm).
     private func valid() -> Bool {
@@ -174,7 +175,7 @@ struct SectionEntryView: View {
         let keyed = ItemVisibility.visible(keyedItems(insp), answers: answers)
         let fields: [(id: String, value: String, rule: FieldRule)] = keyed.compactMap { k in
             switch k.item.kind {
-            case .num: return (k.id, answers.text[k.id] ?? "", .opt(.number(.checklistItem(question: k.item.q, placeholder: k.item.placeholder)), k.item.q ?? "Value"))
+            case .num: return (k.id, answers.text[k.id] ?? "", .opt(.number(.checklistItem(k.item)), k.item.q ?? "Value"))
             case .airReading: return (k.id, answers.text[k.id] ?? "", .opt(.number(.reading), "\(k.item.code ?? k.item.q ?? "Reading") level"))
             default: return nil
             }
@@ -269,12 +270,15 @@ struct ModeTile: View {
             case .fast: return (VC.signalDeep, "Overall condition and notes — no line-by-line. Change depth in Settings.")
             }
         }()
-        HStack(spacing: 8) {
+        // Team QA Oct 22 (Wind Mitigation): a long form name ("Uniform Mitigation Verification Inspection Form") left the
+        // hint a one-word column. The hint now sits beside the badge only when it gets a readable width, else below it;
+        // the badge itself wraps on the narrowest phones instead of running off the tile.
+        BadgeHintLayout(spacing: 8, minHint: 180) {
             Text(customLabel ?? "\(depth.label) checklist")
                 .font(VFont.ui(12, .bold)).foregroundStyle(.white)
+                .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, 11).padding(.vertical, 5)
-                .background(bg).clipShape(Capsule())
-                .fixedSize()
+                .background(bg).clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             Text(customHint ?? hint).font(VFont.ui(11.5)).foregroundStyle(VC.ink3)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)
@@ -284,6 +288,46 @@ struct ModeTile: View {
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(VC.line, lineWidth: 1))
         .padding(.bottom, 14)
+    }
+}
+
+/// Badge + hint: side by side (vertically centered) when the hint keeps at least `minHint` points beside the badge's
+/// one-line width, otherwise the badge (wrapping if it must) on top and the hint full width under it.
+struct BadgeHintLayout: Layout {
+    var spacing: CGFloat = 8
+    var minHint: CGFloat = 150
+    var stackedGap: CGFloat = 7
+
+    private func plan(_ width: CGFloat, _ subviews: Subviews) -> (side: Bool, badge: CGSize, hint: CGSize) {
+        guard subviews.count == 2 else { return (true, .zero, .zero) }
+        let ideal = subviews[0].sizeThatFits(.unspecified)
+        if width - ideal.width - spacing >= minHint {
+            let hint = subviews[1].sizeThatFits(ProposedViewSize(width: width - ideal.width - spacing, height: nil))
+            return (true, ideal, hint)
+        }
+        let badge = subviews[0].sizeThatFits(ProposedViewSize(width: min(ideal.width, width), height: nil))
+        let hint = subviews[1].sizeThatFits(ProposedViewSize(width: width, height: nil))
+        return (false, badge, hint)
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let width = proposal.width ?? 360
+        let p = plan(width, subviews)
+        return CGSize(width: width, height: p.side ? max(p.badge.height, p.hint.height) : p.badge.height + stackedGap + p.hint.height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        guard subviews.count == 2 else { return }
+        let p = plan(bounds.width, subviews)
+        if p.side {
+            subviews[0].place(at: CGPoint(x: bounds.minX, y: bounds.midY), anchor: .leading, proposal: ProposedViewSize(p.badge))
+            subviews[1].place(at: CGPoint(x: bounds.minX + p.badge.width + spacing, y: bounds.midY), anchor: .leading,
+                              proposal: ProposedViewSize(width: bounds.width - p.badge.width - spacing, height: p.hint.height))
+        } else {
+            subviews[0].place(at: CGPoint(x: bounds.minX, y: bounds.minY), proposal: ProposedViewSize(p.badge))
+            subviews[1].place(at: CGPoint(x: bounds.minX, y: bounds.minY + p.badge.height + stackedGap),
+                              proposal: ProposedViewSize(width: bounds.width, height: p.hint.height))
+        }
     }
 }
 
@@ -350,8 +394,11 @@ struct ItemCard: View {
                         .padding(.top, 9)
                 }
             case .num:
-                VTextField(text: textBinding(\.text), placeholder: item.placeholder ?? "Enter a value", keyboard: .decimalPad, bottom: 0,
-                           kind: .number(.checklistItem(question: item.q, placeholder: item.placeholder)), fieldID: key, errors: errors)
+                // v1.9.1: `integer: true` (counts, years, Septic "System number") → number pad, digits only; otherwise the
+                // decimal keypad with at most `decimals` (default 2) places (Radon "Measured level (pCi/L)": 1).
+                VTextField(text: textBinding(\.text), placeholder: item.placeholder ?? "Enter a value",
+                           keyboard: item.numDecimals == 0 ? .numberPad : .decimalPad, bottom: 0,
+                           kind: .number(.checklistItem(item)), fieldID: key, errors: errors)
             case .airReading:
                 AirReadingInput(item: item, key: key, level: textBinding(\.text),
                                 rating: Binding(get: { answers.choices[key]?.first }, set: { answers.choices[key] = $0.map { [$0] } }),

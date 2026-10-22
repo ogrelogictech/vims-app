@@ -98,7 +98,18 @@ struct FilteredTextField: UIViewRepresentable {
 
     final class Coordinator: NSObject, UITextFieldDelegate {
         var parent: FilteredTextField
+        /// Whole-number field: a "." was typed at the end and discarded, so the digits typed right after it are the
+        /// decimals and are discarded too ("2450" + "." + "5" stays "2450", never "24505"). Cleared by a delete or leaving.
+        private var discardingDecimals = false
         init(_ p: FilteredTextField) { parent = p }
+
+        /// Brief "Whole numbers only" under the field (cleared after a moment unless another error replaced it).
+        private func wholeNumbersHint() {
+            guard let id = parent.fieldID, let errors = parent.errors else { return }
+            let msg = Validator.wholeNumbersOnly
+            errors.map[id] = msg
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { if errors.map[id] == msg { errors.map[id] = nil } }
+        }
 
         private func filter(_ s: String) -> String { parent.kind?.filter(s) ?? Validator.collapseSpaces(s) }
 
@@ -112,6 +123,27 @@ struct FilteredTextField: UIViewRepresentable {
 
         func textField(_ tf: UITextField, shouldChangeCharactersIn range: NSRange, replacementString string: String) -> Bool {
             let current = tf.text ?? ""
+            var range = range
+            // Grouped numbers (sq ft / valuation): backspacing over a "," deletes the digit before it.
+            if parent.kind?.isNumeric == true, string.isEmpty, range.length == 1, range.location > 0,
+               (current as NSString).substring(with: range) == "," {
+                range = NSRange(location: range.location - 1, length: 2)
+            }
+            // Whole-number fields (team QA Oct 22): a typed or pasted "." and everything after it is discarded.
+            if case .number(let l)? = parent.kind, l.isInteger {
+                let atEnd = range.location + range.length >= (current as NSString).length
+                if string.isEmpty { discardingDecimals = false }
+                else if string == "." || (string == "," && !l.grouping) {
+                    discardingDecimals = atEnd
+                    wholeNumbersHint()
+                    return false
+                } else if discardingDecimals, atEnd, string.allSatisfy(\.isNumber) {
+                    wholeNumbersHint()
+                    return false
+                } else if string.contains(".") {
+                    wholeNumbersHint()       // a pasted "2450.5" → "2450" (the filter stops at the ".")
+                }
+            }
             guard let r = Range(range, in: current) else { return true }
             let proposed = current.replacingCharacters(in: r, with: string)
             var filtered = filter(proposed)
@@ -120,11 +152,29 @@ struct FilteredTextField: UIViewRepresentable {
                 filtered += "-"
             }
             if filtered == proposed { return true }          // UIKit applies it; .editingChanged publishes
+            var caretOffset: Int
+            if parent.kind?.isNumeric == true {
+                // Numbers (QA Oct 22): a typed character the field can't take — a letter, a 2nd ".", a decimal past the
+                // field's limit, a digit past its max length — is simply not accepted (nothing changes). Grouping commas
+                // the formatter adds or moves don't count as a change; the caret keeps its place among the digits.
+                let bare = { (x: String) in x.replacingOccurrences(of: ",", with: "") }
+                if !string.isEmpty, (string as NSString).length <= 1, bare(filtered) != bare(proposed) { return false }
+                let caretInProposed = min((proposed as NSString).length, range.location + (string as NSString).length)
+                let digitsBefore = bare((proposed as NSString).substring(to: caretInProposed)).count
+                // Filtered numbers are ASCII, so a character index is the UTF-16 offset.
+                caretOffset = digitsBefore == 0 ? 0 : (filtered as NSString).length
+                var seen = 0
+                for (i, ch) in filtered.enumerated() where digitsBefore > 0 {
+                    if ch != "," { seen += 1 }
+                    if seen == digitsBefore { caretOffset = i + 1; break }
+                }
+            } else {
+                let atEnd = range.location + range.length >= (current as NSString).length
+                caretOffset = atEnd ? (filtered as NSString).length
+                    : min((filtered as NSString).length, range.location + (string as NSString).length)
+            }
             // Apply the filtered/formatted value ourselves and keep the caret sensible.
-            let atEnd = range.location + range.length >= (current as NSString).length
             tf.text = filtered
-            let caretOffset = atEnd ? (filtered as NSString).length
-                : min((filtered as NSString).length, range.location + (string as NSString).length)
             if let pos = tf.position(from: tf.beginningOfDocument, offset: caretOffset) {
                 tf.selectedTextRange = tf.textRange(from: pos, to: pos)
             }
@@ -145,6 +195,7 @@ struct FilteredTextField: UIViewRepresentable {
             TextSelection.collapseIfAllSelected(tf)
         }
         func textFieldDidEndEditing(_ tf: UITextField) {
+            discardingDecimals = false
             parent.onFocus?(false)
         }
         func textFieldShouldReturn(_ tf: UITextField) -> Bool {
@@ -214,5 +265,69 @@ enum TextSelection {
               input.compare(sel.end, to: all.end) == .orderedSame else { return }
         let end = input.endOfDocument
         input.selectedTextRange = input.textRange(from: end, to: end)
+    }
+}
+
+/// Team QA Oct 22 (docs/validation-rules.md): tapping anywhere outside the active field closes the keyboard, on every
+/// screen. One tap recognizer per app window (installed at launch by `KeyboardDismiss.install()`); it never cancels or
+/// delays touches and recognizes alongside everything else, so scrolling, buttons, chips and pickers work as before —
+/// a button tapped with the keyboard up both acts and closes it. Taps inside a text field / text view (another field
+/// takes focus as usual) and on the system edit menu, magnifier or keyboard are left alone.
+@MainActor
+enum KeyboardDismiss {
+    private static var installed = false
+
+    static func install() {
+        guard !installed else { return }
+        installed = true
+        NotificationCenter.default.addObserver(forName: UIWindow.didBecomeKeyNotification, object: nil, queue: .main) { n in
+            MainActor.assumeIsolated { if let w = n.object as? UIWindow { attach(to: w) } }
+        }
+    }
+
+    static func attach(to window: UIWindow) {
+        let name = NSStringFromClass(type(of: window))
+        guard !name.contains("Keyboard"), !name.contains("TextEffects"),
+              !(window.gestureRecognizers ?? []).contains(where: { $0 is KeyboardDismissTap }) else { return }
+        window.addGestureRecognizer(KeyboardDismissTap())
+    }
+}
+
+final class KeyboardDismissTap: UITapGestureRecognizer, UIGestureRecognizerDelegate {
+    init() {
+        super.init(target: nil, action: nil)
+        addTarget(self, action: #selector(tapped))
+        cancelsTouchesInView = false
+        delaysTouchesBegan = false
+        delaysTouchesEnded = false
+        delegate = self
+    }
+
+    @objc private func tapped() {
+        guard state == .ended else { return }
+        view?.endEditing(true)
+    }
+
+    private static let systemParts = ["EditMenu", "Callout", "Magnifier", "TextSelection", "TextRange", "Keyboard", "InputView", "ContextMenu"]
+
+    func gestureRecognizer(_ g: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        guard let window = view as? UIWindow, Self.editingView(in: window) != nil else { return false }
+        var v = touch.view
+        while let cur = v {
+            if cur is UITextField || cur is UITextView || cur is UISearchBar { return false }
+            let name = NSStringFromClass(type(of: cur))
+            if Self.systemParts.contains(where: name.contains) { return false }
+            v = cur.superview
+        }
+        return true
+    }
+
+    func gestureRecognizer(_ g: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool { true }
+
+    /// The text field / text view in this window that has the keyboard, if any.
+    private static func editingView(in root: UIView) -> UIView? {
+        if root.isFirstResponder, root is UITextField || root is UITextView { return root }
+        for sub in root.subviews { if let f = editingView(in: sub) { return f } }
+        return nil
     }
 }

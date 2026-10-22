@@ -36,8 +36,10 @@ struct FlowLayout: Layout {
 struct SectionLabel: View {
     let text: String
     var top: CGFloat = 20
+    /// Mandatory choice (wizard "Type of inspection") → red " *" like `FieldLabel`.
+    var required = false
     var body: some View {
-        Text(text.uppercased())
+        (Text(text.uppercased()) + (required ? Text(" *").foregroundColor(VC.c1) : Text("")))
             .font(VFont.mono(10.5))
             .tracking(1.26)
             .foregroundStyle(VC.ink3)
@@ -330,14 +332,17 @@ struct RowView<Lead: View, Trailing: View>: View {
     @ViewBuilder var lead: () -> Lead
     @ViewBuilder var trailing: () -> Trailing
     @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(\.windowWidth) private var windowWidth
 
     var body: some View {
-        // At large text sizes the status pill moves under the text so titles aren't truncated.
-        let stacked = typeSize >= .xxLarge
+        // At large text sizes the status pill moves under the text so titles aren't truncated; team QA Oct 22: also on
+        // the narrowest phones (iPhone SE / mini, < 380 pt) for Home's rows, where the pill + ⋯ left the address ~90 pt.
+        let narrow = trailingInset > 0 && windowWidth > 0 && windowWidth < 380
+        let stacked = typeSize >= .xxLarge || narrow
         HStack(spacing: 13) {
             lead()
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(VFont.ui(15, .semibold)).foregroundStyle(VC.ink).lineLimit(stacked ? 3 : 1)
+                Text(title).font(VFont.ui(15, .semibold)).foregroundStyle(VC.ink).lineLimit(stacked ? 3 : 2)
                 if let subtitle { Text(subtitle).font(VFont.ui(12.5, .medium)).foregroundStyle(VC.ink2).lineLimit(stacked ? 4 : 2) }
                 if stacked { trailing().padding(.top, 4) }
             }

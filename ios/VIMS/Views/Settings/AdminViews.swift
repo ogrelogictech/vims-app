@@ -146,11 +146,12 @@ struct EditSectionView: View {
                         IconLabel("Remove this section", icon: "trash").foregroundStyle(VC.c1)
                     }
                     .buttonStyle(.vGhost)
-                    .confirmationDialog("Remove “\(sectionName)”?", isPresented: $confirmRemove, titleVisibility: .visible) {
-                        Button("Remove section", role: .destructive) {
+                    .alert("Remove the “\(sectionName)” section?", isPresented: $confirmRemove) {
+                        Button("Remove", role: .destructive) {
                             store.removeCustomSection(sectionName)
                             store.back()
                         }
+                        Button("Cancel", role: .cancel) {}
                     } message: { Text("It won't appear in new inspections. Existing inspections keep their answers.") }
                     .padding(.top, 10)
                 }
@@ -242,7 +243,7 @@ struct EditItemCard: View {
                     iconButton("chevron-down", "Move down", enabled: canDown) { move(1) }
                     // Deleting asks first (Oct 13 QA); on iPad the dialog points at this trash button.
                     iconButton("trash", "Delete item", enabled: true) { confirmDelete = true }
-                        .confirmationDialog("Delete this item?", isPresented: $confirmDelete, titleVisibility: .visible) {
+                        .alert(edit.item.isHeader ? "Delete this header?" : "Delete this item?", isPresented: $confirmDelete) {
                             Button("Delete", role: .destructive, action: delete)
                             Button("Cancel", role: .cancel) {}
                         } message: { Text(deleteMessage) }
@@ -479,12 +480,13 @@ private struct PlanDeleteButton: View {
         .padding(.vertical, -6)
         .accessibilityLabel("Delete \(info.plan.name) plan")
         .accessibilityHint(info.isLast ? "The only plan can't be deleted" : "")
-        .confirmationDialog("Delete this plan?", isPresented: $confirm, titleVisibility: .visible) {
-            Button("Delete plan", role: .destructive) { store.deletePlan(info.plan.id) }
+        // Team QA Oct 22: centered alert, short title + message, explicit Delete / Cancel.
+        .alert("Delete the \u{201C}\(info.plan.name)\u{201D} plan?", isPresented: $confirm) {
+            Button("Delete", role: .destructive) { store.deletePlan(info.plan.id) }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("\u{201C}\(info.plan.name)\u{201D} will no longer be offered on the Subscription screen."
-                 + (info.isCurrent ? " Your company is on this plan, so it will switch to \(store.subscription.plans.first { $0.id != info.plan.id }?.name ?? "another plan")." : ""))
+            Text("It will no longer be offered on the Subscription screen."
+                 + (info.isCurrent ? " Your company will move to \(store.subscription.plans.first { $0.id != info.plan.id }?.name ?? "another plan")." : ""))
         }
     }
 }
@@ -514,7 +516,7 @@ struct InspectorsView: View {
                 intro; joinCode; roles; team; total; addForm
             }
         }
-        .alert(removing.map { "Remove \($0.name)?" } ?? "Remove inspector?",
+        .alert(removing.map { "Remove \($0.name)?" } ?? "Remove this inspector?",
                isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } }), presenting: removing) { ins in
             Button("Remove", role: .destructive) {
                 store.removeInspector(ins.id)
@@ -523,7 +525,7 @@ struct InspectorsView: View {
             }
             Button("Cancel", role: .cancel) { removing = nil }
         } message: { ins in
-            Text("\(ins.email.isEmpty ? ins.name : ins.email) will no longer be on \(store.company.name)'s license and can't use the company's checklist, plans or profile. Their own inspections stay on their device.")
+            Text("They'll lose access to \(store.company.name)'s checklist, plans and profile. Their own inspections stay on their device.")
         }
         .onAppear {
             if DebugFlags.validate { DebugFlags.validate = false; name = ""; email = store.company.inspectors.first?.email ?? "x@y.com"; addInspector() }
@@ -580,7 +582,7 @@ struct InspectorsView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("\(ins.name) · \(ins.roleLabel)").font(VFont.ui(15, .semibold)).foregroundStyle(VC.ink)
                             .lineLimit(2).fixedSize(horizontal: false, vertical: true)
-                        Text(ins.email.isEmpty ? "no email yet" : ins.email).font(VFont.ui(12.5, .medium)).foregroundStyle(VC.ink2).lineLimit(1)
+                        Text(ins.email.isEmpty ? "no email yet" : ins.email).font(VFont.ui(12.5, .medium)).foregroundStyle(VC.ink2).lineLimit(1).minimumScaleFactor(0.75)  // long emails shrink, not cut (QA Oct 22)
                         // Admins who aren't the owner can't take ownership back (security); say so on the owner's row.
                         if ins.owner, ins.id != store.myInspectorID {
                             Text("Only the owner can transfer ownership.")
@@ -671,7 +673,7 @@ private struct MakeOwnerButton: View {
         }
         .buttonStyle(ChipPressStyle())
         .accessibilityLabel("Make \(inspector.name) the owner")
-        .confirmationDialog("Make \(inspector.name) the owner?", isPresented: $confirm, titleVisibility: .visible) {
+        .alert("Make \(inspector.name) the owner?", isPresented: $confirm) {
             Button("Make owner") { store.makeOwner(inspector.id) }
             Button("Cancel", role: .cancel) {}
         } message: { Text("You\u{2019}ll stay an admin. Only the new owner can transfer ownership again.") }

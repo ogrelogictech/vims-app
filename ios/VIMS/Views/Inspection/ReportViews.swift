@@ -99,7 +99,7 @@ struct SummaryCategoryCard: View {
             Button("Remove", role: .destructive) { onDelete(f); confirming = nil }
             Button("Cancel", role: .cancel) { confirming = nil }
         } message: { f in
-            Text(([title(f.section)] + f.lineParts).joined(separator: " — ") + "\n\nIt will be removed from the summary and the report.")
+            Text("This \(title(f.section)) finding will be removed from the summary and the report.")
         }
         .background(VC.paper)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))

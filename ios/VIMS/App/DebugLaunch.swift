@@ -68,6 +68,10 @@ enum DebugFlags {
 ///   -companyName NAME          rename the signed-in company (Company profile name; report cover footer check)
 ///   -openShare                 with -screen reportReady: Email to client (share sheet without Mail);
 ///                              with -screen agreement: Download (agreement PDF share sheet)
+///   -offlineFor N              the connection reads as offline for N seconds, then reconnects (auto-sync test)
+///   -markQueued                mark every inspection as waiting to sync
+///   -autoSync on|off           set Settings → "Auto-sync when online"
+///   -methLegacy [TEXT]         with -oct17: Meth Test gets a pre-v1.9.1 "Test date and time" answer (+ AM/PM = PM)
 ///   -validate                  submit the form once so its validation errors show
 ///   -skipLogin                 sign in as the demo owner
 ///   -noSplash                  don't show the free-look splash
@@ -236,6 +240,12 @@ enum DebugLaunch {
                     }
                 }
             }
+            // -methLegacy: a pre-v1.9.1 Meth answer ("Test date and time" typed + AM/PM chips) to exercise the migration
+            // onto the Test date / Test time pickers.
+            if name == "Meth Test", has("-methLegacy") {
+                a.text["Meth Testing Report›Test date and time"] = value("-methLegacy").flatMap { $0.hasPrefix("-") ? nil : $0 } ?? "10/20/2026 2:30"
+                a.choices["Meth Testing Report›AM/PM"] = ["PM"]
+            }
             let answers = a
             // blank: a form section is left never opened (no answers) — the report prints its prefill values and opening
             // it fills them in.
@@ -294,6 +304,19 @@ enum DebugLaunch {
             }
         }
         if let email = value("-signInAs"), let u = store.repo.user(email: email) { store.loadSession(u) }
+        // -offlineFor N: the connection reads as offline for N seconds, then comes back (auto-sync on reconnect test);
+        // -markQueued: every inspection starts queued (needs sync); -autoSync on|off: the Settings switch.
+        if let v = value("-autoSync") { store.state.settings.autoSync = v != "off" }
+        if has("-markQueued") { for i in store.inspections { store.update(i.id) { _ in } } }
+        if let s = value("-offlineFor"), let n = Double(s) {
+            store.debugOfflineUntil = Date().addingTimeInterval(n)
+            store.setOnline(false)
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: UInt64(n * 1_000_000_000) + 50_000_000)
+                print("AUTOSYNC back online, queued=\(store.pendingSyncCount)")
+                store.setOnline(true)
+            }
+        }
         if has("-noSplash") || (screen != nil && screen != "splash" && screen != "home") { DebugFlags.suppressSplash = true }
         if (has("-skipLogin") || (screen != nil && screen != "login" && !["signup", "forgot", "join", "signupEula"].contains(screen!))), store.session == nil,
            let demo = store.repo.user(email: DemoSeed.loginEmail) {

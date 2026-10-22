@@ -99,6 +99,70 @@ struct SectionAnswers: Codable, Hashable {
         }
         return out
     }
+
+    /// Answers saved before the item list changed, moved onto the current items (view and report alike).
+    func migratingLegacy(_ keyed: [KeyedItem]) -> SectionAnswers {
+        migratingLegacyAirRatings(keyed).migratingSplitDateTime(keyed)
+    }
+
+    /// Data v1.9.1 (team QA Oct 22): Meth Test (High Detail) "Test date and time" (free text) + "AM/PM" became a
+    /// "Test date" date picker and a "Test time" time picker. An old typed answer moves onto them when they're empty:
+    /// a time in it ("2:30", "2:30 pm", "2pm"; AM/PM from the old chips when the text has none) → Test time, the rest
+    /// → Test date when it reads as a date ("10/12/2026", "Oct 12, 2026"), else the old text is kept as Test date's
+    /// answer (shown and printed as typed). The old keys are then dropped.
+    func migratingSplitDateTime(_ keyed: [KeyedItem]) -> SectionAnswers {
+        var out = self
+        for d in keyed where d.item.kind == .date {
+            guard let q = d.item.q, q.lowercased().hasSuffix(" date"), (out.text[d.id] ?? "").isEmpty else { continue }
+            let prefix = d.id.components(separatedBy: "›").dropLast().joined(separator: "›")
+            let path = { (question: String) in prefix.isEmpty ? "›\(question)" : "\(prefix)›\(question)" }
+            let legacyKey = path("\(q) and time")
+            guard let old = out.text[legacyKey]?.trimmingCharacters(in: .whitespacesAndNewlines), !old.isEmpty else { continue }
+            let timeQ = String(q.dropLast(4)) + "time"
+            let timeItem = keyed.first { $0.item.kind == .time && $0.item.q?.caseInsensitiveCompare(timeQ) == .orderedSame }
+            let meridiem = out.choices[path("AM/PM")]?.first
+            var rest = old
+            if let t = timeItem, (out.text[t.id] ?? "").isEmpty, let (hhmm, range) = Self.legacyTime(in: old, meridiem: meridiem) {
+                out.text[t.id] = hhmm
+                rest.removeSubrange(range)
+            }
+            rest = rest.trimmingCharacters(in: CharacterSet(charactersIn: " ,;-@").union(.whitespaces))
+            if rest.lowercased().hasSuffix(" at") { rest = String(rest.dropLast(3)) }
+            if let date = Fmt.answerDate(rest) ?? Self.detectedDate(rest) {
+                out.text[d.id] = Fmt.date(date, Fmt.answerDateFormat)
+            } else {
+                out.text[d.id] = old
+            }
+            out.text[legacyKey] = nil
+            out.choices[path("AM/PM")] = nil
+        }
+        return out
+    }
+
+    /// "2:30 pm" / "14:30" / "2pm" in a typed answer → ("HH:mm", its range). `meridiem` ("AM"/"PM") applies when the
+    /// text has none.
+    private static func legacyTime(in s: String, meridiem: String?) -> (String, Range<String.Index>)? {
+        let patterns = [#"(\d{1,2}):(\d{2})\s*([ap])?\.?\s*(m\.?)?"#, #"(\d{1,2})\s*([ap])\.?\s*m\.?"#]
+        for (i, p) in patterns.enumerated() {
+            guard let re = try? NSRegularExpression(pattern: p, options: .caseInsensitive),
+                  let m = re.firstMatch(in: s, range: NSRange(s.startIndex..., in: s)),
+                  let r = Range(m.range, in: s) else { continue }
+            func group(_ n: Int) -> String? { Range(m.range(at: n), in: s).map { String(s[$0]) } }
+            guard var h = Int(group(1) ?? "") else { continue }
+            let min = i == 0 ? Int(group(2) ?? "") ?? 0 : 0
+            let ap = (i == 0 ? group(3) : group(2))?.lowercased() ?? meridiem?.prefix(1).lowercased()
+            if ap == "p", h < 12 { h += 12 }
+            if ap == "a", h == 12 { h = 0 }
+            guard (0...23).contains(h), (0...59).contains(min) else { continue }
+            return (String(format: "%02d:%02d", h, min), r)
+        }
+        return nil
+    }
+
+    private static func detectedDate(_ s: String) -> Date? {
+        guard !s.isEmpty, let det = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.date.rawValue) else { return nil }
+        return det.firstMatch(in: s, range: NSRange(s.startIndex..., in: s))?.date
+    }
 }
 
 // MARK: - Photos & findings
@@ -335,7 +399,7 @@ struct Inspection: Codable, Hashable, Identifiable {
         }
         state = (code?.isEmpty ?? true) ? nil : code
         if let auto = prev?.type, inspType == auto, new?.type != auto {
-            inspType = config.wizard.defaults.inspType          // "Real Estate Sale"
+            inspType = config.wizard.defaults.inspType ?? ""    // v1.9.1: none preselected (the inspector picks one)
         }
         if let t = new?.type, config.wizard.inspectionTypes.contains(t), inspType != t { inspType = t }
     }

@@ -183,6 +183,13 @@ struct ItemDef: Codable, Hashable {
     var prefill: String? = nil
     var formKey: String? = nil
     var formTable: String? = nil
+    /// v1.9.1 `num` items: `integer: true` = whole numbers only (number pad, no "."); `decimals: n` = at most n decimal
+    /// places (default 2). docs/validation-rules.md "Team QA Oct 22".
+    var integer: Bool? = nil
+    var decimals: Int? = nil
+
+    /// Decimal places a `num` answer may have while typing: 0 for `integer`, else `decimals`, else 2.
+    var numDecimals: Int { integer == true ? 0 : max(0, decimals ?? 2) }
 
     var isHeader: Bool { header != nil }
     var kind: ItemKind {
@@ -317,13 +324,16 @@ struct WizardEntry: Decodable, Hashable {
     let single: Bool?
     let options: [String]?
     let `default`: String?
+    /// v1.9.1: "Type of inspection" (`wtype`) must be chosen — nothing is preselected.
+    var required: Bool? = nil
 }
 
 struct RoomCountDef: Decodable { let key: String; let label: String }
 
 struct WizardDefaults: Decodable {
-    let inspType: String
-    let loan: String
+    /// Data v1.9.1 (team QA Oct 22): null — nothing is preselected; Type of inspection is required on step 1.
+    let inspType: String?
+    let loan: String?
     let structure: String
     let depth: String
     let bedrooms: Int

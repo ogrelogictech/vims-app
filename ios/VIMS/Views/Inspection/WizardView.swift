@@ -94,7 +94,7 @@ struct WizardView: View {
                 draft?.fields["Temperature (°F)"] = "150"
                 draft?.fields["Year of construction"] = "1700"
                 errors.validate(stepFields(step, draft!))
-                if step == 1 { applyStateErrors(draft!) }
+                if step == 1 { applyStateErrors(draft!); applyTypeError(draft!) }
             }
         }
     }
@@ -156,13 +156,15 @@ struct WizardView: View {
         let fields = stepFields(step, d)
         let fieldsOK = errors.validate(fields)
         let stateOK = step == 1 ? applyStateErrors(d) : true
-        guard fieldsOK, stateOK else { scrollToError(proxy); return }
+        let typeOK = step == 1 ? applyTypeError(d) : true
+        guard fieldsOK, stateOK, typeOK else { scrollToError(proxy); return }
         if let date = Fmt.parse(d.field("Date"), "yyyy-MM-dd"), date < minDate, fields.contains(where: { $0.id == "Date" }) {
             errors.set("Date", "Choose today or a later date")
             scrollToError(proxy)
             return
         }
-        if step == store.config.wizard.steps.count, !(errors.validate(stepFields(1, d)) && applyStateErrors(d)) {
+        if step == store.config.wizard.steps.count,
+           !([errors.validate(stepFields(1, d)), applyStateErrors(d), applyTypeError(d)].allSatisfy { $0 }) {
             step = 1
             scrollToError(proxy)
             return
@@ -196,6 +198,22 @@ struct WizardView: View {
         return false
     }
 
+    /// Data v1.9.1: Type of inspection is required (nothing is preselected) → "Select the type of inspection" under its
+    /// chips; the screen scrolls to it unless an error higher up on step 1 comes first.
+    @discardableResult
+    private func applyTypeError(_ d: Inspection) -> Bool {
+        guard d.inspType.isEmpty, let typeEntry = WizardRules.typeEntry(store.config) else { return true }
+        errors.map[typeEntry.label] = WizardRules.typeError
+        let labels = WizardRules.step1(store.config).map(\.label)
+        let typeIndex = labels.firstIndex(of: typeEntry.label) ?? labels.count
+        let current = errors.scrollTarget
+        let currentIsAbove = current.map { t in
+            labels.firstIndex(of: t).map { $0 < typeIndex } ?? [StateFieldIDs.state, StateFieldIDs.docsAck].contains(t)
+        } ?? false
+        if !currentIsAbove { errors.scrollTarget = typeEntry.label }
+        return false
+    }
+
     private func scrollToError(_ proxy: ScrollViewProxy) {
         guard let t = errors.scrollTarget else { return }
         errors.scrollTarget = nil
@@ -210,6 +228,10 @@ struct WizardView: View {
 enum WizardRules {
     /// Data v1.3 has a `states` list → the wizard shows the required State field on step 1.
     static func hasStateField(_ cfg: ChecklistConfig) -> Bool { !(cfg.states ?? []).isEmpty }
+
+    /// The step-1 "Type of inspection" chips (`wtype`, required since data v1.9.1).
+    static func typeEntry(_ cfg: ChecklistConfig) -> WizardEntry? { cfg.wizard.step1.first { $0.id == "wtype" } }
+    static let typeError = "Select the type of inspection"
 
     /// Client Oct 17: step 1 asks for the street ("Inspection address"), City, State and ZIP code. The shared JSON still
     /// lists only "Inspection address", so City and ZIP code are inserted right after it (unless the JSON has them).
@@ -483,7 +505,9 @@ private struct EntryList: View {
             let kind = WizardRules.kind(for: e.label, type: e.type)
             let kb: UIKeyboardType = e.type == "email" ? .emailAddress : e.type == "tel" ? .phonePad :
                 e.label.hasPrefix("Temperature") ? .numbersAndPunctuation : e.label == Inspection.zipField ? .numberPad :
-                (["Year of construction", "Total sq ft", "Lot size (acres)", "Valuation ($)"].contains(e.label) ? .decimalPad : .default)
+                // QA Oct 22: whole numbers (year, sq ft) on the number pad; valuation / lot size (2 decimals) on the decimal pad.
+                (["Year of construction", "Total sq ft"].contains(e.label) ? .numberPad :
+                    ["Lot size (acres)", "Valuation ($)"].contains(e.label) ? .decimalPad : .default)
             let isAddress = e.label == "Inspection address"
             // City, State and ZIP code have their own fields (client Oct 17), so the address asks for the street only
             // (prototype f887cf8; vims-checklists.json still carries the older "Street, City, State" placeholder).
@@ -608,9 +632,13 @@ private struct EntryList: View {
     private func dynamic(_ e: WizardEntry) -> some View {
         let w = store.config.wizard
         if e.id == "wtype" {
-            SectionLabel(text: e.label)
-            ChipGroup(options: w.inspectionTypes, selection: Binding(get: { [draft.inspType] }, set: { if let f = $0.first { draft.inspType = f } }),
-                      single: true, required: true)
+            // v1.9.1: nothing preselected; required ("Select the type of inspection" until one is picked).
+            SectionLabel(text: e.label, required: e.required ?? true).id(e.label)
+            ChipGroup(options: w.inspectionTypes, selection: Binding(get: { [draft.inspType] }, set: { if let f = $0.first {
+                draft.inspType = f
+                errors.map[e.label] = nil
+            } }), single: true, required: true)
+            if let err = errors[e.label] { FieldError(text: err).padding(.top, 8) }
             if draft.inspType == "Component" {
                 SectionLabel(text: "Component(s) to inspect")
                 ChipGroup(options: w.componentOptions, selection: Binding(

@@ -14,6 +14,14 @@ import UIKit
 enum DemoSeed {
     static let enabled = true
 
+    /// The demo inspections' answers for the wizard chips. Data v1.9.1 has no chip defaults (nothing is preselected on
+    /// New Inspection), so the seeded sample inspections carry these filled-in values instead.
+    static let sampleChoices: [String: String] = [
+        "Type of loan": "Conventional", "Property status": "Owner Occupied", "Weather & site conditions": "Sunny",
+        "Power is on": "Yes", "Gas is on": "Yes", "Water is on": "Yes", "Construction style": "Ranch", "Stories": "1.5",
+        "Basement": "None", "Garage": "Attached", "Car port": "None", "Number of cars": "2",
+    ]
+
     /// Prefilled on the sign-in screen for review convenience (prototype screen 01).
     static let loginEmail = enabled ? "jeremy@visionpropertyinspections.com" : ""
     static let loginPassword = enabled ? "inspect2026" : ""
@@ -51,7 +59,7 @@ enum DemoSeed {
             let w = config.wizard, d = w.defaults
             var fields: [String: String] = [:]
             for e in w.step1 + w.step2 where e.kind == "chips" {
-                if let def = e.default, e.id != "wdepth" { fields[e.label] = def }
+                if let def = e.default ?? sampleChoices[e.label], e.id != "wdepth" { fields[e.label] = def }
             }
             fields["Client name"] = client
             fields["Inspection address"] = address
@@ -60,7 +68,7 @@ enum DemoSeed {
             fields["Inspector"] = "Jeremy K. Heath"
             fields[Inspection.licenseField] = "UT-12345"
             var i = Inspection(
-                fields: fields, inspType: d.inspType, structure: structure, depth: .standard,
+                fields: fields, inspType: d.inspType ?? "Real Estate Sale", structure: structure, depth: .standard,
                 exterior: w.exteriorOptions.filter { (d.exterior[$0] ?? 0) > 0 },
                 rooms: w.roomOptions.filter { (d.rooms[$0] ?? 0) > 0 },
                 utilities: w.utilityOptions.filter { (d.utilOpt[$0] ?? 0) > 0 },

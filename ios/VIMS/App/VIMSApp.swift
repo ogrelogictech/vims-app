@@ -10,6 +10,7 @@ struct VIMSApp: App {
     init() {
         FontRegistry.registerBundledFonts()
         TextSelection.install()          // focusing a field never selects its text (docs/validation-rules.md)
+        KeyboardDismiss.install()        // a tap outside the active field closes the keyboard (team QA Oct 22)
         #if DEBUG
         DebugLaunch.prepareStorage()
         #endif
@@ -42,6 +43,8 @@ struct VIMSApp: App {
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .background { store?.flushNow() }
+            // Auto-sync when the app comes back to the foreground (team QA Oct 22).
+            if phase == .active { store?.requestAutoSync(after: 1) }
         }
     }
 }

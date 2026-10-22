@@ -431,11 +431,10 @@ menu existed). Now (`Views/Inspection/DeleteInspection.swift`):
   Save to Files, Mail, AirDrop…) and **Delete inspection**. Long-press on the row shows the same items.
 - **Inside an inspection**: a red ghost **Delete inspection** button at the bottom of the Sections overview (under
   Generate report) and on Report ready (under Back to inspections). Deleting from inside returns to Home first.
-- **One confirmation everywhere**: "Delete this inspection?" — "This permanently removes <address>, its checklist,
-  photos and report from this device. Some states require inspection reports to be kept for 3–5 years — save or
-  email the report first." **Save report first** (only with a report; opens the share sheet and keeps the
-  inspection), **Delete inspection** (destructive), Cancel (iOS 26 shows the dialog as a popover anchored to the
-  tapped control and hides Cancel — tapping outside cancels). Toast "Inspection deleted".
+- **One confirmation everywhere** (centered alert since team QA Oct 22): "Delete this inspection?" — "This removes the
+  checklist, photos and report for <address> from this device. Some states require keeping reports for 3–5 years."
+  **Save report first** (only with a report; opens the share sheet and keeps the inspection), **Delete**
+  (destructive), **Cancel**. Toast "Inspection deleted".
 - `AppStore.deleteInspection` removes the record, the photos folder, the report PDF and the share-sheet copy, and
   cancels any pending debounced save (which could otherwise write the record back). Only the signed-in owner's
   inspections are listed and the repository re-checks the owner. TODO(backend): once the VIMS server is live,
@@ -661,3 +660,43 @@ Screenshots: `screenshots/oct12-*.png` — `ipad-01…18` 13" (landscape 01–13
 - Screenshots `screenshots/oct21-*.png` (iPhone 17; `oct21-ipad-*` iPad Pro 13"): `a01`–`a11` QA items, `b01`–`b12` client
   items, `c1-wind-page1…4-vs-official` (our PDF beside the client's OIR-B1-1802), `c1-wdi-report-vs-npma33-reference`,
   `c1-*-pictures-page`, `c1-wind-page1-prefill-only`, `c2` wide splash.
+
+## Team QA Oct 22 (shared data v1.9.1)
+
+- **Auto-sync** (`AppStore.requestAutoSync`): with Settings → "Auto-sync when online" on, queued inspections sync by
+  themselves — when the connection comes back, when the app comes to the foreground, when auto-sync is switched on /
+  a session loads, and 3 s after a save or report (the delay restarts on every edit). Quiet (no toast); the header pill
+  and "N inspections waiting" drop to Synced / "Everything is synced". An inspection edited during an upload stays
+  queued and goes again. Off = **Sync now** only. TODO(backend): `SyncService` is still the local stub.
+- **Numbers while typing** (`FieldKind.filter` + `FilteredTextField`): a character a numeric field can't take is simply
+  not accepted. Temperature: digits, one ".", optional leading "-", 1 decimal, max 5 characters (−60–140 on Next as
+  before). Total sq ft: whole numbers, number pad, grouping commas ("2,450"). Valuation: 2 decimals, grouping commas.
+  Lot size: 2 decimals. Checklist `num` items: 2 decimals unless `decimals` (Radon "Measured level (pCi/L)": 1,
+  0–999.9) or `integer: true` (counts, years, Septic "System number" 1–99 → number pad). Integer digits are capped at
+  the max's length. **Whole-number fields**: a typed or pasted "." and everything after it is discarded (paste
+  "2450.5" → "2450"; "2450" + "." + "5" stays "2450", never "24505"), with a brief "Whole numbers only" under the field.
+- **Keyboard**: a tap anywhere outside the active field closes it, on every screen (`KeyboardDismiss`: one
+  non-cancelling tap recognizer per window — scrolling, buttons and chips still work; a tapped button both acts and
+  closes the keyboard).
+- **Confirmations** are centered alerts with a short title and message and explicit buttons (iOS 26 turned
+  `confirmationDialog` into a cramped popover without Cancel): inspection (above), plan ("Delete the “<plan>” plan?" /
+  "It will no longer be offered on the Subscription screen." + "Your company will move to <next plan>." for the current
+  plan), finding, inspector, checklist item / header, custom section, agreement block, revert to the VIMS agreement,
+  discard agreement edits, Make owner, and a final "Delete your account?" after typing DELETE. (Photo × delete stays
+  one tap, as in the prototype.)
+- **Responsive**: the form badge row (Wind Mitigation "Uniform Mitigation Verification Inspection Form", WDI, Texas,
+  4-Point) puts the hint beside the badge only when it gets ≥ 180 pt, else under it; the badge wraps on the narrowest
+  phones (`BadgeHintLayout`). Header titles wrap to 3 lines (and shrink slightly) instead of truncating ("Wood
+  Destroying Organism Inspection", Texas sections). Home rows on < 380 pt windows (SE / mini) put the status pill under
+  the address; titles take 2 lines. Inspector emails shrink to fit. Audited on iPhone SE (3rd gen), iPhone 17,
+  17 Pro Max and iPad Pro 13".
+- **Data v1.9.1**: `wizard.defaults.inspType/loan` and the chip defaults are null (decoded as optional) — nothing is
+  preselected on New Inspection except Checklist depth (from Settings), date/time (now), counts and Property type.
+  **Type of inspection is required**: red "*", "Select the type of inspection" under the chips, scrolls there (TX
+  still auto-selects Texas). Demo seed inspections keep sample chip answers (`DemoSeed.sampleChoices`).
+  Meth Test (High Detail) "Test date" / "Test time" are date / time pickers; an old "Test date and time" text (+ AM/PM
+  chips) moves onto them when the section opens and in the report (`SectionAnswers.migratingSplitDateTime`), else the
+  old text is kept as the date answer.
+- DEBUG: `-offlineFor N` (offline for N s, then reconnects), `-markQueued`, `-autoSync on|off`, `-methLegacy [TEXT]`
+  (with `-oct17`), `-confirmAlert` (Delete account: type DELETE → the final alert).
+- Screenshots `screenshots/oct22-<device>-*.png` (`iphoneSE`, `iphone17`, `iphone17ProMax`, `ipad13`).
