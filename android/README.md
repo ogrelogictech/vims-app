@@ -185,7 +185,7 @@ Cancelled: status "Cancelled · active until <date>", explanation card, **Undo c
 
 ### Status colors (one scheme everywhere)
 Inspections: Done green · In progress blue · Queued amber · Scheduled gray. Sections (overview, drawer, report contents):
-Done green · In progress blue · Not started gray. Sync badge: Synced green · Offline · N queued amber · Offline gray.
+Done green · In progress blue · Not started gray. Sync badge: Synced green · N queued (online) / Offline · N queued amber · Offline gray.
 Subscription: Active green · Trial / Cancelled amber.
 
 ### Wizard date
@@ -549,3 +549,45 @@ Shared v1.9 (client item 13):
   `Section::Question=value` (`Section::!done`) are applied on a debug launch (copy in with `adb shell run-as`).
 - Screenshots: `screenshots/oct21-*.png`; `screenshots/sample-report-wind-mitigation-wdi.pdf`.
   Test APK: `../../VIMS-Android-test-v0.18.0-2026-10-21.apk`.
+
+## Team QA list Oct 22 + shared v1.9.1 (v0.19.0) — rules in `../docs/validation-rules.md` "Team QA Oct 22"
+
+- **Auto-sync:** with Settings → "Auto-sync when online" ON, queued inspections sync by themselves — when the device comes back
+  online (`ConnectivityManager` default-network callback; `ACCESS_NETWORK_STATE` is the only new permission, still no
+  `INTERNET`), when the app returns to the foreground (`MainActivity.onResume`), after sign-in, and ~1.5 s after a save
+  (section Save, Build / Update checklist, report generated, markup saved, finding added) — `AppViewModel.requestAutoSync`.
+  OFF = manual only ("N inspections waiting · tap Sync now"). Still the local stub (`LocalSyncService`, `TODO(backend)`); the
+  count drops to 0 and the header pill reads "N queued" online, "Offline · N queued" offline, "Synced" / "Offline" when
+  nothing waits. Sync now while offline says the inspections stay queued.
+- **Keyboard:** a tap anywhere outside the active text field closes the keyboard on every screen and inside dialogs
+  (`ui/components/KeyboardDismiss.kt`: the root and `ConfirmDialog` watch taps in `PointerEventPass.Initial` without consuming
+  them, so buttons / chips / rows still work and drags past the touch slop — scrolling — never count). Text fields register
+  their bounds (`Modifier.keepsKeyboard()`), so tapping a field or moving to another one keeps the keyboard up.
+- **Numbers while typing** (`Filters.number(v, decimals, max)`, stateless — characters past the max are dropped from the end):
+  Temperature digits / one "." / optional leading "-", 1 decimal, max 5 characters (−60 – 140 on Next); Total sq ft whole
+  numbers (number pad); Valuation (decimal keypad now) and Lot size at most 2 decimals; checklist `num` items at most 2 decimals,
+  `decimals: n` overrides (Radon "Measured level (pCi/L)" 1, max 999.9), `integer: true` → number pad, digits only (Septic
+  "System number" 1 – 99, counts, years). An older answer that breaks a rule shows the error inline ("Enter a whole number",
+  "Use at most 1 decimal place").
+- **Old checklist snapshots** (`ChecklistEngine.upgradePickers` on load, matched by section + question): text → `num` (Radon level,
+  Septic System number) and the current `integer` / `decimals` flags; Meth Test (High Detail) "Test date and time" + "AM/PM" →
+  "Test date" (date picker) + "Test time" (time picker). `upgradeAnswers` moves the old text: "10/12/2026 9:30" + PM → Oct 12, 2026
+  / 9:30 PM (also "Oct 12, 2026 2 pm", ISO); text that can't be read as a date stays in Test date as typed.
+- **New Inspection:** nothing preselected (data v1.9.1 chip defaults / `defaults.inspType` / `loan` are null —
+  `WizardDefaults` fields are nullable now, otherwise the JSON wouldn't load). Type of inspection is required: red " *" on its
+  label, Next shows "Select the type of inspection" and scrolls to it. Checklist depth still comes from Settings; date / time
+  default to now; room counts keep their numbers; TX still auto-selects Texas (leaving TX clears the automatic type).
+- **Delete / remove confirmations** — short, explicit buttons: inspection "Delete this inspection?" / "This removes the checklist,
+  photos and report for <address> from this device. Some states require keeping reports for 3–5 years." with Save report first
+  (only when a report exists) · Delete · Cancel; plan "Delete the “<plan>” plan?" / "It will no longer be offered on the
+  Subscription screen." (+ "Your company will move to <next plan>." for the current plan) · Cancel / Delete; same style for
+  finding, inspector, checklist item / header, agreement block and account. `ConfirmDialog` scrolls when taller than the screen.
+- **Responsive** (checked at 360 dp × font 1.3, the normal phone and 1600×2560 / 320 dpi): the checklist badge row stacks the
+  hint under a long form badge (Texas TREC…) instead of a one-word column; the header title moves under the buttons when two
+  lines can't hold it ("Wood Destroying Organism Inspection", "Texas — III. Heating, Ventilation and Air Conditioning
+  Systems"); Home rows put the status pill under the subtitle when narrow (no more "210 Wi…" / "Standal-one"); `BinfoRow`
+  keeps its label readable beside a long value (Payment "Square · Visa •••• 4242 (exp 08/28)"); Power / Gas / Water rows put
+  the label above the chips when it wouldn't fit on one line (`InlineOrStacked`); paired fields (wizard Date / Time, Year /
+  Total sq ft, Valuation / Lot size, Company License # / Phone) stack when a half would be narrower than 150 dp × font scale
+  (`FieldPair`); Subscribe plan cards show the price under the plan name on small screens.
+- Screenshots: `screenshots/oct22-*.png`. Test APK: `../../VIMS-Android-test-v0.19.0-2026-10-22.apk`.
