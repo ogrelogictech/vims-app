@@ -52,7 +52,7 @@ class AppContainer(private val app: Application) {
         DemoSeed.ensureDemoLogo(db.dao(), app.filesDir, app.resources)
         roomRepo.loadPlatform(com.vims.app.data.PlatformSettings(
             feedbackEmail = config.support.feedbackEmail, reportBccOn = config.support.reportBcc.on, reportBccEmail = config.support.reportBcc.email,
-        ))
+        ), config.support.replacedDefaults)
         roomRepo.restore()
     }
 }

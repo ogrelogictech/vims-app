@@ -128,7 +128,8 @@ preferred (the emulator's "goldfish" decoder renders nothing under software GPU)
 ### Platform-owner settings (Feedback & support, Report quality copy / BCC)
 - These are **VIMS platform** settings (disclosed in the VIMS EULA), not per-company settings.
   They are stored app-level (`PlatformSettings` in the Room `kv` table, defaults from `support.feedbackEmail` and
-  `support.reportBcc` in `vims-checklists.json` v1.2) and shared by every company on the install.
+  `support.reportBcc` in `vims-checklists.json` v1.2 — since v1.9.2 `support@vimsinspect.com` and
+  `quality@vimsinspect.com`) and shared by every company on the install.
 - Only VIMS platform owners see or edit them: `Session.platformOwner` is set on sign-in / account creation when the
   email is in `support.platformOwners` (data v1.5; trimmed, case-insensitive, several allowed — `PlatformOwners` in
   `data/Repository.kt`) — `TODO(backend)`: the server owns the list. Company admins of other
@@ -302,7 +303,7 @@ The VIMS agreement stays the default and is never changed; edits only ever apply
 
 ## Client round Oct 9 (v0.11.0)
 
-- **VIMS owners:** `support.platformOwners` (currently `masteradmin@vimsinspect.com`) replaces the hard-coded owner email.
+- **VIMS owners:** `support.platformOwners` (currently `masteradmin@vimsinspect.com` and `admin@vimsinspect.com`) replaces the hard-coded owner email.
   No password is stored or seeded: the owner taps Create account (or Sign in) with that email and their own password and
   gets Report quality copy + Feedback & support. The demo `jeremy@…` is still the demo company's owner/admin, no longer
   a platform owner.
@@ -593,3 +594,19 @@ Shared v1.9 (client item 13):
   Total sq ft, Valuation / Lot size, Company License # / Phone) stack when a half would be narrower than 150 dp × font scale
   (`FieldPair`); Subscribe plan cards show the price under the plan name on small screens.
 - Screenshots: `screenshots/oct22-*.png`. Test APK: `../../VIMS-Android-test-v0.19.0-2026-10-22.apk`.
+
+## Client Oct 22 + shared v1.9.2 (v0.20.0)
+
+- **vimsinspect.com emails:** defaults are now Feedback & support `support@vimsinspect.com` and Report quality copy (BCC)
+  `quality@vimsinspect.com`; `support.platformOwners` = `masteradmin@vimsinspect.com` + `admin@vimsinspect.com` (both get the
+  VIMS owner settings). `SupportDef` reads the new `support.replacedDefaults` and `support.domainEmails` (informational).
+- **Migration on launch** (`RoomRepository.loadPlatform` → `PlatformSettings.replacingOldDefaults`): a stored Feedback or BCC
+  address that still equals an old default in `support.replacedDefaults` (`VIMSInspect@Gmail.com`,
+  `jeremy@visionpropertyinspections.com`; trimmed, case-insensitive) becomes the current default and is written back; an
+  address the owner typed in is kept, the BCC On/Off is untouched. Fresh installs get the new defaults.
+- How VIMS works no longer falls back to a hard-coded address: a blank Feedback email falls back to `support.feedbackEmail`.
+- **Phase 2 — Plumbing** (Pre-Dry Wall 4-way): "Shower pan filled for testing" and "Shower pan leaking" (Yes / No) before
+  Comments, from the data; printed in the report like every other item. Inspections built before v1.9.2 keep their saved
+  checklist (no new items) and open / print as before.
+- **Covers:** Holidays + Halloween (Fall picture and rect, `themeArt`); Seasonal unchanged.
+- Screenshots: `screenshots/oct22-client-*.png`. Test APK: `../../VIMS-Android-test-v0.20.0-2026-10-22.apk`.

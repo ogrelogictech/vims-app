@@ -108,10 +108,15 @@ class RoomRepository(
     override val inspections = _inspections.asStateFlow()
     override val platform = _platform.asStateFlow()
 
-    /** Loads platform settings from the kv table, seeding them from the shared JSON defaults the first time. */
-    suspend fun loadPlatform(defaults: PlatformSettings) = withContext(writer) {
-        val raw = dao.kv(KEY_PLATFORM)
-        _platform.value = raw?.let { dec(PlatformSettings.serializer(), it, defaults) } ?: defaults.also { dao.putKv(KvEntity(KEY_PLATFORM, enc(PlatformSettings.serializer(), it))) }
+    /**
+     * Loads platform settings from the kv table, seeding them from the shared JSON defaults the first time. Stored addresses
+     * that still equal an old shipped default ([replaced], data v1.9.2) move to the current default and are written back.
+     */
+    suspend fun loadPlatform(defaults: PlatformSettings, replaced: ReplacedDefaultsDef = ReplacedDefaultsDef()) = withContext(writer) {
+        val stored = dao.kv(KEY_PLATFORM)?.let { dec(PlatformSettings.serializer(), it, defaults) }
+        val value = stored?.replacingOldDefaults(defaults, replaced) ?: defaults
+        if (value != stored) dao.putKv(KvEntity(KEY_PLATFORM, enc(PlatformSettings.serializer(), value)))
+        _platform.value = value
     }
 
     override fun updatePlatform(f: (PlatformSettings) -> PlatformSettings) {

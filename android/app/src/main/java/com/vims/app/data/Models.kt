@@ -125,6 +125,17 @@ data class PlatformSettings(
 ) {
     /** The BCC address to add to a report email, or null when the setting is off. */
     val activeBcc: String? get() = reportBccEmail.trim().takeIf { reportBccOn && it.isNotEmpty() }
+
+    /**
+     * Data v1.9.2 (client Oct 22, vimsinspect.com): an address still equal (trimmed, case-insensitive) to an old shipped
+     * default in `support.replacedDefaults` moves to the current default; anything the owner typed in is kept.
+     */
+    fun replacingOldDefaults(defaults: PlatformSettings, replaced: ReplacedDefaultsDef): PlatformSettings {
+        fun swap(v: String, old: List<String>, now: String) =
+            if (now.isNotBlank() && old.any { it.trim().equals(v.trim(), ignoreCase = true) }) now else v
+        return copy(feedbackEmail = swap(feedbackEmail, replaced.feedbackEmail, defaults.feedbackEmail),
+            reportBccEmail = swap(reportBccEmail, replaced.reportBccEmail, defaults.reportBccEmail))
+    }
 }
 
 @Serializable

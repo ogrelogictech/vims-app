@@ -401,9 +401,17 @@ data class SupportDef(
     val ccInspector: JsonObject? = null,
     /** Data v1.5: VIMS platform owners (system admins) by email — see [com.vims.app.data.PlatformOwners]. */
     val platformOwners: List<String> = emptyList(),
+    /** Data v1.9.2: old shipped defaults; a stored platform setting still equal to one is moved to the current default on launch. */
+    val replacedDefaults: ReplacedDefaultsDef = ReplacedDefaultsDef(),
+    /** Data v1.9.2: the client's vimsinspect.com mailboxes (informational: masterAdmin, admin, support, quality). */
+    val domainEmails: Map<String, String> = emptyMap(),
 ) {
     val ccInspectorOn: Boolean get() = ccInspector != null
 }
+
+/** `support.replacedDefaults` (data v1.9.2): previous default addresses, matched trimmed and case-insensitively. */
+@Serializable
+data class ReplacedDefaultsDef(val feedbackEmail: List<String> = emptyList(), val reportBccEmail: List<String> = emptyList())
 
 /** Default for the platform owner's "Report quality copy (BCC)" setting (data v1.2). */
 @Serializable

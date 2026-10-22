@@ -368,8 +368,8 @@ fun InstructionsScreen(vm: AppViewModel, nav: NavHostController) {
     }
 }
 
-/** VIMS support address (client, Oct 13): the platform's Feedback & support email (owner-editable; shared default VIMSInspect@Gmail.com). */
-private fun supportEmail(vm: AppViewModel): String = vm.platform.value.feedbackEmail.ifBlank { "VIMSInspect@Gmail.com" }
+/** VIMS support address: the platform's Feedback & support email (owner-editable), else the shared default `support.feedbackEmail`. */
+private fun supportEmail(vm: AppViewModel): String = vm.platform.value.feedbackEmail.ifBlank { vm.config.support.feedbackEmail }
 
 /** How VIMS works → support address: compose an email in the user's email app, else copy the address + toast. */
 private fun emailSupport(ctx: android.content.Context, vm: AppViewModel, address: String) {
