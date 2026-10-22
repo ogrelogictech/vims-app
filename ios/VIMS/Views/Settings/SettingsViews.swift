@@ -101,7 +101,7 @@ struct SettingsView: View {
                     .padding(.top, 6).padding(.bottom, 12)
                     .fixedSize(horizontal: false, vertical: true)
                 Button {
-                    let email = store.platform.feedbackEmail
+                    let email = store.supportEmail
                     if let url = URL(string: "mailto:\(email)?subject=VIMS%20app%20feedback") { openURL(url) }
                 } label: { IconLabel("Send feedback", icon: "email-to-client") }
                     .buttonStyle(.vGhost)
@@ -339,11 +339,8 @@ struct InstructionsView: View {
     @Environment(AppStore.self) private var store
     @State private var composeSupport = false
     /// The VIMS support address: the platform owner's Feedback & support email (default `support.feedbackEmail` in the
-    /// shared JSON, VIMSInspect@Gmail.com).
-    private var supportEmail: String {
-        let e = Validator.trimmed(store.platform.feedbackEmail)
-        return e.isEmpty ? store.config.support.feedbackEmail : e
-    }
+    /// shared JSON).
+    private var supportEmail: String { store.supportEmail }
 
     var body: some View {
         Screen(title: "How VIMS works", actions: [store.homeAction()]) {

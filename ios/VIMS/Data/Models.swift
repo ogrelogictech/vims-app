@@ -601,6 +601,24 @@ struct PlatformSettings: Codable, Hashable {
                          reportBccOn: config.support.reportBcc?.on ?? false,
                          reportBccEmail: config.support.reportBcc?.email ?? "")
     }
+
+    /// v1.9.2 (client Oct 22, moved to vimsinspect.com): a stored address that still equals an old shipped default
+    /// (`support.replacedDefaults`, trimmed, case-insensitive) becomes the current default; anything the owner typed
+    /// in is kept. Returns the names of the fields that changed (empty = nothing to save).
+    mutating func migrateReplacedDefaults(_ config: ChecklistConfig) -> [String] {
+        guard let old = config.support.replacedDefaults else { return [] }
+        let norm = { (e: String) in e.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+        let current = PlatformSettings.defaults(config)
+        var changed: [String] = []
+        if (old.feedbackEmail ?? []).map(norm).contains(norm(feedbackEmail)), norm(feedbackEmail) != norm(current.feedbackEmail) {
+            feedbackEmail = current.feedbackEmail; changed.append("feedbackEmail")
+        }
+        if (old.reportBccEmail ?? []).map(norm).contains(norm(reportBccEmail)), norm(reportBccEmail) != norm(current.reportBccEmail),
+           !current.reportBccEmail.isEmpty {
+            reportBccEmail = current.reportBccEmail; changed.append("reportBccEmail")
+        }
+        return changed
+    }
 }
 
 /// VIMS platform owners (system admins) — the shared JSON `support.platformOwners` list (data v1.5), several

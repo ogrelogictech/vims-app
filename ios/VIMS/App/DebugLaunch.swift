@@ -72,6 +72,9 @@ enum DebugFlags {
 ///   -markQueued                mark every inspection as waiting to sync
 ///   -autoSync on|off           set Settings → "Auto-sync when online"
 ///   -methLegacy [TEXT]         with -oct17: Meth Test gets a pre-v1.9.1 "Test date and time" answer (+ AM/PM = PM)
+///   -seedPlatform "FB|BCC"     store these platform Feedback / BCC addresses directly (as an older build would have;
+///                              empty part = keep), bypassing the owner check — the v1.9.2 migration runs on the next launch
+///   -platformStatus            print PLATFORMTEST lines (stored settings, what this launch migrated, owner list, session)
 ///   -validate                  submit the form once so its validation errors show
 ///   -skipLogin                 sign in as the demo owner
 ///   -noSplash                  don't show the free-look splash
@@ -304,6 +307,20 @@ enum DebugLaunch {
             }
         }
         if let email = value("-signInAs"), let u = store.repo.user(email: email) { store.loadSession(u) }
+        if has("-platformStatus") {
+            let p = store.platform
+            print("PLATFORMTEST stored feedback=\(p.feedbackEmail) bccOn=\(p.reportBccOn) bcc=\(p.reportBccEmail) migratedThisLaunch=\(store.platformMigrated)")
+            print("PLATFORMTEST config feedback=\(store.config.support.feedbackEmail) bcc=\(store.config.support.reportBcc?.email ?? "-") replaced=\(store.config.support.replacedDefaults.map { "\($0.feedbackEmail ?? []) / \($0.reportBccEmail ?? [])" } ?? "-") domainEmails=\(store.config.support.domainEmails?.count ?? 0)")
+            print("PLATFORMTEST owners=\(PlatformOwner.emails(store.config)) supportEmail=\(store.supportEmail) session=\(store.session?.email ?? "none") isPlatformOwner=\(store.isPlatformOwner)")
+        }
+        if let v = value("-seedPlatform") {
+            let parts = v.split(separator: "|", omittingEmptySubsequences: false).map(String.init)
+            var p = store.repo.platformSettings() ?? store.platform
+            if let fb = parts.first, !fb.isEmpty { p.feedbackEmail = fb }
+            if parts.count > 1, !parts[1].isEmpty { p.reportBccEmail = parts[1] }
+            store.repo.savePlatformSettings(p)
+            print("PLATFORMTEST seeded feedback=\(p.feedbackEmail) bcc=\(p.reportBccEmail) (applies after relaunch)")
+        }
         // -offlineFor N: the connection reads as offline for N seconds, then comes back (auto-sync on reconnect test);
         // -markQueued: every inspection starts queued (needs sync); -autoSync on|off: the Settings switch.
         if let v = value("-autoSync") { store.state.settings.autoSync = v != "off" }
@@ -505,7 +522,9 @@ enum DebugLaunch {
                 draft.fields["Client name"] = "Wasatch Builders"
                 pid = store.buildChecklist(from: draft)
             }
-            let first = store.inspection(pid)?.leafSections.first ?? ""
+            // -section NAME: open that phase section (full name or its end, e.g. "Plumbing") instead of the first.
+            let leaves = store.inspection(pid)?.leafSections ?? []
+            let first = value("-section").flatMap { n in leaves.first { $0 == n || $0.hasSuffix(n) } } ?? leaves.first ?? ""
             store.path = has("-overview") ? [.sections(pid)] : [.sections(pid), .section(pid, first)]
         default: break
         }

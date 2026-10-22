@@ -454,6 +454,15 @@ struct SupportDef: Decodable {
     let ccInspector: CCInspectorDef?
     /// v1.5: VIMS platform owner emails (case-insensitive) — see `PlatformOwner`. TODO(backend): server-owned.
     let platformOwners: [String]?
+    /// v1.9.2: old shipped defaults the stored platform settings are migrated away from (`PlatformSettings.migrated`).
+    let replacedDefaults: ReplacedDefaultsDef?
+    /// v1.9.2: the client's vimsinspect.com mailboxes (informational; nothing reads it at runtime).
+    let domainEmails: [String: String]?
+}
+
+struct ReplacedDefaultsDef: Decodable {
+    let feedbackEmail: [String]?
+    let reportBccEmail: [String]?
 }
 
 struct CCInspectorDef: Decodable {}

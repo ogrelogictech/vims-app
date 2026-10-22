@@ -60,7 +60,7 @@ struct HomeSideMenu: View {
                         item("how-vims-works", "How VIMS works") { go(.instructions) }
                         item("email-to-client", "Help & feedback", last: true) {
                             close()
-                            let email = store.platform.feedbackEmail
+                            let email = store.supportEmail
                             if let url = URL(string: "mailto:\(email)?subject=VIMS%20app%20feedback") { openURL(url) }
                         }
                     }

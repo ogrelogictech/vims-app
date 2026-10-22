@@ -92,6 +92,9 @@ final class AppStore {
             if let fb = repo.company(joinCode: config.sample.company.code)?.profile.feedbackEmail, !fb.isEmpty { platform.feedbackEmail = fb }
             repo.savePlatformSettings(platform)
         }
+        // v1.9.2: old shipped feedback / report-quality addresses move to the vimsinspect.com defaults.
+        platformMigrated = platform.migrateReplacedDefaults(config)
+        if !platformMigrated.isEmpty { repo.savePlatformSettings(platform) }
         if let uid = repo.currentUserID, let u = repo.user(id: uid) { loadSession(u) } else { repo.currentUserID = nil }
 
         connectivity.onChange = { [weak self] online in self?.setOnline(online) }
@@ -104,6 +107,15 @@ final class AppStore {
     var session: Session? { state.session }
     var isAdmin: Bool { state.session?.isAdmin ?? false }
     var isPlatformOwner: Bool { state.session?.isPlatformOwner ?? false }
+    /// Fields `PlatformSettings.migrateReplacedDefaults` changed at this launch (DEBUG `-platformStatus`).
+    @ObservationIgnored private(set) var platformMigrated: [String] = []
+
+    /// The VIMS support address for Help & feedback / How VIMS works: the platform owner's Feedback & support email,
+    /// or the shared JSON default (`support.feedbackEmail`) when it is blank.
+    var supportEmail: String {
+        let e = platform.feedbackEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+        return e.isEmpty ? config.support.feedbackEmail : e
+    }
 
     /// Platform-owner only (TODO(backend): enforced by the server as well).
     func savePlatform(_ s: PlatformSettings) {

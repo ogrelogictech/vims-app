@@ -381,7 +381,7 @@ payment" button are a confirmed add-on and are not built. The report therefore h
 ## Client round Oct 9 (shared data v1.5)
 
 - **VIMS owners** — `PlatformOwner` (Data/Models.swift) reads `support.platformOwners` (currently
-  `masteradmin@vimsinspect.com`), trimmed and case-insensitive; several addresses are allowed so the client always
+  `masteradmin@vimsinspect.com` and `admin@vimsinspect.com`, data v1.9.2), trimmed and case-insensitive; several addresses are allowed so the client always
   has two system admins. No password is stored or seeded: the owner creates an account (or signs in) with that email
   and their own password, and Settings then shows "VIMS owner" (Report quality copy, Feedback & support). The demo
   account jeremy@visionpropertyinspections.com is still the demo company's owner/admin but no longer a platform owner.
@@ -533,8 +533,8 @@ Screenshots: `screenshots/oct12-*.png` — `ipad-01…18` 13" (landscape 01–13
 - **Manage checklist:** the item trash asks "Delete this item?" / "“<question>” and its options will be removed from new
   inspections." (Delete / Cancel), anchored to the button on iPad. Removing a custom section already asked.
 - **How VIMS works:** "Need a hand? Contact VIMS support" and the support address as a link — the platform owner's Feedback &
-  support email (`PlatformSettings.feedbackEmail`, default `support.feedbackEmail` = VIMSInspect@Gmail.com; the old
-  support@ogrelogic.com is gone). Mail composer when Mail is set up, else `mailto:`, else the address is copied with a
+  support email (`PlatformSettings.feedbackEmail`, default `support.feedbackEmail` = support@vimsinspect.com since data
+  v1.9.2; blank falls back to that default). Mail composer when Mail is set up, else `mailto:`, else the address is copied with a
   toast; long-press → Copy email address.
 - **Plans & pricing:** trash on each plan card → "Delete this plan?" (anchored on iPad). The last plan can't be deleted;
   a company on the deleted plan moves to the first remaining one (`AppStore.deletePlan`, stored with the subscription
@@ -700,3 +700,18 @@ Screenshots: `screenshots/oct12-*.png` — `ipad-01…18` 13" (landscape 01–13
 - DEBUG: `-offlineFor N` (offline for N s, then reconnects), `-markQueued`, `-autoSync on|off`, `-methLegacy [TEXT]`
   (with `-oct17`), `-confirmAlert` (Delete account: type DELETE → the final alert).
 - Screenshots `screenshots/oct22-<device>-*.png` (`iphoneSE`, `iphone17`, `iphone17ProMax`, `ipad13`).
+
+## Client round Oct 22 (shared data v1.9.2)
+
+- **vimsinspect.com addresses**: defaults `support.feedbackEmail` = support@vimsinspect.com, `support.reportBcc.email` =
+  quality@vimsinspect.com, `support.platformOwners` = masteradmin@ + admin@vimsinspect.com (both get "VIMS owner").
+  `support.replacedDefaults` / `domainEmails` decode as optional. On launch `PlatformSettings.migrateReplacedDefaults`
+  replaces a stored Feedback or BCC address that still equals an old shipped default (trimmed, case-insensitive) with
+  the current default; an address the owner typed is kept. Help & feedback, Settings → Send feedback and How VIMS works
+  use `AppStore.supportEmail` (blank → the JSON default). No old address is hard-coded.
+- **Phase 2 — Plumbing** (Pre-Drywall 4-way) gains "Shower pan filled for testing" and "Shower pan leaking" (Yes / No)
+  before Comments, from the JSON; saved Phase 2 inspections open unchanged (answers are keyed by question).
+- **Covers**: Holidays gains Halloween (the Fall art and rect); Seasonal is unchanged.
+- DEBUG: `-seedPlatform "FB|BCC"` (store those addresses as an older build would; the migration runs on the next
+  launch), `-platformStatus` (PLATFORMTEST lines), `-section NAME` with `-screen phase1|phase2` (e.g. `Plumbing`).
+  Screenshots `screenshots/oct22b-*.png` (`oct22b-pdf-*` are pages of the generated PDF).
