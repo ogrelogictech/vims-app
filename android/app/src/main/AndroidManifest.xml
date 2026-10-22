@@ -5,7 +5,9 @@
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-permission android:name="android.permission.CAMERA" />
 
-    <!-- No INTERNET permission in Phase 1: the app is fully offline-first. Backend sync is stubbed (see SyncService). -->
+    <!-- No INTERNET permission in Phase 1: the app is fully offline-first. Backend sync is stubbed (see SyncService).
+         Network state only: "Auto-sync when online" starts the (stub) sync when the device comes back online. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <queries>
         <!-- Send feedback (mailto:) and share the generated report -->

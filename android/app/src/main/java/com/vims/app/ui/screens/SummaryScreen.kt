@@ -57,7 +57,7 @@ fun SummaryScreen(vm: AppViewModel, nav: NavHostController, inspId: String) {
         val f = b.findings.firstOrNull { it.id == id }
         if (f == null) removeId = null else com.vims.app.ui.components.ConfirmDialog(
             "Remove this finding?", "**${sectionTitle(f.section)}**" + f.body.takeIf { it.isNotBlank() }?.let { " — $it" }.orEmpty() +
-                "\n\nIt's removed from the summary and the report.",
+                "\n\nIt will no longer be on the summary or the report.",
             "Remove", { vm.deleteFinding(inspId, id); removeId = null }, { removeId = null }, danger = true,
         )
     }

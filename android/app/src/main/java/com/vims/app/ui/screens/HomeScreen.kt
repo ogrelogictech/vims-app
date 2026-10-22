@@ -250,15 +250,24 @@ private fun InspectionRow(vm: AppViewModel, b: InspectionBundle, nav: NavHostCon
     val title = s.street.ifBlank { "Untitled inspection" }
     // "⋯" menu (Save or share report · Delete inspection); long-pressing the row opens the same menu.
     var menu by androidx.compose.runtime.saveable.rememberSaveable(b.id) { androidx.compose.runtime.mutableStateOf(false) }
-    ListRow(
-        title = title, subtitle = sub, onClick = { nav.navigate(SectionsR(b.id)) },
-        onLongClick = { menu = true }, onLongClickLabel = "More options",
-        lead = {
-            if (showTime) { val (t, ap) = Fmt.timeParts(s.time); LeadTime(t, ap) } else LeadIcon(VIcons.fileLines)
-        },
-        end = { statusPill(b); InspectionMoreButton(vm, b, title, menu) { menu = it } },
-        endPadding = 4.dp, // the 48dp "⋯" target carries its own whitespace
-    )
+    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
+        // Team QA Oct 22: on small phones / large text the status pill squeezed the address to "210 Wi…" and broke "Standalone"
+        // mid-word; when the text column would be narrower than ~165dp (scaled with the font size) the pill moves under the
+        // subtitle and the address may take two lines.
+        val fs = androidx.compose.ui.platform.LocalDensity.current.fontScale.coerceAtLeast(1f)
+        val narrow = maxWidth - 125.dp - 95.dp * fs < 165.dp * fs
+        ListRow(
+            title = title, subtitle = sub, onClick = { nav.navigate(SectionsR(b.id)) },
+            onLongClick = { menu = true }, onLongClickLabel = "More options",
+            lead = {
+                if (showTime) { val (t, ap) = Fmt.timeParts(s.time); LeadTime(t, ap) } else LeadIcon(VIcons.fileLines)
+            },
+            end = { if (!narrow) statusPill(b); InspectionMoreButton(vm, b, title, menu) { menu = it } },
+            endPadding = 4.dp, // the 48dp "⋯" target carries its own whitespace
+            titleMaxLines = if (narrow) 2 else 1,
+            below = if (narrow) ({ statusPill(b) }) else null,
+        )
+    }
 }
 
 /** Free-look countdown splash — every sign-in during the trial; urgent red at ≤10 days. */

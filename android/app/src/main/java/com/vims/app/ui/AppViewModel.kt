@@ -3,6 +3,9 @@ package com.vims.app.ui
 import android.app.Application
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
 import android.net.Uri
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -37,6 +40,11 @@ import com.vims.app.services.AuthResult
 import com.vims.app.services.trialDaysLeft
 import com.vims.app.ui.components.NetState
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -108,9 +116,57 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val engine: StateFlow<ChecklistEngine> = repo.edits.map { ChecklistEngine(config, it) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, ChecklistEngine(config, repo.edits.value))
 
-    val net: StateFlow<NetState> = combine(repo.inspections, repo.settings) { m, s ->
-        NetState(pending = m.values.count { it.inspection.pendingSync }, synced = s.lastSyncAt != null)
+    /* ------------------------------------------------------------------ connectivity + auto-sync (team QA Oct 22) */
+
+    private val connectivity = app.getSystemService(ConnectivityManager::class.java)
+    private fun onlineNow(): Boolean = try {
+        connectivity?.activeNetwork?.let { connectivity.getNetworkCapabilities(it) }?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+    } catch (_: Exception) { false }
+    private val _online = MutableStateFlow(onlineNow())
+    /** The device has a network with internet (default network; updated by a ConnectivityManager callback). */
+    val online: StateFlow<Boolean> = _online.asStateFlow()
+    private val netCallback = object : ConnectivityManager.NetworkCallback() {
+        override fun onAvailable(network: Network) { _online.value = onlineNow() }
+        override fun onLost(network: Network) { _online.value = onlineNow() }
+        override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) { _online.value = onlineNow() }
+    }
+
+    val net: StateFlow<NetState> = combine(repo.inspections, repo.settings, _online) { m, s, on ->
+        NetState(pending = m.values.count { it.inspection.pendingSync }, synced = s.lastSyncAt != null, online = on)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, NetState(0, false))
+
+    private val syncLock = Mutex()
+    private var autoSyncJob: Job? = null
+
+    /**
+     * "Auto-sync when online": queued inspections sync on their own — when the device comes back online (ConnectivityManager
+     * callback), when the app returns to the foreground, after sign-in, and shortly after a save / report — without Sync now.
+     * Off = manual only. TODO(backend): still the local stub ([com.vims.app.services.LocalSyncService]) until the server exists.
+     */
+    fun requestAutoSync(delayMs: Long = 1500) {
+        autoSyncJob?.cancel()
+        autoSyncJob = viewModelScope.launch {
+            delay(delayMs)
+            if (session.value != null && settings.value.autoSync && _online.value && repo.inspections.value.values.any { it.inspection.pendingSync }) {
+                syncLock.withLock { container.sync.syncNow() }
+            }
+        }
+    }
+
+    /** MainActivity.onResume: the app is back in the foreground. */
+    fun onAppResume() { _online.value = onlineNow(); requestAutoSync(600) }
+
+    init {
+        try { connectivity?.registerDefaultNetworkCallback(netCallback) } catch (_: Exception) {}
+        // Coming back online (and the first check at launch) and every sign-in start an auto-sync.
+        viewModelScope.launch { _online.collect { if (it) requestAutoSync(800) } }
+        viewModelScope.launch { session.map { it?.userId }.distinctUntilChanged().collect { if (it != null) requestAutoSync(1500) } }
+    }
+
+    override fun onCleared() {
+        try { connectivity?.unregisterNetworkCallback(netCallback) } catch (_: Exception) {}
+        super.onCleared()
+    }
 
     private val _toast = MutableStateFlow<ToastMsg?>(null)
     val toast: StateFlow<ToastMsg?> = _toast.asStateFlow()
@@ -211,7 +267,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     /**
      * Wizard step 1 "State" (stateRules `_about`): a rule's `type` is auto-selected; changing to a state without that
-     * rule while the inspection is still on the auto type reverts it to the default type ("Real Estate Sale").
+     * rule while the inspection is still on the auto type reverts it to the default type (none since data v1.9.1, so the
+     * inspector picks one).
      * Changing the state clears the state-documents acknowledgment and resets "Send the report to the real estate agent"
      * to the state's `agentCopyDefault` (unchecked for NH, checked elsewhere).
      */
@@ -220,7 +277,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val prev = config.stateRule(s.state)?.type
         val next = config.stateRule(code)?.type
         var type = s.inspType
-        if (prev != null && type == prev && next != prev) type = config.wizard.defaults.inspType
+        if (prev != null && type == prev && next != prev) type = config.wizard.defaults.inspType.orEmpty()
         if (next != null && next in config.wizard.inspectionTypes) type = next
         s.copy(state = code, inspType = type, stateDocsAck = false, stateDocsAckAt = null, sendToAgent = config.stateRule(code)?.agentCopy ?: true)
     }
@@ -237,6 +294,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (w.sel.address.isBlank()) { toast("Enter the inspection address"); _wizard.update { it.copy(step = 1) }; return null }
         if (w.sel.splitAddress && w.sel.city.isBlank()) { toast("Enter the city"); _wizard.update { it.copy(step = 1) }; return null }
         if (w.sel.state.isBlank()) { toast("Select the property's state"); _wizard.update { it.copy(step = 1) }; return null }
+        if (w.sel.inspType.isBlank()) { toast("Select the type of inspection"); _wizard.update { it.copy(step = 1) }; return null }
         if (config.stateRule(w.sel.state)?.docs.orEmpty().isNotEmpty() && !w.sel.stateDocsAck) {
             toast("Confirm the required state notice was given to the client"); _wizard.update { it.copy(step = 1) }; return null
         }
@@ -247,6 +305,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             repo.updateInspection(editing.id) { it.copy(selections = w.sel, groups = groups, pendingSync = true) }
             repo.updateDefs(editing.id, eng.snapshot(groups, editing.defs))
             toast("Checklist updated — ${w.sel.structure}")
+            requestAutoSync()
             editing.id
         } else {
             val id = UUID.randomUUID().toString()
@@ -257,6 +316,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 )
             )
             toast("Checklist built — ${w.sel.structure}")
+            requestAutoSync()
             id
         }
     }
@@ -275,6 +335,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun saveSection(id: String, section: String) {
         repo.updateAnswers(id, section) { it.copy(status = SecStatus.DONE, overall = it.overall ?: config.overallConditionDefault) }
         touch(id)
+        requestAutoSync()
     }
 
     fun nextSection(id: String, section: String): String? {
@@ -368,6 +429,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         photoVersion.update { it + 1 }
         touch(id)
         toast("Markup saved to photo")
+        requestAutoSync()
         onDone()
     }
 
@@ -389,6 +451,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (photoId != null) repo.updatePhotos(id) { l -> l.map { if (it.id == photoId) it.copy(flag = cat) else it } }
         touch(id)
         toast("Finding added to summary")
+        requestAutoSync()
     }
 
     fun deleteFinding(id: String, findingId: String) {
@@ -416,6 +479,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     status = if (markDone) InspStatus.DONE else it.status, pendingSync = true)
             }
             onDone(out.file)
+            requestAutoSync()
         } catch (e: Exception) {
             toast("Could not generate the report")
         } finally { _generating.value = false }
@@ -435,8 +499,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /* ------------------------------------------------------------------ settings / company / admin */
 
     fun setDefaultDepth(depth: String) = repo.updateSettings { it.copy(defaultDepth = depth) }
-    fun setAutoSync(on: Boolean) = repo.updateSettings { it.copy(autoSync = on) }
-    fun syncNow() = viewModelScope.launch { container.sync.syncNow(); toast("Synced to portal") }
+    fun setAutoSync(on: Boolean) { repo.updateSettings { it.copy(autoSync = on) }; if (on) requestAutoSync(300) }
+    fun syncNow() = viewModelScope.launch {
+        if (!_online.value) {
+            val n = net.value.pending
+            toast(if (n > 0) "You're offline — $n ${if (n == 1) "inspection stays" else "inspections stay"} queued until you're back online" else "You're offline")
+            return@launch
+        }
+        syncLock.withLock { container.sync.syncNow() }; toast("Synced to portal")
+    }
 
     /** Saves the profile form; the logo and agreement (upload / edit) are managed by their own actions and kept as they are. */
     fun saveCompany(p: CompanyProfile) {

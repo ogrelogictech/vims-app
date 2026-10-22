@@ -72,6 +72,12 @@ class MainActivity : ComponentActivity() {
         uiShown = true
     }
 
+    /** Back in the foreground: "Auto-sync when online" syncs queued inspections (once the UI — and the view model — exist). */
+    override fun onResume() {
+        super.onResume()
+        if (uiShown) vm.onAppResume()
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         parseDebug(intent)?.let { debug = it }

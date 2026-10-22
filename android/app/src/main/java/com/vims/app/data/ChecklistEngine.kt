@@ -103,7 +103,8 @@ class ChecklistEngine(val config: ChecklistConfig, val edits: ChecklistEdits) {
         (w.step1 + w.step2).filter { it.kind == "chips" && it.id != "wdepth" }.forEach { f -> f.default?.let { chips[f.label] = it } }
         return WizardSelections(
             chips = chips,
-            inspType = d.inspType,
+            // Data v1.9.1 (team QA Oct 22): no type preselected — Type of inspection is required on step 1.
+            inspType = d.inspType.orEmpty(),
             structure = d.structure,
             depth = defaultDepth,
             counts = mapOf("bedrooms" to d.bedrooms, "bathrooms" to d.bathrooms, "hallways" to d.hallways),
@@ -118,23 +119,22 @@ class ChecklistEngine(val config: ChecklistConfig, val edits: ChecklistEdits) {
 
     companion object {
         /**
-         * Data v1.7.1 turned free-text inspection-day fields (Indoor Air Quality Date / Time, Termite "Date of inspection",
-         * Wind Mitigation "Inspection date") into date / time pickers. Inspections built earlier keep their checklist
-         * snapshot, but an item the snapshot still has as "text" takes the picker type when [current] has the same section
-         * and question as "date" / "time", so every inspection opens the picker (iOS reads the live data). Nothing else in
-         * the snapshot changes; an answer typed before still shows and prints as typed.
+         * Brings an inspection's checklist snapshot up to the current data where only the way an answer is ENTERED changed
+         * (iOS reads the live data), matched by section + question:
+         *  - v1.7.1: free-text inspection-day fields became date / time pickers (IAQ Date / Time, Termite, Wind Mitigation);
+         *  - v1.9.1 (team QA Oct 22): text → `num` (Radon "Measured level (pCi/L)" 1 decimal, Septic "System number" whole
+         *    number) and the `integer` / `decimals` limits of `num` items; Meth Test (High Detail) "Test date and time" + "AM/PM"
+         *    became "Test date" (date) + "Test time" (time) — answers are moved over by [upgradeAnswers].
+         * Nothing else in the snapshot changes; an answer typed earlier still shows and prints as typed.
          */
         fun upgradePickers(defs: Map<String, SectionDef>, current: List<SectionDef>): Map<String, SectionDef> {
             if (defs.isEmpty()) return defs
             val byName = current.associateBy { it.name }
-            fun pickers(l: List<ItemDef>?) = l.orEmpty().filter { it.q != null && (it.type == "date" || it.type == "time") }.associate { it.q!! to it.type!! }
-            fun up(l: List<ItemDef>?, types: Map<String, String>): List<ItemDef>? =
-                l?.map { i -> types[i.q]?.takeIf { i.type == "text" }?.let { t -> i.copy(type = t, placeholder = null) } ?: i }
             var changed = false
             val out = defs.mapValues { (name, d) ->
                 val cur = byName[name] ?: return@mapValues d
-                val types = pickers(cur.items) + pickers(cur.itemsHigh)
-                var u = if (types.isEmpty()) d else d.copy(items = up(d.items, types)!!, itemsHigh = up(d.itemsHigh, types))
+                val now = (cur.items + cur.itemsHigh.orEmpty()).filter { it.q != null }.groupBy { it.q!! }.mapValues { it.value.first() }
+                var u = d.copy(items = upItems(d.items, now), itemsHigh = d.itemsHigh?.let { upItems(it, now) })
                 // Data v1.8 section fields that only affect display / print (never the saved answers): the display title,
                 // the report note, and photo categories added later (Meth Test "Cartridge Result") — so older snapshots get them too.
                 if (u.title == null && cur.title != null) u = u.copy(title = cur.title)
@@ -145,6 +145,89 @@ class ChecklistEngine(val config: ChecklistConfig, val edits: ChecklistEdits) {
                 u
             }
             return if (changed) out else defs
+        }
+
+        /** Data v1.9.1: one free-text item that became two pickers, and the chip that went with it (Meth Test, High Detail). */
+        private val LEGACY_SPLITS = mapOf("Test date and time" to listOf("Test date", "Test time"))
+        private val LEGACY_SPLIT_COMPANION = mapOf("AM/PM" to "Test date and time")
+
+        private fun upItems(list: List<ItemDef>, now: Map<String, ItemDef>): List<ItemDef> {
+            fun splitTargets(i: ItemDef): List<ItemDef>? = i.q?.takeIf { i.type == "text" && it !in now }?.let { LEGACY_SPLITS[it] }
+                ?.takeIf { t -> t.all { it in now } }?.map { now[it]!! }
+            val splitting = list.mapNotNull { i -> i.q?.takeIf { splitTargets(i) != null } }.toSet()
+            return list.flatMap { i ->
+                val q = i.q ?: return@flatMap listOf(i)
+                splitTargets(i)?.let { return@flatMap it }
+                if (q !in now && LEGACY_SPLIT_COMPANION[q] in splitting) return@flatMap emptyList()
+                val c = now[q] ?: return@flatMap listOf(i)
+                listOf(when {
+                    i.type == "text" && (c.type == "date" || c.type == "time") -> i.copy(type = c.type, placeholder = null)
+                    i.type == "text" && c.type == "num" -> i.copy(type = "num", placeholder = c.placeholder, integer = c.integer, decimals = c.decimals)
+                    i.type == "num" && c.type == "num" && (i.integer != c.integer || i.decimals != c.decimals) -> i.copy(integer = c.integer, decimals = c.decimals)
+                    else -> i
+                })
+            }
+        }
+
+        /**
+         * Moves answers to the items [upgradePickers] split (data v1.9.1, Meth Test High Detail): a "Test date and time" text such
+         * as "10/12/2026 9:30" (+ the "AM/PM" chip) becomes "Test date" 2026-10-12 and "Test time" 09:30. Text that can't be read
+         * as a date stays visible in "Test date" exactly as typed (shown and printed as typed until a date is picked). Answers
+         * already given for the new items are never overwritten; the old keys are kept. Runs in memory on every load.
+         */
+        fun upgradeAnswers(defs: Map<String, SectionDef>, answers: Map<String, SectionAnswers>): Map<String, SectionAnswers> {
+            if (answers.isEmpty()) return answers
+            var changed = false
+            val out = answers.mapValues { (section, a) ->
+                val d = defs[baseName(section)] ?: return@mapValues a
+                var r = a
+                listOf(d.items, d.itemsHigh.orEmpty()).forEach { list ->
+                    val k = keyed(list)
+                    LEGACY_SPLITS.forEach { (from, to) ->
+                        // Keys are "header|question", so the old item's key sits under the same header as the new ones.
+                        val toKeys = to.map { q -> k.firstOrNull { it.second.q == q }?.first ?: return@forEach }
+                        val header = toKeys[0].substringBeforeLast('|')
+                        val text = r.inputs["$header|$from"].orEmpty().trim()
+                        if (text.isEmpty() || toKeys.any { !r.inputs[it].isNullOrBlank() }) return@forEach
+                        val ampm = LEGACY_SPLIT_COMPANION.entries.firstOrNull { it.value == from }?.key?.let { r.values["$header|$it"]?.firstOrNull() }
+                        val (date, time) = splitDateTime(text, ampm)
+                        r = r.copy(inputs = r.inputs + (toKeys[0] to (date ?: text)) + (if (time != null) mapOf(toKeys[1] to time) else emptyMap()))
+                        changed = true
+                    }
+                }
+                r
+            }
+            return if (changed) out else answers
+        }
+
+        private val MONTHS = listOf("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec")
+
+        /** Reads a free-text "date and time" ("10/12/2026 9:30", "Oct 12, 2026 2 pm", "2026-10-12 14:30") → (ISO date, "HH:mm"). */
+        fun splitDateTime(text: String, ampm: String? = null): Pair<String?, String?> {
+            val t = text.lowercase(java.util.Locale.US)
+            var date: java.time.LocalDate? = null
+            fun year(y: String) = y.toInt().let { if (y.length <= 2) 2000 + it else it }
+            fun mk(y: Int, m: Int, d: Int) = try { java.time.LocalDate.of(y, m, d) } catch (_: Exception) { null }
+            Regex("(\\d{4})-(\\d{1,2})-(\\d{1,2})").find(t)?.let { m -> date = mk(m.groupValues[1].toInt(), m.groupValues[2].toInt(), m.groupValues[3].toInt()) }
+            if (date == null) Regex("(\\d{1,2})[/.-](\\d{1,2})[/.-](\\d{2,4})").find(t)?.let { m ->
+                date = mk(year(m.groupValues[3]), m.groupValues[1].toInt(), m.groupValues[2].toInt())
+            }
+            if (date == null) Regex("([a-z]{3})[a-z]*\\.?\\s+(\\d{1,2})(st|nd|rd|th)?,?\\s+(\\d{4})").find(t)?.let { m ->
+                val mo = MONTHS.indexOf(m.groupValues[1]) + 1
+                if (mo > 0) date = mk(m.groupValues[4].toInt(), mo, m.groupValues[2].toInt())
+            }
+            // The time: "9:30", "9:30 pm", "2 pm", "14:30" — never the date's own numbers.
+            val rest = Regex("\\d{4}-\\d{1,2}-\\d{1,2}|\\d{1,2}[/.-]\\d{1,2}[/.-]\\d{2,4}|[a-z]{3}[a-z]*\\.?\\s+\\d{1,2}(st|nd|rd|th)?,?\\s+\\d{4}").replace(t, " ")
+            var time: String? = null
+            val tm = Regex("\\b(\\d{1,2}):(\\d{2})\\s*([ap])?\\.?m?\\.?").find(rest) ?: Regex("\\b(\\d{1,2})()\\s*([ap])\\.?m\\b").find(rest)
+            if (tm != null) {
+                var h = tm.groupValues[1].toInt(); val min = tm.groupValues[2].ifEmpty { "0" }.toInt()
+                val mer = tm.groupValues[3].ifEmpty { ampm?.trim()?.lowercase(java.util.Locale.US)?.take(1).orEmpty() }
+                if (mer == "p" && h in 1..11) h += 12
+                if (mer == "a" && h == 12) h = 0
+                if (h in 0..23 && min in 0..59) time = String.format(java.util.Locale.US, "%02d:%02d", h, min)
+            }
+            return date?.toString() to time
         }
 
         /** [mine] plus any category of [current] it lacks, each inserted after its predecessor in [current] ("Concerns" stays last). */

@@ -169,7 +169,7 @@ class LocalSyncService(private val repo: VimsRepository) : SyncService {
     override fun pendingCount(): Int = repo.inspections.value.values.count { it.inspection.pendingSync }
     override suspend fun syncNow(): Boolean {
         // No network in Phase 1: mark everything as synced so the UI reflects a completed sync.
-        repo.inspections.value.keys.forEach { id -> repo.updateInspection(id) { it.copy(pendingSync = false) } }
+        repo.inspections.value.values.filter { it.inspection.pendingSync }.forEach { b -> repo.updateInspection(b.id) { it.copy(pendingSync = false) } }
         repo.updateSettings { it.copy(lastSyncAt = System.currentTimeMillis()) }
         return true
     }

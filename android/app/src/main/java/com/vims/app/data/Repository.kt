@@ -148,12 +148,15 @@ class RoomRepository(
             var insp = try { json.decodeFromString(Inspection.serializer(), e.json) } catch (_: Exception) { return@mapNotNull null }
             // Client Oct 17: covers saved with the old "Solid" category become style Solid + No picture (written back below).
             if (insp.cover.isLegacySolid) { insp = insp.copy(cover = insp.cover.normalized()); migrated += insp }
+            val defs = ChecklistEngine.upgradePickers(dec(defsSer, e.defsJson, emptyMap()), currentSections)
             InspectionBundle(
                 inspection = insp,
-                answers = answers[e.id].orEmpty().associate { it.section to dec(SectionAnswers.serializer(), it.json, SectionAnswers()) },
+                // Data v1.9.1: answers of a split item (Meth "Test date and time") move to its new items, in memory; they are
+                // written with the section's next edit.
+                answers = ChecklistEngine.upgradeAnswers(defs, answers[e.id].orEmpty().associate { it.section to dec(SectionAnswers.serializer(), it.json, SectionAnswers()) }),
                 photos = photos[e.id].orEmpty().mapNotNull { p -> try { json.decodeFromString(Photo.serializer(), p.json) } catch (_: Exception) { null } },
                 findings = findings[e.id].orEmpty().mapNotNull { f -> try { json.decodeFromString(Finding.serializer(), f.json) } catch (_: Exception) { null } },
-                defs = ChecklistEngine.upgradePickers(dec(defsSer, e.defsJson, emptyMap()), currentSections),
+                defs = defs,
             )
         }.associateBy { it.id }
         _company.value = dec(CompanyProfile.serializer(), co.profileJson, CompanyProfile()).copy(agreementText = co.agreementText, agreementEditedAt = co.agreementEditedAt)

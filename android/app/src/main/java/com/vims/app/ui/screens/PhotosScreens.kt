@@ -99,6 +99,7 @@ import com.vims.app.data.ChecklistEngine
 import com.vims.app.data.Photo
 import com.vims.app.data.sectionTitle
 import com.vims.app.ui.AppViewModel
+import com.vims.app.ui.components.keepsKeyboard
 import com.vims.app.ui.CameraR
 import com.vims.app.ui.MarkupR
 import com.vims.app.ui.ReportR
@@ -508,7 +509,7 @@ private fun DarkInput(value: String, onChange: (String) -> Unit, placeholder: St
     val field = com.vims.app.ui.components.rememberFieldText()
     BasicTextField(
         field.shown(value), { onChange(field.change(it) { t -> com.vims.app.util.Filters.base(t, 200) }) }, singleLine = true, textStyle = T.ui(13.sp, color = Color.White), cursorBrush = SolidColor(Color.White),
-        modifier = Modifier.fillMaxWidth().onFocusChanged { field.focus(it.isFocused, value) },
+        modifier = Modifier.fillMaxWidth().keepsKeyboard().onFocusChanged { field.focus(it.isFocused, value) },
         decorationBox = { inner ->
             Box(Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(RoundedCornerShape(9.dp)).background(Color.White.copy(alpha = .1f)).border(1.dp, Color.White.copy(alpha = .18f), RoundedCornerShape(9.dp)).padding(horizontal = 11.dp, vertical = 10.dp), contentAlignment = Alignment.CenterStart) {
                 if (value.isEmpty()) Text(placeholder, style = T.ui(13.sp, color = Color(0xFF9AA8BA)))

@@ -76,6 +76,7 @@ import androidx.navigation.NavHostController
 import com.vims.app.data.StateDoc
 import com.vims.app.data.WizardSelections
 import com.vims.app.ui.AppViewModel
+import com.vims.app.ui.components.keepsKeyboard
 import com.vims.app.ui.AgreementR
 import com.vims.app.ui.StateDocR
 import com.vims.app.ui.components.FieldError
@@ -164,7 +165,7 @@ fun StateField(vm: AppViewModel, nav: NavHostController, sel: WizardSelections, 
                     open = false
                     focus.moveFocus(FocusDirection.Next)
                 }),
-                modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable).fillMaxWidth()
+                modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable).fillMaxWidth().keepsKeyboard()
                     .semantics { contentDataType = ContentDataType.None }
                     .onFocusChanged { f ->
                         if (f.isFocused == focused) return@onFocusChanged

@@ -76,13 +76,34 @@ object Filters {
     }
     /** Digits + one ".", grouping commas and a leading "$" are accepted and dropped (valuation "$450,000" → "450000"). */
     fun money(v: String) = decimal(Num.clean(v))
-    /** Temperature °F: optional leading "-", digits and one "." with one decimal (72.5, -4.5); range checked by [Checks.temperature]. */
+    /**
+     * Temperature °F (team QA Oct 22): optional leading "-", digits and one "." with at most one decimal, at most 5 characters
+     * in all (-12.5, 105.5); range checked by [Checks.temperature].
+     */
     fun temperature(v: String): String {
         val neg = v.trimStart().startsWith("-") || v.trimStart().startsWith("−")
         val d = decimal(v, 6)
         val i = d.indexOf('.')
         val num = if (i >= 0) d.take(3.coerceAtMost(i)) + d.substring(i).take(2) else d.take(3)
-        return (if (neg) "-" else "") + num
+        return ((if (neg) "-" else "") + num).take(5)
+    }
+    /**
+     * Numbers with limits enforced while typing (team QA Oct 22, docs/validation-rules.md): digits and, when [decimals] > 0,
+     * one "." with at most [decimals] places (0 = whole numbers only: no "."). Grouping commas, spaces and a leading "$" in
+     * pasted text are dropped. A value above [max] is not accepted: the last characters are dropped until it fits (typing "25"
+     * into a 0–20 count leaves "2"). Stateless, so fast typing / pastes give the same result.
+     */
+    fun number(v: String, decimals: Int, max: Double): String {
+        val d = decimal(Num.clean(v), 16)
+        val i = d.indexOf('.')
+        val out = when {
+            i < 0 -> d
+            decimals <= 0 -> d.filter { it.isDigit() }
+            else -> d.take(i + 1 + decimals)
+        }
+        var r = out
+        while (r.isNotEmpty() && (r.toDoubleOrNull() ?: 0.0) > max) r = r.dropLast(1)
+        return r
     }
     fun url(v: String) = v.filterNot { it.isWhitespace() }.take(300)
     /** Digits + ".", at most 2 decimals. */
@@ -108,7 +129,7 @@ object Num {
     fun clean(v: String): String = v.trim().removePrefix("$").replace(",", "").replace(" ", "")
     fun parse(v: String): Double? = clean(v).takeIf { it.isNotEmpty() }?.toDoubleOrNull()
     /** "100000000" → "100,000,000"; "0.01" stays. */
-    fun fmt(n: Double): String = if (n == Math.floor(n)) String.format(Locale.US, "%,d", n.toLong()) else String.format(Locale.US, "%,.2f", n)
+    fun fmt(n: Double): String = if (n == Math.floor(n)) String.format(Locale.US, "%,d", n.toLong()) else String.format(Locale.US, "%,.2f", n).trimEnd('0').trimEnd('.')
 }
 
 /** Number limits (docs/validation-rules.md "Number limits"): every numeric field and − / + stepper. */
@@ -121,8 +142,24 @@ object Limits {
     const val LOT_MAX = 10_000.0
     const val CHECKLIST_NUM = 99_999.0
     private val roomCount = Regex("^number of (kitchens?|bath(room)?s?|half[- ]baths?|bedrooms?|stories|hallways?|rooms?|living|family|dining|garages?)", RegexOption.IGNORE_CASE)
-    /** Max for a checklist `num` item: room counts ("Number of kitchens / bathrooms …") 20, everything else 99,999. */
-    fun checklistMax(question: String): Double = if (roomCount.containsMatchIn(question.trim())) COUNT_MAX.toDouble() else CHECKLIST_NUM
+    /** Septic "System number" (team QA Oct 22): 1 – 99. */
+    const val SYSTEM_NUMBER_MAX = 99.0
+    /** Radon "Measured level (pCi/L)" (team QA Oct 22): 0 – 999.9. */
+    const val RADON_MAX = 999.9
+    /**
+     * Max for a checklist `num` item: Septic "System number" 99, Radon "Measured level (pCi/L)" 999.9, room counts
+     * ("Number of kitchens / bathrooms …") 20, everything else 99,999.
+     */
+    fun checklistMax(question: String): Double = question.trim().let { q ->
+        when {
+            q.equals("System number", ignoreCase = true) -> SYSTEM_NUMBER_MAX
+            q.startsWith("Measured level (pCi/L)", ignoreCase = true) -> RADON_MAX
+            roomCount.containsMatchIn(q) -> COUNT_MAX.toDouble()
+            else -> CHECKLIST_NUM
+        }
+    }
+    /** Min for a checklist `num` item: Septic "System number" starts at 1, everything else allows 0. */
+    fun checklistMin(question: String): Double = if (question.trim().equals("System number", ignoreCase = true)) 1.0 else 0.0
 }
 
 enum class CardBrand(val label: String) {
@@ -169,11 +206,18 @@ object Checks {
         val n = Num.parse(v) ?: return "Enter $label"
         return if (n <= 0.0) "Enter $label greater than 0" else if (max != null && n > max) "Enter a number up to ${Num.fmt(max)}" else null
     }
-    /** Optional number ≥ 0 and at most [max] (checklist `num` items, Indoor Air Quality level — 0 is a valid reading). */
-    fun upTo(v: String, max: Double): String? {
+    /** Optional number ≥ [min] (0 by default) and at most [max] (checklist `num` items, Indoor Air Quality level — 0 is a valid reading). */
+    fun upTo(v: String, max: Double, min: Double = 0.0, integer: Boolean = false, decimals: Int? = null): String? {
         if (v.isBlank()) return null
-        val n = Num.parse(v) ?: return "Enter a number"
-        return if (n < 0.0) "Enter a number of 0 or more" else if (n > max) "Enter a number up to ${Num.fmt(max)}" else null
+        val n = Num.parse(v) ?: return if (integer) "Enter a whole number" else "Enter a number"
+        val places = Num.clean(v).substringAfter('.', "").length
+        return when {
+            integer && n != Math.floor(n) -> "Enter a whole number"
+            !integer && decimals != null && places > decimals -> "Use at most $decimals decimal place${if (decimals == 1) "" else "s"}"
+            n < min -> if (min == 0.0) "Enter a number of 0 or more" else "Enter a number from ${Num.fmt(min)} to ${Num.fmt(max)}"
+            n > max -> if (min > 0.0) "Enter a number from ${Num.fmt(min)} to ${Num.fmt(max)}" else "Enter a number up to ${Num.fmt(max)}"
+            else -> null
+        }
     }
     /** Indoor Air Quality "Level measured": optional, 0 – 99,999 (0 ppm CO is a valid reading). */
     fun level(v: String): String? = upTo(v, Limits.CHECKLIST_NUM)

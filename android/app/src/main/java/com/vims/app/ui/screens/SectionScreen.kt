@@ -64,7 +64,6 @@ import com.vims.app.ui.theme.VIcons
 import com.vims.app.util.Checks
 import com.vims.app.util.Filters
 import com.vims.app.util.Limits
-import com.vims.app.util.Num
 import com.vims.app.util.Fmt
 
 /** Returns to the Sections overview if it is on the back stack, otherwise opens it. */
@@ -84,9 +83,31 @@ fun ModeTile(depth: String, form: String? = null, formLabel: String? = null) {
         depth == "fast" -> "Overall condition and notes — no line-by-line. Change depth in Settings."
         else -> "Tap what applies, scroll to the next line — saves in one go."
     }
-    Row(Modifier.padding(bottom = 14.dp).fillMaxWidth().vCard(12.dp).padding(horizontal = 13.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text(label, style = T.ui(12.sp, FontWeight.Bold, Color.White), modifier = Modifier.clip(RoundedCornerShape(20.dp)).background(bg).padding(horizontal = 11.dp, vertical = 5.dp))
-        Text(hint, style = T.ui(11.5.sp, color = V.ink3, lineHeight = 15.sp), modifier = Modifier.weight(1f))
+    // Team QA Oct 22: a long form badge ("Uniform Mitigation Verification Inspection Form") squeezed the hint into a one-word
+    // column. The hint now sits beside the badge only while the badge takes at most half the row; otherwise it goes below it.
+    BadgeAndHint(
+        Modifier.padding(bottom = 14.dp).fillMaxWidth().vCard(12.dp).padding(horizontal = 13.dp, vertical = 11.dp),
+        badge = { Text(label, style = T.ui(12.sp, FontWeight.Bold, Color.White, lineHeight = 15.sp), modifier = Modifier.clip(RoundedCornerShape(20.dp)).background(bg).padding(horizontal = 11.dp, vertical = 5.dp)) },
+        hint = { Text(hint, style = T.ui(11.5.sp, color = V.ink3, lineHeight = 15.sp)) },
+    )
+}
+
+/** Badge + hint in one row while the badge fits in half the width (both centered vertically), else stacked (hint full width). */
+@Composable
+private fun BadgeAndHint(modifier: Modifier, badge: @Composable () -> Unit, hint: @Composable () -> Unit) {
+    androidx.compose.ui.layout.Layout(contents = listOf(badge, hint), modifier = modifier) { (b, h), c ->
+        val gap = 10.dp.roundToPx()
+        val bp = b.first().measure(c.copy(minWidth = 0, minHeight = 0))
+        val side = bp.width <= c.maxWidth / 2
+        val hp = h.first().measure(c.copy(minWidth = 0, minHeight = 0, maxWidth = if (side) (c.maxWidth - bp.width - gap).coerceAtLeast(0) else c.maxWidth))
+        val w = c.maxWidth
+        if (side) {
+            val ht = maxOf(bp.height, hp.height)
+            layout(w, ht) { bp.place(0, (ht - bp.height) / 2); hp.place(bp.width + gap, (ht - hp.height) / 2) }
+        } else {
+            val gapV = 8.dp.roundToPx()
+            layout(w, bp.height + gapV + hp.height) { bp.place(0, 0); hp.place(0, bp.height + gapV) }
+        }
     }
 }
 
@@ -215,12 +236,16 @@ private fun ItemCard(key: String, it: ItemDef, a: SectionAnswers, detail: Boolea
             "date" -> PickerField(if (input.isBlank()) "" else Fmt.date(input), "Select date", VIcons.calendar, { pickDate(ctx, input, onPick = setInput) })
             "time" -> PickerField(if (input.isBlank()) "" else Fmt.time(input), "Select time", VIcons.clock, { pickTime(ctx, input, setInput) })
             else -> {
-                // `num` items: digits + one "." only (filtered as typed / pasted), decimal keypad, inline error as soon as the value is
-                // above the max (room counts like "Number of kitchens" 20, everything else 99,999). Text items stay free text.
+                // `num` items (team QA Oct 22): limits enforced while typing — `integer: true` = number pad, whole numbers only;
+                // otherwise decimal keypad with at most 2 decimals (`decimals: n` overrides, Radon level 1). A value above the max
+                // (room counts like "Number of kitchens" 20, Septic "System number" 99, everything else 99,999) isn't accepted;
+                // an older answer that breaks a rule shows the error inline. Text items stay free text.
                 val num = it.type == "num"
-                val numErr = if (num) Checks.upTo(input, Limits.checklistMax(q)) else null
-                VInput(input, setInput, placeholder = it.placeholder ?: "Enter a value", keyboard = if (num) KeyboardType.Decimal else KeyboardType.Text,
-                    filter = if (num) { v -> Filters.decimal(Num.clean(v)) } else { v -> Filters.base(v, 500) }, error = numErr)
+                val max = Limits.checklistMax(q)
+                val numErr = if (num) Checks.upTo(input, max, Limits.checklistMin(q), integer = it.integer == true, decimals = it.numDecimals) else null
+                VInput(input, setInput, placeholder = it.placeholder ?: "Enter a value",
+                    keyboard = if (!num) KeyboardType.Text else if (it.numDecimals == 0) KeyboardType.Number else KeyboardType.Decimal,
+                    filter = if (num) { v -> Filters.number(v, it.numDecimals, max) } else { v -> Filters.base(v, 500) }, error = numErr)
             }
         }
         if (detail && it.isChoice) {
@@ -241,7 +266,7 @@ private fun AirReadingCard(key: String, it: ItemDef, a: SectionAnswers, actionPr
     LiCard(it.q.orEmpty()) {
         VInput(level, { v -> edit { s -> s.copy(inputs = s.inputs + (key to v)) } },
             placeholder = if (unit.isBlank()) "Level measured" else "Level ($unit)", keyboard = KeyboardType.Decimal,
-            filter = { v -> Filters.decimal(Num.clean(v)) }, error = Checks.level(level), imeAction = ImeAction.Done)
+            filter = { v -> Filters.number(v, it.numDecimals, Limits.CHECKLIST_NUM) }, error = Checks.level(level), imeAction = ImeAction.Done)
         SingleChips(it.options.orEmpty().ifEmpty { (1..6).map { n -> "$n" } }, a.airRating(key), { v ->
             edit { s -> s.copy(values = s.values + (key to listOfNotNull(v))) }
         }, modifier = Modifier.padding(top = 10.dp))

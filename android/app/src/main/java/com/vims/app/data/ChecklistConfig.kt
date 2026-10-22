@@ -194,8 +194,16 @@ data class ItemDef(
     /** Data v1.9 form-report hints: the form question an item answers (q1 … q7, II, license) / the table it fills (q7 chart). */
     val formKey: String? = null,
     val formTable: String? = null,
+    /**
+     * Data v1.9.1 `num` limits (team QA Oct 22): `integer: true` = whole numbers only (number pad, no "."); `decimals: n` =
+     * at most n decimal places (default 2). Null when not set, so older snapshots stay as they were stored.
+     */
+    val integer: Boolean? = null,
+    val decimals: Int? = null,
 ) {
     val isHeader: Boolean get() = header != null
+    /** Decimal places a `num` item accepts while typing: 0 for `integer`, else `decimals` (default 2). */
+    val numDecimals: Int get() = if (integer == true) 0 else (decimals ?: 2).coerceIn(0, 6)
     val isChoice: Boolean get() = type == "single" || type == "multi"
     val isAirReading: Boolean get() = type == TYPE_AIR_READING
 
@@ -272,6 +280,8 @@ data class WizardFieldDef(
     val single: Boolean = true,
     val options: List<String>? = null,
     val default: String? = null,
+    /** Data v1.9.1: the field must be answered on Next (Type of inspection). */
+    val required: Boolean = false,
 )
 
 @Serializable
@@ -279,8 +289,9 @@ data class RoomCountDef(val key: String, val label: String)
 
 @Serializable
 data class WizardDefaults(
-    val inspType: String = "Real Estate Sale",
-    val loan: String = "Conventional",
+    /** Data v1.9.1 (team QA Oct 22): null = nothing preselected — Type of inspection is required on step 1. */
+    val inspType: String? = null,
+    val loan: String? = null,
     val structure: String = "Single Family",
     val depth: String = "standard",
     val bedrooms: Int = 0,

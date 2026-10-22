@@ -369,7 +369,7 @@ fun AgreementEditScreen(vm: AppViewModel, nav: NavHostController) {
         val b = draft.firstOrNull { it.id == id }?.block
         if (b == null) deleteId = null else ConfirmDialog(
             "Delete this ${blockKind(b).lowercase()}?",
-            "It's removed from your company's agreement when you save. **Use VIMS agreement** brings back the original wording.",
+            "It will be removed from your company's agreement when you tap Save.",
             "Delete", onConfirm = { draft.removeAll { it.id == id }; deleteId = null }, onDismiss = { deleteId = null }, danger = true,
         )
     }

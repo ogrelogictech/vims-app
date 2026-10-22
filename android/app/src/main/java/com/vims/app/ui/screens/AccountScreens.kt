@@ -112,7 +112,7 @@ fun InspectorsScreen(vm: AppViewModel, nav: NavHostController) {
         val who = account.inspectors.firstOrNull { it.id == id }
         if (who == null) removeId = null else com.vims.app.ui.components.ConfirmDialog(
             "Remove ${who.name}?",
-            "**${who.name}**${if (who.email.isNotBlank()) " (${who.email})" else ""} loses access to your company's VIMS account. Their seat is freed on your license.",
+            "They will no longer be able to sign in to your company's VIMS account, and their seat is freed.",
             "Remove", { vm.removeInspector(id); removeId = null }, { removeId = null }, danger = true,
         )
     }
@@ -199,6 +199,16 @@ fun SubscribeScreen(vm: AppViewModel, nav: NavHostController) {
         Lbl("Choose your plan")
         account.plans.forEach { p ->
             val on = p.id == account.planId
+            val price: @Composable () -> Unit = {
+                Text(buildAnnotatedString {
+                    append(Fmt.money(p.price))
+                    withStyle(SpanStyle(color = V.ink3, fontWeight = FontWeight.Normal, fontSize = 11.sp)) { append(p.unit ?: "/mo") }
+                }, style = T.mono(15.sp, FontWeight.SemiBold))
+            }
+            // Team QA Oct 22: on small phones / large text the price moves under the plan name instead of squeezing the name and
+            // description into a narrow column.
+            androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val narrow = maxWidth < 380.dp * androidx.compose.ui.platform.LocalDensity.current.fontScale.coerceAtLeast(1f)
             Row(
                 Modifier.padding(bottom = 10.dp).fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(V.paper).border(if (on) 2.dp else 1.5.dp, if (on) V.brand else V.line, RoundedCornerShape(14.dp))
                     .clickable(role = Role.RadioButton) { vm.selectPlan(p.id) }.padding(horizontal = 16.dp, vertical = 15.dp),
@@ -209,14 +219,13 @@ fun SubscribeScreen(vm: AppViewModel, nav: NavHostController) {
                 }
                 Column(Modifier.weight(1f)) {
                     Text(p.name, style = T.ui(15.sp, FontWeight.Bold))
+                    if (narrow) price()
                     Text(p.desc, style = T.ui(12.5.sp, color = V.ink3, lineHeight = 17.sp), softWrap = true)
                     if (p.id == "portal") Text("Available when the web portal launches (Phase 2)", style = T.mono(9.sp, color = V.ink3),
                         modifier = Modifier.padding(top = 4.dp).clip(RoundedCornerShape(6.dp)).background(V.paper3).padding(horizontal = 6.dp, vertical = 2.dp))
                 }
-                Text(buildAnnotatedString {
-                    append(Fmt.money(p.price))
-                    withStyle(SpanStyle(color = V.ink3, fontWeight = FontWeight.Normal, fontSize = 11.sp)) { append(p.unit ?: "/mo") }
-                }, style = T.mono(15.sp, FontWeight.SemiBold))
+                if (!narrow) price()
+            }
             }
         }
         Lbl("Inspector seats")

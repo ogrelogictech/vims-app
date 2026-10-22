@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -46,23 +48,26 @@ import com.vims.app.ui.theme.VIcons
 
 private fun addressOf(b: InspectionBundle): String = b.inspection.selections.let { s -> s.fullAddress.ifBlank { s.street }.ifBlank { "this inspection" } }
 
-/** "Delete this inspection?" — Save report first (when a report exists; shares it, does not delete) · Delete inspection · Cancel. */
+/**
+ * "Delete this inspection?" (team QA Oct 22: short, explicit buttons) — Save report first (only when a report exists; shares
+ * it, does not delete) · Delete (red) · Cancel, stacked full width so no label is cut off at any width or font size.
+ */
 @Composable
 fun DeleteInspectionDialog(vm: AppViewModel, b: InspectionBundle, onDismiss: () -> Unit, onDelete: () -> Unit) {
     val ctx = LocalContext.current
     val report = remember(b.inspection.reportFile, b.inspection.reportGeneratedAt) { vm.reportFile(b.id) }
     androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
-        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(V.paper).padding(20.dp)) {
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(V.paper).verticalScroll(rememberScrollState()).padding(20.dp)) {
             Text("Delete this inspection?", style = T.display(18.sp, FontWeight.Bold, V.ink), modifier = Modifier.padding(bottom = 8.dp))
             Text(
-                rich("This permanently removes **${addressOf(b)}**, its checklist, photos and report from this device. " +
-                    "Some states require inspection reports to be kept for 3–5 years — save or email the report first.", V.ink),
+                rich("This removes the checklist, photos and report for **${addressOf(b)}** from this device. " +
+                    "Some states require keeping reports for 3–5 years.", V.ink),
                 style = T.ui(13.5.sp, color = V.ink2, lineHeight = 20.sp), modifier = Modifier.padding(bottom = 16.dp),
             )
             if (report != null) {
                 VBtn("Save report first", { saveOrShareReport(ctx, vm, b, report) }, Modifier.padding(bottom = 10.dp), BtnKind.Ghost, VIcons.share)
             }
-            VBtn("Delete inspection", onDelete, kind = BtnKind.Danger, icon = VIcons.trash)
+            VBtn("Delete", onDelete, kind = BtnKind.Danger, icon = VIcons.trash)
             VBtn("Cancel", onDismiss, Modifier.padding(top = 10.dp), BtnKind.Ghost)
         }
     }

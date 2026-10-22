@@ -126,7 +126,9 @@ fun VimsRoot(vm: AppViewModel, debug: DebugLaunch?) {
     val start: Any = remember { if (vm.session.value != null) HomeR else LoginR }
     val session by vm.session.collectAsState()
 
-    Box(Modifier.fillMaxSize().background(V.paper2)) {
+    // Team QA Oct 22: a tap anywhere outside the active text field closes the keyboard, on every screen.
+    com.vims.app.ui.components.TapOutsideClosesKeyboard { tapOutside ->
+    Box(Modifier.fillMaxSize().background(V.paper2).then(tapOutside)) {
         NavHost(nav, startDestination = start) {
             composable<LoginR> { LoginScreen(vm, nav) }
             composable<SignupR> { SignupScreen(vm, nav) }
@@ -170,6 +172,7 @@ fun VimsRoot(vm: AppViewModel, debug: DebugLaunch?) {
             com.vims.app.ui.screens.EulaReacceptGate(vm) { ask = true }
         }
         ToastHost(vm)
+    }
     }
 
     LaunchedEffect(debug) { if (debug != null) applyDebug(vm, nav, debug) }

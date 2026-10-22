@@ -138,6 +138,9 @@ fun WizardScreen(vm: AppViewModel, nav: NavHostController, inspId: String?) {
 
 private fun List<String>.toggle(o: String) = if (o in this) this - o else this + o
 
+/** Form key of the required Type of inspection chips (step 1). */
+private const val TYPE_KEY = "Type of inspection"
+
 @Composable
 private fun StepsBar(step: Int) {
     Row(Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -151,6 +154,8 @@ private fun keyboardFor(f: WizardFieldDef, step2: Boolean): KeyboardType = when 
     f.type == "tel" -> KeyboardType.Phone
     f.type == "email" -> KeyboardType.Email
     f.label.startsWith("Lot size") -> KeyboardType.Decimal
+    // Valuation takes cents (team QA Oct 22: at most 2 decimals); Total sq ft stays whole numbers (number pad).
+    f.label.startsWith("Valuation") -> KeyboardType.Decimal
     f.label.startsWith("Temperature") -> KeyboardType.Decimal
     step2 -> KeyboardType.Number
     else -> KeyboardType.Text
@@ -170,10 +175,8 @@ private fun WizardFields(vm: AppViewModel, nav: NavHostController, defs: List<Wi
                 val pair = nextDef?.takeIf { n -> (f.type == "date" && n.type == "time") || (step2 && f.type == "text" && n.kind == "field" && n.type == "text") }
                 if (step2 && !shownDetailsLbl) { Lbl("Property details"); shownDetailsLbl = true }
                 if (pair != null) {
-                    Row(Modifier.padding(bottom = 11.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        FieldCell(vm, f, sel, Modifier.weight(1f), step2, form)
-                        FieldCell(vm, pair, sel, Modifier.weight(1f), step2, form)
-                    }
+                    com.vims.app.ui.components.FieldPair(Modifier.padding(bottom = 11.dp),
+                        first = { m -> FieldCell(vm, f, sel, m, step2, form) }, second = { m -> FieldCell(vm, pair, sel, m, step2, form) })
                     i += 2; continue
                 }
                 if (f.label.startsWith("Temperature") && nextDef?.kind == "chips") {
@@ -210,8 +213,10 @@ private fun WizardFields(vm: AppViewModel, nav: NavHostController, defs: List<Wi
                 val selected = sel.chip(f.label)
                 when {
                     f.options == listOf("Yes", "No", "Unknown") -> {
-                        Row(Modifier.padding(bottom = 9.dp).fillMaxWidth().vCard(12.dp).padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text(f.label, style = T.ui(14.5.sp, FontWeight.Bold), modifier = Modifier.weight(1f))
+                        // Small phones / large text: the label goes above the chips instead of wrapping word by word.
+                        com.vims.app.ui.components.InlineOrStacked(Modifier.padding(bottom = 9.dp).fillMaxWidth().vCard(12.dp).padding(horizontal = 14.dp, vertical = 10.dp),
+                            label = { Text(f.label, style = T.ui(14.5.sp, FontWeight.Bold)) },
+                        ) {
                             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 f.options.forEach { o -> VChip(o, o == selected, { vm.updateSel { it.copy(chips = it.chips + (f.label to if (o == selected) "" else o)) } }) }
                             }
@@ -235,10 +240,13 @@ private fun WizardFields(vm: AppViewModel, nav: NavHostController, defs: List<Wi
                 i++
             }
             "dynamic" -> {
-                Lbl(f.label, first = step2 && i == 0)
+                // Data v1.9.1 (team QA Oct 22): nothing is preselected and Type of inspection is required ("required": true).
+                val typeErr = if (f.id == "wtype") form.check(TYPE_KEY, sel.inspType) { if (sel.inspType.isBlank()) "Select the type of inspection" else null } else null
+                Lbl(f.label, first = step2 && i == 0, required = f.required, modifier = if (f.id == "wtype") Modifier.formField(form, TYPE_KEY) else Modifier)
                 when (f.id) {
                     "wtype" -> {
-                        SingleChips(cfg.inspectionTypes, sel.inspType, { v -> if (v != null) vm.updateSel { it.copy(inspType = v) } }, required = true)
+                        SingleChips(cfg.inspectionTypes, sel.inspType.ifBlank { null }, { v -> if (v != null) vm.updateSel { it.copy(inspType = v) } }, required = true)
+                        com.vims.app.ui.components.FieldError(typeErr)
                         if (sel.inspType == "Component") {
                             Lbl("Component(s) to inspect")
                             MultiChips(cfg.componentOptions, sel.component, { o -> vm.updateSel { it.copy(component = it.component.toggle(o)) } })
@@ -331,9 +339,10 @@ private fun wizardFilter(key: String): ((String) -> String)? = when (key) {
     WizardSelections.F_LICENSE, "sponsorLicense" -> Filters::license
     "policyNumber" -> Filters::policy
     "Year of construction" -> Filters::year
-    "Valuation ($)" -> Filters::money
-    "Total sq ft" -> Filters::money
-    "Lot size (acres)" -> { v -> Filters.decimal(v) }
+    // Team QA Oct 22: Total sq ft whole numbers only; Valuation and Lot size at most 2 decimals; nothing past the max.
+    "Valuation ($)" -> { v -> Filters.number(v, 2, Limits.VALUATION_MAX) }
+    "Total sq ft" -> { v -> Filters.number(v, 0, Limits.SQFT_MAX) }
+    "Lot size (acres)" -> { v -> Filters.number(v, 2, Limits.LOT_MAX) }
     "Temperature (°F)" -> Filters::temperature
     else -> null
 }
@@ -353,6 +362,7 @@ private fun wizardCheck(label: String, v: String): String? = when (label) {
     "Year of construction" -> Checks.year(v)
     // Number limits (docs/validation-rules.md): > 0 and at most the max; "450,000" / "$450,000" read as 450000.
     "Total sq ft" -> Checks.positive(v, "a square footage", Limits.SQFT_MAX)
+        ?: if (com.vims.app.util.Num.parse(v)?.let { it != Math.floor(it) } == true) "Enter a whole number of square feet" else null
     "Valuation ($)" -> Checks.positive(v, "a valuation", Limits.VALUATION_MAX)
     "Lot size (acres)" -> Checks.positive(v, "a lot size", Limits.LOT_MAX)
     else -> null

@@ -138,7 +138,12 @@ fun SettingsScreen(vm: AppViewModel, nav: NavHostController) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("Auto-sync when online", style = T.ui(14.sp, FontWeight.Bold))
-                    Text(if (netState.pending == 0) "Everything is saved on this device" else "${netState.pending} inspection${if (netState.pending == 1) "" else "s"} waiting", style = T.ui(12.sp, color = V.ink3))
+                    // Team QA Oct 22: with auto-sync on, the count drops to 0 by itself once the device is online.
+                    Text(when {
+                        netState.pending == 0 -> if (netState.online) "Everything is synced" else "Everything is saved on this device"
+                        else -> "${netState.pending} inspection${if (netState.pending == 1) "" else "s"} waiting" +
+                            if (!netState.online) " · syncs when you're back online" else if (!settings.autoSync) " · tap Sync now" else ""
+                    }, style = T.ui(12.sp, color = V.ink3))
                 }
                 Toggle(settings.autoSync) { vm.setAutoSync(it) }
             }
@@ -249,11 +254,11 @@ fun CompanyScreen(vm: AppViewModel, nav: NavHostController) {
         VField("Address", p.address, { v -> set { it.copy(address = v) } }, placeholder = "Street, City, State ZIP", caps = KeyboardCapitalization.Words, filter = Filters::address)
         Lbl("Lead inspector")
         VField("Inspector name", p.inspectorName, { v -> set { it.copy(inspectorName = v) } }, caps = KeyboardCapitalization.Words, filter = Filters::personName)
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            VField("License #", p.license, { v -> set { it.copy(license = v) } }, Modifier.weight(1f), placeholder = "e.g. UT-12345", caps = KeyboardCapitalization.Characters, bottom = 0.dp, filter = Filters::license)
-            VField("Phone", p.phone, { v -> set { it.copy(phone = v) } }, Modifier.weight(1f).formField(form, "phone"), placeholder = "(801) 555-0134", keyboard = KeyboardType.Phone, bottom = 0.dp,
-                filter = Filters::phone, visual = PhoneTransform, error = phoneErr)
-        }
+        com.vims.app.ui.components.FieldPair(
+            first = { m -> VField("License #", p.license, { v -> set { it.copy(license = v) } }, m, placeholder = "e.g. UT-12345", caps = KeyboardCapitalization.Characters, bottom = 0.dp, filter = Filters::license) },
+            second = { m -> VField("Phone", p.phone, { v -> set { it.copy(phone = v) } }, m.formField(form, "phone"), placeholder = "(801) 555-0134", keyboard = KeyboardType.Phone, bottom = 0.dp,
+                filter = Filters::phone, visual = PhoneTransform, error = phoneErr) },
+        )
         VField("Email", p.email, { v -> set { it.copy(email = v) } }, Modifier.padding(top = 11.dp).formField(form, "email"), placeholder = "you@company.com", keyboard = KeyboardType.Email, error = emailErr)
         Lbl("Online review link")
         Text("Add the URL where clients can leave a review of the inspection. It's included with the report so clients can rate you.", style = T.ui(12.sp, color = V.ink3, lineHeight = 16.sp), modifier = Modifier.padding(start = 2.dp, bottom = 9.dp))
@@ -442,9 +447,9 @@ fun DeleteAccountDialog(vm: AppViewModel, nav: NavHostController, onDismiss: () 
     val owner = vm.session.collectAsState().value?.role == com.vims.app.data.Role.OWNER
     com.vims.app.ui.components.ConfirmDialog(
         "Delete your account?",
-        "This permanently deletes **your account and your inspections, photos, and reports on this device**." +
-            (if (owner) " You own this company: if nobody else is on it, the company, its profile and logo are deleted too and the subscription is cancelled." else "") +
-            " A deletion request is also sent to VIMS (completed within 10 working days, per the EULA). Type **DELETE** to confirm.",
+        "This deletes your account and your inspections, photos and reports on this device." +
+            (if (owner) " As the owner, your company and its subscription are deleted too when nobody else is on it." else "") +
+            " VIMS completes the deletion within 10 working days. Type **DELETE** to confirm.",
         "Delete", danger = true, confirmEnabled = typed == "DELETE",
         onConfirm = { vm.deleteAccount(onError = { error = it }) { onDismiss(); nav.navigate(com.vims.app.ui.LoginR) { popUpTo(0) { inclusive = true } } } },
         onDismiss = onDismiss,

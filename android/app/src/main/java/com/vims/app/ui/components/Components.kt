@@ -97,17 +97,17 @@ import com.vims.app.util.Filters
 data class HdrAction(val icon: ImageVector, val label: String, val onClick: () -> Unit)
 
 /** Sync status shown in the blue top strip (the prototype's "Offline · 1 queued" badge). */
-data class NetState(val pending: Int, val synced: Boolean)
+data class NetState(val pending: Int, val synced: Boolean, val online: Boolean = true)
 
 @Composable
 fun NetBadge(net: NetState) {
-    // Sync badge: queued = amber, Synced = green, Offline (nothing waiting) = gray.
+    // Sync badge: queued = amber ("N queued" online, "Offline · N queued" offline), Synced = green, Offline (nothing waiting) = gray.
     val (bg, fg) = when {
         net.pending > 0 -> Color(0x38E4A11B) to Color(0xFFF2C869)
-        net.synced -> Color(0x422F9E6B) to Color(0xFF7CE0AF)
+        net.online -> Color(0x422F9E6B) to Color(0xFF7CE0AF)
         else -> Color(0x33FFFFFF) to Color(0xFFD7E3F7)
     }
-    val text = if (net.pending > 0) "Offline · ${net.pending} queued" else if (net.synced) "Synced" else "Offline"
+    val text = if (net.pending > 0) (if (net.online) "${net.pending} queued" else "Offline · ${net.pending} queued") else if (net.online) "Synced" else "Offline"
     Row(
         Modifier.clip(RoundedCornerShape(20.dp)).background(bg).padding(horizontal = 9.dp, vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp),
@@ -135,18 +135,46 @@ fun HdrButton(icon: ImageVector, label: String, onClick: () -> Unit) {
 fun AppHeader(title: String, subtitle: String, net: NetState, left: HdrAction?, actions: List<HdrAction> = emptyList(), subtitleLeading: (@Composable () -> Unit)? = null) {
     Column(Modifier.fillMaxWidth().background(V.hdr).statusBarsPadding()) {
         TopStrip(net)
-        Row(Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 2.dp, bottom = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            if (left != null) HdrButton(left.icon, left.label, left.onClick)
-            Column(Modifier.weight(1f)) {
-                // Long section titles ("Wood Destroying Organism Inspection") wrap to a second, slightly smaller line instead of "…".
-                val long = title.length > 24
-                Text(title, style = T.display(if (long) 15.sp else 17.sp, FontWeight.Bold, Color.White, lineHeight = if (long) 18.sp else androidx.compose.ui.unit.TextUnit.Unspecified), maxLines = if (long) 2 else 1, overflow = TextOverflow.Ellipsis)
+        androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
+            // The title gets what the buttons leave. Long section titles ("Wood Destroying Organism Inspection") wrap to a
+            // second, slightly smaller line; when even two lines don't fit (small phones, large font sizes — team QA Oct 22)
+            // the title moves under the buttons and uses the full width instead of ending in "…".
+            val measurer = androidx.compose.ui.text.rememberTextMeasurer()
+            val density = LocalDensity.current
+            val big = T.display(17.sp, FontWeight.Bold, Color.White)
+            val small = T.display(15.sp, FontWeight.Bold, Color.White, lineHeight = 18.sp)
+            val colW = maxWidth - 24.dp - (if (left != null) 54.dp else 0.dp) - (if (actions.isNotEmpty()) (actions.size * 51 + 3).dp else 0.dp)
+            val mode = remember(title, colW, density.fontScale) {
+                val px = with(density) { colW.roundToPx() }.coerceAtLeast(1)
+                fun fits(style: TextStyle, lines: Int) = !measurer.measure(title, style, maxLines = lines, constraints = androidx.compose.ui.unit.Constraints(maxWidth = px)).hasVisualOverflow
+                when {
+                    title.length <= 24 && fits(big, 1) -> 0
+                    fits(small, 2) -> 1
+                    else -> 2
+                }
+            }
+            @Composable
+            fun Titles(modifier: Modifier, style: TextStyle, lines: Int) = Column(modifier) {
+                Text(title, style = style, maxLines = lines, overflow = TextOverflow.Ellipsis)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (subtitleLeading != null) { subtitleLeading(); Spacer(Modifier.width(6.dp)) }
                     Text(subtitle, style = T.ui(12.sp, color = V.hdrSub), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) { actions.forEach { HdrButton(it.icon, it.label, it.onClick) } }
+            if (mode < 2) {
+                Row(Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 2.dp, bottom = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    if (left != null) HdrButton(left.icon, left.label, left.onClick)
+                    Titles(Modifier.weight(1f), if (mode == 0) big else small, if (mode == 0) 1 else 2)
+                    Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) { actions.forEach { HdrButton(it.icon, it.label, it.onClick) } }
+                }
+            } else Column(Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 2.dp, bottom = 12.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    if (left != null) HdrButton(left.icon, left.label, left.onClick)
+                    Spacer(Modifier.weight(1f))
+                    actions.forEach { HdrButton(it.icon, it.label, it.onClick) }
+                }
+                Titles(Modifier.fillMaxWidth().padding(start = 2.dp, top = 8.dp), big.copy(lineHeight = 21.sp), 3)
+            }
         }
     }
 }
@@ -196,10 +224,13 @@ fun rich(text: String, boldColor: Color? = null): AnnotatedString = buildAnnotat
 }
 
 @Composable
-fun Lbl(text: String, first: Boolean = false, modifier: Modifier = Modifier) {
+fun Lbl(text: String, first: Boolean = false, modifier: Modifier = Modifier, required: Boolean = false) {
+    val t = if (!required) AnnotatedString(text.uppercase()) else buildAnnotatedString {
+        append(text.uppercase()); withStyle(SpanStyle(color = V.c1)) { append(" *") }
+    }
     Text(
-        text.uppercase(), style = T.mono(10.5.sp, color = V.ink3, letterSpacing = 0.12.em),
-        modifier = modifier.padding(top = if (first) 2.dp else 20.dp, bottom = 10.dp),
+        t, style = T.mono(10.5.sp, color = V.ink3, letterSpacing = 0.12.em),
+        modifier = modifier.padding(top = if (first) 2.dp else 20.dp, bottom = 10.dp).semantics { if (required) contentDescription = "$text, required" },
     )
 }
 
@@ -384,7 +415,7 @@ fun VInput(
                 imeAction = imeAction,
             ),
             visualTransformation = visual, cursorBrush = SolidColor(V.brand),
-            modifier = Modifier.fillMaxWidth().onFocusChanged { field.focus(it.isFocused, value) }
+            modifier = Modifier.fillMaxWidth().keepsKeyboard().onFocusChanged { field.focus(it.isFocused, value) }
                 .then(if (noAutofill) Modifier.semantics { contentDataType = ContentDataType.None } else Modifier),
             decorationBox = { inner ->
                 Row(
@@ -597,6 +628,8 @@ fun ListRow(
     title: String, subtitle: String? = null, onClick: (() -> Unit)? = null, lead: (@Composable () -> Unit)? = null,
     end: (@Composable RowScope.() -> Unit)? = null, chevron: Boolean = false, modifier: Modifier = Modifier, titleMaxLines: Int = 1,
     onLongClick: (() -> Unit)? = null, onLongClickLabel: String? = null, endPadding: Dp = 15.dp,
+    /** Shown under the subtitle (e.g. a status pill moved out of [end] on narrow screens). */
+    below: (@Composable () -> Unit)? = null,
 ) {
     var m = modifier.padding(bottom = 10.dp).fillMaxWidth().vCard()
     if (onClick != null && onLongClick != null) {
@@ -607,6 +640,7 @@ fun ListRow(
         Column(Modifier.weight(1f)) {
             Text(title, style = T.ui(15.sp, FontWeight.SemiBold, V.ink), maxLines = titleMaxLines, overflow = TextOverflow.Ellipsis)
             if (subtitle != null) Text(subtitle, style = T.ui(12.5.sp, FontWeight.Medium, V.ink2))
+            if (below != null) Box(Modifier.padding(top = 6.dp)) { below() }
         }
         if (end != null) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), content = end)
         if (chevron) Icon(VIcons.chevRight, null, tint = V.chev, modifier = Modifier.size(18.dp))
@@ -616,9 +650,24 @@ fun ListRow(
 @Composable
 fun BinfoRow(label: @Composable RowScope.() -> Unit, value: @Composable () -> Unit, last: Boolean = false) {
     Column {
-        Row(Modifier.fillMaxWidth().heightIn(min = 44.dp).padding(horizontal = 15.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, content = label)
-            value()
+        // Team QA Oct 22: a long value ("Square · Visa •••• 4242 (exp 08/28)") squeezed its label into a one-letter column. Both
+        // keep their natural width when they fit; otherwise the label keeps up to its full width (at least 40% of the row) and
+        // the value wraps in the rest, right-aligned.
+        androidx.compose.ui.layout.Layout(
+            contents = listOf({ Row(verticalAlignment = Alignment.CenterVertically, content = label) }, { value() }),
+            modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp).padding(horizontal = 15.dp, vertical = 12.dp),
+        ) { (l, v), c ->
+            val gap = 12.dp.roundToPx()
+            val avail = (c.maxWidth - gap).coerceAtLeast(0)
+            val lMax = l.first().maxIntrinsicWidth(c.maxHeight); val vMax = v.firstOrNull()?.maxIntrinsicWidth(c.maxHeight) ?: 0
+            val lw = if (lMax + vMax <= avail) lMax else minOf(lMax, maxOf(avail - vMax, (avail * 0.4f).toInt()))
+            val lp = l.first().measure(androidx.compose.ui.unit.Constraints(maxWidth = lw.coerceAtLeast(0)))
+            val vp = v.firstOrNull()?.measure(androidx.compose.ui.unit.Constraints(maxWidth = (avail - lp.width).coerceAtLeast(0)))
+            val h = maxOf(lp.height, vp?.height ?: 0, c.minHeight)
+            layout(c.maxWidth, h) {
+                lp.place(0, (h - lp.height) / 2)
+                vp?.place(c.maxWidth - vp.width, (h - vp.height) / 2)
+            }
         }
         if (!last) Box(Modifier.fillMaxWidth().height(1.dp).background(V.line2))
     }
@@ -626,7 +675,42 @@ fun BinfoRow(label: @Composable RowScope.() -> Unit, value: @Composable () -> Un
 
 @Composable
 fun BinfoRow(label: String, value: String, last: Boolean = false, bold: Boolean = true) {
-    BinfoRow(label = { Text(label, style = T.ui(14.sp, color = V.ink)) }, value = { Text(value, style = T.ui(14.sp, if (bold) FontWeight.Bold else FontWeight.Normal, V.ink)) }, last = last)
+    BinfoRow(label = { Text(label, style = T.ui(14.sp, color = V.ink)) }, value = { Text(value, style = T.ui(14.sp, if (bold) FontWeight.Bold else FontWeight.Normal, V.ink), textAlign = TextAlign.End) }, last = last)
+}
+
+/**
+ * Two form fields side by side, each [Modifier.weight] 1, while each half is at least [minEach] wide (scaled with the font
+ * size); stacked otherwise (team QA Oct 22: "(801) 555-0134" wrapped inside a half-width Phone field on small phones).
+ */
+@Composable
+fun FieldPair(modifier: Modifier = Modifier, gap: Dp = 10.dp, minEach: Dp = 150.dp, first: @Composable (Modifier) -> Unit, second: @Composable (Modifier) -> Unit) {
+    androidx.compose.foundation.layout.BoxWithConstraints(modifier.fillMaxWidth()) {
+        val fs = LocalDensity.current.fontScale.coerceAtLeast(1f)
+        if ((maxWidth - gap) / 2 >= minEach * fs) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(gap)) { first(Modifier.weight(1f)); second(Modifier.weight(1f)) }
+        else Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(11.dp)) { first(Modifier); second(Modifier) }
+    }
+}
+
+/**
+ * A label and its controls (chips, a switch…) on one line while the label fits on ONE line beside them; otherwise the label
+ * goes above the controls (team QA Oct 22: "Power is on" was squeezed into "Power / is on" on small phones / large text).
+ */
+@Composable
+fun InlineOrStacked(modifier: Modifier = Modifier, gap: Dp = 10.dp, stackedGap: Dp = 8.dp, label: @Composable () -> Unit, controls: @Composable () -> Unit) {
+    androidx.compose.ui.layout.Layout(contents = listOf(label, controls), modifier = modifier) { (l, r), c ->
+        val g = gap.roundToPx()
+        val rp = r.first().measure(c.copy(minWidth = 0, minHeight = 0))
+        val lMax = l.first().maxIntrinsicWidth(c.maxHeight)
+        if (lMax + g + rp.width <= c.maxWidth) {
+            val lp = l.first().measure(c.copy(minWidth = 0, minHeight = 0, maxWidth = c.maxWidth - g - rp.width))
+            val h = maxOf(lp.height, rp.height)
+            layout(c.maxWidth, h) { lp.place(0, (h - lp.height) / 2); rp.place(c.maxWidth - rp.width, (h - rp.height) / 2) }
+        } else {
+            val lp = l.first().measure(c.copy(minWidth = 0, minHeight = 0))
+            val sg = stackedGap.roundToPx()
+            layout(c.maxWidth, lp.height + sg + rp.height) { lp.place(0, 0); rp.place(0, lp.height + sg) }
+        }
+    }
 }
 
 /** − / + stepper. Number limits (docs/validation-rules.md): − disables at [min], + at [max]. */
@@ -721,8 +805,8 @@ fun ConfirmDialog(
     title: String, message: String, confirmLabel: String, onConfirm: () -> Unit, onDismiss: () -> Unit,
     danger: Boolean = false, confirmEnabled: Boolean = true, content: @Composable ColumnScope.() -> Unit = {},
 ) {
-    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
-        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(V.paper).padding(20.dp)) {
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) { TapOutsideClosesKeyboard { tapOutside ->
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(V.paper).then(tapOutside).verticalScroll(rememberScrollState()).padding(20.dp)) {
             Text(title, style = T.display(18.sp, FontWeight.Bold), modifier = Modifier.padding(bottom = 8.dp))
             Text(rich(message, V.ink), style = T.ui(13.5.sp, color = V.ink2, lineHeight = 20.sp), modifier = Modifier.padding(bottom = 14.dp))
             content()
@@ -731,5 +815,5 @@ fun ConfirmDialog(
                 VBtn(confirmLabel, onConfirm, Modifier.weight(1f), if (danger) BtnKind.Danger else BtnKind.Primary, enabled = confirmEnabled)
             }
         }
-    }
+    } }
 }

@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.vims.app.data.ItemDef
 import com.vims.app.ui.AppViewModel
+import com.vims.app.ui.components.keepsKeyboard
 import com.vims.app.ui.EditSecR
 import com.vims.app.ui.back
 import com.vims.app.ui.components.FieldLabel
@@ -156,7 +157,7 @@ fun EditSectionScreen(vm: AppViewModel, nav: NavHostController, name: String) {
             val label = (d.item.header ?: d.item.q).orEmpty().trim().ifEmpty { "This item" }
             com.vims.app.ui.components.ConfirmDialog(
                 if (d.item.isHeader) "Delete this header?" else "Delete this item?",
-                if (d.item.isChoice) "**$label** and its options will be removed from new inspections." else "**$label** will be removed from new inspections.",
+                "“$label”${if (d.item.isChoice) " and its options" else ""} will no longer be on new inspections. Inspections already started keep it.",
                 "Delete", onConfirm = { draft.removeAll { it.id == id }; deleteId = null }, onDismiss = { deleteId = null }, danger = true,
             )
         }
@@ -215,7 +216,7 @@ private fun EdItem(it: ItemDef, index: Int, count: Int, showErrors: Boolean, onC
                 val field = com.vims.app.ui.components.rememberFieldText()
                 BasicTextField(
                     field.shown(text), { v -> onChange(field.change(v, Filters::question)) }, singleLine = true, textStyle = T.ui(14.5.sp, FontWeight.SemiBold, V.ink), cursorBrush = SolidColor(V.brand),
-                    modifier = Modifier.fillMaxWidth().onFocusChanged { f -> field.focus(f.isFocused, text) },
+                    modifier = Modifier.fillMaxWidth().keepsKeyboard().onFocusChanged { f -> field.focus(f.isFocused, text) },
                     decorationBox = { inner -> Column { Box(Modifier.padding(vertical = 5.dp)) { inner() }; Box(Modifier.fillMaxWidth().height(1.5.dp).background(if (textErr != null) V.c1 else V.line)) } },
                 )
                 com.vims.app.ui.components.FieldError(textErr)
@@ -272,7 +273,7 @@ fun PriceField(value: Double, onCommit: (Double) -> Unit, modifier: Modifier = M
     BasicTextField(
         field.shown(text), { text = field.change(it, Filters::price); if (bad) { val e = Checks.price(text); bad = e != null; onError(e) } }, singleLine = true, textStyle = T.ui(15.sp, color = V.ink), cursorBrush = SolidColor(V.brand),
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { commit() }),
-        modifier = modifier.width(130.dp).onFocusChanged { field.focus(it.isFocused, text); if (!it.isFocused) commit() },
+        modifier = modifier.width(130.dp).keepsKeyboard().onFocusChanged { field.focus(it.isFocused, text); if (!it.isFocused) commit() },
         decorationBox = { inner -> Box(Modifier.heightIn(min = 48.dp).clip(RoundedCornerShape(11.dp)).background(V.paper).border(if (bad) 1.5.dp else 1.dp, if (bad) V.c1 else V.line, RoundedCornerShape(11.dp)).padding(horizontal = 14.dp), contentAlignment = Alignment.CenterStart) { inner() } },
     )
 }
@@ -290,8 +291,8 @@ fun PlansAdminScreen(vm: AppViewModel, nav: NavHostController) {
         if (plan == null) deleteId = null else {
             val next = account.plans.firstOrNull { it.id != id }
             com.vims.app.ui.components.ConfirmDialog(
-                "Delete ${plan.name}?",
-                "**${plan.name}** is removed from the subscribe screen." + if (plan.id == account.planId && next != null) " Your company's selected plan switches to **${next.name}**." else "",
+                "Delete the “${plan.name}” plan?",
+                "It will no longer be offered on the Subscription screen." + if (plan.id == account.planId && next != null) " Your company will move to **${next.name}**." else "",
                 "Delete", onConfirm = { vm.deletePlan(id); deleteId = null }, onDismiss = { deleteId = null }, danger = true,
             )
         }
