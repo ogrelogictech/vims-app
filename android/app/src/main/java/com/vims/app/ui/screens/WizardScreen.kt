@@ -313,6 +313,8 @@ private fun FieldCell(vm: AppViewModel, f: WizardFieldDef, sel: WizardSelections
             else -> VInput(v, set, placeholder = placeholderFor(f), keyboard = if (f.label == WizardSelections.F_ZIP) KeyboardType.Number else keyboardFor(f, step2), error = err, filter = wizardFilter(f.label),
                 visual = if (f.type == "tel") PhoneTransform else if (f.label in groupedFields) GroupedNumberTransform else androidx.compose.ui.text.input.VisualTransformation.None,
                 caps = if (f.label.contains("name", true) || f.label.contains("address", true) || f.label == WizardSelections.F_CITY) KeyboardCapitalization.Words else KeyboardCapitalization.None,
+                // Team QA Oct 22: "2450.5" must never become "24505" — the "." and the digits after it are rejected.
+                wholeNumberMax = if (f.label == "Total sq ft") Limits.SQFT_MAX else null,
                 // Keyboard "Next" walks the form in order (Inspection address → State → Real estate agent name → …).
                 imeAction = ImeAction.Next)
         }

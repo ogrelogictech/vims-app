@@ -245,7 +245,8 @@ private fun ItemCard(key: String, it: ItemDef, a: SectionAnswers, detail: Boolea
                 val numErr = if (num) Checks.upTo(input, max, Limits.checklistMin(q), integer = it.integer == true, decimals = it.numDecimals) else null
                 VInput(input, setInput, placeholder = it.placeholder ?: "Enter a value",
                     keyboard = if (!num) KeyboardType.Text else if (it.numDecimals == 0) KeyboardType.Number else KeyboardType.Decimal,
-                    filter = if (num) { v -> Filters.number(v, it.numDecimals, max) } else { v -> Filters.base(v, 500) }, error = numErr)
+                    filter = if (num) { v -> Filters.number(v, it.numDecimals, max) } else { v -> Filters.base(v, 500) }, error = numErr,
+                    wholeNumberMax = if (num && it.numDecimals == 0) max else null)
             }
         }
         if (detail && it.isChoice) {

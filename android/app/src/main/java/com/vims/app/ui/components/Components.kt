@@ -392,6 +392,8 @@ fun VInput(
     error: String? = null, filter: ((String) -> String)? = null, imeAction: ImeAction = ImeAction.Default,
     /** null = on for text, off for email / password / URL; false for codes (no suggestions, no composing text). */
     autoCorrect: Boolean? = null,
+    /** Whole-number field with this max: a "." and what follows are rejected, with a "Whole numbers only" hint ([com.vims.app.util.WholeNumberInput]). */
+    wholeNumberMax: Double? = null,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val noAutofill = LocalNoAutofill.current
@@ -399,7 +401,8 @@ fun VInput(
     val shape = RoundedCornerShape(11.dp)
     val style: TextStyle = if (mono) T.mono(textSize.sp, FontWeight.Medium, V.ink, 0.14.em) else T.ui(textSize.sp, color = V.ink, lineHeight = if (multiline) (textSize * 1.5f).sp else androidx.compose.ui.unit.TextUnit.Unspecified)
     val noAuto = keyboard == KeyboardType.Email || keyboard == KeyboardType.Password || keyboard == KeyboardType.Uri
-    val apply: (String) -> String = filter ?: when (keyboard) {
+    val whole = if (wholeNumberMax != null) remember(wholeNumberMax) { com.vims.app.util.WholeNumberInput(wholeNumberMax, value) } else null
+    val apply: (String) -> String = whole?.let { w -> { v: String -> w.apply(v) } } ?: filter ?: when (keyboard) {
         KeyboardType.Email -> Filters::email
         KeyboardType.Password -> Filters::password
         KeyboardType.Uri -> Filters::url
@@ -415,7 +418,7 @@ fun VInput(
                 imeAction = imeAction,
             ),
             visualTransformation = visual, cursorBrush = SolidColor(V.brand),
-            modifier = Modifier.fillMaxWidth().keepsKeyboard().onFocusChanged { field.focus(it.isFocused, value) }
+            modifier = Modifier.fillMaxWidth().keepsKeyboard().onFocusChanged { field.focus(it.isFocused, value); whole?.reset(value) }
                 .then(if (noAutofill) Modifier.semantics { contentDataType = ContentDataType.None } else Modifier),
             decorationBox = { inner ->
                 Row(
@@ -432,6 +435,7 @@ fun VInput(
                 }
             },
         )
+        if (whole?.blocked == true && error == null) Text("Whole numbers only", style = T.ui(12.5.sp, color = V.ink2, lineHeight = 16.sp), modifier = Modifier.padding(start = 2.dp, top = 6.dp))
         FieldError(error)
     }
 }

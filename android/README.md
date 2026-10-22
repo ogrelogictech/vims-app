@@ -567,7 +567,9 @@ Shared v1.9 (client item 13):
   Temperature digits / one "." / optional leading "-", 1 decimal, max 5 characters (−60 – 140 on Next); Total sq ft whole
   numbers (number pad); Valuation (decimal keypad now) and Lot size at most 2 decimals; checklist `num` items at most 2 decimals,
   `decimals: n` overrides (Radon "Measured level (pCi/L)" 1, max 999.9), `integer: true` → number pad, digits only (Septic
-  "System number" 1 – 99, counts, years). An older answer that breaks a rule shows the error inline ("Enter a whole number",
+  "System number" 1 – 99, counts, years). Whole-number fields (Total sq ft, `integer` items — `WholeNumberInput`): a "."
+  typed or pasted and everything after it is discarded ("2450.5" → "2450", never "24505"); digits typed right after a rejected
+  "." aren't accepted either, with a "Whole numbers only" hint, until a character is deleted or the field is left. An older answer that breaks a rule shows the error inline ("Enter a whole number",
   "Use at most 1 decimal place").
 - **Old checklist snapshots** (`ChecklistEngine.upgradePickers` on load, matched by section + question): text → `num` (Radon level,
   Septic System number) and the current `integer` / `decimals` flags; Meth Test (High Detail) "Test date and time" + "AM/PM" →

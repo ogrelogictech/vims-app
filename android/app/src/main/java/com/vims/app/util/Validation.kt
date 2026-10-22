@@ -89,7 +89,8 @@ object Filters {
     }
     /**
      * Numbers with limits enforced while typing (team QA Oct 22, docs/validation-rules.md): digits and, when [decimals] > 0,
-     * one "." with at most [decimals] places (0 = whole numbers only: no "."). Grouping commas, spaces and a leading "$" in
+     * one "." with at most [decimals] places (0 = whole numbers only: the value is cut at the ".", so a pasted "2450.5" is
+     * "2450" — never "24505"; see [WholeNumberInput] for typing). Grouping commas, spaces and a leading "$" in
      * pasted text are dropped. A value above [max] is not accepted: the last characters are dropped until it fits (typing "25"
      * into a 0–20 count leaves "2"). Stateless, so fast typing / pastes give the same result.
      */
@@ -98,7 +99,7 @@ object Filters {
         val i = d.indexOf('.')
         val out = when {
             i < 0 -> d
-            decimals <= 0 -> d.filter { it.isDigit() }
+            decimals <= 0 -> d.substring(0, i)
             else -> d.take(i + 1 + decimals)
         }
         var r = out
@@ -122,6 +123,27 @@ object Filters {
      * (form lines rely on them). Length is checked on Save ([Checks.agreement]); this only stops runaway pastes.
      */
     fun agreement(v: String, max: Int): String = v.replace("\r\n", "\n").replace('\r', '\n').replace('\t', ' ').take(max * 2)
+}
+
+/**
+ * Typing into a whole-number field (team QA Oct 22): a "." — typed or pasted — and everything after it is discarded ("2450.5"
+ * → "2450"), and digits typed right after the rejected "." are not accepted either (so "2450", ".", "5" stays "2450", never
+ * the silent 10× "24505"). [blocked] stays on — and the field shows "Whole numbers only" — until the user deletes a
+ * character or leaves the field ([reset]). Keeps its own last value, so fast typing is judged edit by edit.
+ */
+class WholeNumberInput(private val max: Double, initial: String = "") {
+    var blocked by mutableStateOf(false)
+        private set
+    private var last = initial
+    fun apply(v: String): String {
+        val raw = Num.clean(v)
+        val dot = raw.indexOf('.')
+        if (dot >= 0) { blocked = true; return Filters.number(raw.substring(0, dot), 0, max).also { last = it } }
+        if (blocked && raw.length > last.length) return last
+        if (raw.length < last.length) blocked = false
+        return Filters.number(raw, 0, max).also { last = it }
+    }
+    fun reset(value: String) { blocked = false; last = value }
 }
 
 /** Reading numbers: grouping commas, spaces and a leading "$" are ignored everywhere a number is read ("$450,000" = 450000). */
