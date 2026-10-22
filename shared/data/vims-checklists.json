@@ -31951,7 +31951,8 @@
      "Standard",
      "Fast Entry"
     ],
-    "default": null
+    "default": "Standard",
+    "defaultNote": "Comes from the inspector's Settings default depth."
    }
   ],
   "exteriorOptions": [
@@ -32086,7 +32087,7 @@
    ]
   },
   "inspectorLicenseNote": "'Inspector License #' (step 1) prints on every report cover to the right of the inspector's name. Prefill from Company profile → License # if set.",
-  "defaultsNote": "Team QA Oct 22: no single-choice option is preselected on New Inspection (type of loan, type of inspection, property status, weather, utilities, construction style, stories, basement, etc.). Type of inspection is required. Counts (bedrooms, rooms…) keep their default numbers; date/time default to now."
+  "defaultsNote": "Team QA Oct 22: no single-choice option is preselected on New Inspection (type of loan, type of inspection, property status, weather, utilities, construction style, stories, basement, etc.). Exception: Checklist depth keeps the inspector's Settings default. Type of inspection is required. Counts (bedrooms, rooms…) keep their default numbers; date/time default to now."
  },
  "findings": {
   "categories": [
