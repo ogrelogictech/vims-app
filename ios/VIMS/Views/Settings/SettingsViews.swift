@@ -18,7 +18,7 @@ struct SettingsView: View {
         let plan = sub.plan(sub.selectedPlan)
         let n = store.company.inspectors.count
         Screen(title: "Settings", actions: [store.homeAction()]) {
-            // iPad landscape: account, sync, subscription and admin on the left; help, company, legal and defaults
+            // iPad landscape: account, sync (Phase 2), subscription and admin on the left; help, company, legal and defaults
             // on the right. Same order, one column, everywhere else.
             WideColumns(spacing: 24, wide: wide.isWide) {
             SectionLabel(text: "Account", top: 2)
@@ -57,6 +57,8 @@ struct SettingsView: View {
                 .buttonStyle(VButtonStyle(kind: .ghost, tint: VC.c1))
                 .padding(.top, 10)
 
+            // Data v1.10 `features.sync` is false in Phase 1 (nothing syncs): no Sync section, pending counts or Sync now.
+            if store.syncEnabled {
             SectionLabel(text: "Sync")
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
@@ -74,10 +76,11 @@ struct SettingsView: View {
             }
             .buttonStyle(.vGhost)
             .disabled(store.syncing)
+            }
 
             SectionLabel(text: "Subscription & licensing")
             NavRow(symbol: "collect-payment-div", title: "Plan & billing",
-                   subtitle: "\(plan?.name ?? "") · \(sub.active ? sub.totalLabel(seats: store.seats()) : "trial")") { store.push(.billing) }
+                   subtitle: "\(plan?.name ?? "") · \(sub.active ? sub.totalLabel(seats: store.seats()) : sub.trialEnded ? "trial ended" : "trial")") { store.push(.billing) }
             NavRow(symbol: "inspector-accounts-inspector", title: "Inspector accounts", subtitle: "\(n) inspector\(n == 1 ? "" : "s")") { store.push(.inspectors) }
 
             if store.isAdmin {
@@ -345,7 +348,9 @@ struct InstructionsView: View {
     var body: some View {
         Screen(title: "How VIMS works", actions: [store.homeAction()]) {
             Banner(symbol: "bolt", tint: VC.brand, background: VC.brand.opacity(0.08), border: Color(hex: 0xC3D2F2), textColor: VC.brandDeep,
-                   text: md("**Everything saves on your device.** All inspection data and photos are stored locally and work fully offline — they upload automatically the next time you are online."))
+                   text: md(store.syncEnabled
+                            ? "**Everything saves on your device.** All inspection data and photos are stored locally and work fully offline — they upload automatically the next time you are online."
+                            : "**Everything saves on your device.** Inspections, photos and reports are stored on this device and work fully offline — they are not copied to a server, so save or share the reports you want to keep."))
                 .padding(.bottom, 14)
             card("info", "Getting started",
                  "**New account:** tap **Create account** on sign-in and enter your details, or tap **Join a company with a code** if your company gave you one. New companies start on a **\(store.subscription.trialDays)-day free look** — set up your company profile and logo in Settings first.")
@@ -356,7 +361,9 @@ struct InstructionsView: View {
             card("file", "Photos & findings",
                  "Tap **Add** to capture a photo, then tap it to draw on it or add a quick comment. Flagging a photo as a concern adds it to the **Summary** under Category 1 Safety, 2 Functional, or 3 Items to monitor.")
             card("file", "Generate the report",
-                 "From the Summary tap **Save and generate report**, choose a cover (color → theme → style), and the app builds your branded PDF. It queues to send when you are back online.")
+                 store.syncEnabled
+                 ? "From the Summary tap **Save and generate report**, choose a cover (color → theme → style), and the app builds your branded PDF. It queues to send when you are back online."
+                 : "From the Summary tap **Save and generate report**, choose a cover (color → theme → style), and the app builds your branded PDF on this device. Then email it to your client or save and share it from **Report ready**.")
             card("bolt", "Subscription & inspectors",
                  "Your free look counts down at every sign-in. Subscribe through **Square** any time. Add inspectors under your company license and share your **company code** so they can join.")
             VStack(spacing: 4) {
@@ -528,7 +535,8 @@ struct DeleteAccountView: View {
                         bullet("The company \(store.company.name) — its profile, logo, checklist changes and inspector invites")
                         if store.subscription.active { bullet("Your subscription is cancelled (no further charges)") }
                     }
-                    Text("We also delete your data from the VIMS servers within 10 working days. This can't be undone.")
+                    Text(store.syncEnabled ? "We also delete your data from the VIMS servers within 10 working days. This can't be undone."
+                                           : "We also delete your account and company information from the VIMS servers within 10 working days. This can't be undone.")
                         .font(VFont.ui(12.5)).foregroundStyle(VC.ink3).lineSpacing(2).padding(.top, 4)
                         .fixedSize(horizontal: false, vertical: true)
                 }

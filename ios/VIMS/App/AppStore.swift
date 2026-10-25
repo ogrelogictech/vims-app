@@ -39,7 +39,7 @@ final class AppStore {
         didSet {
             scheduleAppSave()
             // Auto-sync switched on (or a session loaded with it on): send what's waiting.
-            if state.settings.autoSync, !oldValue.settings.autoSync || oldValue.session?.email != state.session?.email {
+            if syncEnabled, state.settings.autoSync, !oldValue.settings.autoSync || oldValue.session?.email != state.session?.email {
                 requestAutoSync(after: 1)
             }
         }
@@ -58,6 +58,8 @@ final class AppStore {
     var showVideoSplash = true
     var isOnline = true
     var syncing = false
+    /// "Your free trial has ended" (New inspection with the trial over and no subscription).
+    var trialEndedPrompt = false
 
     @ObservationIgnored private var inspectionSaveTasks: [UUID: Task<Void, Never>] = [:]
     @ObservationIgnored private var autoSyncTask: Task<Void, Never>?
@@ -95,6 +97,8 @@ final class AppStore {
         // v1.9.2: old shipped feedback / report-quality addresses move to the vimsinspect.com defaults.
         platformMigrated = platform.migrateReplacedDefaults(config)
         if !platformMigrated.isEmpty { repo.savePlatformSettings(platform) }
+        // One free trial per device: builds before the Keychain record backfill it from this device's companies.
+        DeviceTrial.backfill(companies: repo.allCompanies(), demoCode: config.sample.company.code)
         if let uid = repo.currentUserID, let u = repo.user(id: uid) { loadSession(u) } else { repo.currentUserID = nil }
 
         connectivity.onChange = { [weak self] online in self?.setOnline(online) }
@@ -124,6 +128,23 @@ final class AppStore {
         repo.savePlatformSettings(s)
     }
     var pendingSyncCount: Int { inspections.filter(\.needsSync).count }
+
+    /// Data v1.10 `features.sync` — false in Phase 1: no sync pills, no Settings Sync section, no sync wording, and the
+    /// automatic sync stub never runs. The sync code below stays for Phase 2.
+    var syncEnabled: Bool { config.syncEnabled }
+
+    // MARK: Free trial
+
+    /// A new inspection needs the free trial (30 days, `subscription.trialDays`) or an active subscription. Existing
+    /// inspections stay viewable and editable, and their reports can still be shared / re-sent.
+    var canStartNewInspection: Bool { !subscription.trialEnded }
+
+    /// Every "New inspection" button (Home header +, Home, side menu): the wizard, or the Subscribe prompt.
+    func startNewInspection() {
+        if canStartNewInspection { push(.wizard(editing: nil)) } else { showTrialEndedPrompt() }
+    }
+
+    func showTrialEndedPrompt() { trialEndedPrompt = true }
 
     /// The signed-in inspector's own email, CC'd on every emailed report (data v1.3 `support.ccInspector`).
     var reportCcEmail: String? {
@@ -502,7 +523,8 @@ final class AppStore {
     enum HomeStatus { case done, queued, prog, scheduled }
 
     func homeStatus(_ insp: Inspection) -> HomeStatus {
-        if insp.report != nil { return insp.needsSync ? .queued : .done }
+        // "Queued" = report waiting to sync — only with sync on (data v1.10 `features.sync`; Phase 1 doesn't sync).
+        if insp.report != nil { return syncEnabled && insp.needsSync ? .queued : .done }
         if insp.status.values.contains(where: { $0 != .todo }) || insp.answers.values.contains(where: \.hasContent) { return .prog }
         return .scheduled
     }
@@ -618,14 +640,17 @@ final class AppStore {
     // MARK: Sync
 
     /// Settings → Sync now (always available, with or without auto-sync).
-    func syncNow() async { await performSync(manual: true) }
+    func syncNow() async {
+        guard syncEnabled else { return }
+        await performSync(manual: true)
+    }
 
     /// Team QA Oct 22: with "Auto-sync when online" on, queued inspections sync by themselves — when the connection
     /// comes back, when the app comes to the foreground, and a few seconds after a save / report (the delay restarts on
     /// every edit, so typing doesn't sync each keystroke). Off = Sync now only. Quiet: no toast; the header pill and
     /// "N inspections waiting" update as inspections go out. TODO(backend): the upload itself is `syncService`.
     func requestAutoSync(after seconds: Double = 3) {
-        guard state.settings.autoSync, state.session != nil else { return }
+        guard syncEnabled, state.settings.autoSync, state.session != nil else { return }
         autoSyncTask?.cancel()
         autoSyncTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
@@ -649,7 +674,7 @@ final class AppStore {
     }
 
     private func performSync(manual: Bool) async {
-        guard !syncing else { return }
+        guard syncEnabled, !syncing else { return }
         syncing = true
         editedDuringSync = []
         do {
@@ -700,6 +725,8 @@ final class AppStore {
     }
 
     func saveSectionOverride(_ def: SectionDef) {
+        var def = def
+        def.baseItems = catalog.jsonItemKeys(def.name)     // later JSON additions still show (data v1.10)
         state.overrides.sections[def.name] = def
         toast("Checklist updated")
     }

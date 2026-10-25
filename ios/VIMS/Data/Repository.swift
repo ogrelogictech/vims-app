@@ -49,6 +49,8 @@ protocol Repository: AnyObject {
     // Companies
     func company(id: UUID) -> CompanyState?
     func company(joinCode: String) -> CompanyState?
+    /// Every company on this device (one-trial-per-device backfill, `DeviceTrial`).
+    func allCompanies() -> [CompanyState]
     func saveCompany(_ c: CompanyState)
     /// Deletes the company row and its folder (companies/<id>/…).
     func deleteCompany(id: UUID)
@@ -208,6 +210,10 @@ final class SwiftDataRepository: Repository {
         var d = FetchDescriptor<CompanyRecord>(predicate: #Predicate { $0.joinCode == code })
         d.fetchLimit = 1
         return (try? context.fetch(d))?.first.flatMap(companyState)
+    }
+
+    func allCompanies() -> [CompanyState] {
+        ((try? context.fetch(FetchDescriptor<CompanyRecord>())) ?? []).compactMap(companyState)
     }
 
     func deleteCompany(id: UUID) {

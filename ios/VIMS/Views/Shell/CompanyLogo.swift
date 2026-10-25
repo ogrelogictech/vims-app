@@ -107,7 +107,7 @@ struct SignOutConfirmation: ViewModifier {
                 store.signOut()
             }
         } message: {
-            Text("Anything not yet synced stays saved on this device.")
+            Text(store.syncEnabled ? "Anything not yet synced stays saved on this device." : "Your inspections stay saved on this device.")
         }
     }
 }

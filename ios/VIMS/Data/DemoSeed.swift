@@ -47,8 +47,10 @@ enum DemoSeed {
         if let png = UIImage(named: "VimsLogo")?.pngData() {
             state.company.logoFile = repo.saveImage(png, folder: companyFolder, name: "logo.png")
         }
-        // Trial: 10 days left, so the urgent free-look splash shows (prototype state).
-        state.subscription.trialStart = Calendar.current.date(byAdding: .day, value: -(config.subscription.trialDays - 10), to: Date()) ?? Date()
+        // Trial: 10 days left at the first seeding on this device, so the urgent free-look splash shows (prototype state).
+        // The start is kept in the Keychain (DeviceTrial), so a reinstall or a re-seed never restarts the demo's trial.
+        let fresh = Calendar.current.date(byAdding: .day, value: -(config.subscription.trialDays - 10), to: Date()) ?? Date()
+        state.subscription.trialStart = DeviceTrial.demoTrialStart(fresh: fresh)
         state.seededAt = Date()
 
         let cat = ChecklistCatalog(config: config, overrides: state.overrides)

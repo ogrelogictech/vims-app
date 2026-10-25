@@ -27,6 +27,12 @@ struct ChecklistConfig: Decodable {
     let stateRules: StateRulesDef?
     /// v1.9: sections printed as official-style form pages (Wind Mitigation = OIR-B1-1802, Termite = WDI report).
     let formReports: FormReportsDef?
+    /// v1.10: feature switches. `sync` false (Phase 1) hides every sync pill, the Settings Sync section and sync wording,
+    /// and stops the automatic sync stub; the code stays behind the flag for Phase 2. Missing = false.
+    let features: FeaturesDef?
+
+    /// Data v1.10 `features.sync` (false / absent in Phase 1).
+    var syncEnabled: Bool { features?.sync ?? false }
 
     /// Keys of JSON objects whose order matters but that Swift dictionaries lose.
     var unitMixOrder: [String] = []
@@ -35,7 +41,7 @@ struct ChecklistConfig: Decodable {
     private enum CodingKeys: String, CodingKey {
         case version, depths, depthRules, overallCondition, overallConditionDefault, sectionGroups, sections,
              checklistBuilder, wizard, findings, covers, subscription, support, sample, formLabels, reportLayouts,
-             states, stateRules, formReports
+             states, stateRules, formReports, features
     }
 
     /// `stateRules[code]`, or nil when the state has no special rules (or no state is set).
@@ -49,6 +55,9 @@ struct ChecklistConfig: Decodable {
         return states?.first { $0.code == code }?.name
     }
 }
+
+/// `features` (v1.10).
+struct FeaturesDef: Decodable { let sync: Bool? }
 
 /// `states[]` entry (v1.3).
 struct StateDef: Decodable, Hashable { let code: String; let name: String }
@@ -159,6 +168,10 @@ struct SectionDef: Codable, Hashable {
     /// v1.9 `formReport` ("oir-b1-1802" Wind Mitigation, "wdi" Termite): printed as form pages (see `formReports`); like
     /// `form`, the section ignores the checklist depth and has no Overall condition row.
     var formReport: String? = nil
+    /// Admin overrides only (Manage checklist → Save, since data v1.10): the shared JSON's item keys (`ItemDef.editKey`, both
+    /// tiers) when the edit was saved. Items the JSON gains later (e.g. v1.9.2's Phase 2 shower pan items) are then added
+    /// to the edited section instead of being hidden by it; items the admin deleted stay deleted. nil on older overrides.
+    var baseItems: [String]? = nil
 
     var isForm: Bool { form != nil || formReport != nil }
     var isPhotosOnly: Bool { photosOnly == true }
@@ -192,6 +205,8 @@ struct ItemDef: Codable, Hashable {
     var numDecimals: Int { integer == true ? 0 : max(0, decimals ?? 2) }
 
     var isHeader: Bool { header != nil }
+    /// Identity of an item across JSON versions and admin edits: its header or question.
+    var editKey: String { header.map { "#" + $0 } ?? (q ?? "") }
     var kind: ItemKind {
         if header != nil { return .header }
         switch type ?? "single" {
@@ -284,6 +299,13 @@ struct WizardDef: Decodable {
     let roomCounts: [RoomCountDef]
     let defaults: WizardDefaults
     let typeFields: TypeFieldsDef?
+    /// v1.10 (client Oct 25): types no longer offered for new inspections ("Code"). Saved inspections keep theirs.
+    let retiredInspectionTypes: [String]?
+    /// v1.10: types whose wizard step 3 locks the exterior, interior room and utility options (counts stay editable).
+    let areasLockedTypes: [String]?
+
+    func isRetired(_ type: String) -> Bool { (retiredInspectionTypes ?? []).contains(type) }
+    func areasLocked(_ type: String) -> Bool { !type.isEmpty && (areasLockedTypes ?? []).contains(type) }
 }
 
 struct TypeFieldDef: Decodable, Hashable { let label: String; let key: String; let placeholder: String? }

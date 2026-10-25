@@ -187,7 +187,7 @@ struct ReportView: View {
         Button { Task { await previewFormat() } } label: { IconLabel("Preview report format", icon: "preview-report-format") }
             .buttonStyle(.vGhost).padding(.top, -2)
 
-        if !store.isOnline {
+        if store.syncEnabled, !store.isOnline {
             Banner(text: md("You're **offline**. The report generates on the device now; it uploads on the next sync."))
                 .padding(.top, 16)
         }
@@ -417,7 +417,7 @@ struct ReportReadyView: View {
             Screen(title: "Report ready", subtitle: insp.addressLine1,
                    actions: [HeaderAction(symbol: "hdr-sections", label: "Sections") { store.popToSections(inspectionID) }, store.homeAction()]) {
                 SuccessBlock(title: "Report generated",
-                             message: AttributedString("\(pages)-page report for \(insp.addressLine1) is saved on this device " + (insp.needsSync ? "and queued to sync to the portal." : "and synced to the portal."))) {
+                             message: AttributedString("\(pages)-page report for \(insp.addressLine1) is saved on this device" + (!store.syncEnabled ? "." : insp.needsSync ? " and queued to sync to the portal." : " and synced to the portal."))) {
                     if let url = store.reportURL(inspectionID) {
                         Button { preview = PreviewDoc(url: url, title: "\(insp.addressLine1) report") } label: {
                             IconLabel("Preview PDF", icon: "preview-report-format")

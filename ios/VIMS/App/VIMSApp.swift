@@ -43,7 +43,7 @@ struct VIMSApp: App {
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .background { store?.flushNow() }
-            // Auto-sync when the app comes back to the foreground (team QA Oct 22).
+            // Auto-sync when the app comes back to the foreground (team QA Oct 22); a no-op while `features.sync` is off.
             if phase == .active { store?.requestAutoSync(after: 1) }
         }
     }
@@ -99,6 +99,13 @@ struct RootView: View {
             }
         }
         .animation(.easeOut(duration: 0.25), value: store.toastMessage)
+        // Free trial over, no subscription: New inspection asks to subscribe instead of opening the wizard.
+        .alert("Your free trial has ended", isPresented: $store.trialEndedPrompt) {
+            Button("Not now", role: .cancel) {}
+            Button("Subscribe") { store.push(.subscribe) }
+        } message: {
+            Text(TrialEndedText.message(store))
+        }
         .measuresWindowWidth()
         #if DEBUG
         .task { DebugLaunch.applyOrientation() }
@@ -111,7 +118,9 @@ struct RootView: View {
         case .signup: SignupView()
         case .forgot: ForgotPasswordView()
         case .join: JoinCompanyView()
-        case .wizard(let editing): WizardView(editingID: editing)
+        // A new inspection needs the trial or a subscription (a route reached any other way shows the same block).
+        case .wizard(let editing):
+            if editing == nil && !store.canStartNewInspection { TrialEndedView() } else { WizardView(editingID: editing) }
         case .sections(let id): SectionsOverviewView(inspectionID: id)
         case .section(let id, let name): SectionEntryView(inspectionID: id, section: name).id("\(id)-\(name)")
         case .photos(let id, let name): PhotosView(inspectionID: id, section: name)
@@ -136,6 +145,20 @@ struct RootView: View {
         // Same permission as uploading an agreement (company admins).
         case .agreementEditor: if store.isAdmin { AgreementEditorView() } else { OwnerOnlyView(message: "Only company admins can edit the agreement") }
         case .deleteAccount: DeleteAccountView()
+        }
+    }
+}
+
+/// New inspection with the free trial over and no subscription.
+struct TrialEndedView: View {
+    @Environment(AppStore.self) private var store
+    var body: some View {
+        Screen(title: "New inspection", actions: [store.homeAction()]) {
+            Banner(symbol: "free-trial-days", tint: VC.brandDeep, background: VC.brand.opacity(0.08), border: Color(hex: 0xC9DEE6),
+                   textColor: VC.brandDeep, text: md("**\(TrialEndedText.lead(store))** \(TrialEndedText.rest)"))
+                .padding(.bottom, 14)
+            Button("Subscribe") { store.push(.subscribe) }.buttonStyle(.vPrimary)
+            Button("Back to inspections") { store.goHome() }.buttonStyle(.vGhost).padding(.top, 10)
         }
     }
 }

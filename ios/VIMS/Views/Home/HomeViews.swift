@@ -28,11 +28,11 @@ struct HomeView: View {
         Screen(title: "Inspections",
                leading: .menu,
                onLeading: { withAnimation(.easeOut(duration: 0.24)) { menuOpen = true } },
-               actions: [HeaderAction(symbol: "hdr-add", label: "New inspection") { store.push(.wizard(editing: nil)) }]) {
+               actions: [HeaderAction(symbol: "hdr-add", label: "New inspection") { store.startNewInspection() }]) {
             if !store.subscription.active {
                 Button { store.push(.subscribe) } label: {
                     HStack {
-                        Text(md("**Free trial** · \(store.subscription.trialDaysLeft) days left")).font(VFont.ui(13.5))
+                        Text(md(store.subscription.trialEnded ? "**Free trial ended**" : "**Free trial** · \(store.subscription.trialDaysLeft) days left")).font(VFont.ui(13.5))
                         Spacer()
                         HStack(spacing: 3) {
                             Text("Subscribe").font(VFont.ui(13.5, .semibold))
@@ -57,7 +57,7 @@ struct HomeView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         SectionLabel(text: "At a glance", top: 0)
                         StatTile(value: "\(today.count)", label: "Inspections today")
-                        StatTile(value: "\(store.pendingSyncCount)", label: "Waiting to sync")
+                        secondTile
                         actionButtons.padding(.top, 4)
                     }
                     .frame(width: 320)
@@ -65,7 +65,7 @@ struct HomeView: View {
             } else {
                 HStack(spacing: 10) {
                     StatTile(value: "\(today.count)", label: "Inspections today")
-                    StatTile(value: "\(store.pendingSyncCount)", label: "Waiting to sync")
+                    secondTile
                 }
                 .padding(.bottom, 6)
                 lists(today: today, recent: recent)
@@ -98,9 +98,19 @@ struct HomeView: View {
         }
     }
 
+    /// "Waiting to sync" only when sync is on (data v1.10 `features.sync`; Phase 1 doesn't sync) — else the
+    /// inspections in progress.
+    @ViewBuilder private var secondTile: some View {
+        if store.syncEnabled {
+            StatTile(value: "\(store.pendingSyncCount)", label: "Waiting to sync")
+        } else {
+            StatTile(value: "\(store.inspections.filter { store.homeStatus($0) == .prog }.count)", label: "In progress")
+        }
+    }
+
     private var actionButtons: some View {
         VStack(spacing: 10) {
-            Button { store.push(.wizard(editing: nil)) } label: {
+            Button { store.startNewInspection() } label: {
                 IconLabel("New inspection", icon: "hdr-add")
             }
             .buttonStyle(.vPrimary)
@@ -193,7 +203,7 @@ struct InspectionRow: View {
         }
         let d = Fmt.date(insp.scheduled, "MMM d")
         switch st {
-        case .done: return "\(d) · Report sent"
+        case .done: return store.syncEnabled ? "\(d) · Report sent" : "\(d) · Report ready"
         case .queued: return "\(d) · Report ready to send"
         case .prog: return "\(d) · In progress"
         case .scheduled: return "\(d) · Scheduled"
@@ -225,7 +235,8 @@ struct TrialSplashView: View {
     }
 
     private func card(d: Int, soon: Bool, s: String) -> some View {
-            VStack(spacing: 0) {
+        let ended = store.subscription.trialEnded
+        return VStack(spacing: 0) {
                 Image("VimsLogo").resizable().scaledToFit().frame(width: 58, height: 58)
                     .frame(width: 72, height: 72)
                     .background(Color.white)
@@ -234,32 +245,37 @@ struct TrialSplashView: View {
                     .padding(.bottom, 14)
                     .accessibilityHidden(true)
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text("\(d)").font(VFont.display(22, .heavy))
-                    Text("day\(s) left").font(VFont.ui(13, .bold))
+                    if ended {
+                        Text("Free trial ended").font(VFont.ui(13, .bold))
+                    } else {
+                        Text("\(d)").font(VFont.display(22, .heavy))
+                        Text("day\(s) left").font(VFont.ui(13, .bold))
+                    }
                 }
                 .foregroundStyle(soon ? VC.c1 : VC.signalDeep)
                 .padding(.horizontal, 14).padding(.vertical, 6)
                 .background(soon ? VC.c1bg : VC.c2bg)
                 .clipShape(Capsule())
                 .padding(.bottom, 12)
-                Text(soon ? "Only \(d) day\(s) left in your free look" : "Your free look is counting down")
+                Text(ended ? "Your free trial has ended" : soon ? "Only \(d) day\(s) left in your free look" : "Your free look is counting down")
                     .font(VFont.display(19, .bold)).foregroundStyle(VC.ink)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.bottom, 8)
-                Text(soon
+                Text(ended ? TrialEndedText.message(store)
+                     : soon
                      ? "You have \(d) day\(s) left to sign up. Set up your subscription so access continues without interruption when the free look ends."
                      : "You are on the \(store.subscription.trialDays)-day free look — \(d) days left. Subscribe any time to keep access after it ends.")
                     .font(VFont.ui(13)).foregroundStyle(VC.ink2).lineSpacing(3)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.bottom, 18)
-                Button("Set up subscription") {
+                Button(ended ? "Subscribe" : "Set up subscription") {
                     withAnimation { store.showSplash = false }
                     store.push(.subscribe)
                 }
                 .buttonStyle(.vPrimary)
-                Button("Continue to app") { withAnimation { store.showSplash = false } }
+                Button(ended ? "View my inspections" : "Continue to app") { withAnimation { store.showSplash = false } }
                     .buttonStyle(.vGhost)
                     .padding(.top, 10)
             }
@@ -272,4 +288,16 @@ struct TrialSplashView: View {
             .accessibilityElement(children: .contain)
             .accessibilityAddTraits(.isModal)
     }
+}
+
+/// Wording for the trial-ended prompt and splash (one free trial per device, `DeviceTrial`).
+@MainActor
+enum TrialEndedText {
+    static func lead(_ store: AppStore) -> String {
+        let sub = store.subscription
+        return sub.deviceTrialUsed == true ? "This device has already used its \(sub.trialDays)-day free trial."
+                                           : "Your \(sub.trialDays)-day free trial is over."
+    }
+    static let rest = "Subscribe to start new inspections. Your existing inspections stay available, and their reports can still be shared."
+    static func message(_ store: AppStore) -> String { lead(store) + " " + rest }
 }

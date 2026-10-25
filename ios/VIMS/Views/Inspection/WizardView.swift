@@ -12,6 +12,9 @@ struct WizardView: View {
     @State private var focus = FocusChain()
     /// Earliest selectable inspection date: today, or the saved date when editing an older inspection.
     @State private var minDate = Calendar.current.startOfDay(for: Date())
+    /// Data v1.10 `retiredInspectionTypes`: an inspection saved with a retired type ("Code") keeps that chip while it is
+    /// edited, so it still shows (and can stay) selected; new inspections never offer it.
+    @State private var keptType: String?
     var wide = WideLayout()
 
     var body: some View {
@@ -27,7 +30,7 @@ struct WizardView: View {
                         StepsBar(count: w.steps.count, current: step)
                         if draft != nil {
                             switch step {
-                            case 1: EntryList(entries: WizardRules.step1(store.config), draft: draftBinding, errors: errors, focus: focus, pairText: false, minDate: minDate, wide: wide.isWide)
+                            case 1: EntryList(entries: WizardRules.step1(store.config), draft: draftBinding, errors: errors, focus: focus, pairText: false, minDate: minDate, wide: wide.isWide, keptType: keptType)
                             case 2: EntryList(entries: w.step2, draft: draftBinding, errors: errors, focus: focus, pairText: true, minDate: minDate, wide: wide.isWide)
                             case 3: areas
                             default: tests
@@ -71,10 +74,13 @@ struct WizardView: View {
                     existing.state = st
                 }
                 draft = existing
+                if store.config.wizard.isRetired(existing.inspType) { keptType = existing.inspType }
                 if let saved = Fmt.parse(existing.field("Date"), "yyyy-MM-dd") { minDate = min(minDate, Calendar.current.startOfDay(for: saved)) }
             } else { draft = store.newInspectionDraft() }
             if let s = DebugFlags.wizardStep { step = max(1, min(4, s)); DebugFlags.wizardStep = nil }
             #if DEBUG
+            // -wizType TYPE: the draft starts with that Type of inspection (step 3 lock / deselect checks).
+            if let t = DebugLaunch.value("-wizType") { draft?.inspType = t }
             // -wizState TX[,UT…]: pick those states in order through the same setter as the picker.
             if let seq = DebugFlags.wizardStates {
                 DebugFlags.wizardStates = nil
@@ -104,12 +110,24 @@ struct WizardView: View {
     }
 
     // Step 3 — areas to inspect
+    /// Data v1.10 `areasLockedTypes` (Phase 1, Phase 2, Tests Only, 4 Point): the exterior, interior room and utility
+    /// options are shown disabled under one note and add no sections; the room counts stay editable. The earlier
+    /// choices are kept, so switching to another type brings them back as they were.
     @ViewBuilder private var areas: some View {
         let w = store.config.wizard
+        let type = draft?.inspType ?? ""
+        let locked = w.areasLocked(type)
+        let note = WizardRules.areasLockedNote(type)
         HintText(text: "Choose every area to inspect — add or remove anything. This builds the checklist.")
             .padding(.top, 2).padding(.bottom, 2)
+        if locked {
+            AreasLockedNote(text: note)
+                .padding(.top, 8).padding(.bottom, 2)
+                .id("areasLocked")
+        }
         SectionLabel(text: "Exterior areas")
-        ChipGroup(options: w.exteriorOptions, selection: draftBinding.exterior, single: false, display: store.catalog.title)
+        ChipGroup(options: w.exteriorOptions, selection: draftBinding.exterior, single: false, display: store.catalog.title,
+                  disabled: locked, disabledHint: note)
         SectionLabel(text: "Room counts")
         ForEach(w.roomCounts, id: \.key) { rc in
             CounterRow(label: rc.label, value: Binding(
@@ -117,9 +135,11 @@ struct WizardView: View {
                 set: { draft?.counts[rc.key] = $0 }), range: StepperLimits.roomCount)
         }
         SectionLabel(text: "Interior rooms", top: 11)
-        ChipGroup(options: w.roomOptions, selection: draftBinding.rooms, single: false, display: store.catalog.title)
+        ChipGroup(options: w.roomOptions, selection: draftBinding.rooms, single: false, display: store.catalog.title,
+                  disabled: locked, disabledHint: note)
         SectionLabel(text: "Utility & systems")
-        ChipGroup(options: w.utilityOptions, selection: draftBinding.utilities, single: false, display: store.catalog.title)
+        ChipGroup(options: w.utilityOptions, selection: draftBinding.utilities, single: false, display: store.catalog.title,
+                  disabled: locked, disabledHint: note)
     }
 
     // Step 4 — secondary testing
@@ -173,6 +193,8 @@ struct WizardView: View {
         draft = d
         if step < store.config.wizard.steps.count { go(step + 1, proxy); return }
         if d.field("Inspector").isEmpty { d.fields["Inspector"] = store.session?.name ?? store.company.inspectorName }
+        // Free trial over and no subscription: a new inspection can't be built (existing ones can still be edited).
+        if editingID == nil, !store.canStartNewInspection { store.showTrialEndedPrompt(); return }
         let id = store.buildChecklist(from: d)
         if editingID != nil {
             store.toast("Checklist updated")
@@ -232,6 +254,12 @@ enum WizardRules {
     /// The step-1 "Type of inspection" chips (`wtype`, required since data v1.9.1).
     static func typeEntry(_ cfg: ChecklistConfig) -> WizardEntry? { cfg.wizard.step1.first { $0.id == "wtype" } }
     static let typeError = "Select the type of inspection"
+
+    /// The one note over wizard step 3's locked options, e.g. "Not used for a Tests Only inspection" /
+    /// "Not used for a 4 Point Inspection" (no doubled "inspection").
+    static func areasLockedNote(_ type: String) -> String {
+        type.lowercased().hasSuffix("inspection") ? "Not used for a \(type)" : "Not used for a \(type) inspection"
+    }
 
     /// Client Oct 17: step 1 asks for the street ("Inspection address"), City, State and ZIP code. The shared JSON still
     /// lists only "Inspection address", so City and ZIP code are inserted right after it (unless the JSON has them).
@@ -323,6 +351,8 @@ private struct EntryList: View {
     /// iPad landscape: step 1's fields two per row (Client name | phone, email | address, State | agent name …),
     /// step 2's numbers four per row, the two notes side by side.
     var wide = false
+    /// A retired type the edited inspection was saved with (shown after the current types so it stays selectable).
+    var keptType: String? = nil
 
     /// The step's single-line text fields in screen order — the Return / Next chain. With the v1.3 State field,
     /// Return on "Inspection address" opens the State picker instead, and picking a state moves on to the next one.
@@ -633,11 +663,15 @@ private struct EntryList: View {
         let w = store.config.wizard
         if e.id == "wtype" {
             // v1.9.1: nothing preselected; required ("Select the type of inspection" until one is picked).
+            // v1.10 (client Oct 25): tapping the selected chip again deselects it — the type stays required, so Next
+            // shows "Select the type of inspection" until one is picked. Retired types ("Code") aren't offered, except
+            // on an inspection already saved with one.
             SectionLabel(text: e.label, required: e.required ?? true).id(e.label)
-            ChipGroup(options: w.inspectionTypes, selection: Binding(get: { [draft.inspType] }, set: { if let f = $0.first {
-                draft.inspType = f
-                errors.map[e.label] = nil
-            } }), single: true, required: true)
+            let types = w.inspectionTypes.filter { !w.isRetired($0) } + (keptType.map { w.inspectionTypes.contains($0) ? [] : [$0] } ?? [])
+            ChipGroup(options: types, selection: Binding(get: { draft.inspType.isEmpty ? [] : [draft.inspType] }, set: { v in
+                draft.inspType = v.first ?? ""
+                if !draft.inspType.isEmpty { errors.map[e.label] = nil }
+            }), single: true, required: false)
             if let err = errors[e.label] { FieldError(text: err).padding(.top, 8) }
             if draft.inspType == "Component" {
                 SectionLabel(text: "Component(s) to inspect")

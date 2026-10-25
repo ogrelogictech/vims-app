@@ -16,9 +16,36 @@ struct ChecklistCatalog {
 
     func section(_ name: String) -> SectionDef? {
         let base = Self.baseName(name)
-        if let o = overrides.sections[base] { return o }
-        if let o = overrides.sections[name] { return o }
+        if let o = overrides.sections[base] ?? overrides.sections[name] { return withNewJSONItems(o) }
         return config.sections.first { $0.name == base } ?? config.sections.first { $0.name == name }
+    }
+
+    /// An admin-edited section plus the items the shared JSON added after the edit was saved (`baseItems`), each placed
+    /// after the JSON item it follows. Overrides saved before data v1.10 have no `baseItems` and are used as saved.
+    private func withNewJSONItems(_ o: SectionDef) -> SectionDef {
+        guard let known = o.baseItems.map(Set.init), let json = config.sections.first(where: { $0.name == o.name }) else { return o }
+        var out = o
+        out.items = Self.adding(json.items, to: o.items, known: known)
+        if let jh = json.itemsHigh, !jh.isEmpty { out.itemsHigh = Self.adding(jh, to: o.itemsHigh ?? [], known: known) }
+        return out
+    }
+
+    static func adding(_ json: [ItemDef], to mine: [ItemDef], known: Set<String>) -> [ItemDef] {
+        var out = mine
+        for (i, it) in json.enumerated() where !known.contains(it.editKey) && !out.contains(where: { $0.editKey == it.editKey }) {
+            var at = i == 0 ? 0 : out.count
+            for p in stride(from: i - 1, through: 0, by: -1) {
+                if let j = out.lastIndex(where: { $0.editKey == json[p].editKey }) { at = j + 1; break }
+            }
+            out.insert(it, at: at)
+        }
+        return out
+    }
+
+    /// The JSON item keys an admin edit is saved against (`SectionDef.baseItems`).
+    func jsonItemKeys(_ name: String) -> [String]? {
+        guard let s = config.sections.first(where: { $0.name == name }) else { return nil }
+        return (s.items + (s.itemsHigh ?? [])).map(\.editKey)
     }
 
     func number(_ name: String) -> Int { section(name)?.number ?? 99 }
@@ -101,31 +128,34 @@ struct ChecklistCatalog {
 
     // MARK: Builder
 
+    /// `phaseTypes[type]` when the type has its own layout (Phase 1 / Phase 2 / Texas / 4 Point / Tests Only), else
+    /// `standardLayout`. Both use the same entry forms: `link`, fixed `sections`, `always`, `optional` (the options
+    /// chosen in the wizard, e.g. Tests Only's `"optional": "testOptions"`), `order` tokens and `sub`. Admin custom
+    /// sections are appended to their group in the standard layout, and to a phase layout's `optional` groups (Tests
+    /// Only → Testing). Data v1.10 `areasLockedTypes`: the exterior / room / utility choices never add sections.
     func buildGroups(for insp: Inspection) -> [ChecklistGroup] {
         let builder = config.checklistBuilder
-        if let phase = builder.phaseTypes[insp.inspType] {
-            return phase.map { e in
-                ChecklistGroup(heading: e.heading, icon: e.icon ?? defaultIcon(e), link: e.link, sections: e.sections ?? [], sub: nil)
-            }
-        }
-        return builder.standardLayout.map { e in
+        let phase = builder.phaseTypes[insp.inspType]
+        let locked = config.wizard.areasLocked(insp.inspType)
+        return (phase ?? builder.standardLayout).map { e in
             if let link = e.link {
                 return ChecklistGroup(heading: e.heading, icon: e.icon ?? defaultIcon(e), link: link, sections: [], sub: nil)
             }
-            var secs: [String] = []
+            var secs: [String] = e.sections ?? []
             secs += e.always ?? []
-            if let opt = e.optional { secs += selected(optionKey: opt, insp) }
-            if let order = e.order { secs += expand(order: order, insp) }
-            secs += overrides.custom[customGroup(for: e)] ?? []
+            if let opt = e.optional { secs += selected(optionKey: opt, insp, locked: locked) }
+            if let order = e.order { secs += expand(order: order, insp, locked: locked) }
+            if phase == nil || e.optional != nil { secs += overrides.custom[customGroup(for: e)] ?? [] }
             var sub: ChecklistSubGroup?
             if let s = e.sub {
                 var ss = s.always ?? []
-                if let opt = s.optional { ss += selected(optionKey: opt, insp) }
+                if let opt = s.optional { ss += selected(optionKey: opt, insp, locked: locked) }
                 ss += s.then ?? []
                 ss += overrides.custom["Utility"] ?? []
                 sub = ChecklistSubGroup(heading: s.heading, sections: ss)
             }
-            return ChecklistGroup(heading: e.heading, icon: e.icon, link: nil, sections: secs, sub: sub)
+            return ChecklistGroup(heading: e.heading, icon: phase != nil ? (e.icon ?? defaultIcon(e)) : e.icon,
+                                  link: nil, sections: secs, sub: sub)
         }
     }
 
@@ -142,8 +172,11 @@ struct ChecklistCatalog {
         }
     }
 
-    private func selected(optionKey: String, _ insp: Inspection) -> [String] {
+    /// The wizard options chosen for a builder `optional` key. `locked` (areasLockedTypes): exterior, room and utility
+    /// choices are kept on the inspection but add nothing; tests always count.
+    private func selected(optionKey: String, _ insp: Inspection, locked: Bool = false) -> [String] {
         let w = config.wizard
+        if locked, optionKey != "testOptions" { return [] }
         switch optionKey {
         case "exteriorOptions": return w.exteriorOptions.filter { insp.exterior.contains($0) }
         case "utilityOptions": return w.utilityOptions.filter { insp.utilities.contains($0) }
@@ -154,12 +187,12 @@ struct ChecklistCatalog {
     }
 
     /// "Garage?" -> included when selected; "Bathroom×bathrooms" -> repeated per count.
-    private func expand(order: [String], _ insp: Inspection) -> [String] {
+    private func expand(order: [String], _ insp: Inspection, locked: Bool = false) -> [String] {
         var out: [String] = []
         for token in order {
             if token.hasSuffix("?") {
                 let n = String(token.dropLast())
-                if insp.rooms.contains(n) { out.append(n) }
+                if !locked, insp.rooms.contains(n) { out.append(n) }
             } else if let r = token.range(of: "×") {
                 let base = String(token[..<r.lowerBound])
                 let key = String(token[r.upperBound...])

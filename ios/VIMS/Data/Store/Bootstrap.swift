@@ -34,7 +34,10 @@ enum Bootstrap {
         state.company.inspectorName = owner.name
         state.company.email = owner.email
         state.company.inspectors = [Inspector(id: owner.id, name: owner.name, email: owner.email, owner: true, admin: true)]
-        state.subscription.trialStart = Date()
+        // One free trial per device (DeviceTrial, Keychain): a device that already had one starts this company used up.
+        let trial = DeviceTrial.trialForNewCompany(trialDays: state.subscription.trialDays)
+        state.subscription.trialStart = trial.start
+        state.subscription.deviceTrialUsed = trial.used ? true : nil
         return CompanyState(id: owner.companyID, profile: state.company, subscription: state.subscription, overrides: state.overrides)
     }
 

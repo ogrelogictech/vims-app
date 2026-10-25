@@ -78,7 +78,12 @@ enum DebugFlags {
 ///   -validate                  submit the form once so its validation errors show
 ///   -skipLogin                 sign in as the demo owner
 ///   -noSplash                  don't show the free-look splash
-///   -trialDaysLeft N           override the free-look days left
+///   -trialDaysLeft N           override the free-look days left (0 = trial ended → New inspection shows Subscribe)
+///   -showerPan                 with -screen phase2: answer the Plumbing shower pan items and mark the section done
+///   -staleOverride NAME        an admin edit of NAME saved before its "Shower pan" items (-legacyOverride: no baseItems)
+///   -wizType TYPE              with -screen wizard / editWizard: the draft's Type of inspection (e.g. "Tests Only")
+///   -resetDeviceTrial          clear the Keychain one-trial-per-device record (testers: the next Create account gets 30 days)
+///   -deviceTrialStatus         print DEVICETRIAL lines (Keychain records, signed-in company trial, can start new inspection)
 ///   -screen NAME               login signup forgot join home splash wizard sections section drawer photos
 ///                              markup flag summary report reportReady settings company instructions manage
 ///                              editSection plans inspectors subscribe subscribed billing feedback phase1 phase2
@@ -110,7 +115,10 @@ enum DebugLaunch {
     }
 
     static func prepareStorage() {
-        if has("-resetData") { SwiftDataRepository.wipeStore(); FileStore().wipeAll() }
+        // -resetData reseeds a fresh demo (its Keychain trial clock too); the device's own trial record stays.
+        if has("-resetData") { SwiftDataRepository.wipeStore(); FileStore().wipeAll(); DeviceTrial.clearDemo() }
+        // -resetDeviceTrial: forget this device's free-trial record (and the demo's), so the next Create account gets 30 days.
+        if has("-resetDeviceTrial") { DeviceTrial.clear(); print("DEVICETRIAL cleared") }
     }
 
     /// Prints the report email draft (and checks a real MFMailComposeViewController accepts it) so the
@@ -405,6 +413,22 @@ enum DebugLaunch {
                 }.joined(separator: " | "))
             }
         }
+        // -staleOverride NAME [-legacyOverride]: an admin edit of NAME saved before the JSON gained its "Shower pan" items
+        // (with baseItems = what the JSON had then; -legacyOverride: no baseItems, as saved before data v1.10). Prints
+        // CHECKLISTTEST with the items new inspections get.
+        if let n = value("-staleOverride"), store.session != nil, var d = store.config.sections.first(where: { $0.name == n }) {
+            d.items.removeAll { ($0.q ?? "").hasPrefix("Shower pan") }
+            d.baseItems = has("-legacyOverride") ? nil : (d.items + (d.itemsHigh ?? [])).map(\.editKey)
+            store.state.overrides.sections[n] = d
+            let items = store.catalog.items(n, depth: .standard).items.compactMap(\.q)
+            print("CHECKLISTTEST override=\(n) legacy=\(has("-legacyOverride")) items=\(items.count) last3=\(items.suffix(3))")
+        }
+        if has("-deviceTrialStatus") {
+            let f = ISO8601DateFormatter()
+            print("DEVICETRIAL firstTrialStart=\(DeviceTrial.date(.firstTrialStart).map(f.string) ?? "none") demoTrialStart=\(DeviceTrial.date(.demoTrialStart).map(f.string) ?? "none")")
+            let sub = store.subscription
+            print("DEVICETRIAL session=\(store.session?.email ?? "none") company=\(store.company.name) trialStart=\(f.string(from: sub.trialStart)) daysLeft=\(sub.trialDaysLeft) active=\(sub.active) deviceTrialUsed=\(sub.deviceTrialUsed ?? false) trialEnded=\(sub.trialEnded) canStartNewInspection=\(store.canStartNewInspection)")
+        }
         if let v = value("-wizState") { DebugFlags.wizardStates = v.split(separator: ",").map(String.init) }
         if has("-mailSelfTest") { mailSelfTest(store) }
         guard let screen else { return }
@@ -437,7 +461,9 @@ enum DebugLaunch {
         let step = value("-step").flatMap(Int.init)
         let pick = value("-inspection") ?? "1428"
         // -inspection TYPE for a type with no inspection yet (e.g. Texas, "4 Point Inspection"): create one.
-        if store.config.wizard.inspectionTypes.contains(pick), !store.inspections.contains(where: { $0.inspType == pick }) {
+        // A retired type (data v1.10, "Code") works too: it stands in for an inspection saved before the type was retired.
+        if store.config.wizard.inspectionTypes.contains(pick) || store.config.wizard.isRetired(pick),
+           !store.inspections.contains(where: { $0.inspType == pick }) {
             var draft = store.newInspectionDraft()
             draft.inspType = pick
             draft.fields["Inspection address"] = "2207 Lakeview Ter, Austin, 78703"
@@ -521,6 +547,19 @@ enum DebugLaunch {
                 draft.fields["Inspection address"] = screen == "phase1" ? "57 Aspen Ridge Ct, Kaysville, UT 84037" : "19 Summit View Ln, Farmington, UT 84025"
                 draft.fields["Client name"] = "Wasatch Builders"
                 pid = store.buildChecklist(from: draft)
+            }
+            // -depth: the phase inspection's checklist depth (shower pan items at High Detail / Standard / Fast).
+            if let d = value("-depth"), let depth = Depth(rawValue: d) { store.update(pid, markDirty: false) { $0.depth = depth } }
+            // -showerPan: answer Phase 2 — Plumbing's shower pan items (Yes / No) and mark it done (PDF check).
+            if has("-showerPan"), let insp = store.inspection(pid), let sec = insp.leafSections.first(where: { $0.hasSuffix("Plumbing") }) {
+                var a = store.defaultAnswers(sec)
+                for k in ItemKeys.keyed(store.catalog.items(sec, depth: insp.depth).items) where (k.item.q ?? "").hasPrefix("Shower pan") {
+                    a.choices[k.id] = [(k.item.q ?? "").hasSuffix("testing") ? "Yes" : "No"]
+                    if insp.depth == .fast { a.present.append(k.item.q ?? "") }     // Fast Entry: "Items reviewed" chips
+                }
+                let answers = a
+                store.update(pid, markDirty: false) { $0.answers[sec] = answers; $0.status[sec] = .done }
+                print("SHOWERPANTEST depth=\(insp.depth.rawValue) answered=\(answers.choices.keys.sorted())")
             }
             // -section NAME: open that phase section (full name or its end, e.g. "Plumbing") instead of the first.
             let leaves = store.inspection(pid)?.leafSections ?? []

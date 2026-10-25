@@ -540,8 +540,14 @@ struct SubscriptionState: Codable, Hashable {
     /// Set when an owner/admin cancels: the subscription stays active until `nextBillingDate`,
     /// then stops renewing. Optional so older saved data still decodes.
     var cancelledAt: Date?
+    /// True when this company was created on a device that had already used its free trial (one trial per device,
+    /// `DeviceTrial`): it started with the trial used up. nil on older saved data.
+    var deviceTrialUsed: Bool?
 
     var cancelled: Bool { active && cancelledAt != nil }
+
+    /// The free trial is over and there is no subscription: no new inspections (Subscribe prompt).
+    var trialEnded: Bool { !active && trialDaysLeft == 0 }
 
     func plan(_ id: String) -> PlanDef? { plans.first { $0.id == id } }
 

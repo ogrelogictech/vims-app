@@ -54,7 +54,7 @@ struct HomeSideMenu: View {
                 VStack(spacing: 8) {
                     group {
                         item("hdr-home", "Inspections") { close() }
-                        item("hdr-add", "New inspection") { go(.wizard(editing: nil)) }
+                        item("hdr-add", "New inspection") { close(); store.startNewInspection() }
                         item("settings-structure-rooms", "Settings") { go(.settings) }
                         item("company-profile-logo", "Company profile") { go(.company) }
                         item("how-vims-works", "How VIMS works") { go(.instructions) }

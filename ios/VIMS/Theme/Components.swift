@@ -177,11 +177,39 @@ struct ChipView: View {
 struct ChipButton: View {
     let label: String
     let on: Bool
+    /// Locked (data v1.10 `areasLockedTypes`): not tappable, dimmed, and reported as dimmed by VoiceOver.
+    var disabled = false
+    var disabledHint: String? = nil
     let action: () -> Void
     var body: some View {
         Button(action: action) { ChipView(label: label, on: on) }
             .buttonStyle(ChipPressStyle())
+            .disabled(disabled)
+            .opacity(disabled ? 0.42 : 1)
             .accessibilityAddTraits(on ? .isSelected : [])
+            .accessibilityHint(disabled ? (disabledHint ?? "") : "")
+    }
+}
+
+/// The single note above wizard step 3's locked options ("Not used for a Tests Only inspection").
+struct AreasLockedNote: View {
+    let text: String
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            ProtoIcon("info", size: 17).foregroundStyle(VC.ink2).padding(.top, 1)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(text).font(VFont.ui(13.5, .bold)).foregroundStyle(VC.ink)
+                Text("Exterior areas, interior rooms and utilities are locked. Room counts can still be changed.")
+                    .font(VFont.ui(12.5)).foregroundStyle(VC.ink2)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, 14).padding(.vertical, 11)
+        .background(VC.paper3)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(VC.line, lineWidth: 1))
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -201,16 +229,20 @@ struct ChipGroup: View {
     var required = false
     /// Shown text for an option (stored values stay the option keys), e.g. section keys → their display titles.
     var display: (String) -> String = { $0 }
+    /// Every chip locked (wizard step 3 for `areasLockedTypes`); the selection is kept as it is.
+    var disabled = false
+    var disabledHint: String? = nil
 
     var body: some View {
         FlowLayout(spacing: 8, lineSpacing: 8) {
             ForEach(Array(options.enumerated()), id: \.offset) { _, opt in
-                ChipButton(label: display(opt), on: selection.contains(opt)) { tap(opt) }
+                ChipButton(label: display(opt), on: selection.contains(opt), disabled: disabled, disabledHint: disabledHint) { tap(opt) }
             }
         }
     }
 
     private func tap(_ opt: String) {
+        guard !disabled else { return }
         if single {
             if selection.contains(opt) {
                 if !required { selection = [] }

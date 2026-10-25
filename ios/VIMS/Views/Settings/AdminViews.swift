@@ -707,7 +707,9 @@ struct SubscribeView: View {
         Screen(title: "Subscription", actions: [store.homeAction()], errors: errors) {
             if !sub.active {
                 Banner(symbol: "free-trial-days", tint: VC.brandDeep, background: VC.brand.opacity(0.08), border: Color(hex: 0xC9DEE6), textColor: VC.brandDeep,
-                       text: md("**Free trial — \(sub.trialDaysLeft) days left.** Set up your subscription now so access continues automatically when the trial ends."))
+                       text: md(sub.trialEnded
+                                ? "**Your free trial has ended.** Subscribe to start new inspections — your existing inspections and reports stay available."
+                                : "**Free trial — \(sub.trialDaysLeft) days left.** Set up your subscription now so access continues automatically when the trial ends."))
                     .padding(.bottom, 14)
             }
             SectionLabel(text: "Choose your plan", top: 2)
@@ -906,6 +908,7 @@ struct BillingView: View {
                 row("Status") {
                     if sub.cancelled { Pill(kind: .queued, text: "Cancelled · active until \(periodEnd)") }
                     else if sub.active { Pill(kind: .done, text: "Active · auto-pay") }
+                    else if sub.trialEnded { Pill(kind: .queued, text: "Trial ended") }
                     else { Pill(kind: .queued, text: "Trial · \(sub.trialDaysLeft)d left") }
                 }
                 row("Plan") { Text("\(plan?.name ?? "") · \(Fmt.money(plan?.price ?? 0))\(plan?.unit ?? "/mo")").font(VFont.ui(14, .bold)).foregroundStyle(VC.ink) }
@@ -914,8 +917,8 @@ struct BillingView: View {
                 }
                 row(plan?.perReport == true ? "Billing" : "Monthly total") { Text(sub.totalLabel(seats: seats)).font(VFont.ui(14, .bold)).foregroundStyle(VC.ink) }
                 row("Payment") { Text(sub.active ? (sub.cardOnFile?.display ?? sub.paymentLabel ?? "Square") : "Not set up").font(VFont.ui(14, .bold)).foregroundStyle(VC.ink) }
-                row(sub.cancelled ? "Active until" : sub.active ? "Next billing" : "Trial ends", last: true) {
-                    Text(sub.active ? periodEnd : "in \(sub.trialDaysLeft) days").font(VFont.ui(14, .bold)).foregroundStyle(VC.ink)
+                row(sub.cancelled ? "Active until" : sub.active ? "Next billing" : sub.trialEnded ? "Trial" : "Trial ends", last: true) {
+                    Text(sub.active ? periodEnd : sub.trialEnded ? "Ended" : "in \(sub.trialDaysLeft) days").font(VFont.ui(14, .bold)).foregroundStyle(VC.ink)
                 }
             }
             .background(VC.paper)

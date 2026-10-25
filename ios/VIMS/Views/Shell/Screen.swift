@@ -10,7 +10,8 @@ struct HeaderAction: Identifiable {
 }
 
 /// The prototype's blue app header (.apphdr): back/menu on the left, title + subtitle,
-/// contextual actions on the right. Includes the offline/sync badge from the status bar.
+/// contextual actions on the right. Includes the offline/sync badge from the status bar when sync is on (data v1.10
+/// `features.sync`; off in Phase 1, which never syncs — the header then starts with a small gap instead).
 struct AppHeader: View {
     enum Leading { case back, menu, none }
 
@@ -23,13 +24,17 @@ struct AppHeader: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                Spacer()
-                NetworkBadge()
+            if store.syncEnabled {
+                HStack {
+                    Spacer()
+                    NetworkBadge()
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 2)
+                .padding(.bottom, 4)
+            } else {
+                Color.clear.frame(height: 8)
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 2)
-            .padding(.bottom, 4)
 
             HStack(spacing: 10) {
                 switch leading {

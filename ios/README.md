@@ -66,7 +66,8 @@ SwiftUI views ──► AppStore (@Observable, @MainActor)  ──► Repository
 
 - **Navigation.** `Route` enum + `NavigationStack(path:)` in `RootView`. Root is Login or Home depending on the
   session. Every screen uses `Screen`, which draws the prototype header (`.apphdr`: back/menu left, title +
-  subtitle, contextual Photos / Sections / Home actions right, plus the offline/sync badge). Edge-swipe back is
+  subtitle, contextual Photos / Sections / Home actions right, plus the offline/sync badge when `features.sync` is on —
+  off in Phase 1, see "Client round Oct 23–25"). Edge-swipe back is
   kept. The checklist drawer, photo markup viewer (full-screen cover), flag-a-finding bottom sheet, trial
   splash, and toast are overlays/modals.
 - **Local database: SwiftData, scoped per user.** `Data/Repository.swift` (`SwiftDataRepository`, behind the
@@ -312,7 +313,7 @@ ios/
                 (catalog + builder + answer keys), Repository.swift (Repository protocol, SwiftDataRepository,
                 FileStore, image cache), DemoSeed.swift
       Store/    Records.swift (SwiftData models + password hashing), Bootstrap.swift (demo account, new
-                company, one-time JSON migration)
+                company, one-time JSON migration), DeviceTrial.swift (one free trial per device, Keychain)
     Validation/ Validation.swift (rules, filters, FormErrors), FilteredTextField.swift
     Services/   Services.swift (Auth / Subscription / Sync stubs, connectivity)
     Report/     ReportRenderer.swift (report data + standard PDF pages), ReportForms.swift (Texas TREC + 4-Point pages)
@@ -336,7 +337,7 @@ All in `VIMS/Services/Services.swift`, behind protocols so a Laravel implementat
 |---|---|---|
 | `AuthService` | `LocalAuthService` | local User table in SwiftData: sign in checks the email + salted PBKDF2 hash; register creates the user (Create account also creates a company; Join attaches to the company with that code); forgot password only checks the email format |
 | `SubscriptionService` | `LocalSubscriptionService` | the form validates the card (Luhn, expiry, CVC, name, ZIP) and the stub simulates Square success; stores only a "Visa ····4242" label, never card data. The card form is a placeholder until Square's card-entry SDK replaces it; cancel / undo cancellation are stubbed too |
-| `SyncService` | `LocalSyncService` | "Sync now" marks pending inspections synced; auto-sync toggle is stored only |
+| `SyncService` | `LocalSyncService` | Phase 2 only: with `features.sync` false (data v1.10) it never runs and no sync UI shows. With it on, "Sync now" marks pending inspections synced; auto-sync toggle is stored only |
 
 Also pending backend work: sending the report/receipts by email server-side, role enforcement (admin screens are
 hidden for non-admins in the UI only), and pulling checklist/plan changes from the web portal (Phase 2).
@@ -715,3 +716,48 @@ Screenshots: `screenshots/oct12-*.png` — `ipad-01…18` 13" (landscape 01–13
 - DEBUG: `-seedPlatform "FB|BCC"` (store those addresses as an older build would; the migration runs on the next
   launch), `-platformStatus` (PLATFORMTEST lines), `-section NAME` with `-screen phase1|phase2` (e.g. `Plumbing`).
   Screenshots `screenshots/oct22b-*.png` (`oct22b-pdf-*` are pages of the generated PDF).
+
+## Client round Oct 23–25 (shared data v1.10.0)
+
+- **Covers**: new Spring, Christmas and Fall art, `halloween.webp` for Halloween and Holidays → **Cinco de Mayo**
+  (`cinco-de-mayo.webp`). `SharedCovers` is a synchronized group, so new files are bundled automatically (checked in the
+  built .app). The art is drawn at its JSON rect, which now matches each image's aspect ratio and stays right of center,
+  clear of the footer box. Picker thumbnails and the PDF cover verified (`oct25-13-pdf-covers-*`, `oct25-ipad-04-*`).
+- **Type of inspection**: `wizard.retiredInspectionTypes` ("Code") is not offered for new inspections; an inspection saved
+  with it keeps the chip while edited and still opens, lists and prints its type. Tapping the selected chip again
+  deselects it; Next then shows "Select the type of inspection" (still required).
+- **Areas locked** (`wizard.areasLockedTypes`: Phase 1, Phase 2, Tests Only, 4 Point): step 3 shows one note ("Not used for
+  a Tests Only inspection" / "Not used for a 4 Point Inspection") and the exterior, interior room and utility chips
+  disabled (dimmed, not tappable, VoiceOver "dimmed" + the note as hint); Bedrooms / Bathrooms / Hallways stay editable.
+  The choices are kept, so another type unlocks them as they were. The builder ignores them for these types.
+- **Builder**: phase layouts use the same entry forms as `standardLayout` (`link`, `sections`, `always`, `optional`,
+  `order`, `sub`). **Tests Only** = Inspection Info + Testing (the tests chosen in step 4, plus admin custom Testing
+  sections) + Summary.
+- **No sync in Phase 1** (`features.sync`, decoded as optional, false when absent): no header sync pill, no Settings →
+  Sync section, no "Waiting to sync" tile (Home shows "In progress"), no "Queued" status (a generated report is Done ·
+  "Report ready"), no offline/sync banner or wording (Report ready, sign-out alert "Your inspections stay saved on this
+  device.", How VIMS works, Delete account). `requestAutoSync` / `syncNow` / `performSync` return immediately. Turning
+  the flag on restores the Oct 22 behavior unchanged.
+- **How VIMS works**: "Everything saves on your device … not copied to a server"; the support link is
+  `AppStore.supportEmail` (support@vimsinspect.com, also after upgrading from a build that stored VIMSInspect@Gmail.com).
+- **Admin-edited sections** now remember the JSON items they were saved against (`SectionDef.baseItems`), so items the
+  JSON adds later (e.g. Phase 2 Plumbing's shower pan items) still show in an edited section. Edits saved before this
+  build have no record and are used as saved (re-save the section in Manage checklist to pick new items up).
+- **Free trial**: with the trial over and no active subscription, every New inspection (Home +, Home button, side menu,
+  and the wizard route itself) shows "Your free trial has ended" (Not now / Subscribe); the wizard refuses to build a new
+  checklist. Existing inspections still open, edit and share / re-send their reports. Home: "Free trial ended ·
+  Subscribe"; the sign-in splash, Plan & billing and Subscription say so too.
+- **One free trial per device** (`Data/Store/DeviceTrial.swift`): the first Create account on a device records its
+  trial start in the Keychain (`AfterFirstUnlockThisDeviceOnly`, survives reinstalling the app). A later company created
+  on the same device starts with the trial used ("This device has already used its 30-day free trial.",
+  `SubscriptionState.deviceTrialUsed`). Builds before this backfill the record once from the companies on the device.
+  The demo account's trial clock is kept there too, so reinstalling or re-seeding never restarts it (Release has no
+  launch-argument paths at all). TODO(backend): the server enforces this with Apple DeviceCheck.
+- **Inspection agreement** v2026-10-25 (Wind Mitigation Inspection service line, agent name / email on separate lines)
+  shows in the viewer, editor and PDF straight from the JSON; a company's edited or uploaded agreement is kept (the
+  locked form block always comes from the current VIMS agreement).
+- DEBUG: `-resetDeviceTrial` (clear the Keychain trial records), `-deviceTrialStatus` (DEVICETRIAL lines), `-wizType TYPE`
+  (wizard draft type), `-depth` now also applies to `-screen phase1|phase2`, `-showerPan` (with `-screen phase2`: answer
+  and finish Plumbing's shower pan items), `-staleOverride NAME [-legacyOverride]` (CHECKLISTTEST), `-inspection Code`
+  (a retired-type inspection). `-resetData` also restarts the demo's trial clock.
+- Screenshots `screenshots/oct25-*.png` (iPhone 17, upgraded from 8bcc54f: 01–18; `oct25-ipad-*` iPad Pro 13", fresh).
