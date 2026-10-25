@@ -71,7 +71,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.em
 import kotlinx.coroutines.launch
 import com.vims.app.ui.SubscribeR
-import com.vims.app.ui.WizardR
 import com.vims.app.ui.components.BtnKind
 import com.vims.app.ui.components.HdrAction
 import com.vims.app.ui.components.Lbl
@@ -102,7 +101,8 @@ fun shortCity(city: String): String = city.replace(Regex("\\s+\\d{5}(-\\d{4})?$"
 @Composable
 fun statusPill(b: InspectionBundle) = when (b.inspection.status) {
     InspStatus.DONE -> Pill("Done", PillKind.Done)
-    InspStatus.QUEUED -> Pill("Queued", PillKind.Queued)
+    // "Queued" read as a sync queue; without sync (Phase 1) a queued inspection is simply not started yet.
+    InspStatus.QUEUED -> if (com.vims.app.data.Features.sync) Pill("Queued", PillKind.Queued) else Pill("Scheduled", PillKind.New)
     InspStatus.SCHEDULED -> Pill("Scheduled", PillKind.New)
     else -> Pill("In progress", PillKind.Prog)
 }
@@ -130,7 +130,7 @@ fun HomeScreen(vm: AppViewModel, nav: NavHostController) {
     VScreen(
         "Inspections", companyName(vm), netState,
         left = HdrAction(VIcons.menu, "Menu") { scope.launch { drawer.open() } },
-        actions = listOf(HdrAction(VIcons.plus, "New inspection") { nav.navigate(WizardR()) }),
+        actions = listOf(HdrAction(VIcons.plus, "New inspection") { vm.newInspection(nav) }),
         subtitleLeading = { CompanyMark(vm, 18.dp, bordered = false) },
     ) {
         if (!account.active) {
@@ -140,14 +140,18 @@ fun HomeScreen(vm: AppViewModel, nav: NavHostController) {
                     .padding(horizontal = 16.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(rich("**Free trial** · ${vm.trialDaysLeft()} days left"), style = T.ui(13.5.sp, color = Color.White), modifier = Modifier.weight(1f))
+                // Client Oct 25: after the free look, new inspections need a subscription.
+                Text(rich(if (vm.canStartInspection()) "**Free trial** · ${vm.trialDaysLeft()} days left" else "**Free trial ended** · subscribe to start new inspections"),
+                    style = T.ui(13.5.sp, color = Color.White), modifier = Modifier.weight(1f))
                 Text("Subscribe", style = T.ui(13.5.sp, FontWeight.SemiBold, Color.White))
                 Icon(VIcons.chevRight, null, tint = Color.White, modifier = Modifier.padding(start = 3.dp).size(16.dp))
             }
         }
         Row(Modifier.padding(bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Stat("${todays.size}", "Inspections today", Modifier.weight(1f))
-            Stat("${netState.pending}", "Waiting to sync", Modifier.weight(1f))
+            // features.sync (v1.10): Phase 1 doesn't sync, so the second tile counts open inspections instead of "Waiting to sync".
+            if (netState.shown) Stat("${netState.pending}", "Waiting to sync", Modifier.weight(1f))
+            else Stat("${list.count { it.inspection.status != InspStatus.DONE }}", "In progress", Modifier.weight(1f))
         }
         Lbl("Today · ${Fmt.dayHeader(today)}")
         if (todays.isEmpty()) Text("No inspections scheduled today.", style = T.ui(13.sp, color = V.ink3), modifier = Modifier.padding(bottom = 10.dp))
@@ -160,7 +164,7 @@ fun HomeScreen(vm: AppViewModel, nav: NavHostController) {
             Lbl("Recent")
             recent.forEach { InspectionRow(vm, it, nav, showTime = false) }
         }
-        VBtn("New inspection", { nav.navigate(WizardR()) }, Modifier.padding(top = 14.dp), icon = VIcons.plus)
+        VBtn("New inspection", { vm.newInspection(nav) }, Modifier.padding(top = 14.dp), icon = VIcons.plus)
         VBtn("Settings", { nav.navigate(SettingsR) }, Modifier.padding(top = 10.dp), BtnKind.Ghost, icon = VIcons.settings)
     }
     }
@@ -191,7 +195,7 @@ private fun HomeMenu(vm: AppViewModel, nav: NavHostController, close: () -> Unit
         }
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 10.dp, vertical = 10.dp)) {
             MenuRow(VIcons.home, "Inspections", selected = true) { close() }
-            MenuRow(VIcons.plus, "New inspection") { go(WizardR()) }
+            MenuRow(VIcons.plus, "New inspection") { close(); vm.newInspection(nav) }
             MenuRow(VIcons.settings, "Settings") { go(SettingsR) }
             MenuRow(VIcons.building, "Company profile") { go(CompanyR) }
             MenuRow(VIcons.help, "How VIMS works") { go(InstructionsR) }
@@ -277,6 +281,8 @@ fun TrialSplash(vm: AppViewModel, nav: NavHostController) {
     AnimatedVisibility(show, enter = fadeIn(), exit = fadeOut()) {
         BackHandler { vm.closeSplash() }
         val d = vm.trialDaysLeft()
+        val ended = !vm.canStartInspection()
+        val usedOnDevice = ended && vm.account.collectAsState().value.trialUsedOnDevice
         val soon = d <= 10
         val plural = if (d == 1) "" else "s"
         // QA Oct 14: in phone landscape the card is taller than the screen — it stays inside the safe area and scrolls, so
@@ -304,15 +310,17 @@ fun TrialSplash(vm: AppViewModel, nav: NavHostController) {
                     Text(" day$plural left", style = T.ui(13.sp, FontWeight.Bold, fg), modifier = Modifier.padding(bottom = 3.dp))
                 }
                 Spacer(Modifier.height(12.dp))
-                Text(if (soon) "Only $d day$plural left in your free look" else "Your free look is counting down",
+                Text(if (usedOnDevice) "Free look already used on this device" else if (ended) "Your free look has ended" else if (soon) "Only $d day$plural left in your free look" else "Your free look is counting down",
                     style = T.display(19.sp, FontWeight.Bold, lineHeight = 23.sp), textAlign = TextAlign.Center)
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    if (soon) "You have $d day$plural left to sign up. Set up your subscription so access continues without interruption when the free look ends."
+                    if (usedOnDevice) "This device's 30-day free look has already been used, so a new company starts without one. Subscribe to start inspections."
+                    else if (ended) "Subscribe to start new inspections. Your saved inspections and their reports are still here to open, share or re-send."
+                    else if (soon) "You have $d day$plural left to sign up. Set up your subscription so access continues without interruption when the free look ends."
                     else "You are on the 30-day free look — $d days left. Subscribe any time to keep access after it ends.",
                     style = T.ui(13.sp, color = V.ink2, lineHeight = 19.5.sp), textAlign = TextAlign.Center, modifier = Modifier.padding(bottom = 18.dp),
                 )
-                VBtn("Set up subscription", { vm.closeSplash(); nav.navigate(SubscribeR) })
+                VBtn(if (ended) "Subscribe" else "Set up subscription", { vm.closeSplash(); nav.navigate(SubscribeR) })
                 VBtn("Continue to app", { vm.closeSplash() }, Modifier.padding(top = 10.dp), BtnKind.Ghost)
             }
         }

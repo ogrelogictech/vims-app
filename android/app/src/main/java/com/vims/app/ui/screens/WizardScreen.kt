@@ -74,7 +74,11 @@ import com.vims.app.util.rememberForm
 @Composable
 fun WizardScreen(vm: AppViewModel, nav: NavHostController, inspId: String?) {
     var started by rememberSaveable { mutableStateOf(false) }
-    LaunchedEffect(Unit) { if (!started) { vm.startWizard(inspId); started = true } }
+    LaunchedEffect(Unit) {
+        // Client Oct 25: no new inspection once the free look has ended without a subscription (any way into the wizard).
+        if (inspId == null && !vm.canStartInspection()) { vm.promptSubscribe(); nav.back(); return@LaunchedEffect }
+        if (!started) { vm.startWizard(inspId); started = true }
+    }
     val w by vm.wizard.collectAsState()
     val cfg = vm.config.wizard
     val editing = inspId != null
@@ -108,9 +112,14 @@ fun WizardScreen(vm: AppViewModel, nav: NavHostController, inspId: String?) {
                 }
                 2 -> WizardFields(vm, nav, cfg.step2, w.sel, step2 = true, form = form)
                 3 -> {
-                    Hint("Choose every area to inspect — add or remove anything. This builds the checklist.", Modifier.padding(top = 2.dp, bottom = 12.dp))
+                    // Client Oct 25 (`wizard.areasLockedTypes`): Phase 1 / Phase 2 / Tests Only / 4 Point don't use the exterior,
+                    // interior room or utility options — shown disabled under one short note; the room counts stay editable.
+                    // The earlier choices are kept (another type unlocks them as they were) but add no sections while locked.
+                    val locked = cfg.areasLocked(w.sel.inspType)
+                    Hint("Choose every area to inspect — add or remove anything. This builds the checklist.", Modifier.padding(top = 2.dp, bottom = if (locked) 8.dp else 12.dp))
+                    if (locked) com.vims.app.ui.components.LockedNote("Exterior, room and utility areas aren't used for a ${inspectionNoun(w.sel.inspType)}.", Modifier.padding(bottom = 12.dp))
                     Lbl("Exterior areas", first = true)
-                    MultiChips(cfg.exteriorOptions, w.sel.exterior, { o -> vm.updateSel { it.copy(exterior = it.exterior.toggle(o)) } }, label = ::sectionTitle)
+                    MultiChips(cfg.exteriorOptions, w.sel.exterior, { o -> vm.updateSel { it.copy(exterior = it.exterior.toggle(o)) } }, label = ::sectionTitle, enabled = !locked)
                     Lbl("Room counts")
                     cfg.roomCounts.forEach { rc ->
                         Counter(rc.label, w.sel.count(rc.key),
@@ -119,9 +128,9 @@ fun WizardScreen(vm: AppViewModel, nav: NavHostController, inspId: String?) {
                             max = Limits.COUNT_MAX)
                     }
                     Lbl("Interior rooms")
-                    MultiChips(cfg.roomOptions, w.sel.rooms, { o -> vm.updateSel { it.copy(rooms = it.rooms.toggle(o)) } })
+                    MultiChips(cfg.roomOptions, w.sel.rooms, { o -> vm.updateSel { it.copy(rooms = it.rooms.toggle(o)) } }, enabled = !locked)
                     Lbl("Utility & systems")
-                    MultiChips(cfg.utilityOptions, w.sel.utilOpt, { o -> vm.updateSel { it.copy(utilOpt = it.utilOpt.toggle(o)) } }, label = ::sectionTitle)
+                    MultiChips(cfg.utilityOptions, w.sel.utilOpt, { o -> vm.updateSel { it.copy(utilOpt = it.utilOpt.toggle(o)) } }, label = ::sectionTitle, enabled = !locked)
                 }
                 else -> {
                     Hint("Add any secondary testing for this inspection.", Modifier.padding(top = 2.dp, bottom = 12.dp))
@@ -137,6 +146,9 @@ fun WizardScreen(vm: AppViewModel, nav: NavHostController, inspId: String?) {
 }
 
 private fun List<String>.toggle(o: String) = if (o in this) this - o else this + o
+
+/** "Tests Only" → "Tests Only inspection"; "4 Point Inspection" stays as it is. */
+private fun inspectionNoun(type: String) = if (type.endsWith("inspection", ignoreCase = true)) type else "$type inspection"
 
 /** Form key of the required Type of inspection chips (step 1). */
 private const val TYPE_KEY = "Type of inspection"
@@ -245,7 +257,10 @@ private fun WizardFields(vm: AppViewModel, nav: NavHostController, defs: List<Wi
                 Lbl(f.label, first = step2 && i == 0, required = f.required, modifier = if (f.id == "wtype") Modifier.formField(form, TYPE_KEY) else Modifier)
                 when (f.id) {
                     "wtype" -> {
-                        SingleChips(cfg.inspectionTypes, sel.inspType.ifBlank { null }, { v -> if (v != null) vm.updateSel { it.copy(inspType = v) } }, required = true)
+                        // Client Oct 25: tapping the selected type again deselects it (still required: Next shows the message above).
+                        // Retired types ("Code") are only offered back to an inspection that was saved with one.
+                        val savedType = vm.wizard.collectAsState().value.editingId?.let { vm.bundle(it)?.inspection?.selections?.inspType }
+                        SingleChips(cfg.typeOptions(savedType), sel.inspType.ifBlank { null }, { v -> vm.updateSel { it.copy(inspType = v.orEmpty()) } })
                         com.vims.app.ui.components.FieldError(typeErr)
                         if (sel.inspType == "Component") {
                             Lbl("Component(s) to inspect")

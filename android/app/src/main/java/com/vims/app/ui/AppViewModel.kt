@@ -131,9 +131,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) { _online.value = onlineNow() }
     }
 
+    /** `features.sync` (data v1.10): false in Phase 1 — no sync UI, wording or automatic sync stub (the code stays for Phase 2). */
+    val syncEnabled: Boolean = config.features.sync
+
     val net: StateFlow<NetState> = combine(repo.inspections, repo.settings, _online) { m, s, on ->
-        NetState(pending = m.values.count { it.inspection.pendingSync }, synced = s.lastSyncAt != null, online = on)
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, NetState(0, false))
+        NetState(pending = m.values.count { it.inspection.pendingSync }, synced = s.lastSyncAt != null, online = on, shown = syncEnabled)
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, NetState(0, false, shown = syncEnabled))
 
     private val syncLock = Mutex()
     private var autoSyncJob: Job? = null
@@ -144,6 +147,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      * Off = manual only. TODO(backend): still the local stub ([com.vims.app.services.LocalSyncService]) until the server exists.
      */
     fun requestAutoSync(delayMs: Long = 1500) {
+        if (!syncEnabled) return // Phase 1: nothing syncs
         autoSyncJob?.cancel()
         autoSyncJob = viewModelScope.launch {
             delay(delayMs)
@@ -154,17 +158,20 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** MainActivity.onResume: the app is back in the foreground. */
-    fun onAppResume() { _online.value = onlineNow(); requestAutoSync(600) }
+    fun onAppResume() { if (!syncEnabled) return; _online.value = onlineNow(); requestAutoSync(600) }
 
     init {
-        try { connectivity?.registerDefaultNetworkCallback(netCallback) } catch (_: Exception) {}
-        // Coming back online (and the first check at launch) and every sign-in start an auto-sync.
-        viewModelScope.launch { _online.collect { if (it) requestAutoSync(800) } }
-        viewModelScope.launch { session.map { it?.userId }.distinctUntilChanged().collect { if (it != null) requestAutoSync(1500) } }
+        // The connectivity watch only drives the sync stub, so Phase 1 (features.sync = false) doesn't register it.
+        if (syncEnabled) {
+            try { connectivity?.registerDefaultNetworkCallback(netCallback) } catch (_: Exception) {}
+            // Coming back online (and the first check at launch) and every sign-in start an auto-sync.
+            viewModelScope.launch { _online.collect { if (it) requestAutoSync(800) } }
+            viewModelScope.launch { session.map { it?.userId }.distinctUntilChanged().collect { if (it != null) requestAutoSync(1500) } }
+        }
     }
 
     override fun onCleared() {
-        try { connectivity?.unregisterNetworkCallback(netCallback) } catch (_: Exception) {}
+        if (syncEnabled) try { connectivity?.unregisterNetworkCallback(netCallback) } catch (_: Exception) {}
         super.onCleared()
     }
 
@@ -180,6 +187,25 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun maybeShowSplash(force: Boolean = false) { if (force || !account.value.active) _splash.value = true }
 
     fun trialDaysLeft(): Int = account.value.let { trialDaysLeft(it.trialDays, it.trialStartEpochDay) }
+
+    /**
+     * Client Oct 25: once the free look has ended without an active subscription, NEW inspections are blocked (the Subscribe
+     * prompt shows instead). Existing inspections stay viewable and their reports can still be shared / re-sent. Checked by
+     * every way into a new inspection (Home +, New inspection buttons, side menu, the wizard itself and Build checklist), in
+     * every build type — no demo or debug path skips it.
+     */
+    fun canStartInspection(): Boolean = com.vims.app.services.hasAccess(account.value)
+
+    private val _subscribePrompt = MutableStateFlow(false)
+    /** The "free trial has ended — Subscribe" dialog (VimsRoot). */
+    val subscribePrompt: StateFlow<Boolean> = _subscribePrompt.asStateFlow()
+    fun closeSubscribePrompt() { _subscribePrompt.value = false }
+    fun promptSubscribe() { _subscribePrompt.value = true }
+
+    /** New inspection: opens the wizard, or the Subscribe prompt when the trial has ended without a subscription. */
+    fun newInspection(nav: androidx.navigation.NavHostController) {
+        if (canStartInspection()) nav.navigate(WizardR()) else _subscribePrompt.value = true
+    }
 
     fun bundle(id: String): InspectionBundle? = inspections.value[id]
 
@@ -295,6 +321,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (w.sel.splitAddress && w.sel.city.isBlank()) { toast("Enter the city"); _wizard.update { it.copy(step = 1) }; return null }
         if (w.sel.state.isBlank()) { toast("Select the property's state"); _wizard.update { it.copy(step = 1) }; return null }
         if (w.sel.inspType.isBlank()) { toast("Select the type of inspection"); _wizard.update { it.copy(step = 1) }; return null }
+        // Trial ended, no subscription: no new inspection, whatever path reached this button (editing an existing one is fine).
+        if (w.editingId == null && !canStartInspection()) { _subscribePrompt.value = true; return null }
         if (config.stateRule(w.sel.state)?.docs.orEmpty().isNotEmpty() && !w.sel.stateDocsAck) {
             toast("Confirm the required state notice was given to the client"); _wizard.update { it.copy(step = 1) }; return null
         }
@@ -499,8 +527,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /* ------------------------------------------------------------------ settings / company / admin */
 
     fun setDefaultDepth(depth: String) = repo.updateSettings { it.copy(defaultDepth = depth) }
-    fun setAutoSync(on: Boolean) { repo.updateSettings { it.copy(autoSync = on) }; if (on) requestAutoSync(300) }
+    fun setAutoSync(on: Boolean) { if (!syncEnabled) return; repo.updateSettings { it.copy(autoSync = on) }; if (on) requestAutoSync(300) }
     fun syncNow() = viewModelScope.launch {
+        if (!syncEnabled) return@launch
         if (!_online.value) {
             val n = net.value.pending
             toast(if (n > 0) "You're offline — $n ${if (n == 1) "inspection stays" else "inspections stay"} queued until you're back online" else "You're offline")
@@ -800,6 +829,18 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         /** "Inspection-Agreement-<Company-Name>.pdf" (letters and digits kept, everything else becomes "-"). */
         fun agreementPdfName(company: String): String =
             "Inspection-Agreement" + company.replace(Regex("[^A-Za-z0-9]+"), "-").trim('-').let { if (it.isEmpty()) "" else "-$it" } + ".pdf"
+    }
+
+    /** Debug-only (trial QA, `--ez trialEnded true`): the signed-in company's free look ended yesterday, no subscription. */
+    fun debugEndTrial() {
+        if (!com.vims.app.BuildConfig.DEBUG) return
+        repo.updateAccount { it.copy(active = false, cancelled = false, trialStartEpochDay = LocalDate.now().toEpochDay() - it.trialDays - 1) }
+    }
+    /** Debug-only (testers, `--ez resetDeviceTrial true`): forget this device's free-trial record, so the next new company gets a trial. */
+    fun debugResetDeviceTrial() {
+        if (!com.vims.app.BuildConfig.DEBUG) return
+        container.deviceTrial.clear()
+        toast("Device free trial reset")
     }
 
     /** Debug-only helper (screenshots): force an inspection's depth. */

@@ -192,6 +192,7 @@ fun SubscribeScreen(vm: AppViewModel, nav: NavHostController) {
             Icon(VIcons.clock, null, tint = V.brandDeep, modifier = Modifier.padding(top = 1.dp).size(19.dp))
             Text(
                 if (account.active) rich("**Subscription active.** Change your plan or seats below.", V.bannerBold)
+                else if (!vm.canStartInspection()) rich(if (account.trialUsedOnDevice) "**This device's free trial has already been used.** Subscribe to start new inspections." else "**Your free trial has ended.** Subscribe to start new inspections — your saved inspections and reports stay available.", V.bannerBold)
                 else rich("**Free trial — ${vm.trialDaysLeft()} days left.** Set up your subscription now so access continues automatically when the trial ends.", V.bannerBold),
                 style = T.ui(12.5.sp, color = V.brandDeep, lineHeight = 18.sp),
             )
@@ -332,6 +333,7 @@ fun BillingScreen(vm: AppViewModel, nav: NavHostController) {
                 when {
                     a.active && a.cancelled -> Pill("Cancelled · active until $endDate", PillKind.Queued)
                     a.active -> Pill("Active · auto-pay", PillKind.Done)
+                    !vm.canStartInspection() -> Pill("Trial ended", PillKind.Queued)
                     else -> Pill("Trial · ${vm.trialDaysLeft()}d left", PillKind.Queued)
                 }
             })
@@ -340,7 +342,8 @@ fun BillingScreen(vm: AppViewModel, nav: NavHostController) {
             BinfoRow(if (a.plan.perReport) "Billing" else "Monthly total", subTotalLabel(vm))
             BinfoRow("Payment", if (a.active) "Square · ${a.cardOnFile?.label ?: "Card"}" else "Not set up")
             val next = a.subscribedEpochDay?.let { Fmt.date(LocalDate.ofEpochDay(it).plusMonths(1)) }
-            BinfoRow(if (a.active && a.cancelled) "Access ends" else if (a.active) "Next billing" else "Trial ends", if (a.active) next ?: "—" else "in ${vm.trialDaysLeft()} days", last = true)
+            BinfoRow(if (a.active && a.cancelled) "Access ends" else if (a.active) "Next billing" else if (!vm.canStartInspection()) "Trial" else "Trial ends",
+                if (a.active) next ?: "—" else if (!vm.canStartInspection()) "Ended" else "in ${vm.trialDaysLeft()} days", last = true)
         }
         VBtn("Manage inspectors", { nav.navigate(InspectorsR) }, kind = BtnKind.Ghost, icon = VIcons.usersSmall)
         VBtn(if (a.active) "Change plan / payment" else "Set up subscription", { nav.navigate(SubscribeR) }, Modifier.padding(top = 10.dp), if (a.active) BtnKind.Ghost else BtnKind.Primary)

@@ -24,16 +24,20 @@ class ChecklistEngine(val config: ChecklistConfig, val edits: ChecklistEdits) {
     /** Builds the section list for an inspection from the wizard selections. */
     fun buildGroups(sel: WizardSelections): List<BuiltGroup> {
         val cb = config.checklistBuilder
-        cb.phaseTypes[sel.inspType]?.let { layout ->
-            return layout.map { BuiltGroup(it.heading, it.icon ?: iconFor(it), it.link, it.sections.orEmpty()) }
-        }
-        return cb.standardLayout.map { g ->
+        // Data v1.10 (client Oct 25, `wizard.areasLockedTypes`): the locked step-3 areas (exterior / interior rooms / utility
+        // options) never add sections for these types, whatever was chosen before switching the type (the choices are kept).
+        val eff = if (config.wizard.areasLocked(sel.inspType)) sel.copy(exterior = emptyList(), rooms = emptyList(), utilOpt = emptyList()) else sel
+        // Phase / form layouts (`checklistBuilder.phaseTypes`) are read like the standard layout: fixed `sections`, and the
+        // `optional` / `order` / `always` / `then` / `sub` forms — Tests Only (v1.10) = Inspection Info + the tests chosen in
+        // step 4 (`optional: "testOptions"`, + admin-added Testing sections) + Summary.
+        val phase = cb.phaseTypes[sel.inspType]
+        return (phase ?: cb.standardLayout).map { g ->
             when {
                 g.link != null -> BuiltGroup(g.heading, g.icon ?: iconFor(g), g.link)
                 else -> {
-                    val secs = resolve(g, sel) + customFor(g.heading)
-                    val sub = g.sub?.let { s -> BuiltGroup(s.heading, s.icon, null, resolve(s, sel) + customFor(s.heading)) }
-                    BuiltGroup(g.heading, g.icon, null, secs, sub)
+                    val secs = resolve(g, eff) + customFor(g.heading)
+                    val sub = g.sub?.let { s -> BuiltGroup(s.heading, s.icon, null, resolve(s, eff) + customFor(s.heading)) }
+                    BuiltGroup(g.heading, g.icon ?: if (phase != null) iconFor(g) else null, null, secs, sub)
                 }
             }
         }
@@ -127,7 +131,7 @@ class ChecklistEngine(val config: ChecklistConfig, val edits: ChecklistEdits) {
          *    became "Test date" (date) + "Test time" (time) — answers are moved over by [upgradeAnswers].
          * Nothing else in the snapshot changes; an answer typed earlier still shows and prints as typed.
          */
-        fun upgradePickers(defs: Map<String, SectionDef>, current: List<SectionDef>): Map<String, SectionDef> {
+        fun upgradePickers(defs: Map<String, SectionDef>, current: List<SectionDef>, noMerge: Set<String> = emptySet()): Map<String, SectionDef> {
             if (defs.isEmpty()) return defs
             val byName = current.associateBy { it.name }
             var changed = false
@@ -135,6 +139,12 @@ class ChecklistEngine(val config: ChecklistConfig, val edits: ChecklistEdits) {
                 val cur = byName[name] ?: return@mapValues d
                 val now = (cur.items + cur.itemsHigh.orEmpty()).filter { it.q != null }.groupBy { it.q!! }.mapValues { it.value.first() }
                 var u = d.copy(items = upItems(d.items, now), itemsHigh = d.itemsHigh?.let { upItems(it, now) })
+                // Client Oct 25 (shower pan items): questions ADDED to a section since the snapshot was taken join it, in data
+                // order, answers untouched. Only for purely additive changes (every saved line is still in the current data) of
+                // sections the company admin hasn't edited ([noMerge]); restructured sections (e.g. Termite / Wind Mitigation
+                // before their v1.9 forms) keep their saved checklist exactly.
+                if (name !in noMerge) u = u.copy(items = mergeAdded(u.items, cur.items),
+                    itemsHigh = u.itemsHigh?.let { h -> cur.itemsHigh?.let { mergeAdded(h, it) } ?: h })
                 // Data v1.8 section fields that only affect display / print (never the saved answers): the display title,
                 // the report note, and photo categories added later (Meth Test "Cartridge Result") — so older snapshots get them too.
                 if (u.title == null && cur.title != null) u = u.copy(title = cur.title)
@@ -145,6 +155,43 @@ class ChecklistEngine(val config: ChecklistConfig, val edits: ChecklistEdits) {
                 u
             }
             return if (changed) out else defs
+        }
+
+        /** Identity of each line for [mergeAdded]: "H:header" / "Q:header|question" (+ "#n" when a question repeats under a header). */
+        private fun lineKeys(items: List<ItemDef>): List<String> {
+            var header = ""
+            val seen = mutableMapOf<String, Int>()
+            return items.map { i ->
+                val base = if (i.isHeader) { header = i.header.orEmpty(); "H:$header" } else "Q:$header|${i.q.orEmpty()}"
+                val n = seen.merge(base, 1, Int::plus)!!
+                if (n == 1) base else "$base#$n"
+            }
+        }
+
+        /**
+         * [saved] plus the lines of [current] it lacks, each placed right after its nearest predecessor in [current] that is
+         * already there (so "Shower pan filled for testing" / "Shower pan leaking" land before Comments, as in the data).
+         * Nothing is removed or reordered. Returns [saved] unchanged unless every saved line still exists in [current]
+         * (an additive data change) — a restructured section keeps its saved checklist.
+         */
+        fun mergeAdded(saved: List<ItemDef>, current: List<ItemDef>): List<ItemDef> {
+            if (saved.isEmpty() || current.isEmpty()) return saved
+            val sk = lineKeys(saved)
+            val ck = lineKeys(current)
+            val curSet = ck.toSet()
+            if (sk.any { it !in curSet }) return saved
+            val have = sk.toSet()
+            if (ck.all { it in have }) return saved
+            val out = saved.toMutableList()
+            val outKeys = sk.toMutableList()
+            var pos = -1 // index in out of the last current line seen
+            ck.forEachIndexed { i, k ->
+                val at = outKeys.indexOf(k)
+                if (at >= 0) { pos = at; return@forEachIndexed }
+                pos += 1
+                out.add(pos, current[i]); outKeys.add(pos, k)
+            }
+            return out
         }
 
         /** Data v1.9.1: one free-text item that became two pickers, and the chip that went with it (Meth Test, High Detail). */

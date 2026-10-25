@@ -66,7 +66,7 @@ interface SyncService {
  * Local stub: a users table (UUID id, unique lowercased email, name, companyId, salted PBKDF2 hash) and a companies table.
  * Create account = new user + new company (owner). Join with code = new user attached to that company.
  */
-class LocalAuthService(private val dao: VimsDao, private val config: ChecklistConfig) : AuthService {
+class LocalAuthService(private val dao: VimsDao, private val config: ChecklistConfig, private val deviceTrial: DeviceTrial? = null) : AuthService {
     private val json = ChecklistLoader.json
 
     private fun roleFor(email: String, account: AccountState): Role {
@@ -88,7 +88,15 @@ class LocalAuthService(private val dao: VimsDao, private val config: ChecklistCo
         val e = email.trim().lowercase(Locale.US)
         if (dao.userByEmail(e) != null) return@withContext AuthResult.Error("An account with that email already exists.", "email")
         val cid = UUID.randomUUID().toString()
-        val acct = newAccount(config, joinCode(company)).copy(inspectors = listOf(Inspector(UUID.randomUUID().toString(), name.trim(), e, owner = true, admin = true)))
+        // One free trial per device (client Oct 25): the first company created here starts the device's trial; any later
+        // company starts with the trial already used (Subscribe shown). TODO(backend): see [DeviceTrial].
+        val today = LocalDate.now().toEpochDay()
+        val trialUsed = deviceTrial?.used == true
+        val acct = newAccount(config, joinCode(company)).copy(
+            inspectors = listOf(Inspector(UUID.randomUUID().toString(), name.trim(), e, owner = true, admin = true)),
+            trialStartEpochDay = if (trialUsed) today - config.subscription.trialDays else today,
+            trialUsedOnDevice = trialUsed,
+        )
         dao.insertCompany(
             CompanyEntity(cid, acct.companyCode,
                 json.encodeToString(CompanyProfile.serializer(), CompanyProfile(name = company.trim(), inspectorName = name.trim(), email = e)),
@@ -98,6 +106,7 @@ class LocalAuthService(private val dao: VimsDao, private val config: ChecklistCo
         // TODO(backend): send the EULA acceptance (version + time) to the server.
         val u = newUser(name, e, password, cid, config).copy(eulaVersion = eulaVersion, eulaAcceptedAt = System.currentTimeMillis())
         dao.insertUser(u)
+        if (!trialUsed) deviceTrial?.record(today)
         AuthResult.Success(Session(u.name, u.email, Role.OWNER, userId = u.id, companyId = cid, eulaVersion = eulaVersion))
     }
 
@@ -177,3 +186,57 @@ class LocalSyncService(private val repo: VimsRepository) : SyncService {
 
 fun trialDaysLeft(trialDays: Int, trialStartEpochDay: Long, today: LocalDate = LocalDate.now()): Int =
     (trialDays - (today.toEpochDay() - trialStartEpochDay)).toInt().coerceAtLeast(0)
+
+/**
+ * Whether the company may start NEW inspections (client Oct 25): an active subscription (a cancelled one until the end of its
+ * paid period, EULA 12.3) or free-look days left. Existing inspections and their reports stay available either way.
+ */
+fun hasAccess(a: AccountState, today: LocalDate = LocalDate.now()): Boolean {
+    if (a.active) {
+        val end = a.periodEndEpochDay
+        if (!a.cancelled || end == null || today.toEpochDay() < end) return true
+    }
+    return trialDaysLeft(a.trialDays, a.trialStartEpochDay, today) > 0
+}
+
+/** The free look has run out and there is no subscription: show "trial ended" wording and the Subscribe prompt. */
+fun trialEnded(a: AccountState, today: LocalDate = LocalDate.now()): Boolean = !hasAccess(a, today)
+
+/**
+ * One free trial per DEVICE (client Oct 25). The first trial start on this device is kept at app level — its own
+ * SharedPreferences file `vims_device`, outside every account and company row — so a company created later on the same device
+ * starts with the trial already used, and deleting an account or signing up again doesn't reset it. The demo company is not
+ * a trial start. Upgrades from builds before v0.21.0 take the earliest trial start of the companies already on the device
+ * ([backfill]).
+ *
+ * Auto Backup: this file is deliberately NOT excluded. Restoring it after a reinstall (or onto a new phone of the same Google
+ * account) can only bring back "trial used" — it can never grant a new trial — while excluding it would hand out a fresh
+ * trial on every reinstall. (Clearing app data / a reinstall without a backup still resets it on the device; only the server
+ * can stop that.)
+ *
+ * TODO(backend): the server enforces one trial per device across reinstalls and accounts — the app sends ANDROID_ID
+ * (Settings.Secure, per app-signing key + user) with a Play Integrity token at sign-up / trial start, and the server refuses a
+ * second trial for the same device (and the same email / payment card).
+ */
+class DeviceTrial(context: android.content.Context) {
+    private val prefs = context.applicationContext.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
+
+    /** Epoch day of the first free-trial start on this device, or null when no trial has started here. */
+    val firstStartEpochDay: Long? get() = prefs.getLong(KEY_FIRST_START, NONE).takeIf { it != NONE }
+    val used: Boolean get() = firstStartEpochDay != null
+
+    /** Records the device's first trial start (never moves an existing record). */
+    fun record(epochDay: Long) { if (!used) prefs.edit().putLong(KEY_FIRST_START, epochDay).commit() }
+
+    /** Upgrade from < v0.21.0: the earliest trial start among the companies already created on this device (not the demo). */
+    fun backfill(companyTrialStarts: List<Long>) { companyTrialStarts.filter { it > 0 }.minOrNull()?.let { record(it) } }
+
+    /** Debug builds only (testers: `--ez resetDeviceTrial true`). */
+    fun clear() { prefs.edit().remove(KEY_FIRST_START).apply() }
+
+    companion object {
+        const val PREFS = "vims_device"
+        private const val KEY_FIRST_START = "trialFirstStartEpochDay"
+        private const val NONE = Long.MIN_VALUE
+    }
+}

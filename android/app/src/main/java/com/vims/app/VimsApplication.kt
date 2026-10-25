@@ -38,7 +38,9 @@ class AppContainer(private val app: Application) {
     val db: VimsDatabase = VimsDatabase.open(app)
     private val roomRepo = RoomRepository(app.filesDir, db.dao(), com.vims.app.data.PlatformOwners(config.support.platformOwners), config.sections)
     val repo: VimsRepository = roomRepo
-    val auth: AuthService = LocalAuthService(db.dao(), config)
+    /** One free trial per device (client Oct 25): app-level record outside every account / company. */
+    val deviceTrial = com.vims.app.services.DeviceTrial(app)
+    val auth: AuthService = LocalAuthService(db.dao(), config, deviceTrial)
     val subscriptions: SubscriptionService = LocalSubscriptionService()
     val sync: SyncService = LocalSyncService(repo)
 
@@ -50,6 +52,10 @@ class AppContainer(private val app: Application) {
         // DEMO DATA: remove this line (and demo/DemoSeed.kt) to ship without the demo account.
         DemoSeed.ensureDemoAccount(db.dao(), repo, ChecklistEngine(config, com.vims.app.data.ChecklistEdits()))
         DemoSeed.ensureDemoLogo(db.dao(), app.filesDir, app.resources)
+        // v0.21.0: installs upgraded from earlier builds record their first (non-demo) company's trial start as the device's trial.
+        if (!deviceTrial.used) deviceTrial.backfill(db.dao().allCompanies().filter { it.id != DemoSeed.DEMO_COMPANY_ID }.mapNotNull { c ->
+            runCatching { ChecklistLoader.json.decodeFromString(com.vims.app.data.AccountState.serializer(), c.accountJson).trialStartEpochDay }.getOrNull()
+        })
         roomRepo.loadPlatform(com.vims.app.data.PlatformSettings(
             feedbackEmail = config.support.feedbackEmail, reportBccOn = config.support.reportBcc.on, reportBccEmail = config.support.reportBcc.email,
         ), config.support.replacedDefaults)

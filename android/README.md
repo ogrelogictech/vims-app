@@ -40,6 +40,8 @@ adb shell am start -S -n com.vims.app/.MainActivity --es screen section --es sec
 #   --es depth high|standard|fast (rewrites that inspection's depth)   --ei step 1-4 (wizard)   --ei coverStep 1-3
 #   cover QA: --es cover "'Blue|Holidays|4th of July|Shaded'"  --es inspType Texas|"'4 Point Inspection'"  --ez generate true (builds the PDF, opens the preview)
 #   --ez splash true (show the free-look splash)   --ez video true (play the launch video too)
+#   trial QA: --ez trialEnded true (the signed-in company's free look ended yesterday, no subscription)
+#             --ez resetDeviceTrial true (forget this device's one-free-trial record; works with --es screen login / signup)
 ```
 Debug launches sign in as the demo account when nobody is signed in, and skip the splash video.
 Release builds ignore these extras (`BuildConfig.DEBUG`).
@@ -221,8 +223,10 @@ PDF cover + page headers; without a logo an initials badge is used everywhere.
   join-by-code = new user in that company (Inspector role unless the admin already marked their email as admin).
 - `LocalSubscriptionService` — Square subscription is simulated (always succeeds, keeps last 4 digits only). Replace the
   card fields on the Subscribe screen with the Square In-App Payments SDK card entry; never send or store a card number.
-- `LocalSyncService` — "Sync now" just marks everything synced. Phase 2: upload inspections/photos/findings/reports and pull
+- `LocalSyncService` — "Sync now" just marks everything synced; Phase 1 never calls it (`features.sync = false`). Phase 2: upload inspections/photos/findings/reports and pull
   checklist/plan edits from the Laravel API.
+- `DeviceTrial` — one free trial per device is a local record only; the server must enforce it across reinstalls (ANDROID_ID +
+  Play Integrity at sign-up / trial start, plus email / card checks).
 - Role enforcement is UI-only (Admin section hidden for the Inspector role); real enforcement is server-side.
 
 ## Removing the demo seed (demo account)
@@ -610,3 +614,38 @@ Shared v1.9 (client item 13):
   checklist (no new items) and open / print as before.
 - **Covers:** Holidays + Halloween (Fall picture and rect, `themeArt`); Seasonal unchanged.
 - Screenshots: `screenshots/oct22-client-*.png`. Test APK: `../../VIMS-Android-test-v0.20.0-2026-10-22.apk`.
+
+## Client Oct 23–25 + shared v1.10.0 (v0.21.0)
+
+- **Covers:** new Spring, Christmas and Fall art; Halloween has its own `covers/halloween.webp`; Holidays gains **Cinco de Mayo**
+  (`covers/cinco-de-mayo.webp`). All data-driven (`covers.categories` / `themeArt`), packaged from `shared/` and checked by
+  `verifySharedAssets`; the PDF draws each picture into its rect (rects now match each picture's aspect ratio).
+- **Type of inspection:** "Code" is gone from new inspections (`wizard.retiredInspectionTypes`); an inspection saved as Code still
+  opens, prints "Code", and its edit wizard shows Code selected (`WizardDef.typeOptions`). Tapping the selected type again
+  deselects it; Next then shows "Select the type of inspection" (still required).
+- **Areas locked** (`wizard.areasLockedTypes`: Phase 1, Phase 2, Tests Only, 4 Point): step 3 shows the exterior, interior room and
+  utility options disabled (dimmed, not tappable, disabled semantics) under one note ("…aren't used for a Tests Only inspection");
+  Bedrooms / Bathrooms / Hallways stay editable. Another type unlocks them with the earlier choices intact; while locked they
+  add no sections (`ChecklistEngine.buildGroups`).
+- **Tests Only** = Inspection Info + Testing (the tests chosen in step 4, + admin-added Testing sections) + Summary.
+  `checklistBuilder.phaseTypes` groups are now read like the standard layout (`sections`, `optional`, `order`, `always`, `then`, `sub`).
+- **No sync in Phase 1** (`features.sync`, default false when missing): no sync pill in any header (the "Offline · 3 queued" badge),
+  no Settings "Sync" section / Sync now, no automatic sync or connectivity watch, Home's second tile shows "In progress", a "Queued"
+  inspection reads "Scheduled", and How VIMS works / report ready / generate report / sign-out texts no longer mention syncing or
+  uploading. The sync code stays behind the flag for Phase 2 (`AppViewModel.syncEnabled`, `NetState.shown`, `Features.sync`).
+- **How VIMS works:** support address = the platform Feedback & support email, `support@vimsinspect.com` (old defaults migrated on
+  launch since v0.20.0; checked on an install upgraded v0.19.0 → v0.20.0 → v0.21.0).
+- **New checklist items reach older inspections:** on load, questions added to a section since the inspection's snapshot are merged
+  in (data order, answers kept, nothing removed) — e.g. Phase 2 Plumbing "Shower pan filled for testing" / "Shower pan leaking" on
+  inspections built before v1.9.2. Only for purely additive data changes and sections the company admin hasn't edited
+  (`ChecklistEngine.mergeAdded`); restructured sections (Termite / Wind Mitigation before their v1.9 forms) keep their snapshot.
+- **Free trial:** after the 30-day free look with no active subscription, every way into a new inspection (Home +, New inspection,
+  side menu, the wizard itself, Build checklist — debug deep links included) shows the "Your free trial has ended" Subscribe prompt;
+  existing inspections open, generate and share / re-send as before. **One free trial per device:** the first company created on
+  the device records the trial start in app-level `SharedPreferences` `vims_device` (outside every account / company; upgrades take
+  the earliest non-demo company's start). Later companies start with the trial used (`AccountState.trialUsedOnDevice`, Subscribe
+  shown). The file stays in Auto Backup on purpose: a restore can only bring back "trial used", never a new trial.
+  `TODO(backend)`: server enforcement via ANDROID_ID + Play Integrity. Testers: `--ez resetDeviceTrial true` (debug builds).
+- **Inspection agreement** 2026-10-25 (final): "☐ Wind Mitigation Inspection $____" on the Boiler System line; agent name and agent
+  email on separate lines. Companies with an edited or uploaded agreement keep theirs (the locked form block is always the VIMS one).
+- Screenshots: `screenshots/oct25-*.png` (phone 1080×2400 and tablet 1600×2560). Test APK: `../../VIMS-Android-test-v0.21.0-2026-10-25.apk`.

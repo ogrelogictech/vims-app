@@ -94,6 +94,7 @@ class MainActivity : ComponentActivity() {
             step = i.getIntExtra("step", 1), coverStep = i.getIntExtra("coverStep", 1), eulaVersion = i.getStringExtra("eulaVersion"),
             state = i.getStringExtra("state"), cover = i.getStringExtra("cover"), inspType = i.getStringExtra("inspType"),
             generate = i.getBooleanExtra("generate", false),
+            trialEnded = i.getBooleanExtra("trialEnded", false), resetDeviceTrial = i.getBooleanExtra("resetDeviceTrial", false),
         )
     }
 }

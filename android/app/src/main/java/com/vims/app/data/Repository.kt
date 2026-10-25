@@ -149,11 +149,14 @@ class RoomRepository(
         val photos = dao.photosFor(user.id).groupBy { it.inspectionId }
         val findings = dao.findingsFor(user.id).groupBy { it.inspectionId }
         val migrated = mutableListOf<Inspection>()
+        // Sections the company admin edited (Manage checklist) or added never get data-added items merged in (admin edits apply
+        // to new inspections only).
+        val noMerge = dec(ChecklistEdits.serializer(), co.editsJson, ChecklistEdits()).let { ed -> ed.overrides.keys + ed.custom.map { it.def.name } }
         val bundles = ins.mapNotNull { e ->
             var insp = try { json.decodeFromString(Inspection.serializer(), e.json) } catch (_: Exception) { return@mapNotNull null }
             // Client Oct 17: covers saved with the old "Solid" category become style Solid + No picture (written back below).
             if (insp.cover.isLegacySolid) { insp = insp.copy(cover = insp.cover.normalized()); migrated += insp }
-            val defs = ChecklistEngine.upgradePickers(dec(defsSer, e.defsJson, emptyMap()), currentSections)
+            val defs = ChecklistEngine.upgradePickers(dec(defsSer, e.defsJson, emptyMap()), currentSections, noMerge)
             InspectionBundle(
                 inspection = insp,
                 // Data v1.9.1: answers of a split item (Meth "Test date and time") move to its new items, in memory; they are

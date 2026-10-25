@@ -111,6 +111,7 @@ interface VimsDao {
     @Query("DELETE FROM companies WHERE id = :id") suspend fun deleteCompany(id: String)
 
     @Query("SELECT * FROM companies WHERE id = :id LIMIT 1") suspend fun company(id: String): CompanyEntity?
+    @Query("SELECT * FROM companies") suspend fun allCompanies(): List<CompanyEntity>
     @Query("SELECT * FROM companies WHERE code = :code LIMIT 1") suspend fun companyByCode(code: String): CompanyEntity?
     @Insert(onConflict = OnConflictStrategy.ABORT) suspend fun insertCompany(c: CompanyEntity)
     @Query("UPDATE companies SET profileJson = :json WHERE id = :id") suspend fun updateCompanyProfile(id: String, json: String)

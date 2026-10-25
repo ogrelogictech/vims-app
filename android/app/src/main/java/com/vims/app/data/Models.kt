@@ -91,6 +91,8 @@ data class AccountState(
     val subscribedEpochDay: Long? = null,
     /** Cancelled subscriptions stay active until the end of the current billing period (EULA 12.3). */
     val cancelled: Boolean = false,
+    /** Client Oct 25: created on a device whose one free trial was already used — starts with no trial days (Subscribe shown). */
+    val trialUsedOnDevice: Boolean = false,
 ) {
     /** Next billing date (or, when cancelled, the date access ends). */
     val periodEndEpochDay: Long? get() = subscribedEpochDay?.let { java.time.LocalDate.ofEpochDay(it).plusMonths(1).toEpochDay() }

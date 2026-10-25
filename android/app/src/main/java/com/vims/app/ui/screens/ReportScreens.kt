@@ -172,7 +172,8 @@ fun ReportScreen(vm: AppViewModel, nav: NavHostController, inspId: String) {
             }
         }
         VBtn("Preview report format", { vm.generateReport(inspId, markDone = false) { nav.navigate(PdfR(inspId)) } }, Modifier.padding(top = 10.dp), BtnKind.Ghost, VIcons.preview)
-        Banner("You're **offline**. The report generates on the device now; it uploads on the next sync.", VIcons.offline, Modifier.padding(top = 16.dp))
+        if (vm.syncEnabled) Banner("You're **offline**. The report generates on the device now; it uploads on the next sync.", VIcons.offline, Modifier.padding(top = 16.dp))
+        else Spacer(Modifier.height(16.dp))
         VBtn("Generate PDF report", { vm.generateReport(inspId, markDone = true) { nav.navigate(GeneratedR(inspId)) } }, icon = VIcons.download, enabled = !generating)
     }
 }
@@ -338,7 +339,7 @@ fun GeneratedScreen(vm: AppViewModel, nav: NavHostController, inspId: String) {
     val ctx = LocalContext.current
     val s = b.inspection.selections
     VScreen("Report ready", s.street, net(vm), backAction(nav), listOf(homeAction(nav))) {
-        SuccessBlock("Report generated", "${b.inspection.reportPages}-page report for ${s.street} is saved on this device and queued to sync to the portal.") {
+        SuccessBlock("Report generated", "${b.inspection.reportPages}-page report for ${s.street} is saved on this device${if (vm.syncEnabled) " and queued to sync to the portal" else ""}.") {
             VBtn("Email to client", {
                 val f = vm.reportFile(inspId)
                 if (f != null) shareReport(ctx, vm, b, f) else vm.generateReport(inspId, markDone = true) { shareReport(ctx, vm, b, it) }

@@ -133,6 +133,8 @@ fun SettingsScreen(vm: AppViewModel, nav: NavHostController) {
         VBtn("Sign out", { signOutAsk = true }, kind = BtnKind.Ghost, icon = VIcons.signOut)
         VBtn("Delete account", { deleteAsk = true }, Modifier.padding(top = 10.dp), BtnKind.GhostDanger, icon = VIcons.trash)
 
+        // features.sync (data v1.10): Phase 1 has no sync — no "Sync" section, Auto-sync or Sync now (kept for Phase 2).
+        if (vm.syncEnabled) {
         Lbl("Sync")
         VCard {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -149,6 +151,7 @@ fun SettingsScreen(vm: AppViewModel, nav: NavHostController) {
             }
         }
         VBtn("Sync now", { vm.syncNow() }, kind = BtnKind.Ghost, icon = VIcons.sync)
+        }
 
         Lbl("Subscription & licensing")
         NavRow(VIcons.card, "Plan & billing", "${account.plan.name} · ${if (account.active) subTotalLabel(vm) else "trial"}") { nav.navigate(BillingR) }
@@ -345,12 +348,14 @@ private val companySaver = androidx.compose.runtime.saveable.Saver<CompanyProfil
 @Composable
 fun InstructionsScreen(vm: AppViewModel, nav: NavHostController) {
     VScreen("How VIMS works", companyName(vm), net(vm), backAction(nav), listOf(homeAction(nav))) {
-        com.vims.app.ui.components.Banner("**Everything saves on your device.** All inspection data and photos are stored locally and work fully offline — they upload automatically the next time you are online.", VIcons.bolt, blue = true)
-        HowCard(VIcons.info, "Getting started", "**New account:** tap **Create account** on sign-in and enter your details, or tap **Join a company with a code** if your company gave you one. New companies start on a **30-day free look** — set up your company profile and logo in Settings first.")
+        // Client Oct 25: Phase 1 keeps everything on this device and syncs nothing (cross-device sync is Phase 2).
+        com.vims.app.ui.components.Banner(if (vm.syncEnabled) "**Everything saves on your device.** All inspection data and photos are stored locally and work fully offline — they upload automatically the next time you are online."
+            else "**Everything saves on this device.** Inspections, photos and reports are stored on this phone or tablet and work fully offline — no internet connection needed.", VIcons.bolt, blue = true)
+        HowCard(VIcons.info, "Getting started", "**New account:** tap **Create account** on sign-in and enter your details, or tap **Join a company with a code** if your company gave you one. New companies start on a **30-day free look** (one per device) — set up your company profile and logo in Settings first.")
         HowCard(VIcons.list, "Run an inspection", "Tap **New inspection**, then step through: inspection info → property details → the areas to inspect. On each section, tap the answers that apply, add photos, mark them up, and flag any concern into a category. Use **Save & next section** to move through quickly.")
         HowCard(VIcons.flask, "Checklist depth", "Pick **High Detail**, **Standard**, or **Fast Entry** per inspection (or set a default in Settings). High Detail asks the most; Fast Entry is a quick condition-and-notes pass.")
         HowCard(VIcons.file, "Photos & findings", "Tap **Add** to capture a photo, then tap it to draw on it or add a quick comment. Flagging a photo as a concern adds it to the **Summary** under Category 1 Safety, 2 Functional, or 3 Items to monitor.")
-        HowCard(VIcons.file, "Generate the report", "From the Summary tap **Save and generate report**, choose a cover (color → theme → style), and the app builds your branded PDF. It queues to send when you are back online.")
+        HowCard(VIcons.file, "Generate the report", "From the Summary tap **Save and generate report**, choose a cover (color → theme → style), and the app builds your branded PDF on this device. ${if (vm.syncEnabled) "It queues to send when you are back online." else "Tap **Email to client** to send it from your email app."}")
         HowCard(VIcons.bolt, "Subscription & inspectors", "Your free look counts down at every sign-in. Subscribe through **Square** any time. Add inspectors under your company license and share your **company code** so they can join.")
         val ctx = androidx.compose.ui.platform.LocalContext.current
         val supportEmail = supportEmail(vm)

@@ -39,6 +39,8 @@ data class ChecklistConfig(
     val states: List<StateDef> = emptyList(),
     /** Per-state rules keyed by state code (TX / OK / OR / LA); non-object keys such as `_about` are ignored. */
     val stateRules: JsonObject = JsonObject(emptyMap()),
+    /** Data v1.10 (client Oct 25): feature switches; missing key = Phase 1 defaults (see [FeaturesDef]). */
+    val features: FeaturesDef = FeaturesDef(),
 ) {
     /** Parsed [stateRules] (tolerant: unknown keys inside a rule are ignored, malformed entries skipped). */
     private val rules: Map<String, StateRule> by lazy {
@@ -71,6 +73,21 @@ data class ChecklistConfig(
         const val LAYOUT_TEXAS = "texas"
         const val LAYOUT_FOUR_POINT = "fourPoint"
     }
+}
+
+/**
+ * `features` (data v1.10). [sync] = cross-device sync (Phase 2). Phase 1 ships `false`: no sync pill / badges, no Settings
+ * "Sync" section or Sync now, no automatic sync stub and no sync wording anywhere. The sync code stays behind this flag.
+ * Defaults to false when the key is missing (Phase 1 never syncs).
+ */
+@Serializable
+data class FeaturesDef(val sync: Boolean = false)
+
+/** `features` of the loaded shared data, for UI code without a view model (registered by [ChecklistLoader.load]). */
+object Features {
+    @Volatile var sync: Boolean = false
+        private set
+    fun register(config: ChecklistConfig) { sync = config.features.sync }
 }
 
 @Serializable
@@ -257,7 +274,28 @@ data class WizardDef(
     val defaults: WizardDefaults = WizardDefaults(),
     /** Extra step-1 fields per inspection type (Texas sponsor, 4-Point insured / policy #). */
     val typeFields: JsonObject = JsonObject(emptyMap()),
+    /**
+     * Data v1.10 (client Oct 25): types no longer offered for new inspections ("Code"). An inspection saved with one keeps it
+     * and opens / prints normally; the edit wizard still shows it (selected) for that inspection only.
+     */
+    val retiredInspectionTypes: List<String> = emptyList(),
+    /**
+     * Data v1.10 (client Oct 25): with one of these types, step 3 locks the exterior, interior room and utility options (shown
+     * disabled with a short note) and they add no sections; the room counts stay editable. Another type unlocks them, earlier
+     * choices intact.
+     */
+    val areasLockedTypes: List<String> = emptyList(),
 ) {
+    /** Step 3 areas are locked (not used) for this inspection type. */
+    fun areasLocked(inspType: String): Boolean = inspType in areasLockedTypes
+
+    /**
+     * Type of inspection chips: the current types, plus [savedType] (the edited inspection's saved type) when it is no longer
+     * offered — a retired type such as "Code" — so an older inspection still shows its own type. New inspections pass null.
+     */
+    fun typeOptions(savedType: String?): List<String> =
+        if (!savedType.isNullOrBlank() && savedType !in inspectionTypes) inspectionTypes + savedType else inspectionTypes
+
     fun typeFieldsFor(inspType: String): List<TypeFieldDef> =
         (typeFields[inspType] as? JsonArray)?.mapNotNull { e ->
             val o = e as? JsonObject ?: return@mapNotNull null
@@ -445,5 +483,5 @@ object ChecklistLoader {
 
     fun load(context: Context): ChecklistConfig =
         context.assets.open(ASSET_PATH).bufferedReader().use { json.decodeFromString(ChecklistConfig.serializer(), it.readText()) }
-            .also { SectionTitles.register(it) }
+            .also { SectionTitles.register(it); Features.register(it) }
 }

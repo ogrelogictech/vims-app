@@ -47,6 +47,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
@@ -96,11 +97,15 @@ import com.vims.app.util.Filters
 
 data class HdrAction(val icon: ImageVector, val label: String, val onClick: () -> Unit)
 
-/** Sync status shown in the blue top strip (the prototype's "Offline · 1 queued" badge). */
-data class NetState(val pending: Int, val synced: Boolean, val online: Boolean = true)
+/**
+ * Sync status shown in the blue top strip (the prototype's "Offline · 1 queued" badge). [shown] = `features.sync` (data v1.10):
+ * Phase 1 does not sync, so the badge is hidden everywhere.
+ */
+data class NetState(val pending: Int, val synced: Boolean, val online: Boolean = true, val shown: Boolean = true)
 
 @Composable
 fun NetBadge(net: NetState) {
+    if (!net.shown) return
     // Sync badge: queued = amber ("N queued" online, "Offline · N queued" offline), Synced = green, Offline (nothing waiting) = gray.
     val (bg, fg) = when {
         net.pending > 0 -> Color(0x38E4A11B) to Color(0xFFF2C869)
@@ -119,6 +124,8 @@ fun NetBadge(net: NetState) {
 
 @Composable
 fun TopStrip(net: NetState) {
+    // No sync in Phase 1: the strip keeps a little air under the status bar instead of the badge.
+    if (!net.shown) { Spacer(Modifier.height(8.dp)); return }
     Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 16.dp, top = 2.dp, bottom = 4.dp), horizontalArrangement = Arrangement.End) { NetBadge(net) }
 }
 
@@ -532,14 +539,29 @@ fun SelectBox(placeholder: String, options: List<String>, onSelect: (String) -> 
 
 /* ---------------------------------------------------------------- chips / seg / pills */
 
+/** [enabled] false (client Oct 25, locked wizard areas): dimmed, not tappable, disabled semantics; a selected chip shows unselected. */
 @Composable
-fun VChip(text: String, on: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+fun VChip(text: String, on: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
     val shape = RoundedCornerShape(22.dp)
+    val sel = on && enabled
     Box(
-        modifier.minimumInteractiveComponentSize().heightIn(min = 44.dp).widthIn(min = 48.dp).clip(shape).background(if (on) V.brand else V.paper).border(1.5.dp, if (on) V.brand else V.line, shape)
-            .clickable(role = Role.Checkbox, onClick = onClick).padding(horizontal = 15.dp, vertical = 9.dp),
+        modifier.minimumInteractiveComponentSize().heightIn(min = 44.dp).widthIn(min = 48.dp).alpha(if (enabled) 1f else .45f).clip(shape)
+            .background(if (sel) V.brand else if (enabled) V.paper else V.paper3).border(1.5.dp, if (sel) V.brand else V.line, shape)
+            .clickable(enabled = enabled, role = Role.Checkbox, onClick = onClick).padding(horizontal = 15.dp, vertical = 9.dp),
         contentAlignment = Alignment.Center,
-    ) { Text(text, style = T.ui(13.5.sp, FontWeight.Medium, if (on) Color.White else V.ink2)) }
+    ) { Text(text, style = T.ui(13.5.sp, FontWeight.Medium, if (sel) Color.White else if (enabled) V.ink2 else V.ink3)) }
+}
+
+/** One short "not used" note above locked options (wizard step 3, client Oct 25). */
+@Composable
+fun LockedNote(text: String, modifier: Modifier = Modifier) {
+    Row(
+        modifier.fillMaxWidth().clip(RoundedCornerShape(11.dp)).background(V.paper3).padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp),
+    ) {
+        Icon(com.vims.app.ui.theme.VIcons.info, null, tint = V.ink3, modifier = Modifier.size(17.dp))
+        Text(text, style = T.ui(12.5.sp, FontWeight.Medium, V.ink2, lineHeight = 17.sp))
+    }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -557,8 +579,8 @@ fun SingleChips(options: List<String>, selected: String?, onSelect: (String?) ->
 }
 
 @Composable
-fun MultiChips(options: List<String>, selected: Collection<String>, onToggle: (String) -> Unit, modifier: Modifier = Modifier, label: (String) -> String = { it }) {
-    ChipFlow(modifier) { options.forEach { o -> VChip(label(o), o in selected, { onToggle(o) }) } }
+fun MultiChips(options: List<String>, selected: Collection<String>, onToggle: (String) -> Unit, modifier: Modifier = Modifier, label: (String) -> String = { it }, enabled: Boolean = true) {
+    ChipFlow(modifier) { options.forEach { o -> VChip(label(o), o in selected, { onToggle(o) }, enabled = enabled) } }
 }
 
 /** Overall-condition segmented control (3-column grid, tap again to clear). */
@@ -807,7 +829,7 @@ fun UserAvatar(photo: java.io.File?, initials: String, size: Dp, version: Int = 
 @Composable
 fun ConfirmDialog(
     title: String, message: String, confirmLabel: String, onConfirm: () -> Unit, onDismiss: () -> Unit,
-    danger: Boolean = false, confirmEnabled: Boolean = true, content: @Composable ColumnScope.() -> Unit = {},
+    danger: Boolean = false, confirmEnabled: Boolean = true, dismissLabel: String = "Cancel", content: @Composable ColumnScope.() -> Unit = {},
 ) {
     androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) { TapOutsideClosesKeyboard { tapOutside ->
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(V.paper).then(tapOutside).verticalScroll(rememberScrollState()).padding(20.dp)) {
@@ -815,7 +837,7 @@ fun ConfirmDialog(
             Text(rich(message, V.ink), style = T.ui(13.5.sp, color = V.ink2, lineHeight = 20.sp), modifier = Modifier.padding(bottom = 14.dp))
             content()
             BtnRow(Modifier.padding(top = 2.dp)) {
-                VBtn("Cancel", onDismiss, Modifier.weight(1f), BtnKind.Ghost)
+                VBtn(dismissLabel, onDismiss, Modifier.weight(1f), BtnKind.Ghost)
                 VBtn(confirmLabel, onConfirm, Modifier.weight(1f), if (danger) BtnKind.Danger else BtnKind.Primary, enabled = confirmEnabled)
             }
         }
