@@ -1,8 +1,8 @@
 {
- "_about": "Client-supplied VIMS default Home Inspection Agreement for all 50 states ('Home Inspection Agreement - App for all 50 states.docx', received Oct 5, 2026), reproduced verbatim except '{companyName}' replaces the hard-coded 'Vision Property Inspections' (filled with the company's name at display time). Used as the default inspection agreement for every company unless they upload their own (Company profile). 'stateDisclosures' is keyed by state code; when shown for a specific inspection, display only that state's entry (all states when viewed from Company profile). No in-app e-signature in Phase 1 (deferred add-on).",
+ "_about": "Client-supplied VIMS default Home Inspection Agreement for all 50 states ('VIMS Home Inspection Agreement - App for all 50 states.docx', final version received Oct 25, 2026; first draft Oct 5), reproduced verbatim except '{companyName}' replaces the hard-coded 'Vision Property Inspections' (filled with the company's name at display time). Used as the default inspection agreement for every company unless they upload their own (Company profile). 'stateDisclosures' is keyed by state code; when shown for a specific inspection, display only that state's entry (all states when viewed from Company profile). No in-app e-signature in Phase 1 (deferred add-on).",
  "title": "Inspection Agreement",
- "version": "2026-10-05",
- "status": "draft — client corrections pending",
+ "version": "2026-10-25",
+ "status": "final — client approved Oct 25, 2026",
  "header": [
   "Company Name Company Logo",
   "Inspection Agreement",
@@ -30,7 +30,7 @@
   "☐ Lead Testing $__________ ☐ Thermal Energy Efficiency $__________",
   "☐ Meth Testing $__________ ☐ Termite/Pest Inspection $__________",
   "☐ Sewer Scope $__________ ☐ Heating Oil Tank $__________",
-  "☐ Boiler System $__________",
+  "☐ Boiler System $__________ ☐ Wind Mitigation Inspection $__________",
   "Inspection Fee $__________ Bundled Services $__________ Total Amount Due $__________",
   "The inspection fee is due upon completion of the inspection. The inspection report will be provided upon payment of the inspection."
  ],
@@ -232,7 +232,11 @@
   },
   {
    "t": "p",
-   "text": "Real Estate Agents Name _________________________________ Agents Email _________________________________"
+   "text": "Real Estate Agents Name ___________________________________"
+  },
+  {
+   "t": "p",
+   "text": "Agents Email _________________________________"
   },
   {
    "t": "p",

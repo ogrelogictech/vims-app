@@ -1,7 +1,7 @@
 {
  "_about": "VIMS shared checklist + configuration data. Single source of truth for the native iOS (SwiftUI) and Android (Kotlin/Compose) apps. Extracted from the client-approved prototype (index.html, approved Sep 15, 2026). Edit here, not in app code.",
- "version": "1.9.2",
- "generated": "2026-10-22",
+ "version": "1.10.0",
+ "generated": "2026-10-25",
  "depths": [
   {
    "id": "high",
@@ -31568,6 +31568,21 @@
       "4-Point — Pictures"
      ]
     }
+   ],
+   "Tests Only": [
+    {
+     "heading": "Inspection Info",
+     "link": "inspectionInfo"
+    },
+    {
+     "heading": "Testing",
+     "icon": "flask",
+     "optional": "testOptions"
+    },
+    {
+     "heading": "Summary",
+     "link": "summary"
+    }
    ]
   },
   "standardLayout": [
@@ -31633,7 +31648,8 @@
    }
   ],
   "_notes": "'?' = included when selected in wizard step 3 rooms; '×n' = repeated per count. Admin-added custom sections are appended to the end of their group (Exterior, Interior, Utility, Testing).",
-  "_formNotes": "Sections with 'form' (texas | fourPoint) are client-supplied state/insurance forms: ignore checklist depth (always show 'items'), no Overall condition row, badge = formLabels[form]. 'photosOnly' sections have no items: opening one goes straight to the photo screen, whose primary button is 'Save & continue to summary' (or '… to report' when the layout has no Summary). Layouts without a Summary entry (4 Point) hide 'Review summary'."
+  "_formNotes": "Sections with 'form' (texas | fourPoint) are client-supplied state/insurance forms: ignore checklist depth (always show 'items'), no Overall condition row, badge = formLabels[form]. 'photosOnly' sections have no items: opening one goes straight to the photo screen, whose primary button is 'Save & continue to summary' (or '… to report' when the layout has no Summary). Layouts without a Summary entry (4 Point) hide 'Review summary'.",
+  "_testsOnlyAbout": "Client Oct 25 (areas locked for Tests Only): the checklist is Inspection Info + the tests selected in wizard step 4 + Summary. No exterior / interior / utility sections."
  },
  "wizard": {
   "steps": [
@@ -31647,7 +31663,6 @@
    "New Construction",
    "Pre-Listing / Maintenance",
    "Component",
-   "Code",
    "Tests Only",
    "Phase 1 Foundation",
    "Phase 2 Pre-Dry Wall",
@@ -32103,7 +32118,19 @@
    ]
   },
   "inspectorLicenseNote": "'Inspector License #' (step 1) prints on every report cover to the right of the inspector's name. Prefill from Company profile → License # if set.",
-  "defaultsNote": "Team QA Oct 22: no single-choice option is preselected on New Inspection (type of loan, type of inspection, property status, weather, utilities, construction style, stories, basement, etc.). Exception: Checklist depth keeps the inspector's Settings default. Type of inspection is required. Counts (bedrooms, rooms…) keep their default numbers; date/time default to now."
+  "defaultsNote": "Team QA Oct 22: no single-choice option is preselected on New Inspection (type of loan, type of inspection, property status, weather, utilities, construction style, stories, basement, etc.). Exception: Checklist depth keeps the inspector's Settings default. Type of inspection is required. Counts (bedrooms, rooms…) keep their default numbers; date/time default to now.",
+  "retiredInspectionTypes": [
+   "Code"
+  ],
+  "_retiredInspectionTypesAbout": "Client Oct 25: 'Code' removed from Type of inspection (returns later, when the app links to a building-code database for citing code provisions). Existing inspections saved with a retired type keep it and still open/print normally; it is just not offered for new ones.",
+  "inspectionTypeDeselect": "Client Oct 25: tapping the selected Type of inspection chip again deselects it (Type of inspection stays required, so Next is blocked until one is chosen).",
+  "areasLockedTypes": [
+   "Phase 1 Foundation",
+   "Phase 2 Pre-Dry Wall",
+   "Tests Only",
+   "4 Point Inspection"
+  ],
+  "_areasLockedAbout": "Client Oct 25: when Type of inspection is one of these, wizard step 3 'Areas to inspect' locks the exterior options, the interior room options and the utility options (shown disabled with a short note, e.g. 'Not used for a Phase 2 Pre-Dry Wall inspection'), and they do not add sections to the checklist. The room counts (Bedrooms, Bathrooms, Hallways) stay editable. Choosing another type unlocks them with the earlier choices intact."
  },
  "findings": {
   "categories": [
@@ -32184,7 +32211,8 @@
     "4th of July",
     "Hanukkah",
     "Passover",
-    "Halloween"
+    "Halloween",
+    "Cinco de Mayo"
    ],
    "Seasonal": [
     "Summer",
@@ -32373,10 +32401,10 @@
    "Christmas": {
     "file": "covers/christmas.webp",
     "rect": [
-     4.04,
-     6.34,
-     4.33,
-     3.75
+     5.08,
+     6.5,
+     2.87,
+     3.6
     ]
    },
    "4th of July": {
@@ -32427,35 +32455,44 @@
    "Spring": {
     "file": "covers/spring.webp",
     "rect": [
-     4.24,
-     6.87,
-     3.81,
-     3.49
+     4.25,
+     8.21,
+     3.7,
+     1.89
     ]
    },
    "Fall": {
     "file": "covers/fall.webp",
     "rect": [
-     2.56,
-     5.61,
-     5.44,
-     4.48
+     4.25,
+     8.47,
+     3.7,
+     1.63
     ]
    },
    "Halloween": {
-    "file": "covers/fall.webp",
+    "file": "covers/halloween.webp",
     "rect": [
-     2.56,
-     5.61,
-     5.44,
-     4.48
+     4.25,
+     7.05,
+     3.7,
+     3.05
+    ]
+   },
+   "Cinco de Mayo": {
+    "file": "covers/cinco-de-mayo.webp",
+    "rect": [
+     4.31,
+     7.2,
+     3.64,
+     2.9
     ]
    }
   },
-  "themeArtNote": "Extracted from the client's Word covers (Report Cover Pages, Oct 9 2026). Summer and Christmas (pngtree), Spring (shutterstock) and Fall (orange.biz; also used for Halloween) contain stock-site WATERMARKS: test builds only, licensed replacements needed before store release. 'May 5th' cover was not marked Done by the client and is not included yet.",
+  "themeArtNote": "Extracted from the client's Word covers (Report Cover Pages, Oct 9 2026), except: Spring, Christmas and Cinco de Mayo = client replacements Oct 25 2026 (client: AI-generated / open-source; baked-in checkerboard and white backgrounds removed); Fall = client's request Oct 25: leaves + pumpkin only (Halloween layer removed), from tOrange.biz (free, credit required: keep the 'torange.biz' mark); Halloween = the previous Fall art (pumpkin + leaves + Halloween scene, same tOrange.biz credit). Summer still carries a pngtree WATERMARK (no replacement received yet): test builds only. New art rects sit right of the page center (x >= 4.25in) so they never cover the footer text box.",
   "noThemeOption": "No picture",
   "_pickerAbout": "Client Oct 17: one page with Color, Theme (category + picture, or 'No picture') and Style (Shaded, Framed, Solid in that order). Solid is a style like the others and can carry a theme picture.",
-  "_categoriesAbout": "Client Oct 22: Seasonal keeps the four seasons (Summer, Winter, Spring, Fall). Holidays gets Halloween (uses the Fall picture). May 5th / Cinco de Mayo will be added under Holidays when the client sends its picture."
+  "_categoriesAbout": "Client Oct 22/25: Seasonal keeps Summer, Winter, Spring, Fall. Holidays: Easter, Christmas, 4th of July, Hanukkah, Passover, Halloween (previous Fall art), Cinco de Mayo."
  },
  "subscription": {
   "trialDays": 30,
@@ -32852,5 +32889,9 @@
    "pages": 1,
    "layout": "US Letter, our report styling (not NPMA's look): title 'Wood Destroying Insect Inspection Report'; Section I General Information (inspection company name, address & phone from Company profile; inspector name and license #; company business license no.; date of inspection; address of property inspected; structure(s) inspected); Section II findings with ☐/☒ A or B and the 1–3 descriptions, previous-treatment Yes/No + evidence; Section III recommendations; Section IV obstructions table (area | obstruction); Section V comments and attachments; signature lines for seller/owner and buyer left blank; one short neutral line: 'This report reflects a visual inspection of readily accessible areas on the date of inspection and is not a guarantee or warranty against latent, concealed or future infestations or damage.'"
   }
+ },
+ "features": {
+  "sync": false,
+  "_about": "Client Oct 25: Phase 1 does not sync inspections anywhere (cross-device sync is Phase 2). With sync false: no sync status pill/badges (e.g. 'Offline · 3 queued'), no Settings 'Sync' section or 'Sync now', no automatic sync stub, and no wording about syncing anywhere in the app (How VIMS works, help text, toasts). Keep the code behind this flag for Phase 2."
  }
 }
