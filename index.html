@@ -28,9 +28,6 @@
   @media(min-width:480px){ body{padding:24px} .device{height:900px;max-height:94vh;border-radius:40px;box-shadow:0 40px 90px -30px #000,0 0 0 11px #05070b,0 0 0 13px #1b2430} }
 
   .statusbar{background:var(--hdr);color:#fff;display:flex;align-items:center;justify-content:space-between;padding:11px 20px 8px;font-family:var(--fm);font-size:12px;flex:none}
-  .nb{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:20px;font-size:11px}
-  .nb.off{background:rgba(228,161,27,.22);color:#f2c869}.nb.on{background:rgba(47,158,107,.26);color:#7ce0af}
-  .nb .d{width:6px;height:6px;border-radius:50%;background:currentColor}
 
   .apphdr{background:var(--hdr);color:#fff;display:flex;align-items:center;gap:10px;padding:6px 12px 14px;flex:none}
   .apphdr .ic{width:40px;height:40px;border:0;background:rgba(255,255,255,.12);border-radius:11px;color:#fff;display:grid;place-items:center;cursor:pointer;flex:none}
@@ -75,6 +72,9 @@
   .chip{font-family:var(--fu);font-size:13.5px;font-weight:500;color:var(--ink-2);background:var(--paper);border:1.5px solid var(--line);border-radius:22px;padding:9px 15px;cursor:pointer;min-height:40px;display:inline-flex;align-items:center;transition:.12s}
   .chip:active{transform:scale(.97)}
   .chip.on{background:var(--brand);border-color:var(--brand);color:#fff}
+  .chips.locked .chip{opacity:.42;cursor:not-allowed;transform:none}
+  .wlocknote{display:none;font-size:12px;color:var(--ink-3);margin:-4px 2px 9px}
+  .wlocknote.on{display:block}
 
   .li{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:14px 15px;margin-bottom:11px}
   .li .q{font-size:14.5px;font-weight:600;color:var(--ink);margin-bottom:11px}
@@ -351,7 +351,6 @@
 
   <div class="statusbar">
     <span>9:41</span>
-    <span class="net"><span class="nb off" id="netbadge"><span class="d"></span>Offline · 1 queued</span></span>
   </div>
 
   <div class="apphdr" id="apphdr">
@@ -412,11 +411,11 @@
       <button class="trialbar" onclick="go('s-subscribe')"><span class="tb-l"><b>Free trial</b> · <span id="hometrial">22</span> days left</span><span class="tb-r">Subscribe <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></span></button>
       <div class="stat2">
         <div class="stat"><div class="n">3</div><div class="l">Inspections today</div></div>
-        <div class="stat"><div class="n" id="homequeue">1</div><div class="l">Waiting to sync</div></div>
+        <div class="stat"><div class="n">1</div><div class="l">In progress</div></div>
       </div>
       <p class="lbl">Today · Thu, Aug 27</p>
       <button class="row" onclick="openInspection('1428 Ridgeline Dr')"><div class="lead time">9:30<small>AM</small></div><div class="mid"><b>1428 Ridgeline Dr</b><span>Ogden, UT · Standalone</span></div><div class="end"><span class="pill prog"><span class="d"></span>In progress</span></div></button>
-      <button class="row" onclick="openInspection('82 Canyon Crest #4')"><div class="lead time">1:00<small>PM</small></div><div class="mid"><b>82 Canyon Crest #4</b><span>Layton, UT · Condo</span></div><div class="end"><span class="pill queued"><span class="d"></span>Queued</span></div></button>
+      <button class="row" onclick="openInspection('82 Canyon Crest #4')"><div class="lead time">1:00<small>PM</small></div><div class="mid"><b>82 Canyon Crest #4</b><span>Layton, UT · Condo</span></div><div class="end"><span class="pill new"><span class="d"></span>Scheduled</span></div></button>
       <button class="row" onclick="openInspection('210 Willow Park, Lot 17')"><div class="lead time">3:30<small>PM</small></div><div class="mid"><b>210 Willow Park, Lot 17</b><span>Roy, UT · Mobile home</span></div><div class="end"><span class="pill new"><span class="d"></span>Scheduled</span></div></button>
       <p class="lbl">Recent</p>
       <button class="row" onclick="openInspection('640 Harrison Blvd')"><div class="lead"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 15h6M9 12h6"/></svg></div><div class="mid"><b>640 Harrison Blvd</b><span>Aug 26 · Report sent</span></div><div class="end"><span class="pill done"><span class="d"></span>Done</span></div></button>
@@ -480,11 +479,11 @@
 
       <div class="wstep" id="w3" style="display:none">
         <p style="font-size:13px;color:var(--ink-3);margin:2px 0 12px">Choose every area to inspect &mdash; add or remove anything. This builds the checklist.</p>
-        <p class="lbl">Exterior areas</p><div class="chips" data-manual id="wext"></div>
+        <p class="lbl">Exterior areas</p><p class="wlocknote" data-lock="wext"></p><div class="chips" data-manual id="wext"></div>
         <p class="lbl">Room counts</p>
         <div id="wroomcounts"></div>
-        <p class="lbl">Interior rooms</p><div class="chips" data-manual id="wrooms"></div>
-        <p class="lbl">Utility &amp; systems</p><div class="chips" data-manual id="wutil"></div>
+        <p class="lbl">Interior rooms</p><p class="wlocknote" data-lock="wrooms"></p><div class="chips" data-manual id="wrooms"></div>
+        <p class="lbl">Utility &amp; systems</p><p class="wlocknote" data-lock="wutil"></p><div class="chips" data-manual id="wutil"></div>
       </div>
 
       <div class="wstep" id="w4" style="display:none">
@@ -544,7 +543,7 @@
       <p style="font-size:12px;color:var(--ink-3);margin:-4px 2px 10px">Completed sections populate the report in the order they're numbered on your master checklist.</p>
       <div class="card" style="padding:6px 0" id="reportcontents"></div>
       <a class="btn ghost" id="previewlink" href="report.html" style="margin-top:10px;text-decoration:none" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>Preview report format</a>
-      <div class="banner" style="margin-top:16px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-9 9 9 9 0 0 1-6.7-3L3 16M3 12a9 9 0 0 1 9-9 9 9 0 0 1 6.7 3L21 8"/></svg><div>You're <b>offline</b>. The report generates on the device now; it uploads on the next sync.</div></div>
+      <div class="banner" style="margin-top:16px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/></svg><div>The report is built <b>on this device</b>. No internet connection is needed.</div></div>
       <button class="btn primary" onclick="go('s-generated')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>Generate PDF report</button>
       <button class="btn ghost" style="margin-top:10px" onclick="go('s-payment')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>Collect payment</button>
     </section>
@@ -595,7 +594,7 @@
       <div class="success">
         <div class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
         <h2>Report generated</h2>
-        <p>78-page report for 1428 Ridgeline Dr is saved on this device and queued to sync to the portal.</p>
+        <p>78-page report for 1428 Ridgeline Dr is saved on this device.</p>
         <button class="btn primary" onclick="go('s-payment')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>Collect payment</button>
         <button class="btn ghost" style="margin-top:10px" onclick="toast('Opening PDF preview…')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>Preview PDF</button>
         <button class="btn ghost" style="margin-top:10px" onclick="emailReport()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 6-10 7L2 6"/></svg>Email to client</button>
@@ -622,9 +621,6 @@
       <p class="lbl">Account</p>
       <div class="card" style="display:flex;align-items:center;gap:13px"><div style="width:48px;height:48px;border-radius:50%;background:linear-gradient(140deg,#5580e6,#1e3d94);color:#fff;display:grid;place-items:center;font-family:var(--fd);font-weight:700">JH</div><div><b style="font-size:15px">Jeremy Heath</b><div style="font-size:12.5px;color:var(--ink-3)">Vision Property Inspections</div></div></div>
       <button class="btn ghost" onclick="go('s-login')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>Sign out</button>
-      <p class="lbl">Sync</p>
-      <div class="card" style="display:flex;align-items:center;justify-content:space-between"><div><b style="font-size:14px">Auto-sync when online</b><div style="font-size:12px;color:var(--ink-3)">1 inspection waiting</div></div><div style="width:46px;height:28px;border-radius:20px;background:var(--brand);position:relative"><div style="position:absolute;top:3px;right:3px;width:22px;height:22px;border-radius:50%;background:#fff"></div></div></div>
-      <button class="btn ghost" onclick="syncNow()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-9 9 9 9 0 0 1-6.7-3L3 16M3 12a9 9 0 0 1 9-9 9 9 0 0 1 6.7 3L21 8M21 3v5h-5M3 21v-5h5"/></svg>Sync now</button>
 
       <p class="lbl">Subscription &amp; licensing</p>
       <button class="row" onclick="go('s-billing')"><div class="lead"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg></div><div class="mid"><b>Plan &amp; billing</b><span id="set-planline">App · trial</span></div><div class="end"><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></span></div></button>
@@ -4126,7 +4122,12 @@ SEC['Wind Mitigation'].itemsHigh=[
 
 
   // Catalogs (from Jeremy's App Flow Chart + Inspection Info checklist 01)
-  var INSPECTION_TYPES=['Real Estate Sale','New Construction','Pre-Listing / Maintenance','Component','Code','Tests Only','Phase 1 Foundation','Phase 2 Pre-Dry Wall','New Build Final','Texas','4 Point Inspection'];
+  var INSPECTION_TYPES=['Real Estate Sale','New Construction','Pre-Listing / Maintenance','Component','Tests Only','Phase 1 Foundation','Phase 2 Pre-Dry Wall','New Build Final','Texas','4 Point Inspection'];
+  // Client Oct 25: 'Code' is no longer offered (returns with the building-code database). Inspections already saved with it keep it.
+  var RETIRED_INSPECTION_TYPES=['Code'];
+  // Client Oct 25: these types lock the exterior / room / utility options in wizard step 3 (room counts stay editable)
+  var AREAS_LOCKED_TYPES=['Phase 1 Foundation','Phase 2 Pre-Dry Wall','Tests Only','4 Point Inspection'];
+  function areasLocked(){ return AREAS_LOCKED_TYPES.indexOf(sel.inspType)>=0; }
   var COMPONENT_OPT=['Roof','HVAC','Electrical','Plumbing'];
   var STRUCTURE_TYPES=['Single Family','Duplex','Multi-Unit','Townhouse','Condo','Mobile / Manufactured'];
   var EXT_OPT=['Chimney','Pool House & Pool','Outbuilding – Shed','Outbuilding – Car Port','Deck','Patio','Balcony','Detached Garage','Condo','Mobile Home Undercarriage'];
@@ -4202,6 +4203,10 @@ SEC['Wind Mitigation'].itemsHigh=[
     if(sel.inspType==='4 Point Inspection'){
       return [ {h:'Inspection Info',icon:'info',link:'s-new'}, {h:'4-Point Inspection',icon:'box',secs:FOURPT_SECS}, {h:'Pictures',icon:'camera',secs:['4-Point — Pictures']} ];
     }
+    var tests=[]; TEST_OPT.forEach(function(k){ if(sel.tests[k]) tests.push(k); }); tests=tests.concat(CUSTOM.Testing);
+    if(sel.inspType==='Tests Only'){
+      return [ {h:'Inspection Info',icon:'info',link:'s-new'}, {h:'Testing',icon:'flask',secs:tests}, {h:'Summary',icon:'list',link:'s-summary'} ];
+    }
     var ext=['Landscaping','Roof','Exterior Walls','Outside Utilities'];
     EXT_OPT.forEach(function(k){ if(sel.exterior[k]) ext.push(k); });
     var interior=[];
@@ -4212,8 +4217,7 @@ SEC['Wind Mitigation'].itemsHigh=[
     var util=['Utility Room','HVAC Mechanical','Electrical','Water Heater'];
     UTIL_OPT.forEach(function(k){ if(sel.utilOpt[k]) util.push(k); });
     util=util.concat(['Plumbing','Foundation / Crawl Space']);
-    var tests=[]; TEST_OPT.forEach(function(k){ if(sel.tests[k]) tests.push(k); });
-    ext=ext.concat(CUSTOM.Exterior); interior=interior.concat(CUSTOM.Interior); util=util.concat(CUSTOM.Utility); tests=tests.concat(CUSTOM.Testing);
+    ext=ext.concat(CUSTOM.Exterior); interior=interior.concat(CUSTOM.Interior); util=util.concat(CUSTOM.Utility);
     return [
       {h:'Inspection Info',icon:'info',link:'s-new'},
       {h:'Property Exterior',icon:'tree',secs:ext},
@@ -4439,7 +4443,10 @@ SEC['Wind Mitigation'].itemsHigh=[
   var wizStep=1;
   function wchip(label,on){ var b=document.createElement('button'); b.className='chip'+(on?' on':''); b.type='button'; b.textContent=label; return b; }
   function buildWizardChips(){
-    var t=document.getElementById('wtype'); t.innerHTML=''; INSPECTION_TYPES.forEach(function(x){ var b=wchip(x,sel.inspType===x); b.onclick=function(){ sel.inspType=x; Array.prototype.forEach.call(t.children,function(c){c.classList.remove('on');}); b.classList.add('on'); renderComponentSub(); }; t.appendChild(b); });
+    // a retired type (e.g. 'Code') still shows on an inspection that was saved with it
+    var types=INSPECTION_TYPES.slice(); if(sel.inspType && types.indexOf(sel.inspType)<0 && RETIRED_INSPECTION_TYPES.indexOf(sel.inspType)>=0) types.push(sel.inspType);
+    // tap the selected type again to deselect it (still required: Next is blocked until one is chosen)
+    var t=document.getElementById('wtype'); t.innerHTML=''; types.forEach(function(x){ var b=wchip(x,sel.inspType===x); b.onclick=function(){ var off=(sel.inspType===x); sel.inspType=off?'':x; Array.prototype.forEach.call(t.children,function(c){c.classList.remove('on');}); if(!off) b.classList.add('on'); renderComponentSub(); renderAreasLock(); }; t.appendChild(b); });
     renderComponentSub();
     var s=document.getElementById('wstruct'); s.innerHTML=''; STRUCTURE_TYPES.forEach(function(x){ var b=wchip(x,sel.structure===x); b.onclick=function(){ sel.structure=x; Array.prototype.forEach.call(s.children,function(c){c.classList.remove('on');}); b.classList.add('on'); if(x==='Condo') sel.exterior['Condo']=1; if(x==='Mobile / Manufactured') sel.exterior['Mobile Home Undercarriage']=1; renderUnitMix(); }; s.appendChild(b); });
     syncDepthUI();
@@ -4456,6 +4463,17 @@ SEC['Wind Mitigation'].itemsHigh=[
     var r=document.getElementById('wrooms'); r.innerHTML=''; ROOM_OPT.forEach(function(x){ var b=wchip(x,!!sel.rooms[x]); b.onclick=function(){ sel.rooms[x]=sel.rooms[x]?0:1; b.classList.toggle('on'); }; r.appendChild(b); });
     var ue=document.getElementById('wutil'); if(ue){ ue.innerHTML=''; UTIL_OPT.forEach(function(x){ var b=wchip(x,!!sel.utilOpt[x]); b.onclick=function(){ sel.utilOpt[x]=sel.utilOpt[x]?0:1; b.classList.toggle('on'); }; ue.appendChild(b); }); }
     var te=document.getElementById('wtests'); te.innerHTML=''; TEST_OPT.forEach(function(x){ var b=wchip(x,!!sel.tests[x]); b.onclick=function(){ sel.tests[x]=sel.tests[x]?0:1; b.classList.toggle('on'); }; te.appendChild(b); });
+    renderAreasLock();
+  }
+  // Areas lock: exterior / room / utility options are disabled for these types and add no sections; earlier choices are kept in sel and come back on unlock
+  function renderAreasLock(){
+    var lock=areasLocked();
+    ['wext','wrooms','wutil'].forEach(function(id){
+      var g=document.getElementById(id); if(!g) return;
+      g.classList.toggle('locked',lock); g.setAttribute('aria-disabled',lock?'true':'false');
+      Array.prototype.forEach.call(g.children,function(c){ c.disabled=lock; });
+      var n=document.querySelector('.wlocknote[data-lock="'+id+'"]'); if(n){ n.textContent=lock?'Not used for a '+sel.inspType+(/inspection$/i.test(sel.inspType)?'':' inspection'):''; n.classList.toggle('on',lock); }
+    });
   }
   function renderWizard(){
     var sb=document.getElementById('stepsbar'); sb.innerHTML='';
@@ -4584,7 +4602,7 @@ SEC['Wind Mitigation'].itemsHigh=[
     if(r.docs&&r.docs.length) h+='<label style="display:flex;gap:9px;align-items:flex-start;margin-top:12px;cursor:pointer"><input type="checkbox" id="wstatedocack" '+(sel.stateDocsAck?'checked':'')+' onchange="ackStateDocs(this.checked)" style="width:20px;height:20px;margin:0;flex:0 0 20px;accent-color:var(--brand)"><span>Provided to the client with the inspection agreement</span></label>';
     host.innerHTML=h+'</div>';
   }
-  window.wizNext=function(){ if(wizStep===1){ if(!sel.state){ toast('Select the property\'s state'); return; } var sr=STATE_RULES[sel.state]; if(sr&&sr.docs&&sr.docs.length&&!sel.stateDocsAck){ toast('Confirm the required state notice was given to the client'); return; } }
+  window.wizNext=function(){ if(wizStep===1){ if(!sel.inspType){ toast('Select the type of inspection'); return; } if(!sel.state){ toast('Select the property\'s state'); return; } var sr=STATE_RULES[sel.state]; if(sr&&sr.docs&&sr.docs.length&&!sel.stateDocsAck){ toast('Confirm the required state notice was given to the client'); return; } }
     if(wizStep<4){ wizStep++; renderWizard(); document.getElementById('body').scrollTop=0; } else { refreshChecklist(); renderOverview(); toast('Checklist built — '+sel.structure); go('s-sections'); } };
   window.wizPrev=function(){ if(wizStep>1){ wizStep--; renderWizard(); document.getElementById('body').scrollTop=0; } };
 
@@ -4682,11 +4700,11 @@ SEC['Wind Mitigation'].itemsHigh=[
   var COVER_CATS={
     'Activities':['Horses','Planes','Astronomy','Science & Math','Mountains'],
     'Hobbies':['Skiing','Enterprise 1799','Fishing','F1 Racing'],
-    'Holidays':['Easter','Christmas','4th of July','Hanukkah','Passover','Halloween'],
+    'Holidays':['Easter','Christmas','4th of July','Hanukkah','Passover','Halloween','Cinco de Mayo'],
     'Seasonal':['Summer','Winter','Spring','Fall']
   };
   var cover={color:'Blue',category:'Activities',option:'Mountains',style:'Framed',step:1};
-  var COVER_ART_FILES={"Horses": "covers/horses.webp", "Planes": "covers/planes.webp", "Astronomy": "covers/astronomy.webp", "Science & Math": "covers/science-math.webp", "Mountains": "covers/mountains.webp", "Skiing": "covers/skiing.webp", "Enterprise 1799": "covers/enterprise-1799.webp", "Fishing": "covers/fishing.webp", "F1 Racing": "covers/f1-racing.webp", "Easter": "covers/easter.webp", "Christmas": "covers/christmas.webp", "4th of July": "covers/4th-of-july.webp", "Hanukkah": "covers/hanukkah.webp", "Passover": "covers/passover.webp", "Summer": "covers/summer.webp", "Winter": "covers/winter.webp", "Spring": "covers/spring.webp", "Fall": "covers/fall.webp", "Halloween": "covers/fall.webp"}; // client's cover artwork (Oct 9 2026)
+  var COVER_ART_FILES={"Horses": "covers/horses.webp", "Planes": "covers/planes.webp", "Astronomy": "covers/astronomy.webp", "Science & Math": "covers/science-math.webp", "Mountains": "covers/mountains.webp", "Skiing": "covers/skiing.webp", "Enterprise 1799": "covers/enterprise-1799.webp", "Fishing": "covers/fishing.webp", "F1 Racing": "covers/f1-racing.webp", "Easter": "covers/easter.webp", "Christmas": "covers/christmas.webp", "4th of July": "covers/4th-of-july.webp", "Hanukkah": "covers/hanukkah.webp", "Passover": "covers/passover.webp", "Summer": "covers/summer.webp", "Winter": "covers/winter.webp", "Spring": "covers/spring.webp", "Fall": "covers/fall.webp", "Halloween": "covers/halloween.webp", "Cinco de Mayo": "covers/cinco-de-mayo.webp"}; // client's cover artwork (Oct 9 2026; Spring, Christmas, Fall, Halloween, Cinco de Mayo updated Oct 25 2026)
   function coverGrad(){ var c=COVER_COLORS.filter(function(x){return x[0]===cover.color;})[0]||COVER_COLORS[0]; return 'linear-gradient(150deg,'+c[1]+','+c[2]+')'; }
   function coverLabel(){ return cover.color+' · '+(cover.option||'No picture')+' · '+cover.style; }
   window.renderCoverPicker=function(){
@@ -4725,7 +4743,6 @@ SEC['Wind Mitigation'].itemsHigh=[
     var h=''; done.forEach(function(n){ var num=('0'+secNum(n)).slice(-2); h+='<div class="binforow"><span><b style="font-family:var(--fm);color:var(--brand-deep);margin-right:8px">'+num+'</b>'+n+'</span><span class="pill done"><span class="d"></span>Included</span></div>'; });
     host.innerHTML=h;
   };
-  window.syncNow=function(){ var b=document.getElementById('netbadge'); b.className='nb on'; b.innerHTML='<span class="d"></span>Synced'; document.getElementById('homequeue').textContent='0'; toast('Synced to portal'); };
   window.togglePw=function(id,btn){ var i=document.getElementById(id); if(!i) return; var show=i.type==='password'; i.type=show?'text':'password'; btn.classList.toggle('on',show); btn.setAttribute('aria-label',show?'Hide password':'Show password'); };
   window.uploadLogo=function(inp){ var f=inp.files&&inp.files[0]; if(!f) return; var r=new FileReader(); r.onload=function(e){ var img=document.getElementById('companylogo'); if(img) img.src=e.target.result; toast('Logo updated'); }; r.readAsDataURL(f); };
   window.uploadAgreement=function(inp){ var f=inp.files&&inp.files[0]; if(!f) return; OWN_AGREEMENT=f.name; renderAgreementCard(); toast('Your agreement is now in use'); };
@@ -4776,12 +4793,12 @@ SEC['Wind Mitigation'].itemsHigh=[
     var host=document.getElementById('instructionsbody'); if(!host) return;
     function card(icon,title,body){ return '<div class="card"><div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><span style="width:30px;height:30px;border-radius:8px;background:var(--paper-3);color:var(--brand);display:grid;place-items:center;flex:none">'+ico(icon)+'</span><b style="font-family:var(--fd);font-size:15px">'+title+'</b></div><div style="font-size:13px;color:var(--ink-2);line-height:1.55">'+body+'</div></div>'; }
     host.innerHTML =
-      '<div class="banner" style="background:rgba(47,94,201,.08);border-color:#c3d2f2"><svg viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9z"/></svg><div style="color:var(--brand-deep)"><b>Everything saves on your device.</b> All inspection data and photos are stored locally and work fully offline &mdash; they upload automatically the next time you are online.</div></div>'
+      '<div class="banner" style="background:rgba(47,94,201,.08);border-color:#c3d2f2"><svg viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9z"/></svg><div style="color:var(--brand-deep)"><b>Everything saves on your device.</b> All inspection data and photos are stored on this device and work fully offline &mdash; no internet connection is needed to inspect or build the report.</div></div>'
       + card('info','Getting started','<b>New account:</b> tap <b>Create account</b> on sign-in and enter your details, or tap <b>Join a company with a code</b> if your company gave you one. New companies start on a <b>30-day free look</b> &mdash; set up your company profile and logo in Settings first.')
       + card('list','Run an inspection','Tap <b>New inspection</b>, then step through: inspection info &rarr; property details &rarr; the areas to inspect. On each section, tap the answers that apply, add photos, mark them up, and flag any concern into a category. Use <b>Save &amp; next section</b> to move through quickly.')
       + card('flask','Checklist depth','Pick <b>High Detail</b>, <b>Standard</b>, or <b>Fast Entry</b> per inspection (or set a default in Settings). High Detail asks the most; Fast Entry is a quick condition-and-notes pass.')
       + card('file','Photos &amp; findings','Tap <b>Add</b> to capture a photo, then tap it to draw on it or add a quick comment. Flagging a photo as a concern adds it to the <b>Summary</b> under Category 1 Safety, 2 Functional, or 3 Items to monitor.')
-      + card('file','Generate the report','From the Summary tap <b>Save and generate report</b>, choose a cover (color &rarr; theme &rarr; style), and the app builds your branded PDF. It queues to send when you are back online.')
+      + card('file','Generate the report','From the Summary tap <b>Save and generate report</b>, choose a cover (color &rarr; theme &rarr; style), and the app builds your branded PDF on this device. Then email it to your client from the <b>Report ready</b> screen.')
       + card('bolt','Subscription &amp; inspectors','Your free look counts down at every sign-in. Subscribe through <b>Square</b> any time. Add inspectors under your company license and share your <b>company code</b> so they can join.')
       + '<div class="card" style="text-align:center"><div style="font-size:13px;color:var(--ink-3)">Need a hand? Contact VIMS support</div><a href="mailto:'+FEEDBACK_EMAIL+'" style="display:inline-block;font-family:var(--fm);font-size:13px;color:var(--brand-deep);margin-top:4px;padding:10px;text-decoration:underline">'+FEEDBACK_EMAIL+'</a></div>';
   }
