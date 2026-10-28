@@ -29,7 +29,17 @@ struct HomeView: View {
                leading: .menu,
                onLeading: { withAnimation(.easeOut(duration: 0.24)) { menuOpen = true } },
                actions: [HeaderAction(symbol: "hdr-add", label: "New inspection") { store.startNewInspection() }]) {
-            if !store.subscription.active {
+            if store.isSubscriptionExempt && !store.subscription.active {
+                // Client Oct 28: master admins never see a trial countdown or Subscribe.
+                Text(md("**Master admin** · no subscription needed")).font(VFont.ui(13.5)).foregroundStyle(VC.brandDeep)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16).padding(.vertical, 13)
+                    .frame(minHeight: 48)
+                    .background(VC.brand.opacity(0.08))
+                    .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 13, style: .continuous).stroke(Color(hex: 0xC9DEE6), lineWidth: 1))
+                    .padding(.bottom, 14)
+            } else if !store.subscription.active {
                 Button { store.push(.subscribe) } label: {
                     HStack {
                         Text(md(store.subscription.trialEnded ? "**Free trial ended**" : "**Free trial** · \(store.subscription.trialDaysLeft) days left")).font(VFont.ui(13.5))

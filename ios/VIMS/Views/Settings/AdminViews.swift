@@ -857,7 +857,11 @@ struct SubscribeView: View {
     var body: some View {
         let sub = store.subscription
         Screen(title: "Subscription", actions: [store.homeAction()], errors: errors) {
-            if !sub.active {
+            if store.isSubscriptionExempt && !sub.active {
+                Banner(symbol: "free-trial-days", tint: VC.brandDeep, background: VC.brand.opacity(0.08), border: Color(hex: 0xC9DEE6), textColor: VC.brandDeep,
+                       text: md("**\(AppStore.exemptLine).** VIMS master admin accounts don\u{2019}t need a free trial or a subscription."))
+                    .padding(.bottom, 14)
+            } else if !sub.active {
                 Banner(symbol: "free-trial-days", tint: VC.brandDeep, background: VC.brand.opacity(0.08), border: Color(hex: 0xC9DEE6), textColor: VC.brandDeep,
                        text: md(sub.trialEnded
                                 ? "**Your free trial has ended.** Subscribe to start new inspections — your existing inspections and reports stay available."
@@ -1106,6 +1110,22 @@ struct BillingView: View {
         let seats = store.seats()
         let periodEnd = Fmt.date(sub.nextBillingDate, "MMM d, yyyy").replacingOccurrences(of: " ", with: "\u{00A0}")  // keep the date on one line
         Screen(title: "Subscription", actions: [store.homeAction()]) {
+            if store.isSubscriptionExempt && !sub.active {
+                // Client Oct 28: master admins have no trial or plan to show.
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(AppStore.exemptLine).font(VFont.ui(15, .bold)).foregroundStyle(VC.ink)
+                    Text("VIMS master admin accounts don\u{2019}t need a free trial or a subscription, and can always start new inspections.")
+                        .font(VFont.ui(13)).foregroundStyle(VC.ink3).lineSpacing(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .vCard()
+                .padding(.bottom, 12)
+                if store.isAdmin {
+                    Button { store.push(.inspectors) } label: { IconLabel("Manage inspectors", icon: "manage-inspectors-h") }
+                        .buttonStyle(.vGhost)
+                }
+            } else {
             VStack(spacing: 0) {
                 row("Status") {
                     if sub.cancelled { Pill(kind: .queued, text: "Cancelled · active until \(periodEnd)") }
@@ -1172,6 +1192,7 @@ struct BillingView: View {
                         .buttonStyle(VButtonStyle(kind: .ghost, tint: VC.c1))
                         .padding(.top, 10)
                 }
+            }
             }
         }
     }

@@ -98,7 +98,10 @@ final class AppStore {
         platformMigrated = platform.migrateReplacedDefaults(config)
         if !platformMigrated.isEmpty { repo.savePlatformSettings(platform) }
         // One free trial per device: builds before the Keychain record backfill it from this device's companies.
-        DeviceTrial.backfill(companies: repo.allCompanies(), demoCode: config.sample.company.code)
+        // Companies created by a VIMS master admin never used a trial (client Oct 28), so they don't count.
+        DeviceTrial.backfill(companies: repo.allCompanies().filter { c in
+            !c.profile.inspectors.contains { $0.owner && PlatformOwner.isOwner(email: $0.email, config: config) }
+        }, demoCode: config.sample.company.code)
         if let uid = repo.currentUserID, let u = repo.user(id: uid) { loadSession(u) } else { repo.currentUserID = nil }
 
         connectivity.onChange = { [weak self] online in self?.setOnline(online) }
@@ -147,14 +150,21 @@ final class AppStore {
 
     /// A new inspection needs the free trial (30 days, `subscription.trialDays`) or an active subscription. Existing
     /// inspections stay viewable and editable, and their reports can still be shared / re-sent.
-    var canStartNewInspection: Bool { !subscription.trialEnded }
+    var canStartNewInspection: Bool { isSubscriptionExempt || !subscription.trialEnded }
+
+    /// Client Oct 28 follow-up: VIMS master admins (platform owners) never need a free trial or subscription — no trial
+    /// splash, trial-ended / Subscribe prompts or countdowns, and New inspection always works ("Master admin · no
+    /// subscription needed"). Their Create account doesn't use up the device's free trial either (`Bootstrap.newCompany`).
+    /// TODO(backend): the server grants this (the owner role / an entitlement on the session), not the app.
+    var isSubscriptionExempt: Bool { isPlatformOwner }
+    static let exemptLine = "Master admin · no subscription needed"
 
     /// Every "New inspection" button (Home header +, Home, side menu): the wizard, or the Subscribe prompt.
     func startNewInspection() {
         if canStartNewInspection { push(.wizard(editing: nil)) } else { showTrialEndedPrompt() }
     }
 
-    func showTrialEndedPrompt() { trialEndedPrompt = true }
+    func showTrialEndedPrompt() { if !isSubscriptionExempt { trialEndedPrompt = true } }
 
     /// The signed-in inspector's own email, CC'd on every emailed report (data v1.3 `support.ccInspector`).
     var reportCcEmail: String? {
@@ -352,7 +362,7 @@ final class AppStore {
     }
 
     func presentSplashIfNeeded() {
-        guard state.session != nil, !state.subscription.active, !DebugFlags.suppressSplash else { return }
+        guard state.session != nil, !state.subscription.active, !isSubscriptionExempt, !DebugFlags.suppressSplash else { return }
         Task {
             try? await Task.sleep(nanoseconds: 320_000_000)
             withAnimation(.easeOut(duration: 0.24)) { self.showSplash = true }

@@ -158,6 +158,7 @@ extension SettingsView {
     fileprivate var planSubtitle: String {
         let sub = store.subscription
         let name = sub.plan(sub.selectedPlan)?.name ?? ""
+        if store.isSubscriptionExempt && !sub.active { return AppStore.exemptLine }
         guard sub.active else { return "\(name) · \(sub.trialEnded ? "trial ended" : "trial")" }
         if sub.plan(sub.selectedPlan)?.isPerReport == true { return "\(name) · \(sub.totalLabel(seats: store.seats()))" }
         return "\(name) · \(sub.period.label) · \(sub.totalLabel(seats: store.seats()))"

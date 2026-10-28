@@ -64,7 +64,7 @@ struct RootView: View {
                 }
             }
 
-            if store.showSplash, store.session != nil, !store.showVideoSplash, !store.needsEulaAcceptance {
+            if store.showSplash, store.session != nil, !store.isSubscriptionExempt, !store.showVideoSplash, !store.needsEulaAcceptance {
                 TrialSplashView()
                     .transition(.opacity)
                     .zIndex(10)

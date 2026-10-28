@@ -804,6 +804,14 @@ Screenshots: `screenshots/oct12-*.png` — `ipad-01…18` 13" (landscape 01–13
   sections (the user's and teammates' who signed in here) stores the definitions in `Inspection.savedSections`;
   `AppStore.catalog(for:)` lets them win for that inspection (entry, photos, summary, report), and re-editing it in the wizard
   keeps its restored custom sections. Manage checklist / Edit section routes are admin-only.
+- **Master admins need no trial or subscription** (`AppStore.isSubscriptionExempt`; TODO(backend): the server grants
+  this with the owner role): no trial splash, no "Your free trial has ended" / "This device has already used its 30-day
+  free trial" / Subscribe prompts, New inspection always works (also with the company's trial over); Home shows "Master
+  admin · no subscription needed" instead of the trial banner, Settings → Plan & billing and Plan & billing / Subscribe say
+  the same instead of a countdown or plan. A master admin's Create account doesn't use up the device's free trial
+  (`Bootstrap.newCompany` skips `DeviceTrial` for owners; the one-time backfill ignores companies owned by a master admin),
+  so a real company created on that device later still gets its 30 days. Non-owners are unchanged.
+  Screenshots `screenshots/oct28b-*.png`; `-deviceTrialStatus` now prints `exempt=`.
 - DEBUG: `-ownerStatus` (OWNERTEST), `-pricingStatus` (PRICINGTEST), `-checklistStatus` (CHECKLISTTEST), `-customSection
   "NAME|Group"`, `-confirmRestore NAME|all` (with `-screen manage`), `-period monthly|yearly` / `-plan ID` (with `-screen
   subscribe`).
