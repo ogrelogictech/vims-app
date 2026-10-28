@@ -8,11 +8,15 @@ struct ManageChecklistView: View {
     @State private var newGroup: String? = ChecklistCatalog.customGroups.first
     @State private var open: Set<String> = ["Exterior"]
     @State private var errors = FormErrors()
+    /// Client Oct 28: "Restore original" asks first (one section / the entire checklist).
+    @State private var restoring: String?
+    @State private var confirmRestoreAll = false
 
     var body: some View {
         Screen(title: "Manage checklist", actions: [store.homeAction()], errors: errors) {
             HintText(text: "Add and edit checklist sections and items yourself — changes apply to new inspections.")
                 .padding(.top, 2).padding(.bottom, 12)
+            restoreAllCard
             DashedBox {
                 SmallField(text: $newName, placeholder: "New section name (e.g. Solar Panels)", kind: .sectionName, fieldID: "section", errors: errors, required: true)
                 SingleChipGroup(options: ChecklistCatalog.customGroups, value: $newGroup, required: true)
@@ -34,7 +38,24 @@ struct ManageChecklistView: View {
                 adminGroup(g.group, g.sections)
             }
         }
+        .alert(restoring.map { "Restore \u{201C}\(store.catalog.title($0))\u{201D} to the original?" } ?? "Restore this section?",
+               isPresented: Binding(get: { restoring != nil }, set: { if !$0 { restoring = nil } }), presenting: restoring) { name in
+            Button("Restore original", role: .destructive) { store.restoreSection(name); restoring = nil }
+            Button("Cancel", role: .cancel) { restoring = nil }
+        } message: { _ in
+            Text(ChecklistRestoreText.section)
+        }
+        .alert("Restore the entire checklist to the original?", isPresented: $confirmRestoreAll) {
+            Button("Restore entire checklist", role: .destructive) { store.restoreEntireChecklist() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(ChecklistRestoreText.all(edited: store.editedSectionCount, custom: store.customSectionCount))
+        }
         .onAppear {
+            #if DEBUG
+            // -confirmRestore SECTION|all: open the restore confirmation (review screenshots).
+            if let r = DebugLaunch.value("-confirmRestore") { if r == "all" { confirmRestoreAll = true } else { restoring = r } }
+            #endif
             if let g = DebugFlags.adminGroup { open = [g]; DebugFlags.adminGroup = nil }
             if DebugFlags.validate {
                 DebugFlags.validate = false; newName = "Roof"
@@ -43,6 +64,27 @@ struct ManageChecklistView: View {
                     custom: { taken.contains($0.lowercased()) ? "A section with that name already exists" : nil }))])
             }
         }
+    }
+
+    /// "Restore entire checklist to original" (client Oct 28): what the company changed, and the button.
+    @ViewBuilder private var restoreAllCard: some View {
+        let edited = store.editedSectionCount, custom = store.customSectionCount
+        VStack(alignment: .leading, spacing: 10) {
+            Text(store.hasChecklistEdits ? "Your checklist has changes" : "Your checklist is the VIMS original")
+                .font(VFont.ui(14, .bold)).foregroundStyle(VC.ink)
+            Text(store.hasChecklistEdits
+                 ? ChecklistRestoreText.summary(edited: edited, custom: custom) + " Sections you changed are tagged Edited below."
+                 : "Edit a section or add your own; you can restore the original at any time.")
+                .font(VFont.ui(12.5)).foregroundStyle(VC.ink3).lineSpacing(2)
+                .fixedSize(horizontal: false, vertical: true)
+            if store.hasChecklistEdits {
+                Button { confirmRestoreAll = true } label: { Text("Restore entire checklist to original") }
+                    .buttonStyle(VButtonStyle(kind: .ghost, minHeight: 46))
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .vCard()
+        .padding(.bottom, 12)
     }
 
     private func icon(_ g: String) -> String {
@@ -67,6 +109,8 @@ struct ManageChecklistView: View {
                         .frame(width: 30, height: 30).background(VC.paper3)
                         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                     Text(g).font(VFont.ui(14.5, .bold)).foregroundStyle(VC.ink).frame(maxWidth: .infinity, alignment: .leading)
+                    let edited = names.filter { store.isEditedSection($0) || store.isCustomSection($0) }.count
+                    if edited > 0 { Text("\(edited) changed").font(VFont.mono(10.5, .semibold)).foregroundStyle(VC.signalDeep) }
                     Text("\(names.count)").font(VFont.mono(11)).foregroundStyle(VC.ink3)
                     ProtoIcon("chevron-down", size: 18).foregroundStyle(VC.ink3)
                         .rotationEffect(.degrees(isOpen ? 180 : 0))
@@ -83,14 +127,34 @@ struct ManageChecklistView: View {
                         HStack(spacing: 12) {
                             Text(store.catalog.title(n)).font(VFont.ui(14, .medium)).foregroundStyle(VC.ink).frame(maxWidth: .infinity, alignment: .leading)
                             if store.isCustomSection(n) { Pill(kind: .prog, text: "Custom", dot: false) }
+                            else if store.isEditedSection(n) { Pill(kind: .queued, text: "Edited", dot: false) }
                             Text(store.catalog.isPhotosOnly(n) ? "photos only" : "\(count) items").font(VFont.mono(10.5, .semibold)).foregroundStyle(VC.ink2)
                             Chevron()
                         }
                         .padding(.leading, 18).padding(.trailing, 15).padding(.vertical, 12).frame(minHeight: 44)
-                        .overlay(alignment: .bottom) { Rectangle().fill(VC.line2).frame(height: 1) }
+                        .overlay(alignment: .bottom) { if !store.isEditedSection(n) { Rectangle().fill(VC.line2).frame(height: 1) } }
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(PressableStyle())
+                    .accessibilityHint(store.isEditedSection(n) ? "Edited by your company" : "")
+                    if store.isEditedSection(n) {
+                        // Client Oct 28: per-section "Restore original" right under the edited section.
+                        HStack(spacing: 10) {
+                            Text("Your company changed this section.").font(VFont.ui(12)).foregroundStyle(VC.ink3)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Button("Restore original") { restoring = n }
+                                .font(VFont.ui(12.5, .semibold)).foregroundStyle(VC.brandDeep)
+                                .padding(.horizontal, 12).frame(minHeight: 44)
+                                .background(VC.paper)
+                                .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                                .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).stroke(VC.line, lineWidth: 1))
+                                .accessibilityLabel("Restore \(store.catalog.title(n)) to the original")
+                        }
+                        .padding(.leading, 18).padding(.trailing, 15).padding(.top, 2).padding(.bottom, 10)
+                        .background(VC.paper2)
+                        .overlay(alignment: .bottom) { Rectangle().fill(VC.line2).frame(height: 1) }
+                    }
                 }
             }
         }
@@ -98,6 +162,24 @@ struct ManageChecklistView: View {
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(VC.line, lineWidth: 1))
         .padding(.bottom, 10)
+    }
+}
+
+/// Restore-to-original wording (client Oct 28), shared by Manage checklist and Edit section.
+enum ChecklistRestoreText {
+    static let section = "This removes your company\u{2019}s changes to this section (renamed, added and removed items) and brings back the VIMS original for new inspections. Inspections already started keep their saved checklist."
+
+    static func all(edited: Int, custom: Int) -> String {
+        "This removes all of your company\u{2019}s checklist changes — \(summary(edited: edited, custom: custom, sentence: false)) — and brings back the VIMS original for new inspections. Inspections already started keep their saved checklist."
+    }
+
+    /// "2 edited sections and 1 custom section."
+    static func summary(edited: Int, custom: Int, sentence: Bool = true) -> String {
+        var parts: [String] = []
+        if edited > 0 { parts.append("\(edited) edited section\(edited == 1 ? "" : "s")") }
+        if custom > 0 { parts.append("\(custom) custom section\(custom == 1 ? "" : "s") you added") }
+        let t = parts.isEmpty ? "no changes" : parts.joined(separator: " and ")
+        return sentence ? t.prefix(1).uppercased() + t.dropFirst() + "." : t
     }
 }
 
@@ -115,10 +197,11 @@ struct EditSectionView: View {
     @State private var tier: Depth = .standard
     @State private var items: [EditItem] = []
     @State private var confirmRemove = false
+    @State private var confirmRestore = false
     @State private var errors = FormErrors()
 
     var body: some View {
-        Screen(title: store.catalog.title(sectionName), subtitle: "Edit section", actions: [store.homeAction()], errors: errors) {
+        Screen(title: store.catalog.title(sectionName), subtitle: store.isEditedSection(sectionName) ? "Edit section · Edited" : "Edit section", actions: [store.homeAction()], errors: errors) {
             if let def {
                 if def.itemsHigh?.isEmpty == false {
                     Picker("Checklist tier", selection: Binding(get: { tier }, set: { switchTier($0) })) {
@@ -141,6 +224,19 @@ struct EditSectionView: View {
                     .buttonStyle(.vGhost)
                 Button { save() } label: { IconLabel("Save & done", icon: "link-my-account") }
                     .buttonStyle(.vPrimary).padding(.top, 10)
+                if store.isEditedSection(sectionName) {
+                    // Client Oct 28: drop this company's changes to the section (asks first).
+                    Button("Restore original") { confirmRestore = true }
+                        .buttonStyle(.vGhost)
+                        .padding(.top, 10)
+                        .alert("Restore \u{201C}\(store.catalog.title(sectionName))\u{201D} to the original?", isPresented: $confirmRestore) {
+                            Button("Restore original", role: .destructive) {
+                                store.restoreSection(sectionName)
+                                store.back()
+                            }
+                            Button("Cancel", role: .cancel) {}
+                        } message: { Text(ChecklistRestoreText.section) }
+                }
                 if store.isCustomSection(sectionName) {
                     Button(role: .destructive) { confirmRemove = true } label: {
                         IconLabel("Remove this section", icon: "trash").foregroundStyle(VC.c1)
@@ -327,122 +423,170 @@ struct EditItemCard: View {
     }
 }
 
-// MARK: - 24 Plans & pricing (admin)
+// MARK: - 24 Plans & pricing (VIMS master admin only, client Oct 28)
 
 struct PlansAdminView: View {
     @Environment(AppStore.self) private var store
-    @State private var prices: [String: String] = [:]
+    /// Typed values by field id ("price-<plan>", "yearly-<plan>", "extra", "extraYearly"); nil = the saved value.
+    @State private var texts: [String: String] = [:]
     /// QA Oct 14: plan descriptions are multi-line (edited on each card, wrapped on the Subscription screen).
     @State private var descs: [String: String] = [:]
-    @State private var extra = ""
     @State private var newName = ""
     @State private var newPrice = ""
+    @State private var newYearly = ""
     @State private var newDesc = ""
     @State private var errors = FormErrors()
 
     var body: some View {
-        Screen(title: "Plans & pricing", actions: [store.homeAction()], errors: errors) {
-            HintText(text: "Owner admin — edit plan prices, add a plan, or set the per-inspector rate. Changes apply to the subscribe screen.")
+        let pricing = store.pricing
+        Screen(title: "Plans & pricing", subtitle: "Master admin", actions: [store.homeAction()], errors: errors) {
+            Text(md("**Master admin (VIMS owner only)** — edit monthly and yearly plan prices, add a plan, or set the per-inspector rates. Changes apply to every company\u{2019}s Subscribe screen. Company admins can\u{2019}t see or change these."))
+                .font(VFont.ui(13)).foregroundStyle(VC.ink3).lineSpacing(2)
+                .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 2).padding(.bottom, 12)
-            ForEach(store.subscription.plans, id: \.id) { p in
-                priceCard(id: "price-\(p.id)", title: p.name, unit: p.unit ?? "/mo",
-                          desc: Binding(get: { descs[p.id] ?? p.desc }, set: { descs[p.id] = $0 }),
-                          text: Binding(get: { prices[p.id] ?? Fmt.price(p.price) }, set: { prices[p.id] = $0 }),
-                          deletable: PlanDelete(plan: p, isLast: store.subscription.plans.count <= 1,
-                                                isCurrent: store.subscription.selectedPlan == p.id)) {
-                    commit(p.id)
-                }
+            ForEach(pricing.plans, id: \.id) { p in
+                planCard(p, isLast: pricing.plans.count <= 1)
             }
-            priceCard(id: "extra", title: "Additional inspector", unit: "/mo each", desc: nil, text: $extra) {
-                guard errors.validate([("extra", extra, .req(.price, "Rate"))]) else { return }
-                let v = Validator.number(extra) ?? 0
-                store.state.subscription.extraInspectorMonthly = v
-                extra = Fmt.price(v)
-                store.toast("Extra inspector → \(Fmt.money(v))")
-            }
+            extraCard(pricing)
             DashedBox {
                 SmallField(text: $newName, placeholder: "Plan name (e.g. Team)", kind: .plain(max: 40), fieldID: "newName", errors: errors, required: true)
                 SmallField(text: $newPrice, placeholder: "Monthly price (e.g. 99.00)", keyboard: .decimalPad, kind: .price, fieldID: "newPrice", errors: errors, required: true)
+                SmallField(text: $newYearly, placeholder: "Yearly price (optional, e.g. 990.00)", keyboard: .decimalPad, kind: .price, fieldID: "newYearly", errors: errors)
                 DescriptionBox(text: $newDesc, placeholder: "Short description (a few lines are fine)")
                 Button { addPlan() } label: { IconLabel("Add plan", icon: "hdr-add") }
                     .buttonStyle(VButtonStyle(kind: .primary, minHeight: 46))
             }
         }
         .onAppear {
-            extra = Fmt.price(store.subscription.extraInspectorMonthly)
-            if DebugFlags.validate { DebugFlags.validate = false; newPrice = "0"; extra = "12000"; addPlan()
-                errors.validate([("extra", extra, .req(.price, "Rate")), ("newName", newName, .req(.plain(max: 40), "Plan name")),
-                                 ("newPrice", newPrice, .req(.price, "Price"))]) }
+            if DebugFlags.validate { DebugFlags.validate = false; newPrice = "0"; texts["extra"] = "12000"; texts["extraYearly"] = "0"; addPlan(); saveExtra() }
         }
     }
 
     /// A plan card's delete control ("Additional inspector" is a rate setting, so it has none).
     struct PlanDelete { let plan: PlanDef; let isLast: Bool; let isCurrent: Bool }
 
-    private func priceCard(id: String, title: String, unit: String, desc: Binding<String>? = nil, text: Binding<String>,
-                           deletable: PlanDelete? = nil, commit: @escaping () -> Void) -> some View {
-        let err = errors[id]
-        return VStack(alignment: .leading, spacing: 10) {
+    private func text(_ id: String, _ saved: Double?) -> Binding<String> {
+        Binding(get: { texts[id] ?? saved.map(Fmt.price) ?? "" }, set: { texts[id] = $0 })
+    }
+
+    private func planCard(_ p: PlanDef, isLast: Bool) -> some View {
+        card(id: "price-\(p.id)") {
             HStack(alignment: .center, spacing: 8) {
-                Text(title).font(VFont.ui(14.5, .bold)).foregroundStyle(VC.ink)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                if let deletable { PlanDeleteButton(info: deletable) }
+                Text(p.name).font(VFont.ui(14.5, .bold)).foregroundStyle(VC.ink)
+                if p.isComingSoon { Pill(kind: .queued, text: "Coming soon", dot: false) }
+                Spacer(minLength: 4)
+                PlanDeleteButton(info: PlanDelete(plan: p, isLast: isLast, isCurrent: store.subscription.selectedPlan == p.id))
             }
-            HStack(spacing: 10) {
-                FieldLabel(text: "Price $", required: true)
-                FilteredTextField(text: text, kind: .price, fieldID: id, errors: errors, keyboard: .decimalPad,
-                                  accessibilityLabel: "\(title) price")
-                    .padding(.horizontal, 12).frame(width: 130, height: 48)
-                    .background(VC.paper)
-                    .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 11, style: .continuous).stroke(err != nil ? VC.c1 : VC.line, lineWidth: err != nil ? 2 : 1))
-                    .onSubmit(commit)
-                Text(unit).font(VFont.ui(12.5)).foregroundStyle(VC.ink3)
-                Spacer()
-                Button("Save", action: commit)
-                    .font(VFont.ui(13, .semibold)).foregroundStyle(VC.brandDeep)
-                    .padding(.horizontal, 12).frame(minHeight: 44)
-                    .background(VC.paper3).clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+            if p.isPerReport {
+                priceRow(id: "price-\(p.id)", label: "Per report $", unit: p.unit ?? "/report", text: text("price-\(p.id)", p.price), a11y: "\(p.name) price per report")
+            } else {
+                priceRow(id: "price-\(p.id)", label: "Monthly $", unit: "/mo", text: text("price-\(p.id)", p.price), a11y: "\(p.name) monthly price")
+                priceRow(id: "yearly-\(p.id)", label: "Yearly $", unit: "/yr", text: text("yearly-\(p.id)", p.priceYearly), required: false,
+                         a11y: "\(p.name) yearly price")
+                Text("Leave Yearly blank to offer this plan monthly only.").font(VFont.ui(11.5)).foregroundStyle(VC.ink3)
             }
-            if let err { FieldError(text: err) }
-            if let desc { DescriptionBox(text: desc, placeholder: "Short description") }
+            DescriptionBox(text: Binding(get: { descs[p.id] ?? p.desc }, set: { descs[p.id] = $0 }), placeholder: "Short description")
+            Button("Save \(p.name)") { commit(p.id) }
+                .font(VFont.ui(13.5, .semibold)).foregroundStyle(VC.brandDeep)
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .background(VC.paper3).clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .padding(.top, 13)
         }
-        .padding(.horizontal, 14).padding(.vertical, 13)
-        .background(VC.paper)
-        .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 13, style: .continuous).stroke(VC.line, lineWidth: 1))
-        .padding(.bottom, 11)
+    }
+
+    private func extraCard(_ pricing: PlatformSettings.Pricing) -> some View {
+        card(id: "extra") {
+            Text("Additional inspector").font(VFont.ui(14.5, .bold)).foregroundStyle(VC.ink)
+            Text("Each inspector after the first. Billed on the company\u{2019}s period (monthly or yearly).")
+                .font(VFont.ui(12)).foregroundStyle(VC.ink3).fixedSize(horizontal: false, vertical: true)
+            priceRow(id: "extra", label: "Monthly $", unit: "/mo each", text: text("extra", pricing.extraMonthly), a11y: "Additional inspector monthly rate")
+            priceRow(id: "extraYearly", label: "Yearly $", unit: "/yr each", text: text("extraYearly", pricing.extraYearly), a11y: "Additional inspector yearly rate")
+            Button("Save rates") { saveExtra() }
+                .font(VFont.ui(13.5, .semibold)).foregroundStyle(VC.brandDeep)
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .background(VC.paper3).clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .padding(.top, 3)
+        }
+    }
+
+    private func card<C: View>(id: String, @ViewBuilder _ content: () -> C) -> some View {
+        VStack(alignment: .leading, spacing: 10) { content() }
+            .padding(.horizontal, 14).padding(.vertical, 13)
+            .background(VC.paper)
+            .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 13, style: .continuous).stroke(VC.line, lineWidth: 1))
+            .padding(.bottom, 11)
+            .id(id)
+    }
+
+    @ViewBuilder
+    private func priceRow(id: String, label: String, unit: String, text: Binding<String>, required: Bool = true, a11y: String) -> some View {
+        let err = errors[id]
+        HStack(spacing: 10) {
+            FieldLabel(text: label, required: required)
+                .frame(width: 92, alignment: .leading)
+            FilteredTextField(text: text, kind: .price, fieldID: id, errors: errors, keyboard: .decimalPad, accessibilityLabel: a11y)
+                .padding(.horizontal, 12).frame(width: 120, height: 48)
+                .background(VC.paper)
+                .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 11, style: .continuous).stroke(err != nil ? VC.c1 : VC.line, lineWidth: err != nil ? 2 : 1))
+            Text(unit).font(VFont.ui(12.5)).foregroundStyle(VC.ink3)
+            Spacer(minLength: 0)
+        }
         .id(id)
+        if let err { FieldError(text: err) }
     }
 
     private func commit(_ id: String) {
-        guard let i = store.state.subscription.plans.firstIndex(where: { $0.id == id }) else { return }
-        let raw = prices[id] ?? Fmt.price(store.state.subscription.plans[i].price)
-        guard errors.validate([("price-\(id)", raw, .req(.price, "Price"))]) else { return }
-        let v = Validator.number(raw) ?? 0
-        store.state.subscription.plans[i].price = v
-        prices[id] = Fmt.price(v)
+        var pricing = store.pricing
+        guard let i = pricing.plans.firstIndex(where: { $0.id == id }) else { return }
+        let plan = pricing.plans[i]
+        let monthly = texts["price-\(id)"] ?? Fmt.price(plan.price)
+        let yearly = texts["yearly-\(id)"] ?? plan.priceYearly.map(Fmt.price) ?? ""
+        var fields: [(id: String, value: String, rule: FieldRule)] = [("price-\(id)", monthly, .req(.price, "Price"))]
+        if !plan.isPerReport { fields.append(("yearly-\(id)", yearly, .opt(.price, "Yearly price"))) }
+        guard errors.validate(fields) else { return }
+        pricing.plans[i].price = Validator.number(monthly) ?? plan.price
+        if !plan.isPerReport { pricing.plans[i].priceYearly = Validator.trimmed(yearly).isEmpty ? nil : Validator.number(yearly) }
         if let d = descs[id] {
             let t = d.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !t.isEmpty { store.state.subscription.plans[i].desc = t }
-            descs[id] = nil
+            if !t.isEmpty { pricing.plans[i].desc = t }
         }
-        store.toast("\(store.state.subscription.plans[i].name) → \(Fmt.money(v))")
+        store.savePricing(pricing)
+        texts["price-\(id)"] = nil; texts["yearly-\(id)"] = nil; descs[id] = nil
+        let p = pricing.plans[i]
+        store.toast("\(p.name) → \(SubscriptionState.priceLabel(p, .monthly))\(p.hasYearly ? " · " + SubscriptionState.priceLabel(p, .yearly) : "")")
+    }
+
+    private func saveExtra() {
+        var pricing = store.pricing
+        let m = texts["extra"] ?? Fmt.price(pricing.extraMonthly)
+        let y = texts["extraYearly"] ?? Fmt.price(pricing.extraYearly)
+        guard errors.validate([("extra", m, .req(.price, "Monthly rate")), ("extraYearly", y, .req(.price, "Yearly rate"))]) else { return }
+        pricing.extraMonthly = Validator.number(m) ?? pricing.extraMonthly
+        pricing.extraYearly = Validator.number(y) ?? pricing.extraYearly
+        store.savePricing(pricing)
+        texts["extra"] = nil; texts["extraYearly"] = nil
+        store.toast("Additional inspector → \(Fmt.money(pricing.extraMonthly))/mo · \(Fmt.money(pricing.extraYearly))/yr")
     }
 
     private func addPlan() {
-        let names = Set(store.subscription.plans.map { $0.name.lowercased() })
+        var pricing = store.pricing
+        let names = Set(pricing.plans.map { $0.name.lowercased() })
         guard errors.validate([
             ("newName", newName, .req(.plain(max: 40), "Plan name", custom: { names.contains($0.lowercased()) ? "A plan with that name already exists" : nil })),
-            ("newPrice", newPrice, .req(.price, "Price"))
+            ("newPrice", newPrice, .req(.price, "Price")),
+            ("newYearly", newYearly, .opt(.price, "Yearly price"))
         ]) else { return }
         let n = Validator.trimmed(newName)
-        let pr = Validator.number(newPrice) ?? 0
-        let id = "plan\(store.state.subscription.plans.count + 1)-\(UUID().uuidString.prefix(4))"
+        let id = "plan\(pricing.plans.count + 1)-\(UUID().uuidString.prefix(4))"
         let d = newDesc.trimmingCharacters(in: .whitespacesAndNewlines)
-        store.state.subscription.plans.append(PlanDef(id: id, name: n, price: pr, desc: d.isEmpty ? "Custom plan" : d, unit: nil, perReport: nil))
-        newName = ""; newPrice = ""; newDesc = ""
-        store.toast("Added “\(n)”")
+        pricing.plans.append(PlanDef(id: id, name: n, price: Validator.number(newPrice) ?? 0, desc: d.isEmpty ? "Custom plan" : d,
+                                     unit: nil, perReport: nil,
+                                     priceYearly: Validator.trimmed(newYearly).isEmpty ? nil : Validator.number(newYearly)))
+        store.savePricing(pricing)
+        newName = ""; newPrice = ""; newYearly = ""; newDesc = ""
+        store.toast("Added \u{201C}\(n)\u{201D}")
     }
 }
 
@@ -485,8 +629,8 @@ private struct PlanDeleteButton: View {
             Button("Delete", role: .destructive) { store.deletePlan(info.plan.id) }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("It will no longer be offered on the Subscription screen."
-                 + (info.isCurrent ? " Your company will move to \(store.subscription.plans.first { $0.id != info.plan.id }?.name ?? "another plan")." : ""))
+            Text("It will no longer be offered on any company\u{2019}s Subscribe screen. Companies on it move to "
+                 + "\(store.pricing.plans.first { $0.id != info.plan.id && $0.isSelectable }?.name ?? "another plan").")
         }
     }
 }
@@ -533,7 +677,7 @@ struct InspectorsView: View {
     }
 
     private var intro: some View {
-        Text(md("Add inspector accounts under your company license. First inspector is included; each additional is **\(Fmt.money(store.subscription.extraInspectorMonthly))/mo**."))
+        Text(md("Add inspector accounts under your company license. First inspector is included; each additional is **\(Fmt.money(store.subscription.extraRate(store.subscription.period)))\(store.subscription.period.unit)**."))
             .font(VFont.ui(13)).foregroundStyle(VC.ink3).padding(.top, 2).padding(.bottom, 12)
             .fixedSize(horizontal: false, vertical: true)
     }
@@ -629,7 +773,7 @@ struct InspectorsView: View {
     private var total: some View {
         let n = store.company.inspectors.count
         return (Text("\(n) inspector\(n == 1 ? "" : "s")").font(VFont.ui(12.5, .bold)).foregroundColor(VC.ink)
-         + Text(" · monthly total \(Fmt.money(monthly))").font(VFont.ui(12.5)).foregroundColor(VC.ink3))
+         + Text(" · \(store.subscription.period.totalLabel.lowercased()) \(Fmt.money(store.subscription.total(seats: n)))").font(VFont.ui(12.5)).foregroundColor(VC.ink3))
             .padding(.horizontal, 2).padding(.top, 4).padding(.bottom, 14)
     }
 
@@ -651,13 +795,6 @@ struct InspectorsView: View {
             ("email", email, .req(.email, "Email", custom: { team.contains($0.lowercased()) ? "That email is already on the team" : nil }))
         ]) else { return }
         if store.addInspector(name: Validator.trimmed(name), email: Validator.trimmed(email).lowercased()) { name = ""; email = "" }
-    }
-
-    private var monthly: Double {
-        let s = store.subscription
-        let base = s.plan(s.selectedPlan)
-        if base?.perReport == true { return 0 }
-        return (base?.price ?? 0) + Double(max(0, store.company.inspectors.count - 1)) * s.extraInspectorMonthly
     }
 }
 
@@ -693,6 +830,21 @@ struct SubscribeView: View {
     @State private var busy = false
     /// QA Oct 14: with a remembered card, "Use this card" (default) or "Use a different card" (shows the card form).
     @State private var useDifferentCard = false
+    /// Client Oct 28: the plan and Monthly / Yearly period picked here; saved on Start / Update subscription.
+    @State private var planID: String?
+    @State private var periodChoice: BillingPeriod?
+
+    private var chosenPlan: PlanDef? {
+        let sub = store.subscription
+        if let id = planID, let p = sub.plan(id), p.isSelectable { return p }
+        if let p = sub.plan(sub.selectedPlan), p.isSelectable { return p }
+        return sub.plans.first(where: \.isSelectable)
+    }
+    /// The period in effect for the chosen plan (a plan without a yearly price is monthly).
+    private var period: BillingPeriod {
+        guard chosenPlan?.hasYearly == true else { return .monthly }
+        return periodChoice ?? BillingPeriod(rawValue: store.subscription.billingPeriod ?? "") ?? .monthly
+    }
 
     private var brand: CardBrand { CardBrand.detect(card.filter(\.isNumber)) }
     /// The usable card on file (an expired one isn't offered).
@@ -713,39 +865,8 @@ struct SubscribeView: View {
                     .padding(.bottom, 14)
             }
             SectionLabel(text: "Choose your plan", top: 2)
-            ForEach(sub.plans, id: \.id) { p in
-                let on = sub.selectedPlan == p.id
-                Button { store.state.subscription.selectedPlan = p.id } label: {
-                    HStack(spacing: 13) {
-                        Circle().stroke(on ? VC.brand : VC.line, lineWidth: 2).frame(width: 22, height: 22)
-                            .overlay(Circle().fill(on ? VC.brand : .clear).frame(width: 11, height: 11))
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(p.name).font(VFont.ui(15, .bold)).foregroundStyle(VC.ink)
-                            Text(p.desc).font(VFont.ui(12.5)).foregroundStyle(VC.ink3)
-                                .multilineTextAlignment(.leading)
-                                .fixedSize(horizontal: false, vertical: true)
-                            if p.id == "portal" {
-                                Text("Available when the web portal launches (Phase 2)")
-                                    .font(VFont.mono(9)).foregroundStyle(VC.ink3)
-                                    .padding(.horizontal, 6).padding(.vertical, 2)
-                                    .background(VC.paper3).clipShape(RoundedRectangle(cornerRadius: 6))
-                                    .padding(.top, 4)
-                            }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        (Text(Fmt.money(p.price)).font(VFont.mono(15, .semibold)).foregroundColor(VC.ink)
-                         + Text(p.unit ?? "/mo").font(VFont.mono(11)).foregroundColor(VC.ink3))
-                    }
-                    .padding(.horizontal, 16).padding(.vertical, 15)
-                    .background(VC.paper)
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(on ? VC.brand : VC.line, lineWidth: 1.5))
-                    .shadow(color: on ? VC.brand.opacity(0.13) : .clear, radius: 3)
-                }
-                .buttonStyle(ChipPressStyle())
-                .padding(.bottom, 10)
-                .accessibilityAddTraits(on ? .isSelected : [])
-            }
+            if sub.plans.contains(where: \.hasYearly) { periodPicker }
+            ForEach(sub.plans, id: \.id) { p in planRow(p) }
             SectionLabel(text: "Inspector seats")
             // Seats never go below the current team (people with an email); − only removes open seats added with +.
             let teamSize = max(1, store.company.inspectors.filter { !$0.email.isEmpty || $0.owner }.count)
@@ -756,12 +877,16 @@ struct SubscribeView: View {
                     if v > cur { store.state.company.inspectors.append(Inspector(name: "Inspector \(cur + 1)", email: "")) }
                     else if v < cur, let last = store.company.inspectors.last(where: { !$0.owner && $0.email.isEmpty }) { store.removeInspector(last.id) }
                 }), range: min(teamSize, StepperLimits.seats.upperBound)...StepperLimits.seats.upperBound)
-            Text(md("First inspector included · each additional **\(Fmt.money(sub.extraInspectorMonthly))/mo**"))
+            Text(md(chosenPlan?.isPerReport == true
+                    ? "Pay per report has no inspector fee — each report is **\(Fmt.money(chosenPlan?.price ?? 0))**."
+                    : "First inspector included · each additional **\(Fmt.money(sub.extraRate(period)))\(period.unit)** (billed \(period.label.lowercased()))"))
                 .font(VFont.ui(12)).foregroundStyle(VC.ink3).padding(.horizontal, 2).padding(.top, 2)
+                .fixedSize(horizontal: false, vertical: true)
             HStack {
-                Text("Monthly total").font(VFont.ui(15, .bold)).foregroundStyle(VC.ink)
+                Text(chosenPlan?.isPerReport == true ? "Billing" : period.totalLabel).font(VFont.ui(15, .bold)).foregroundStyle(VC.ink)
                 Spacer()
-                Text(sub.totalLabel(seats: store.seats())).font(VFont.mono(22, .semibold)).foregroundStyle(VC.brand)
+                Text(sub.totalLabel(plan: chosenPlan, period: period, seats: store.seats())).font(VFont.mono(22, .semibold)).foregroundStyle(VC.brand)
+                    .minimumScaleFactor(0.7).lineLimit(1)
             }
             .vCard()
             .padding(.top, 14)
@@ -776,7 +901,8 @@ struct SubscribeView: View {
             }
             HStack(spacing: 8) {
                 ProtoIcon("secured-by-square", size: 14)
-                Text("Secured by Square · auto-renews monthly · cancel anytime").font(VFont.ui(12))
+                Text(chosenPlan?.isPerReport == true ? "Secured by Square · billed per report · cancel anytime"
+                     : "Secured by Square · auto-renews \(period.label.lowercased()) · cancel anytime").font(VFont.ui(12))
             }
             .foregroundStyle(VC.ink3).padding(.horizontal, 2).padding(.top, 8)
             Button { start() } label: {
@@ -786,8 +912,78 @@ struct SubscribeView: View {
             .disabled(busy)
         }
         .onAppear {
+            #if DEBUG
+            if let v = DebugLaunch.value("-period") { periodChoice = BillingPeriod(rawValue: v) }
+            if let v = DebugLaunch.value("-plan") { planID = v }
+            #endif
             if DebugFlags.validate { DebugFlags.validate = false; useDifferentCard = true; card = FieldKind.cardNumber.filter("4242424242424241"); expiry = "01/24"; cvc = "12"; start() }
         }
+    }
+
+    /// Monthly / Yearly (client Oct 28). Plans without a yearly price (Pay per report) are monthly / per report only.
+    private var periodPicker: some View {
+        let yearlyOK = chosenPlan?.hasYearly == true
+        return VStack(alignment: .leading, spacing: 6) {
+            Picker("Billing period", selection: Binding(get: { period }, set: { periodChoice = $0 })) {
+                ForEach(BillingPeriod.allCases, id: \.self) { Text($0.label).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .disabled(!yearlyOK)
+            if !yearlyOK, let p = chosenPlan {
+                Text("\(p.name) has no yearly option.").font(VFont.ui(12)).foregroundStyle(VC.ink3)
+            }
+        }
+        .padding(.bottom, 12)
+    }
+
+    private func planRow(_ p: PlanDef) -> some View {
+        let on = chosenPlan?.id == p.id
+        let soon = p.isComingSoon
+        return Button { planID = p.id } label: {
+            HStack(spacing: 13) {
+                Circle().stroke(on ? VC.brand : VC.line, lineWidth: 2).frame(width: 22, height: 22)
+                    .overlay(Circle().fill(on ? VC.brand : .clear).frame(width: 11, height: 11))
+                    .opacity(soon ? 0.4 : 1)
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 7) {
+                        Text(p.name).font(VFont.ui(15, .bold)).foregroundStyle(soon ? VC.ink2 : VC.ink)
+                        if soon { Pill(kind: .queued, text: "Coming soon", dot: false) }
+                    }
+                    Text(p.desc).font(VFont.ui(12.5)).foregroundStyle(VC.ink3)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if soon {
+                        Text("Not available yet — you can\u{2019}t choose this plan until it launches.")
+                            .font(VFont.ui(11.5)).foregroundStyle(VC.ink3)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.top, 3)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                VStack(alignment: .trailing, spacing: 2) {
+                    priceText(p, p.hasYearly ? period : .monthly, big: true)
+                    if p.hasYearly { Text("or \(SubscriptionState.priceLabel(p, period == .yearly ? .monthly : .yearly))").font(VFont.mono(10.5)).foregroundStyle(VC.ink3) }
+                }
+                .opacity(soon ? 0.6 : 1)
+            }
+            .padding(.horizontal, 16).padding(.vertical, 15)
+            .background(soon ? VC.paper2 : VC.paper)
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(on ? VC.brand : VC.line, style: StrokeStyle(lineWidth: 1.5, dash: soon ? [5, 4] : [])))
+            .shadow(color: on ? VC.brand.opacity(0.13) : .clear, radius: 3)
+        }
+        .buttonStyle(ChipPressStyle())
+        .disabled(soon)
+        .padding(.bottom, 10)
+        .accessibilityAddTraits(on ? .isSelected : [])
+        .accessibilityHint(soon ? "Coming soon. Not available yet." : "")
+    }
+
+    private func priceText(_ p: PlanDef, _ per: BillingPeriod, big: Bool) -> Text {
+        let unit = p.isPerReport ? (p.unit ?? "/report") : per.unit
+        return Text(Fmt.money(SubscriptionState.price(p, per))).font(VFont.mono(15, .semibold)).foregroundColor(VC.ink)
+            + Text(unit).font(VFont.mono(11)).foregroundColor(VC.ink3)
     }
 
     /// "Visa •••• 4242 (exp 08/28)" with Use this card / Use a different card.
@@ -865,7 +1061,8 @@ struct SubscribeView: View {
         busy = true
         Task {
             do {
-                try await store.startSubscription(payment: payment)
+                guard let plan = chosenPlan else { throw ServiceError.invalid("Choose a plan") }
+                try await store.startSubscription(planID: plan.id, period: period, payment: payment)
                 card = ""; expiry = ""; cvc = ""; holder = ""; zip = ""
                 useDifferentCard = false
                 store.push(.subscriptionStarted)
@@ -880,10 +1077,15 @@ struct SubscribeView: View {
 struct SubscriptionStartedView: View {
     @Environment(AppStore.self) private var store
     var body: some View {
-        let plan = store.subscription.plan(store.subscription.selectedPlan)?.name ?? "App"
+        let sub = store.subscription
+        let p = sub.plan(sub.selectedPlan)
+        let plan = p?.name ?? "App"
+        // Client Oct 28: the confirmation shows the period chosen ("billed yearly · $935.00/yr").
+        let billed = p?.isPerReport == true ? "billed per report · \(sub.totalLabel(seats: store.seats()))"
+            : "billed \(sub.period.label.lowercased()) · \(sub.totalLabel(seats: store.seats()))"
         Screen(title: "Subscription active", actions: [store.homeAction()]) {
             SuccessBlock(title: "Subscription active",
-                         message: AttributedString("Your \(plan) plan is set up with auto-pay through Square. Access continues after your trial with no interruption.")) {
+                         message: AttributedString("Your \(plan) plan (\(billed)) is set up with auto-pay through Square. Access continues after your trial with no interruption.")) {
                 Button("View subscription") { store.path = [.settings, .billing] }.buttonStyle(.vPrimary)
                 Button("Back to inspections") { store.goHome() }.buttonStyle(.vGhost)
             }
@@ -911,11 +1113,14 @@ struct BillingView: View {
                     else if sub.trialEnded { Pill(kind: .queued, text: "Trial ended") }
                     else { Pill(kind: .queued, text: "Trial · \(sub.trialDaysLeft)d left") }
                 }
-                row("Plan") { Text("\(plan?.name ?? "") · \(Fmt.money(plan?.price ?? 0))\(plan?.unit ?? "/mo")").font(VFont.ui(14, .bold)).foregroundStyle(VC.ink) }
+                row("Plan") { Text("\(plan?.name ?? "") · \(plan.map { SubscriptionState.priceLabel($0, sub.period) } ?? "")").font(VFont.ui(14, .bold)).foregroundStyle(VC.ink)
+                    .multilineTextAlignment(.trailing) }
                 if plan?.perReport != true {
-                    row("Inspectors") { Text("\(seats) (\(max(0, seats - 1)) × \(Fmt.money(sub.extraInspectorMonthly)))").font(VFont.ui(14, .bold)).foregroundStyle(VC.ink) }
+                    // Client Oct 28: monthly or yearly; extra inspectors follow the company's period.
+                    row("Billing period") { Text(sub.period.label).font(VFont.ui(14, .bold)).foregroundStyle(VC.ink) }
+                    row("Inspectors") { Text("\(seats) (\(max(0, seats - 1)) × \(Fmt.money(sub.extraRate(sub.period)))\(sub.period.unit))").font(VFont.ui(14, .bold)).foregroundStyle(VC.ink) }
                 }
-                row(plan?.perReport == true ? "Billing" : "Monthly total") { Text(sub.totalLabel(seats: seats)).font(VFont.ui(14, .bold)).foregroundStyle(VC.ink) }
+                row(plan?.perReport == true ? "Billing" : sub.period.totalLabel) { Text(sub.totalLabel(seats: seats)).font(VFont.ui(14, .bold)).foregroundStyle(VC.ink) }
                 row("Payment") { Text(sub.active ? (sub.cardOnFile?.display ?? sub.paymentLabel ?? "Square") : "Not set up").font(VFont.ui(14, .bold)).foregroundStyle(VC.ink) }
                 row(sub.cancelled ? "Active until" : sub.active ? "Next billing" : sub.trialEnded ? "Trial" : "Trial ends", last: true) {
                     Text(sub.active ? periodEnd : sub.trialEnded ? "Ended" : "in \(sub.trialDaysLeft) days").font(VFont.ui(14, .bold)).foregroundStyle(VC.ink)

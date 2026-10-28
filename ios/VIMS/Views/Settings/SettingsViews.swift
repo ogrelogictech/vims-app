@@ -14,8 +14,6 @@ struct SettingsView: View {
 
     var body: some View {
         @Bindable var store = store
-        let sub = store.subscription
-        let plan = sub.plan(sub.selectedPlan)
         let n = store.company.inspectors.count
         Screen(title: "Settings", actions: [store.homeAction()]) {
             // iPad landscape: account, sync (Phase 2), subscription and admin on the left; help, company, legal and defaults
@@ -44,9 +42,12 @@ struct SettingsView: View {
                                    onImage: { store.saveProfilePhoto($0) }, onRemove: { store.removeProfilePhoto() })
                 VStack(alignment: .leading, spacing: 2) {
                     Text(store.session?.name ?? "").font(VFont.ui(15, .bold)).foregroundStyle(VC.ink)
-                    Text(store.session?.email ?? "").font(VFont.ui(12.5)).foregroundStyle(VC.ink3).lineLimit(1)
+                    Text(store.session?.email ?? "").font(VFont.ui(12.5)).foregroundStyle(VC.ink3).lineLimit(1).minimumScaleFactor(0.8)
                     Text(store.company.name).font(VFont.ui(12.5)).foregroundStyle(VC.ink3)
+                    // Client Oct 28: VIMS platform owners see that they have master admin access.
+                    if store.isPlatformOwner { MasterAdminBadge().padding(.top, 5) }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
             .vCard()
             .padding(.bottom, 12)
@@ -78,21 +79,28 @@ struct SettingsView: View {
             .disabled(store.syncing)
             }
 
+            if store.isPlatformOwner {
+                // Client Oct 28: VIMS master admin (platform owner) settings, clearly labeled and hidden from every other
+                // account. Plans & pricing moved here from the company Admin group.
+                SectionLabel(text: "Master admin", top: 10)
+                Text("VIMS-wide settings for every company. Only VIMS master admins see these.")
+                    .font(VFont.ui(12)).foregroundStyle(VC.ink3)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 2).padding(.top, -4).padding(.bottom, 10)
+                NavRow(symbol: "plans-pricing-edit", title: "Plans & pricing", subtitle: "VIMS subscription plans & prices") { store.push(.plans) }
+                NavRow(symbol: "report-bcc", title: "Report quality copy (BCC)", subtitle: store.platform.bccSummary) { store.push(.reportBcc) }
+                NavRow(symbol: "email-to-client", title: "Feedback & support", subtitle: "Change the feedback contact email") { store.push(.feedbackAdmin) }
+            }
+
             SectionLabel(text: "Subscription & licensing")
-            NavRow(symbol: "collect-payment-div", title: "Plan & billing",
-                   subtitle: "\(plan?.name ?? "") · \(sub.active ? sub.totalLabel(seats: store.seats()) : sub.trialEnded ? "trial ended" : "trial")") { store.push(.billing) }
+            NavRow(symbol: "collect-payment-div", title: "Plan & billing", subtitle: planSubtitle) { store.push(.billing) }
             NavRow(symbol: "inspector-accounts-inspector", title: "Inspector accounts", subtitle: "\(n) inspector\(n == 1 ? "" : "s")") { store.push(.inspectors) }
 
             if store.isAdmin {
+                // Company admins: the company's checklist (Inspectors is under Subscription & licensing). Plans & pricing is
+                // master admin only since client Oct 28.
                 SectionLabel(text: "Admin", top: 10)
-                NavRow(symbol: "manage-checklist-add", title: "Manage checklist", subtitle: "Add & edit sections and items") { store.push(.manageChecklist) }
-                NavRow(symbol: "plans-pricing-edit", title: "Plans & pricing", subtitle: "Edit subscription plans & prices") { store.push(.plans) }
-            }
-            if store.isPlatformOwner {
-                // VIMS platform-owner settings (not company settings): hidden from every other account.
-                SectionLabel(text: "VIMS owner", top: 10)
-                NavRow(symbol: "report-bcc", title: "Report quality copy (BCC)", subtitle: store.platform.bccSummary) { store.push(.reportBcc) }
-                NavRow(symbol: "email-to-client", title: "Feedback & support", subtitle: "Change the feedback contact email") { store.push(.feedbackAdmin) }
+                NavRow(symbol: "manage-checklist-add", title: "Manage checklist", subtitle: "Add, edit or restore sections and items") { store.push(.manageChecklist) }
             }
 
             } trailing: {
@@ -142,6 +150,17 @@ struct SettingsView: View {
                 .frame(maxWidth: .infinity).padding(.top, 18)
             #endif
         }
+    }
+}
+
+extension SettingsView {
+    /// "App only · Yearly · $935.00/yr" · "App only · trial" · "Pay per report · $5.00 / report"
+    fileprivate var planSubtitle: String {
+        let sub = store.subscription
+        let name = sub.plan(sub.selectedPlan)?.name ?? ""
+        guard sub.active else { return "\(name) · \(sub.trialEnded ? "trial ended" : "trial")" }
+        if sub.plan(sub.selectedPlan)?.isPerReport == true { return "\(name) · \(sub.totalLabel(seats: store.seats()))" }
+        return "\(name) · \(sub.period.label) · \(sub.totalLabel(seats: store.seats()))"
     }
 }
 
@@ -429,7 +448,7 @@ struct FeedbackAdminView: View {
 
     var body: some View {
         Screen(title: "Feedback & support", actions: [store.homeAction()], errors: errors) {
-            HintText(text: "Owner admin — set the email address that receives help & feedback messages sent from the app.")
+            HintText(text: "Master admin (VIMS owner only) — set the email address that receives help & feedback messages sent from the app.")
                 .padding(.top, 2).padding(.bottom, 14)
             VTextField(label: "Feedback contact email", text: $email, keyboard: .emailAddress, contentType: .emailAddress,
                        capitalization: .never, kind: .email, fieldID: "email", errors: errors, required: true)
@@ -461,7 +480,7 @@ struct ReportBccView: View {
 
     var body: some View {
         Screen(title: "Report quality copy", actions: [store.homeAction()], errors: errors) {
-            Text(md("Owner admin — every inspection report emailed from the app is also sent as a **blind carbon copy (BCC)** to this address, so report quality can be reviewed. Clients and agents don’t see this address. Disclosed in the VIMS EULA."))
+            Text(md("**Master admin (VIMS owner only)** — every inspection report emailed from the app is also sent as a **blind carbon copy (BCC)** to this address, so report quality can be reviewed. Clients and agents don’t see this address. Disclosed in the VIMS EULA."))
                 .font(VFont.ui(13)).foregroundStyle(VC.ink3).lineSpacing(2)
                 .padding(.top, 2).padding(.bottom, 14)
                 .fixedSize(horizontal: false, vertical: true)

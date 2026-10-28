@@ -106,6 +106,16 @@ final class AppStore {
     }
 
     var catalog: ChecklistCatalog { ChecklistCatalog(config: config, overrides: state.overrides) }
+
+    /// The checklist an inspection uses: the company's checklist, with the section definitions the inspection kept when
+    /// an admin restored the checklist to the VIMS original (`Inspection.savedSections`, client Oct 28) taking priority.
+    func catalog(for insp: Inspection?) -> ChecklistCatalog {
+        guard let saved = insp?.savedSections, !saved.isEmpty else { return catalog }
+        var o = state.overrides
+        o.sections.merge(saved) { _, kept in kept }
+        return ChecklistCatalog(config: config, overrides: o)
+    }
+    func catalog(for id: UUID) -> ChecklistCatalog { catalog(for: inspection(id)) }
     var company: CompanyProfile { state.company }
     var subscription: SubscriptionState { state.subscription }
     var session: Session? { state.session }
@@ -251,6 +261,7 @@ final class AppStore {
                                          isPlatformOwner: PlatformOwner.isOwner(email: u.email, config: config)),
                          company: c.profile, subscription: c.subscription, overrides: c.overrides,
                          settings: u.settings ?? blank.settings, seededAt: nil)
+        applyPlatformPricing()
         inspections = repo.inspections(userID: u.id)
         // Client Oct 17: older combined addresses become street / City / State / ZIP code (saved once).
         for i in inspections.indices where inspections[i].splitLegacyAddress(states: config.states ?? []) {
@@ -398,12 +409,28 @@ final class AppStore {
         )
     }
 
+    /// Editing an inspection whose custom sections were kept by a checklist restore (`savedSections`, client Oct 28): the
+    /// rebuilt section list keeps them in the group they were in, so its saved checklist doesn't lose them.
+    private func keepSavedCustomSections(_ insp: inout Inspection) {
+        guard let saved = insp.savedSections, !saved.isEmpty, let old = inspection(insp.id) else { return }
+        let isCustom = { (n: String) in saved[n] != nil && !self.config.sections.contains { $0.name == ChecklistCatalog.baseName(n) } }
+        let have = Set(insp.leafSections)
+        for gi in insp.groups.indices {
+            guard let og = old.groups.first(where: { $0.heading == insp.groups[gi].heading }) else { continue }
+            for n in og.sections where isCustom(n) && !have.contains(n) { insp.groups[gi].sections.append(n) }
+            if let osub = og.sub, insp.groups[gi].sub != nil {
+                for n in osub.sections where isCustom(n) && !have.contains(n) { insp.groups[gi].sub?.sections.append(n) }
+            }
+        }
+    }
+
     /// Wizard "Build checklist": creates (or updates) the inspection and its section list.
     @discardableResult
     func buildChecklist(from draft: Inspection) -> UUID {
         var insp = draft
         insp.splitLegacyAddress(states: config.states ?? [])
-        insp.groups = catalog.buildGroups(for: insp)
+        insp.groups = catalog(for: insp).buildGroups(for: insp)
+        keepSavedCustomSections(&insp)
         for n in insp.leafSections where insp.status[n] == nil { insp.status[n] = .todo }
         insp.needsSync = true
         if syncing { editedDuringSync.insert(insp.id) }
@@ -461,11 +488,15 @@ final class AppStore {
 
     /// Default answers: forms have no Overall condition row, so no preselected overall.
     func defaultAnswers(_ section: String) -> SectionAnswers {
-        SectionAnswers(overall: catalog.isForm(section) ? nil : config.overallConditionDefault)
+        defaultAnswers(section, catalog: catalog)
+    }
+
+    func defaultAnswers(_ section: String, catalog cat: ChecklistCatalog) -> SectionAnswers {
+        SectionAnswers(overall: cat.isForm(section) ? nil : config.overallConditionDefault)
     }
 
     func answers(_ id: UUID, _ section: String) -> SectionAnswers {
-        inspection(id)?.answers[section] ?? defaultAnswers(section)
+        inspection(id)?.answers[section] ?? defaultAnswers(section, catalog: catalog(for: id))
     }
 
     /// The signed-in inspector's name (the inspection's "Inspector" field wins where one is set).
@@ -476,7 +507,7 @@ final class AppStore {
     func prefilled(_ a: SectionAnswers, _ id: UUID, _ section: String) -> SectionAnswers {
         guard let insp = inspection(id), insp.answers[section] == nil else { return a }
         var out = a
-        for k in ItemKeys.keyed(catalog.items(section, depth: .standard).items) {
+        for k in ItemKeys.keyed(catalog(for: insp).items(section, depth: .standard).items) {
             guard let key = k.item.prefill, (out.text[k.id] ?? "").isEmpty else { continue }
             let v = insp.prefillValue(key, inspector: inspectorName).trimmingCharacters(in: .whitespaces)
             if !v.isEmpty { out.text[k.id] = v }
@@ -486,7 +517,7 @@ final class AppStore {
 
     /// Photos-only sections (Pictures) open straight on their photo screen.
     func sectionRoute(_ id: UUID, _ section: String) -> Route {
-        catalog.isPhotosOnly(section) ? .photos(id, section) : .section(id, section)
+        catalog(for: id).isPhotosOnly(section) ? .photos(id, section) : .section(id, section)
     }
 
     /// Pictures page primary button: marks it done, then Summary (Texas) or Report (4 Point).
@@ -623,7 +654,7 @@ final class AppStore {
 
     func reportData(_ id: UUID) -> ReportData? {
         guard let insp = inspection(id) else { return nil }
-        return ReportData.make(insp, config: config, overrides: state.overrides, company: state.company, repo: files, logo: companyLogoImage())
+        return ReportData.make(insp, config: config, overrides: catalog(for: insp).overrides, company: state.company, repo: files, logo: companyLogoImage())
     }
 
     /// Renders the PDF on-device and saves it under reports/.
@@ -724,6 +755,59 @@ final class AppStore {
         toast("Removed “\(name)”")
     }
 
+    /// A VIMS section this company has edited (custom sections are tagged "Custom" instead).
+    func isEditedSection(_ name: String) -> Bool {
+        state.overrides.sections[name] != nil && !isCustomSection(name)
+    }
+
+    var editedSectionCount: Int { state.overrides.sections.keys.filter { !isCustomSection($0) }.count }
+    var customSectionCount: Int { Set(state.overrides.custom.values.flatMap { $0 }).count }
+    var hasChecklistEdits: Bool { !state.overrides.sections.isEmpty || customSectionCount > 0 }
+
+    /// Client Oct 28 — Manage checklist → "Restore original" on an edited section: removes the company's edits to it, so
+    /// new inspections get the VIMS default from the shared JSON. Inspections already created keep their saved checklist.
+    func restoreSection(_ name: String) {
+        guard isAdmin, isEditedSection(name) else { return }
+        keepSavedChecklist([name])
+        state.overrides.sections[name] = nil
+        saveAppStateNow()
+        toast("\u{201C}\(catalog.title(name))\u{201D} restored to the original")
+    }
+
+    /// Client Oct 28 — "Restore entire checklist to original": removes every company edit (edited items and sections,
+    /// custom sections). Inspections already created keep their saved checklist. TODO(backend): sync the reset.
+    func restoreEntireChecklist() {
+        guard isAdmin, hasChecklistEdits else { return }
+        keepSavedChecklist(Array(state.overrides.sections.keys))
+        state.overrides = ChecklistOverrides()
+        saveAppStateNow()
+        toast("Checklist restored to the VIMS original")
+    }
+
+    /// Before a restore removes these section definitions, every inspection of this company on the device that uses one
+    /// of them (the signed-in user's and teammates' who signed in here) keeps a copy in `savedSections`.
+    private func keepSavedChecklist(_ names: [String]) {
+        let defs = names.reduce(into: [String: SectionDef]()) { $0[$1] = state.overrides.sections[$1] }
+        guard !defs.isEmpty, let cid = companyID else { return }
+        func keep(_ insp: inout Inspection) -> Bool {
+            let used = Set(insp.groups.flatMap(\.leafSections).flatMap { [$0, ChecklistCatalog.baseName($0)] })
+            var changed = false
+            for (n, d) in defs where used.contains(n) && insp.savedSections?[n] == nil {
+                insp.savedSections = (insp.savedSections ?? [:]).merging([n: d]) { a, _ in a }
+                changed = true
+            }
+            return changed
+        }
+        for i in inspections.indices where keep(&inspections[i]) {
+            if let uid = currentUser?.id { repo.saveInspection(inspections[i], userID: uid, companyID: cid) }
+        }
+        for member in state.company.inspectors where member.id != currentUser?.id && repo.user(id: member.id)?.companyID == cid {
+            for var insp in repo.inspections(userID: member.id) where keep(&insp) {
+                repo.saveInspection(insp, userID: member.id, companyID: cid)
+            }
+        }
+    }
+
     func saveSectionOverride(_ def: SectionDef) {
         var def = def
         def.baseItems = catalog.jsonItemKeys(def.name)     // later JSON additions still show (data v1.10)
@@ -735,24 +819,57 @@ final class AppStore {
 
     func seats() -> Int { max(1, state.company.inspectors.count) }
 
-    /// Plans & pricing → delete a plan (admin). At least one plan always stays; a company on the deleted plan moves to
-    /// the first remaining one. Persisted with the rest of the subscription, like a price edit.
-    /// TODO(backend): DELETE the plan on the server (Square catalog item).
+    // MARK: Master admin — VIMS plans & prices (client Oct 28, data v1.11)
+
+    /// The VIMS plans and per-inspector rates every company subscribes to (stored master-admin edits, else the JSON).
+    var pricing: PlatformSettings.Pricing { platform.pricing(config) }
+
+    /// Plans & pricing (master admin only): saves the whole plan list + rates VIMS-wide and refreshes this company's copy.
+    /// TODO(backend): the server owns the plans (Square catalog) and enforces the master-admin role.
+    func savePricing(_ p: PlatformSettings.Pricing) {
+        guard isPlatformOwner, !p.plans.isEmpty else { return }
+        var s = platform
+        s.plans = p.plans
+        s.extraInspectorMonthly = p.extraMonthly
+        s.extraInspectorYearly = p.extraYearly
+        savePlatform(s)
+        applyPlatformPricing()
+    }
+
+    /// Plans & pricing → delete a plan (master admin). At least one plan always stays; a company on the deleted plan moves
+    /// to the first remaining one it can pick. TODO(backend): DELETE the plan on the server (Square catalog item).
     func deletePlan(_ id: String) {
-        guard isAdmin, state.subscription.plans.count > 1,
-              let i = state.subscription.plans.firstIndex(where: { $0.id == id }) else { return }
-        let removed = state.subscription.plans.remove(at: i)
-        if state.subscription.selectedPlan == id, let first = state.subscription.plans.first {
-            state.subscription.selectedPlan = first.id
-        }
+        var p = pricing
+        guard isPlatformOwner, p.plans.count > 1, let i = p.plans.firstIndex(where: { $0.id == id }) else { return }
+        let removed = p.plans.remove(at: i)
+        savePricing(p)
         toast("Deleted \u{201C}\(removed.name)\u{201D}")
+    }
+
+    /// Mirrors the VIMS plans into the signed-in company's subscription (older builds kept a per-company copy that company
+    /// admins could edit — it is replaced here, so upgraded companies get the current prices). A company whose plan was
+    /// deleted, or that sits on a "Coming soon" plan without an active subscription, moves to the first plan it can pick.
+    func applyPlatformPricing() {
+        let p = pricing
+        var sub = state.subscription
+        sub.plans = p.plans
+        sub.extraInspectorMonthly = p.extraMonthly
+        sub.extraInspectorYearly = p.extraYearly
+        let current = sub.plan(sub.selectedPlan)
+        if current == nil || (current?.isSelectable == false && !sub.active),
+           let first = p.plans.first(where: \.isSelectable) ?? p.plans.first {
+            sub.selectedPlan = first.id
+        }
+        if sub.plan(sub.selectedPlan)?.hasYearly != true, sub.billingPeriod == BillingPeriod.yearly.rawValue { sub.billingPeriod = nil }
+        if sub != state.subscription { state.subscription = sub }
     }
 
     func addInspector(name: String, email: String) -> Bool {
         let n = name.trimmingCharacters(in: .whitespaces)
         guard !n.isEmpty else { toast("Enter a name"); return false }
         state.company.inspectors.append(Inspector(name: n, email: email.trimmingCharacters(in: .whitespaces)))
-        toast("Inspector added · +\(Fmt.money(state.subscription.extraInspectorMonthly))/mo")
+        let per = state.subscription.period
+        toast("Inspector added · +\(Fmt.money(state.subscription.extraRate(per)))\(per.unit)")
         return true
     }
 
@@ -842,8 +959,16 @@ final class AppStore {
         toast(ins.admin ? "\(ins.name) is now an admin" : "\(ins.name) is no longer an admin")
     }
 
-    func startSubscription(payment: SubscriptionPayment) async throws {
-        let (label, card) = try await subscriptionService.startSubscription(planID: state.subscription.selectedPlan, seats: seats(), payment: payment)
+    /// Subscribe → Start / Update subscription with the plan and Monthly / Yearly period chosen on the screen (a plan
+    /// without a yearly price is monthly; "Coming soon" plans can't be started).
+    func startSubscription(planID: String, period: BillingPeriod, payment: SubscriptionPayment) async throws {
+        guard let plan = state.subscription.plan(planID), plan.isSelectable else {
+            throw ServiceError.invalid("That plan isn't available yet. Choose another plan.")
+        }
+        let per: BillingPeriod = plan.hasYearly ? period : .monthly
+        let (label, card) = try await subscriptionService.startSubscription(planID: planID, period: per, seats: seats(), payment: payment)
+        state.subscription.selectedPlan = planID
+        state.subscription.billingPeriod = per.rawValue
         state.subscription.active = true
         state.subscription.paymentLabel = label
         state.subscription.cardOnFile = card

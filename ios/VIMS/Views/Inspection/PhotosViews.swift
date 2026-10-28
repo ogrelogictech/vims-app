@@ -29,13 +29,13 @@ struct PhotosView: View {
 
     var body: some View {
         if let insp = store.inspection(inspectionID) {
-            let cats = store.catalog.photoCategories(section, depth: insp.depth)
+            let cats = store.catalog(for: inspectionID).photoCategories(section, depth: insp.depth)
             let existing = insp.photos[section] ?? [:]
             let extra = existing.keys.filter { !cats.contains($0) && !(existing[$0]?.isEmpty ?? true) }.sorted()
-            Screen(title: store.catalog.isPhotosOnly(section) ? store.catalog.title(section) : "\(store.catalog.title(section)) photos", subtitle: insp.addressLine1,
+            Screen(title: store.catalog(for: inspectionID).isPhotosOnly(section) ? store.catalog(for: inspectionID).title(section) : "\(store.catalog(for: inspectionID).title(section)) photos", subtitle: insp.addressLine1,
                    actions: [HeaderAction(symbol: "hdr-sections", label: "Sections") { store.popToSections(inspectionID) }, store.homeAction()],
                    maxContentWidth: 1100) {
-                let photosOnly = store.catalog.isPhotosOnly(section)
+                let photosOnly = store.catalog(for: inspectionID).isPhotosOnly(section)
                 Text(md((photosOnly ? "These pictures print on the picture pages after the checklist. " : "") + "Tap **Add** to capture a photo, tap a photo to mark it up or flag it, or tap **×** to delete one."))
                     .font(VFont.ui(13)).foregroundStyle(VC.ink3)
                     .padding(.top, 2).padding(.bottom, 14)
@@ -91,7 +91,7 @@ struct PhotosView: View {
                 PhotoMarkupView(inspectionID: inspectionID, section: section, category: t.category, photoID: t.photoID,
                                 onReturnToSection: {
                                     // Pictures (photos-only) pages are their own "section": stay on them.
-                                    if !store.catalog.isPhotosOnly(section), case .photos = store.path.last { store.path.removeLast() }
+                                    if !store.catalog(for: inspectionID).isPhotosOnly(section), case .photos = store.path.last { store.path.removeLast() }
                                 })
             }
             .onAppear {

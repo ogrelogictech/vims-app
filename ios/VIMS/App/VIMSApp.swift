@@ -130,14 +130,16 @@ struct RootView: View {
         case .settings: SettingsView()
         case .company: CompanyProfileView()
         case .instructions: InstructionsView()
-        case .manageChecklist: ManageChecklistView()
-        case .editSection(let name): EditSectionView(sectionName: name)
-        case .plans: PlansAdminView()
+        // Company admins edit (and restore) the company's checklist.
+        case .manageChecklist: if store.isAdmin { ManageChecklistView() } else { OwnerOnlyView(message: "Only company admins can manage the checklist") }
+        case .editSection(let name): if store.isAdmin { EditSectionView(sectionName: name) } else { OwnerOnlyView(message: "Only company admins can manage the checklist") }
+        // Client Oct 28: VIMS plans & prices are master admin only (no longer company admins).
+        case .plans: if store.isPlatformOwner { PlansAdminView() } else { OwnerOnlyView(message: "Plans & pricing is managed by the VIMS master admin.") }
         case .inspectors: InspectorsView()
         case .subscribe: SubscribeView()
         case .subscriptionStarted: SubscriptionStartedView()
         case .billing: BillingView()
-        // VIMS platform-owner screens: nobody else can open them (TODO(backend): enforced server-side too).
+        // VIMS master admin (platform-owner) screens: nobody else can open them (TODO(backend): enforced server-side too).
         case .feedbackAdmin: if store.isPlatformOwner { FeedbackAdminView() } else { OwnerOnlyView() }
         case .reportBcc: if store.isPlatformOwner { ReportBccView() } else { OwnerOnlyView() }
         case .eula: EULAView()
@@ -165,7 +167,7 @@ struct TrialEndedView: View {
 
 struct OwnerOnlyView: View {
     @Environment(AppStore.self) private var store
-    var message = "This setting is managed by the VIMS platform owner."
+    var message = "This setting is managed by the VIMS master admin."
     var body: some View {
         Screen(title: "Not available", actions: [store.homeAction()]) {
             HintText(text: message).padding(.top, 8)

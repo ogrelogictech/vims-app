@@ -34,6 +34,13 @@ enum DebugFlags {
 ///   -resetData                 wipe the SwiftData store + files and reseed the demo account
 ///   -video / -noVideo          force / skip the launch video (skipped by default with -screen)
 ///   -signInAs EMAIL            sign in as that local account
+///   -ownerStatus               print OWNERTEST lines (signed-in master admin flag + owner matching for sample emails)
+///   -pricingStatus             print PRICINGTEST lines (VIMS plans / yearly prices / company plan, period, total)
+///   -checklistStatus           print CHECKLISTTEST lines (company edits, each inspection's kept sections + item counts)
+///   -period monthly|yearly     with -screen subscribe: preselect the billing period
+///   -plan ID                   with -screen subscribe: preselect a plan
+///   -customSection "NAME|Group"  add a custom checklist section (as Manage checklist → Add section)
+///   -confirmRestore NAME|all   with -screen manage: open the restore confirmation
 ///   -teamAccount EMAIL         add a second local account (Sam Rivera / inspect2026) to the demo company
 ///   -eulaVersion V             pretend shared/legal/eula.json has version V (re-acceptance gate test)
 ///   -eulaGate                  show the EULA gate even with -screen / -skipLogin
@@ -314,7 +321,34 @@ enum DebugLaunch {
                 store.repo.saveCompany(c)
             }
         }
-        if let email = value("-signInAs"), let u = store.repo.user(email: email) { store.loadSession(u) }
+        if let email = value("-signInAs"), let u = store.repo.user(email: PlatformOwner.normalized(email)) { store.loadSession(u) }
+        if has("-ownerStatus") {
+            print("OWNERTEST session=\(store.session?.email ?? "none") isPlatformOwner=\(store.isPlatformOwner) isAdmin=\(store.isAdmin) company=\(store.company.name)")
+            for e in [" Masteradmin@VIMSInspect.com ", "ADMIN@vimsinspect.com", "masteradmin@vimsinspection.com", "jeremy@visionpropertyinspections.com"] {
+                print("OWNERTEST isOwner(\"\(e)\")=\(PlatformOwner.isOwner(email: e, config: store.config))")
+            }
+        }
+        if has("-pricingStatus") {
+            let p = store.pricing, sub = store.subscription
+            print("PRICINGTEST stored=\(store.platform.plans != nil) plans=" + p.plans.map { "\($0.id):\($0.price)/\($0.priceYearly.map { String($0) } ?? "-")\($0.isComingSoon ? ":soon" : "")" }.joined(separator: ",")
+                  + " extra=\(p.extraMonthly)/\(p.extraYearly)")
+            print("PRICINGTEST company=\(store.company.name) selected=\(sub.selectedPlan) period=\(sub.period.rawValue) active=\(sub.active) total=\(sub.totalLabel(seats: store.seats())) next=\(Fmt.date(sub.nextBillingDate, "MMM d, yyyy")) companyPlans=" + sub.plans.map { "\($0.id):\($0.price)" }.joined(separator: ","))
+        }
+        // -customSection "NAME|Group": add a custom section the way Manage checklist → Add section does (restore checks).
+        if let v = value("-customSection"), store.session != nil {
+            let p = v.split(separator: "|").map(String.init)
+            _ = store.addCustomSection(name: p[0], group: p.count > 1 ? p[1] : "Exterior")
+        }
+        if has("-checklistStatus") {
+            let o = store.state.overrides
+            print("CHECKLISTTEST company=\(store.company.name) edited=\(o.sections.keys.filter { store.isEditedSection($0) }.sorted()) custom=\(o.custom.filter { !$0.value.isEmpty })")
+            for i in store.inspections {
+                let cat = store.catalog(for: i)
+                let watch = i.leafSections.filter { ["Chimney", "Roof"].contains($0) || store.isCustomSection($0) || i.savedSections?[$0] != nil }
+                print("CHECKLISTTEST insp=\(i.addressLine1) saved=\((i.savedSections ?? [:]).keys.sorted()) " + watch.map { "\($0)=\(cat.items($0, depth: .standard).items.filter { !$0.isHeader }.count)" }.joined(separator: " "))
+            }
+            for n in ["Chimney", "Roof", "Solar Panels"] { print("CHECKLISTTEST new-inspection \(n)=\(store.catalog.section(n)?.items.filter { !$0.isHeader }.count ?? -1)") }
+        }
         if has("-platformStatus") {
             let p = store.platform
             print("PLATFORMTEST stored feedback=\(p.feedbackEmail) bccOn=\(p.reportBccOn) bcc=\(p.reportBccEmail) migratedThisLaunch=\(store.platformMigrated)")

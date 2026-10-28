@@ -302,6 +302,10 @@ struct Inspection: Codable, Hashable, Identifiable {
     var counts: [String: Int]
 
     var groups: [ChecklistGroup] = []
+    /// Client Oct 28: the company's edited / custom section definitions this inspection was using when an admin restored
+    /// the checklist to the VIMS original (keyed by section name). They win over the company's current checklist, so an
+    /// inspection already created keeps its saved checklist. nil = none saved (uses the company checklist).
+    var savedSections: [String: SectionDef]?
     var status: [String: SectionStatus] = [:]
     var answers: [String: SectionAnswers] = [:]
     var photos: [String: [String: [PhotoRef]]] = [:]
@@ -526,7 +530,21 @@ struct CompanyProfile: Codable, Hashable {
     var inspectors: [Inspector]
 }
 
+/// Subscription billing period (client Oct 28, data v1.11). Plans with `priceYearly` offer both; extra inspectors follow
+/// the company's period.
+enum BillingPeriod: String, Codable, CaseIterable, Hashable {
+    case monthly, yearly
+    var label: String { self == .yearly ? "Yearly" : "Monthly" }
+    /// "/mo" | "/yr"
+    var unit: String { self == .yearly ? "/yr" : "/mo" }
+    /// "Monthly total" | "Yearly total"
+    var totalLabel: String { "\(label) total" }
+}
+
 struct SubscriptionState: Codable, Hashable {
+    /// The VIMS plan list. Since client Oct 28 (data v1.11) plans and prices are VIMS-wide, owned by the master admin
+    /// (`PlatformSettings.pricing`): `AppStore` mirrors them in here on every session load, so a company's stored copy
+    /// is never the source of truth (older builds stored a per-company copy that company admins could edit).
     var plans: [PlanDef]
     var extraInspectorMonthly: Double
     var selectedPlan: String
@@ -543,6 +561,10 @@ struct SubscriptionState: Codable, Hashable {
     /// True when this company was created on a device that had already used its free trial (one trial per device,
     /// `DeviceTrial`): it started with the trial used up. nil on older saved data.
     var deviceTrialUsed: Bool?
+    /// v1.11: per-inspector yearly rate (mirrored like `plans`). nil on older saved data → monthly × 12.
+    var extraInspectorYearly: Double?
+    /// v1.11: the company's billing period ("monthly" | "yearly"). nil on older saved data = monthly.
+    var billingPeriod: String?
 
     var cancelled: Bool { active && cancelledAt != nil }
 
@@ -557,21 +579,51 @@ struct SubscriptionState: Codable, Hashable {
         return max(0, trialDays - elapsed)
     }
 
-    func monthlyTotal(seats: Int) -> Double {
-        guard let p = plan(selectedPlan) else { return 0 }
-        if p.perReport == true { return 0 }
-        return p.price + Double(max(0, seats - 1)) * extraInspectorMonthly
+    /// The company's period for its current plan (a plan without a yearly price is always monthly).
+    var period: BillingPeriod {
+        let p = BillingPeriod(rawValue: billingPeriod ?? "") ?? .monthly
+        return plan(selectedPlan)?.hasYearly == true ? p : .monthly
     }
 
-    func totalLabel(seats: Int) -> String {
-        guard let p = plan(selectedPlan) else { return "" }
-        if p.perReport == true { return Fmt.money(p.price) + " / report" }
-        return Fmt.money(monthlyTotal(seats: seats)) + "/mo"
+    /// Each additional inspector for a period.
+    func extraRate(_ period: BillingPeriod) -> Double {
+        period == .yearly ? (extraInspectorYearly ?? extraInspectorMonthly * 12) : extraInspectorMonthly
     }
+
+    /// A plan's price for a period (the per-report price for Pay per report).
+    static func price(_ p: PlanDef, _ period: BillingPeriod) -> Double {
+        period == .yearly && p.hasYearly ? (p.priceYearly ?? p.price) : p.price
+    }
+
+    /// "$34.95/mo" · "$385.00/yr" · "$5.00/report"
+    static func priceLabel(_ p: PlanDef, _ period: BillingPeriod) -> String {
+        if p.isPerReport { return Fmt.money(p.price) + (p.unit ?? "/report") }
+        let per: BillingPeriod = p.hasYearly ? period : .monthly
+        return Fmt.money(price(p, per)) + per.unit
+    }
+
+    /// Plan + additional inspectors for a plan / period (0 for Pay per report).
+    func total(plan p: PlanDef?, period: BillingPeriod, seats: Int) -> Double {
+        guard let p, !p.isPerReport else { return 0 }
+        let per: BillingPeriod = p.hasYearly ? period : .monthly
+        return Self.price(p, per) + Double(max(0, seats - 1)) * extraRate(per)
+    }
+
+    /// "$84.85/mo" · "$935.00/yr" · "$5.00 / report"
+    func totalLabel(plan p: PlanDef?, period: BillingPeriod, seats: Int) -> String {
+        guard let p else { return "" }
+        if p.isPerReport { return Fmt.money(p.price) + " / report" }
+        let per: BillingPeriod = p.hasYearly ? period : .monthly
+        return Fmt.money(total(plan: p, period: per, seats: seats)) + per.unit
+    }
+
+    /// The company's current plan + period total.
+    func total(seats: Int) -> Double { total(plan: plan(selectedPlan), period: period, seats: seats) }
+    func totalLabel(seats: Int) -> String { totalLabel(plan: plan(selectedPlan), period: period, seats: seats) }
 
     var nextBillingDate: Date {
         let start = startedAt ?? Date()
-        return Calendar.current.date(byAdding: .month, value: 1, to: start) ?? start
+        return Calendar.current.date(byAdding: period == .yearly ? .year : .month, value: 1, to: start) ?? start
     }
 }
 
@@ -601,6 +653,27 @@ struct PlatformSettings: Codable, Hashable {
         return reportBccOn && !e.isEmpty ? e : nil
     }
     var bccSummary: String { activeReportBcc.map { "On · \($0)" } ?? "Off" }
+
+    /// Client Oct 28 (data v1.11): the VIMS subscription plans and prices, edited only by a master admin in Plans & pricing
+    /// and used on every company's Subscribe screen. nil until a master admin saves a change = the shared JSON's plans.
+    /// TODO(backend): server-owned (Square catalog).
+    var plans: [PlanDef]? = nil
+    var extraInspectorMonthly: Double? = nil
+    var extraInspectorYearly: Double? = nil
+
+    /// The plans and per-inspector rates in effect (stored master-admin edits, else the shared JSON).
+    func pricing(_ config: ChecklistConfig) -> Pricing {
+        let s = config.subscription
+        let plans = (self.plans ?? []).isEmpty ? s.plans : (self.plans ?? [])
+        return Pricing(plans: plans, extraMonthly: extraInspectorMonthly ?? s.extraInspectorMonthly,
+                       extraYearly: extraInspectorYearly ?? s.extraInspectorYearly ?? (extraInspectorMonthly ?? s.extraInspectorMonthly) * 12)
+    }
+
+    struct Pricing: Hashable {
+        var plans: [PlanDef]
+        var extraMonthly: Double
+        var extraYearly: Double
+    }
 
     static func defaults(_ config: ChecklistConfig) -> PlatformSettings {
         PlatformSettings(feedbackEmail: config.support.feedbackEmail,

@@ -124,7 +124,8 @@ enum SubscriptionPayment {
 protocol SubscriptionService {
     /// Starts / updates the subscription. Returns a display label for the payment method ("Square · Visa ····4242") and
     /// the card-on-file reference to remember (never the card number or CVC).
-    func startSubscription(planID: String, seats: Int, payment: SubscriptionPayment) async throws -> (label: String, card: CardOnFile)
+    /// `period` = Monthly / Yearly (client Oct 28); extra inspectors are billed on the same period.
+    func startSubscription(planID: String, period: BillingPeriod, seats: Int, payment: SubscriptionPayment) async throws -> (label: String, card: CardOnFile)
     /// Stops renewal at the end of the current billing period (EULA 12.3: no refunds or prorated charges).
     func cancelSubscription() async throws
     /// Undoes a pending cancellation before the period ends; auto-pay continues.
@@ -135,7 +136,8 @@ protocol SubscriptionService {
 // The real flow tokenizes the card with Square (never touching raw PAN) and the
 // backend creates the Square subscription. Phase 1 simulates success.
 final class LocalSubscriptionService: SubscriptionService {
-    func startSubscription(planID: String, seats: Int, payment: SubscriptionPayment) async throws -> (label: String, card: CardOnFile) {
+    func startSubscription(planID: String, period: BillingPeriod, seats: Int, payment: SubscriptionPayment) async throws -> (label: String, card: CardOnFile) {
+        // TODO(backend): Square Subscriptions API — the plan's monthly or yearly subscription plan variation (`period`).
         // Field validation happens in the form (docs/validation-rules.md); the real flow tokenizes with Square.
         try await Task.sleep(nanoseconds: 400_000_000)
         let card: CardOnFile

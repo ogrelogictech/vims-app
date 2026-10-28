@@ -159,7 +159,7 @@ SwiftUI views ──► AppStore (@Observable, @MainActor)  ──► Repository
   (`support.reportBcc` default) are platform-level, not per company: stored once in SwiftData
   (`PlatformRecord` → `PlatformSettings`) and editable only by the platform owner. `Session.isPlatformOwner` is
   true only when the signed-in email is in the shared `support.platformOwners` list (data v1.5; see below —
-  TODO(backend): the server sends this flag/role). Only those accounts see Settings → "VIMS owner" (Report quality copy (BCC) with subtitle
+  TODO(backend): the server sends this flag/role). Only those accounts see Settings → "Master admin" (was "VIMS owner" before Oct 28; Report quality copy (BCC) with subtitle
   "On · address" / "Off", and Feedback & support); other companies' admins don't, and the routes show "Not
   available" if reached. The BCC screen has the intro text, On/Off, the address (email rule; required while On)
   and Save.
@@ -172,7 +172,8 @@ SwiftUI views ──► AppStore (@Observable, @MainActor)  ──► Repository
   `-mailSelfTest` launch argument, which prints the draft (to / bcc / subject / attachment) to the console.
 - **Home side menu** (`Views/Home/SideMenu.swift`): hamburger opens a left drawer with the user's profile photo, user,
   email and company; Inspections, New inspection, Settings, Company profile, How VIMS works, Help & feedback;
-  admin-only Manage checklist, Plans & pricing, Inspectors; Sign out. Scrim tap or swipe left closes it.
+  master-admin-only Plans & pricing, Report quality copy (BCC), Feedback & support (client Oct 28); company-admin-only
+  Manage checklist, Inspectors; Sign out. Scrim tap or swipe left closes it.
 - **Adaptive layout.** Every screen scrolls within the safe areas (no fixed heights), SwiftUI handles keyboard
   avoidance, rows stack their status pill under the text at large Dynamic Type sizes, and Dynamic Type is
   supported up to XXXL. Checked on iPhone SE (3rd gen), iPhone 17 and iPhone 17 Pro Max.
@@ -761,3 +762,55 @@ Screenshots: `screenshots/oct12-*.png` — `ipad-01…18` 13" (landscape 01–13
   and finish Plumbing's shower pan items), `-staleOverride NAME [-legacyOverride]` (CHECKLISTTEST), `-inspection Code`
   (a retired-type inspection). `-resetData` also restarts the demo's trial clock.
 - Screenshots `screenshots/oct25-*.png` (iPhone 17, upgraded from 8bcc54f: 01–18; `oct25-ipad-*` iPad Pro 13", fresh).
+
+## Client Oct 28 (shared v1.11.0)
+
+- **Master admin** (`support.platformOwners`: masteradmin@ + admin@vimsinspect.com, trimmed, case-insensitive; another
+  domain such as vimsinspection.com is not an owner). Owners get a "Master admin" badge on the Settings account card and
+  the side-menu header, and a clearly labeled **Master admin** section in both the side menu and Settings (right under
+  the account): Plans & pricing, Report quality copy (BCC), Feedback & support. **Plans & pricing is master admin only**:
+  removed from the company Admin group, and the route shows "Not available" for anyone else (like the BCC / feedback
+  screens). Company admins keep Manage checklist and Inspectors; a master admin who joined a company as an inspector
+  sees the Master admin section without the company Admin group.
+  *What was wrong on iOS:* the owner flag itself was already set correctly — checked on the 31068ba build with
+  " Masteradmin@VIMSInspect.com " through Create account and at session restore (`isPlatformOwner=true`). The owner
+  screens were the problem: two rows labeled "VIMS owner" at the very bottom of Settings (below the fold), nothing in the
+  side menu, no badge, while Plans & pricing showed for every company admin — so a master admin looked exactly like any
+  company admin (`screenshots/oct28-00-before-31068ba-owner-settings.png`). Also `-signInAs` now trims its email.
+- **VIMS plans & prices are VIMS-wide** (`PlatformSettings.plans / extraInspectorMonthly / extraInspectorYearly`, stored
+  once in SwiftData; nil = the shared JSON). Older builds kept a per-company copy that company admins could edit;
+  `AppStore.applyPlatformPricing()` now mirrors the VIMS plans into the signed-in company on every session load, so
+  upgraded companies get the Oct 28 prices; a company whose plan was deleted, or that is on a "Coming soon" plan without
+  an active subscription, moves to the first plan it can pick. TODO(backend): server-owned (Square catalog).
+- **Pricing (data v1.11)**: App only $34.95/mo or $385/yr; additional inspector $24.95/mo or $275/yr; Pay per report $5
+  (no yearly); Portal + App $74.95/mo or $825/yr, `comingSoon` → "Coming soon" pill, dashed dimmed card, not selectable.
+  New keys decode as optionals (`PlanDef.priceYearly / comingSoon`, `SubscriptionDef.extraInspectorYearly /
+  billingPeriods`, `SubscriptionState.billingPeriod / extraInspectorYearly`). **Subscribe**: Monthly / Yearly segmented
+  choice (disabled with "… has no yearly option." for Pay per report); each plan shows the chosen period's price with the
+  other underneath; the plan and period are a draft saved by Start / Update subscription; extra inspectors, the total
+  ("Monthly total" / "Yearly total") and "auto-renews monthly / yearly" follow the period; the confirmation says "billed
+  yearly · $660.00/yr". **Plan & billing**: Plan "App only · $385.00/yr", Billing period, Inspectors "1 × $275.00/yr",
+  Yearly total, next billing +1 year. Settings → Plan & billing subtitle "App only · Yearly · $660.00/yr". **Plans &
+  pricing** (master admin): Monthly and Yearly price per plan (Yearly blank = monthly only), per-report price for Pay per
+  report, Additional inspector monthly + yearly rates, add a plan with an optional yearly price. Billing is still the
+  local stub (TODO(backend) Square).
+- **Restore checklist to original** (Manage checklist, company admins): a summary card ("2 edited sections and 1 custom
+  section you added.") with **Restore entire checklist to original**; each edited VIMS section has an amber **Edited** pill,
+  a "Your company changed this section. · Restore original" row under it, and the group header counts "N changed"; Edit
+  section shows "Edit section · Edited" and a Restore original button. Every restore asks first (centered alert explaining
+  that it removes the company's changes and that inspections already started keep their saved checklist). Restoring
+  removes the overrides / custom sections, so new inspections get the JSON defaults. **Inspections already created keep
+  their checklist**: before the overrides are removed, every inspection of the company on the device that uses one of those
+  sections (the user's and teammates' who signed in here) stores the definitions in `Inspection.savedSections`;
+  `AppStore.catalog(for:)` lets them win for that inspection (entry, photos, summary, report), and re-editing it in the wizard
+  keeps its restored custom sections. Manage checklist / Edit section routes are admin-only.
+- DEBUG: `-ownerStatus` (OWNERTEST), `-pricingStatus` (PRICINGTEST), `-checklistStatus` (CHECKLISTTEST), `-customSection
+  "NAME|Group"`, `-confirmRestore NAME|all` (with `-screen manage`), `-period monthly|yearly` / `-plan ID` (with `-screen
+  subscribe`).
+- Verified on iPhone 17 (iOS 26.5), upgraded in place from a 31068ba build with an edited checklist (Roof, Chimney), a
+  custom section, an active monthly subscription and a saved master-admin session, then on a fresh install: Create account
+  typed as " Masteradmin@VIMSInspect.com " (badge + Master admin section), sign-in with " MasterAdmin@VIMSInspect.COM ",
+  Join with " Admin@VIMSInspect.com " (owner, not company admin), session restore, masteradmin@vimsinspection.com (not
+  an owner), a non-owner company admin (no Plans & pricing; route blocked), a master-admin price edit showing up for another
+  company, both restores and their effect on existing inspections, Subscribe Monthly / Yearly with 2 inspectors → $660.00/yr.
+  Screenshots `screenshots/oct28-*.png`.

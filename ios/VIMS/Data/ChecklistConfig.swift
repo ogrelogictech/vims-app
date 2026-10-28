@@ -457,15 +457,31 @@ struct SubscriptionDef: Decodable {
     let trialDays: Int
     let plans: [PlanDef]
     let extraInspectorMonthly: Double
+    /// v1.11 (client Oct 28): each additional inspector on a yearly subscription. Optional (older data has none).
+    let extraInspectorYearly: Double?
+    /// v1.11: ["monthly", "yearly"]. Informational; a plan offers Yearly when it has `priceYearly`.
+    let billingPeriods: [String]?
 }
 
 struct PlanDef: Codable, Hashable {
     var id: String
     var name: String
+    /// Monthly price (or the per-report price when `perReport`).
     var price: Double
     var desc: String
     var unit: String?
     var perReport: Bool?
+    /// v1.11: yearly price; nil = no yearly option (Pay per report).
+    var priceYearly: Double? = nil
+    /// v1.11: shown with a "Coming soon" label but not selectable (Portal + App until Phase 2).
+    var comingSoon: Bool? = nil
+
+    var isComingSoon: Bool { comingSoon == true }
+    var isPerReport: Bool { perReport == true }
+    /// Offers the Monthly / Yearly choice.
+    var hasYearly: Bool { !isPerReport && priceYearly != nil }
+    /// A company can pick it on the Subscribe screen.
+    var isSelectable: Bool { !isComingSoon }
 }
 
 struct SupportDef: Decodable {

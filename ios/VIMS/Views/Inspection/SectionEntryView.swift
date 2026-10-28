@@ -18,7 +18,7 @@ struct SectionEntryView: View {
     var body: some View {
         if let insp = store.inspection(inspectionID) {
             ZStack {
-                Screen(title: store.catalog.title(section), subtitle: insp.addressLine1,
+                Screen(title: store.catalog(for: inspectionID).title(section), subtitle: insp.addressLine1,
                        actions: [
                         HeaderAction(symbol: "hdr-photos", label: "Photos") { store.push(.photos(inspectionID, section)) },
                         HeaderAction(symbol: "hdr-sections", label: "Sections") { withAnimation(.easeOut(duration: 0.24)) { drawerOpen = true } },
@@ -64,13 +64,13 @@ struct SectionEntryView: View {
 
     @ViewBuilder
     private func content(_ insp: Inspection) -> some View {
-        let isForm = store.catalog.isForm(section)
+        let isForm = store.catalog(for: inspectionID).isForm(section)
         // State/insurance forms ignore the checklist depth (always `items`, no detail box, no Fast Entry chips).
         let depth: Depth = isForm ? .standard : insp.depth
-        let resolved = store.catalog.items(section, depth: depth)
+        let resolved = store.catalog(for: inspectionID).items(section, depth: depth)
         if isForm {
-            ModeTile(depth: .high, customLabel: store.catalog.formLabel(section),
-                     customHint: store.catalog.section(section)?.form == "texas"
+            ModeTile(depth: .high, customLabel: store.catalog(for: inspectionID).formLabel(section),
+                     customHint: store.catalog(for: inspectionID).section(section)?.form == "texas"
                         ? "Mark each item I / NI / NP / D and add comments. Same on every checklist depth."
                         : "Complete every line of the form. Same on every checklist depth.")
         } else {
@@ -79,7 +79,7 @@ struct SectionEntryView: View {
 
         if depth == .fast {
             // Conditional items (v1.8 `visibleIf`, e.g. Lead "Sample 2 location") have nothing to depend on here.
-            let questions = (store.catalog.section(section)?.items ?? []).filter { $0.visibleIf == nil }.compactMap(\.q)
+            let questions = (store.catalog(for: inspectionID).section(section)?.items ?? []).filter { $0.visibleIf == nil }.compactMap(\.q)
             if !questions.isEmpty {
                 SectionLabel(text: "Items reviewed", top: 2)
                 ChipGroup(options: questions, selection: $answers.present, single: false)
@@ -91,7 +91,7 @@ struct SectionEntryView: View {
             let card = { (k: KeyedItem, fill: Bool) in
                 ItemCard(item: k.item, key: k.id, answers: $answers, errors: errors,
                          showDetail: depth == .high && !resolved.usingHigh,
-                         airQuality: store.catalog.section(section)?.airQuality,
+                         airQuality: store.catalog(for: inspectionID).section(section)?.airQuality,
                          onConcern: insp.hasSummary ? { q in findingPrompt = .concern(q) } : nil,
                          fillHeight: fill)
             }
@@ -158,8 +158,8 @@ struct SectionEntryView: View {
 
     /// The answer-keyed items shown for this inspection's depth (forms ignore depth).
     private func keyedItems(_ insp: Inspection) -> [KeyedItem] {
-        let depth: Depth = store.catalog.isForm(section) ? .standard : insp.depth
-        return ItemKeys.keyed(store.catalog.items(section, depth: depth).items)
+        let depth: Depth = store.catalog(for: inspectionID).isForm(section) ? .standard : insp.depth
+        return ItemKeys.keyed(store.catalog(for: inspectionID).items(section, depth: depth).items)
     }
 
     /// `num` items: digits + one "." (none for `integer`) while typing, at most 2 decimals (or `decimals`), 0 – 99,999 when
@@ -168,7 +168,7 @@ struct SectionEntryView: View {
     /// `airReading` levels: same filter, optional, 0 – 99,999 (a CO reading is often 0 ppm).
     private func valid() -> Bool {
         guard let insp = store.inspection(inspectionID) else { return true }
-        let isForm = store.catalog.isForm(section)
+        let isForm = store.catalog(for: inspectionID).isForm(section)
         let depth: Depth = isForm ? .standard : insp.depth
         guard depth != .fast else { return true }
         // Hidden conditional items (v1.8 `visibleIf`) are not validated.
@@ -199,7 +199,7 @@ struct SectionEntryView: View {
         store.setAnswers(inspectionID, section, answers)
         store.markDone(inspectionID, section)
         if let next = store.nextSection(inspectionID, after: section) {
-            store.toast("Saved — next: \(store.catalog.title(next))")
+            store.toast("Saved — next: \(store.catalog(for: inspectionID).title(next))")
             replaceSection(next)
         } else {
             store.toast("Saved — last section")

@@ -38,7 +38,7 @@ struct SummaryView: View {
     }
 
     private func categoryCard(_ c: FindingCategoryDef, _ insp: Inspection) -> some View {
-        SummaryCategoryCard(category: c, findings: insp.findings.filter { $0.category == c.id }, title: store.catalog.title) { f in
+        SummaryCategoryCard(category: c, findings: insp.findings.filter { $0.category == c.id }, title: store.catalog(for: inspectionID).title) { f in
             store.deleteFinding(inspectionID, findingID: f.id)
             store.toast("Finding removed")
         }
@@ -120,7 +120,7 @@ struct ReportView: View {
 
     var body: some View {
         if let insp = store.inspection(inspectionID) {
-            let cat = store.catalog
+            let cat = store.catalog(for: inspectionID)
             let done = cat.sortedForReport(insp.leafSections.filter { insp.status[$0] == .done })
             Screen(title: "Generate report", subtitle: insp.addressLine1,
                    actions: [HeaderAction(symbol: "hdr-sections", label: "Sections") { store.popToSections(inspectionID) }, store.homeAction()]) {
@@ -148,7 +148,7 @@ struct ReportView: View {
                                    set: { c in store.update(inspectionID) { $0.cover = c } }))
 
         SectionLabel(text: "Report pages")
-        Text(Self.reportPages[store.catalog.reportLayout(for: insp.inspType)] ?? "")
+        Text(Self.reportPages[store.catalog(for: inspectionID).reportLayout(for: insp.inspType)] ?? "")
             .font(VFont.ui(13)).foregroundStyle(VC.ink2).lineSpacing(3)
             .fixedSize(horizontal: false, vertical: true)
             .vCard(EdgeInsets(top: 12, leading: 14, bottom: 12, trailing: 14))
@@ -156,7 +156,7 @@ struct ReportView: View {
 
     @ViewBuilder
     private func contentsColumn(_ insp: Inspection, done: [String]) -> some View {
-        let cat = store.catalog
+        let cat = store.catalog(for: inspectionID)
         SectionLabel(text: "Report contents · in checklist order", top: wide.isWide ? 0 : 20)
         Text("Completed sections populate the report in the order they're numbered on your master checklist.")
             .font(VFont.ui(12)).foregroundStyle(VC.ink3).padding(.top, -4).padding(.bottom, 10).padding(.horizontal, 2)
@@ -208,7 +208,7 @@ struct ReportView: View {
 
     private func metaCard(_ insp: Inspection) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(store.catalog.reportLayout(for: insp.inspType) == .fourPoint ? "4-POINT INSPECTION REPORT" : "PROPERTY INSPECTION REPORT").font(VFont.mono(10.5)).tracking(1.4).foregroundStyle(Color(hex: 0xF2C869))
+            Text(store.catalog(for: inspectionID).reportLayout(for: insp.inspType) == .fourPoint ? "4-POINT INSPECTION REPORT" : "PROPERTY INSPECTION REPORT").font(VFont.mono(10.5)).tracking(1.4).foregroundStyle(Color(hex: 0xF2C869))
             Text(insp.addressLine1).font(VFont.display(20, .heavy)).foregroundStyle(.white).padding(.top, 9).padding(.bottom, 3)
             Text([insp.addressRest, insp.structure].filter { !$0.isEmpty }.joined(separator: " · "))
                 .font(VFont.ui(12.5)).foregroundStyle(Color(hex: 0xCFE2EB))

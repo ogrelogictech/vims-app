@@ -780,3 +780,24 @@ struct VToggle: View {
         Toggle("", isOn: $isOn).labelsHidden().tint(VC.brand)
     }
 }
+
+// MARK: - Master admin badge (client Oct 28)
+
+/// "Master admin" on the account card (Settings) and the side-menu header for VIMS platform owners
+/// (`support.platformOwners`), so it is obvious the account has master admin access.
+struct MasterAdminBadge: View {
+    /// On the blue side-menu header: white badge with brand-deep text; elsewhere brand-deep with white text.
+    var onDark = false
+    var body: some View {
+        Text("Master admin")
+            .font(VFont.mono(10.5, .semibold))
+            .tracking(0.3)
+            .foregroundStyle(onDark ? VC.brandDeep : .white)
+            .lineLimit(1)
+            .fixedSize()
+            .padding(.horizontal, 10).padding(.vertical, 4)
+            .background(onDark ? Color.white : VC.brandDeep)
+            .clipShape(Capsule())
+            .accessibilityLabel("Master admin account")
+    }
+}

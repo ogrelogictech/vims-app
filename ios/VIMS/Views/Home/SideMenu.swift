@@ -44,6 +44,7 @@ struct HomeSideMenu: View {
                     Text(store.session?.name ?? "").font(VFont.display(16, .bold)).foregroundStyle(.white)
                     Text(store.session?.email ?? "").font(VFont.ui(12)).foregroundStyle(VC.hdrSub).lineLimit(1)
                     Text(store.company.name).font(VFont.ui(12, .semibold)).foregroundStyle(VC.hdrSub).lineLimit(2)
+                    if store.isPlatformOwner { MasterAdminBadge(onDark: true).padding(.top, 6) }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -64,12 +65,19 @@ struct HomeSideMenu: View {
                             if let url = URL(string: "mailto:\(email)?subject=VIMS%20app%20feedback") { openURL(url) }
                         }
                     }
+                    if store.isPlatformOwner {
+                        // Client Oct 28: VIMS master admin (platform owner) tools, only for `support.platformOwners`.
+                        label("MASTER ADMIN")
+                        group {
+                            item("plans-pricing-edit", "Plans & pricing") { go(.plans) }
+                            item("report-bcc", "Report quality copy (BCC)") { go(.reportBcc) }
+                            item("email-to-client", "Feedback & support", last: true) { go(.feedbackAdmin) }
+                        }
+                    }
                     if store.isAdmin {
-                        Text("ADMIN").font(VFont.mono(10, .semibold)).tracking(1.1).foregroundStyle(VC.ink3)
-                            .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 6).padding(.top, 8)
+                        label("ADMIN")
                         group {
                             item("manage-checklist-add", "Manage checklist") { go(.manageChecklist) }
-                            item("plans-pricing-edit", "Plans & pricing") { go(.plans) }
                             item("inspector-accounts-inspector", "Inspectors", last: true) { go(.inspectors) }
                         }
                     }
@@ -86,6 +94,12 @@ struct HomeSideMenu: View {
             .signOutConfirmation(isPresented: $confirmSignOut) { close() }
             .padding(.horizontal, 10).padding(.bottom, 12)
         }
+    }
+
+    private func label(_ text: String) -> some View {
+        Text(text).font(VFont.mono(10, .semibold)).tracking(1.1).foregroundStyle(VC.ink3)
+            .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 6).padding(.top, 8)
+            .accessibilityAddTraits(.isHeader)
     }
 
     private func group<C: View>(@ViewBuilder _ content: () -> C) -> some View {
