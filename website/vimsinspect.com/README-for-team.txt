@@ -8,7 +8,7 @@ Plain static HTML/CSS. No JavaScript, no build step, no cookies, no third-party 
   index.html     Home page
   privacy.html   Privacy Policy (client-approved October 23, 2026 — do not edit the wording)
   support.html   Support page
-  site.css       Styles (linked as site.css?v=26; bump the number after any CSS change)
+  site.css       Styles (linked as site.css?v=28; bump the number after any CSS change)
   fonts/         Archivo, IBM Plex Sans, IBM Plex Mono (SIL Open Font License, files included)
   img/           Logo mark and app screenshots (WebP)
   favicon.ico, icon.svg, apple-touch-icon.png, robots.txt, sitemap.xml

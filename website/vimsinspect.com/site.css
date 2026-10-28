@@ -317,3 +317,12 @@ figure { margin: 0; }
   .proof-line { font-size: 17px; }
   .proof-line b { font-size: 21px; }
 }
+
+/* Yearly price under the monthly one (client pricing, October 28, 2026) */
+.fee__amount { text-align: right; }
+.fee__year { display: block; font-size: 17px; font-weight: 700; color: var(--ink); margin-top: 2px; }
+.fees li.soon .fee__year { color: var(--ink-soft); }
+
+/* Longer hero intro (client wording, October 28): keep the hero inside the fold */
+@media (max-width: 767px) { .lead-row p.lede { font-size: 16px; line-height: 1.5; } .hero h1 { font-size: clamp(29px, 8vw, 38px); } }
+@media (min-width: 1024px) { .lead-row { grid-template-columns: minmax(0, 1.75fr) minmax(0, 1fr); } .lead-row p.lede { max-width: 76ch; font-size: 17px; } }
