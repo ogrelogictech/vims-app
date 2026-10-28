@@ -1,7 +1,7 @@
 {
  "_about": "VIMS shared checklist + configuration data. Single source of truth for the native iOS (SwiftUI) and Android (Kotlin/Compose) apps. Extracted from the client-approved prototype (index.html, approved Sep 15, 2026). Edit here, not in app code.",
- "version": "1.10.0",
- "generated": "2026-10-25",
+ "version": "1.11.0",
+ "generated": "2026-10-28",
  "depths": [
   {
    "id": "high",
@@ -31649,7 +31649,8 @@
   ],
   "_notes": "'?' = included when selected in wizard step 3 rooms; '×n' = repeated per count. Admin-added custom sections are appended to the end of their group (Exterior, Interior, Utility, Testing).",
   "_formNotes": "Sections with 'form' (texas | fourPoint) are client-supplied state/insurance forms: ignore checklist depth (always show 'items'), no Overall condition row, badge = formLabels[form]. 'photosOnly' sections have no items: opening one goes straight to the photo screen, whose primary button is 'Save & continue to summary' (or '… to report' when the layout has no Summary). Layouts without a Summary entry (4 Point) hide 'Review summary'.",
-  "_testsOnlyAbout": "Client Oct 25 (areas locked for Tests Only): the checklist is Inspection Info + the tests selected in wizard step 4 + Summary. No exterior / interior / utility sections."
+  "_testsOnlyAbout": "Client Oct 25 (areas locked for Tests Only): the checklist is Inspection Info + the tests selected in wizard step 4 + Summary. No exterior / interior / utility sections.",
+  "_restoreAbout": "Client Oct 28: Manage checklist (company admins) gets 'Restore original' per section and 'Restore entire checklist to original'. Restoring removes the company's edits (renamed/added/removed items and sections) and returns to the VIMS default from this file. Confirm first; inspections already started keep their saved checklist."
  },
  "wizard": {
   "steps": [
@@ -32501,13 +32502,16 @@
     "id": "app",
     "name": "App only",
     "price": 34.95,
-    "desc": "Inspection app · iOS & Android"
+    "desc": "Inspection app · iOS & Android",
+    "priceYearly": 385
    },
    {
     "id": "portal",
     "name": "Portal + App",
-    "price": 64.95,
-    "desc": "App + web portal"
+    "price": 74.95,
+    "desc": "Coming soon: business management suite + two-way sync",
+    "priceYearly": 825,
+    "comingSoon": true
    },
    {
     "id": "payg",
@@ -32519,7 +32523,13 @@
    }
   ],
   "extraInspectorMonthly": 24.95,
-  "note": "Company subscription billed through Square (Phase 1). Client inspection-fee payment is a separate add-on, NOT Phase 1."
+  "note": "Company subscription billed through Square (Phase 1). Client inspection-fee payment is a separate add-on, NOT Phase 1.",
+  "extraInspectorYearly": 275,
+  "billingPeriods": [
+   "monthly",
+   "yearly"
+  ],
+  "_pricingAbout": "Client Oct 28 2026 pricing: App only $34.95/month or $385/year (includes the first inspector); each additional inspector $24.95/month or $275/year; Pay per report $5.00 (no monthly fee, no yearly option); Portal + App $74.95/month or $825/year, marked comingSoon (Phase 2: inspection business management suite — employees, inspectors, clients, networking, inspections, reports and follow-ups from a computer, with two-way sync): shown but not selectable until Phase 2. Subscribe offers Monthly / Yearly for plans with priceYearly; extra inspectors follow the company's billing period. Only VIMS master admins (support.platformOwners) can edit plans and prices."
  },
  "support": {
   "feedbackEmail": "support@vimsinspect.com",
@@ -32551,7 +32561,8 @@
    "support": "support@vimsinspect.com",
    "quality": "quality@vimsinspect.com"
   },
-  "_domainEmailsAbout": "Client's vimsinspect.com mailboxes (Oct 22 2026): masteradmin + admin = VIMS platform owners (system admins), support = Feedback & support / store contact / privacy contact, quality = report quality copy (BCC)."
+  "_domainEmailsAbout": "Client's vimsinspect.com mailboxes (Oct 22 2026): masteradmin + admin = VIMS platform owners (system admins), support = Feedback & support / store contact / privacy contact, quality = report quality copy (BCC).",
+  "_masterAdminAbout": "Client Oct 28: accounts in platformOwners are 'Master admin' (client's term). They see a clearly labeled 'Master admin' section (side menu + Settings) and a 'Master admin' badge on their account: Plans & pricing (VIMS subscription plans and prices — master admin only, no longer shown to company admins), Report quality copy (BCC), Feedback & support. Company admins keep Manage checklist and Inspectors."
  },
  "sample": {
   "_about": "Demo data used by the prototype; for previews/tests only.",
