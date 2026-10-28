@@ -133,7 +133,11 @@ fun HomeScreen(vm: AppViewModel, nav: NavHostController) {
         actions = listOf(HdrAction(VIcons.plus, "New inspection") { vm.newInspection(nav) }),
         subtitleLeading = { CompanyMark(vm, 18.dp, bordered = false) },
     ) {
-        if (!account.active) {
+        // Client Oct 28: VIMS master admins aren't billed — a neutral line instead of the trial countdown / Subscribe banner.
+        if (vm.session.collectAsState().value?.platformOwner == true) {
+            Text("Master admin · no subscription needed", style = T.ui(13.sp, FontWeight.SemiBold, V.ink2),
+                modifier = Modifier.padding(bottom = 14.dp).fillMaxWidth().clip(RoundedCornerShape(13.dp)).background(V.paper3).padding(horizontal = 16.dp, vertical = 14.dp))
+        } else if (!account.active) {
             Row(
                 Modifier.padding(bottom = 14.dp).fillMaxWidth().clip(RoundedCornerShape(13.dp))
                     .background(Brush.horizontalGradient(listOf(V.brand, V.brandBright))).clickable(role = Role.Button) { nav.navigate(SubscribeR) }
@@ -285,7 +289,8 @@ private fun InspectionRow(vm: AppViewModel, b: InspectionBundle, nav: NavHostCon
 @Composable
 fun TrialSplash(vm: AppViewModel, nav: NavHostController) {
     val show by vm.splash.collectAsState()
-    AnimatedVisibility(show, enter = fadeIn(), exit = fadeOut()) {
+    val owner = vm.session.collectAsState().value?.platformOwner == true
+    AnimatedVisibility(show && !owner, enter = fadeIn(), exit = fadeOut()) {
         BackHandler { vm.closeSplash() }
         val d = vm.trialDaysLeft()
         val ended = !vm.canStartInspection()

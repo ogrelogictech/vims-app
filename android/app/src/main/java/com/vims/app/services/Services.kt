@@ -101,7 +101,10 @@ class LocalAuthService(
         // One free trial per device (client Oct 25): the first company created here starts the device's trial; any later
         // company starts with the trial already used (Subscribe shown). TODO(backend): see [DeviceTrial].
         val today = LocalDate.now().toEpochDay()
-        val trialUsed = deviceTrial?.used == true
+        // Client Oct 28: a VIMS master admin is exempt from the trial / subscription gate, so their company neither consumes the
+        // device's one free trial nor starts as "trial already used". TODO(backend): the server grants the exemption.
+        val masterAdmin = owners.isOwner(e)
+        val trialUsed = !masterAdmin && deviceTrial?.used == true
         val acct = newAccount(config, joinCode(company)).copy(
             inspectors = listOf(Inspector(UUID.randomUUID().toString(), name.trim(), e, owner = true, admin = true)),
             trialStartEpochDay = if (trialUsed) today - config.subscription.trialDays else today,
@@ -116,7 +119,7 @@ class LocalAuthService(
         // TODO(backend): send the EULA acceptance (version + time) to the server.
         val u = newUser(name, e, password, cid, config).copy(eulaVersion = eulaVersion, eulaAcceptedAt = System.currentTimeMillis())
         dao.insertUser(u)
-        if (!trialUsed) deviceTrial?.record(today)
+        if (!trialUsed && !masterAdmin) deviceTrial?.record(today)
         AuthResult.Success(Session(u.name, u.email, Role.OWNER, userId = u.id, companyId = cid, eulaVersion = eulaVersion).withOwner())
     }
 
@@ -202,7 +205,9 @@ fun trialDaysLeft(trialDays: Int, trialStartEpochDay: Long, today: LocalDate = L
  * Whether the company may start NEW inspections (client Oct 25): an active subscription (a cancelled one until the end of its
  * paid period, EULA 12.3) or free-look days left. Existing inspections and their reports stay available either way.
  */
-fun hasAccess(a: AccountState, today: LocalDate = LocalDate.now()): Boolean {
+fun hasAccess(a: AccountState, today: LocalDate = LocalDate.now(), masterAdmin: Boolean = false): Boolean {
+    // Client Oct 28: VIMS master admins (support.platformOwners) can always start inspections. TODO(backend): server-granted.
+    if (masterAdmin) return true
     if (a.active) {
         val end = a.periodEndEpochDay
         if (!a.cancelled || end == null || today.toEpochDay() < end) return true

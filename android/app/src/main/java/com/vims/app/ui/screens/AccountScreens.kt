@@ -205,7 +205,8 @@ fun SubscribeScreen(vm: AppViewModel, nav: NavHostController) {
         Row(Modifier.padding(bottom = 14.dp).fillMaxWidth().clip(RoundedCornerShape(12.dp)).border(1.dp, Color(0xFFC9DEE6), RoundedCornerShape(12.dp)).padding(horizontal = 14.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(11.dp)) {
             Icon(VIcons.clock, null, tint = V.brandDeep, modifier = Modifier.padding(top = 1.dp).size(19.dp))
             Text(
-                if (account.active) rich("**Subscription active.** Change your plan or seats below.", V.bannerBold)
+                if (vm.session.collectAsState().value?.platformOwner == true && !account.active) rich("**Master admin · no subscription needed.** VIMS master admins can always start new inspections; these are the plans companies see.", V.bannerBold)
+                else if (account.active) rich("**Subscription active.** Change your plan or seats below.", V.bannerBold)
                 else if (!vm.canStartInspection()) rich(if (account.trialUsedOnDevice) "**This device's free trial has already been used.** Subscribe to start new inspections." else "**Your free trial has ended.** Subscribe to start new inspections — your saved inspections and reports stay available.", V.bannerBold)
                 else rich("**Free trial — ${vm.trialDaysLeft()} days left.** Set up your subscription now so access continues automatically when the trial ends.", V.bannerBold),
                 style = T.ui(12.5.sp, color = V.brandDeep, lineHeight = 18.sp),
@@ -367,6 +368,18 @@ fun BillingScreen(vm: AppViewModel, nav: NavHostController) {
     val session by vm.session.collectAsState()
     var confirmCancel by rememberSaveable { mutableStateOf(false) }
     val endDate = a.periodEndEpochDay?.let { Fmt.date(LocalDate.ofEpochDay(it)) } ?: "the end of the billing period"
+    // Client Oct 28: VIMS master admins aren't billed (no trial countdown, plan or Subscribe). TODO(backend): server-granted.
+    if (session?.platformOwner == true && !a.active) {
+        VScreen("Subscription", companyName(vm), net(vm), backAction(nav), listOf(homeAction(nav))) {
+            Column(Modifier.padding(bottom = 12.dp).fillMaxWidth().vCard()) {
+                BinfoRow({ Text("Status", style = T.ui(14.sp)) }, { Pill("Master admin", PillKind.Done, dot = false) })
+                BinfoRow("Subscription", "No subscription needed", last = true)
+            }
+            Hint("VIMS master admins can always start new inspections — there is no free trial or subscription on this account.", Modifier.padding(bottom = 12.dp))
+            VBtn("Manage inspectors", { nav.navigate(InspectorsR) }, kind = BtnKind.Ghost, icon = VIcons.usersSmall)
+        }
+        return
+    }
     VScreen("Subscription", companyName(vm), net(vm), backAction(nav), listOf(homeAction(nav))) {
         Column(Modifier.padding(bottom = 12.dp).fillMaxWidth().vCard()) {
             BinfoRow({ Text("Status", style = T.ui(14.sp)) }, {

@@ -188,7 +188,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val splash: StateFlow<Boolean> = _splash.asStateFlow()
     fun closeSplash() { _splash.value = false }
     /** [force]: debug launches (`--ez splash true`) show it also for a subscribed company (QA screenshots). */
-    fun maybeShowSplash(force: Boolean = false) { if (force || !account.value.active) _splash.value = true }
+    fun maybeShowSplash(force: Boolean = false) { if (force || (!account.value.active && !isPlatformOwner)) _splash.value = true }
 
     fun trialDaysLeft(): Int = account.value.let { trialDaysLeft(it.trialDays, it.trialStartEpochDay) }
 
@@ -198,13 +198,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      * every way into a new inspection (Home +, New inspection buttons, side menu, the wizard itself and Build checklist), in
      * every build type — no demo or debug path skips it.
      */
-    fun canStartInspection(): Boolean = com.vims.app.services.hasAccess(account.value)
+    fun canStartInspection(): Boolean = com.vims.app.services.hasAccess(account.value, masterAdmin = isPlatformOwner)
 
     private val _subscribePrompt = MutableStateFlow(false)
     /** The "free trial has ended — Subscribe" dialog (VimsRoot). */
     val subscribePrompt: StateFlow<Boolean> = _subscribePrompt.asStateFlow()
     fun closeSubscribePrompt() { _subscribePrompt.value = false }
-    fun promptSubscribe() { _subscribePrompt.value = true }
+    fun promptSubscribe() { if (!isPlatformOwner) _subscribePrompt.value = true }
 
     /** New inspection: opens the wizard, or the Subscribe prompt when the trial has ended without a subscription. */
     fun newInspection(nav: androidx.navigation.NavHostController) {

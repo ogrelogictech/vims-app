@@ -53,8 +53,11 @@ class AppContainer(private val app: Application) {
         DemoSeed.ensureDemoAccount(db.dao(), repo, ChecklistEngine(config, com.vims.app.data.ChecklistEdits()))
         DemoSeed.ensureDemoLogo(db.dao(), app.filesDir, app.resources)
         // v0.21.0: installs upgraded from earlier builds record their first (non-demo) company's trial start as the device's trial.
+        // v0.22.1: a company owned by a VIMS master admin never counts as the device's trial (master admins are exempt).
+        val owners = com.vims.app.data.PlatformOwners(config.support.platformOwners)
         if (!deviceTrial.used) deviceTrial.backfill(db.dao().allCompanies().filter { it.id != DemoSeed.DEMO_COMPANY_ID }.mapNotNull { c ->
-            runCatching { ChecklistLoader.json.decodeFromString(com.vims.app.data.AccountState.serializer(), c.accountJson).trialStartEpochDay }.getOrNull()
+            runCatching { ChecklistLoader.json.decodeFromString(com.vims.app.data.AccountState.serializer(), c.accountJson) }.getOrNull()
+                ?.takeIf { a -> a.inspectors.none { it.owner && owners.isOwner(it.email) } }?.trialStartEpochDay
         })
         roomRepo.loadPlatform(com.vims.app.data.PlatformSettings(
             feedbackEmail = config.support.feedbackEmail, reportBccOn = config.support.reportBcc.on, reportBccEmail = config.support.reportBcc.email,

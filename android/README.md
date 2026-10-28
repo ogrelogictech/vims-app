@@ -685,3 +685,19 @@ Shared v1.9 (client item 13):
   pricing (master admin) edits monthly and yearly prices (and the additional-inspector rates). Billing stays the local stub
   (`TODO(backend)` Square).
 - Screenshots: `screenshots/oct28-*.png` (phone 1080×2400 and tablet 1600×2560). Test APK: `../../VIMS-Android-test-v0.22.0-2026-10-28.apk`.
+
+## Master admins exempt from trial / subscription (v0.22.1)
+
+- A VIMS master admin's session (`support.platformOwners`) never shows the free-look splash, the trial-ended / "Free look already
+  used on this device" / Subscribe prompts, and can always start new inspections (`hasAccess(…, masterAdmin = true)`; Home +,
+  New inspection, side menu, wizard and Build checklist). Home shows "Master admin · no subscription needed" instead of the trial
+  banner, Settings "Plan & billing" says the same, and Billing shows Status "Master admin" / "No subscription needed" (no plan,
+  no Subscribe) unless the company already has an active subscription. Subscribe stays reachable and says no subscription is needed.
+- A master admin's Create account neither records the device's one free trial nor starts as "trial already used"
+  (`LocalAuthService.createAccount`), and the v0.21.0 upgrade backfill skips companies owned by a master admin. A device trial that
+  an owner company already recorded on v0.21.0 / v0.22.0 stays recorded (it can't be told apart from a deleted real company).
+  `TODO(backend)`: the server grants the exemption with the session's master-admin flag.
+- Non-owners are unchanged. Verified: trial-used device → Create account masteradmin@vimsinspect.com → no prompt, inspection built;
+  a normal company afterwards still gets "Free look already used"; fresh install → owner sign-up leaves `vims_device` empty (also
+  after a relaunch) and the next normal company gets the full 30 days. Screenshots `screenshots/oct28-v0221-*.png`. Test APK:
+  `../../VIMS-Android-test-v0.22.1-2026-10-28.apk`.

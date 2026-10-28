@@ -167,7 +167,7 @@ fun VimsRoot(vm: AppViewModel, debug: DebugLaunch?) {
 
         TrialSplash(vm, nav)
         // Client Oct 25: the free look ended without a subscription — new inspections are blocked behind this prompt.
-        if (vm.subscribePrompt.collectAsState().value) {
+        if (vm.subscribePrompt.collectAsState().value && session?.platformOwner != true) {
             val a = vm.account.collectAsState().value
             com.vims.app.ui.components.ConfirmDialog(
                 if (a.trialUsedOnDevice) "Free trial already used" else "Your free trial has ended",

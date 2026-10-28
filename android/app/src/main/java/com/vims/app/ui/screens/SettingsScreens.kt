@@ -155,7 +155,7 @@ fun SettingsScreen(vm: AppViewModel, nav: NavHostController) {
         }
 
         Lbl("Subscription & licensing")
-        NavRow(VIcons.card, "Plan & billing", "${vm.pricing(vm.platform.collectAsState().value).plan(account).name} · ${if (account.active) subTotalLabel(vm) else "trial"}") { nav.navigate(BillingR) }
+        NavRow(VIcons.card, "Plan & billing", if (session?.platformOwner == true && !account.active) "Master admin · no subscription needed" else "${vm.pricing(vm.platform.collectAsState().value).plan(account).name} · ${if (account.active) subTotalLabel(vm) else "trial"}") { nav.navigate(BillingR) }
         NavRow(VIcons.users, "Inspector accounts", "${account.inspectors.size} inspector${if (account.inspectors.size == 1) "" else "s"}") { nav.navigate(InspectorsR) }
 
         if (admin) {
