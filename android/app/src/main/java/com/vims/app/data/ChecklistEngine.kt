@@ -13,6 +13,19 @@ class ChecklistEngine(val config: ChecklistConfig, val edits: ChecklistEdits) {
         config.sectionGroups.map { g -> g.group to (g.sections + edits.custom.filter { it.group == g.group }.map { it.def.name }) }
     }
 
+    /** Client Oct 28: a section the company added in Manage checklist (not part of the VIMS checklist). */
+    fun isCustom(name: String): Boolean = edits.custom.any { it.def.name == name }
+
+    /** Client Oct 28 ("Edited" tag): a VIMS section whose items the company changed (renamed / added / removed / reordered). */
+    fun isEdited(name: String): Boolean {
+        val shared = config.section(name) ?: return false
+        val o = edits.overrides[shared.name] ?: return false
+        return (o.items != null && o.items != shared.items) || (o.itemsHigh != null && o.itemsHigh != (shared.itemsHigh ?: shared.items))
+    }
+
+    /** Anything to restore: an edited VIMS section or a company-added section. */
+    val hasCompanyEdits: Boolean get() = edits.custom.isNotEmpty() || edits.overrides.keys.any { isEdited(it) }
+
     fun def(name: String): SectionDef? {
         val base = baseName(name)
         edits.custom.firstOrNull { it.def.name == name || it.def.name == base }?.let { return it.def }

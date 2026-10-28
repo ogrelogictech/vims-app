@@ -13,7 +13,45 @@ data class Plan(
     val desc: String = "",
     val unit: String? = null,
     val perReport: Boolean = false,
-)
+    /** Data v1.11 (client Oct 28): yearly price; null = no yearly option (Pay per report). */
+    val priceYearly: Double? = null,
+    /** Data v1.11: shown with a "Coming soon" label but not selectable (Portal + App until Phase 2). */
+    val comingSoon: Boolean = false,
+) {
+    val selectable: Boolean get() = !comingSoon
+    val hasYearly: Boolean get() = priceYearly != null && !perReport
+}
+
+/** Billing period of a company subscription (data v1.11 `subscription.billingPeriods`). */
+object BillingPeriod {
+    const val MONTHLY = "monthly"
+    const val YEARLY = "yearly"
+    fun label(p: String) = if (p == YEARLY) "Yearly" else "Monthly"
+    fun unit(p: String) = if (p == YEARLY) "/yr" else "/mo"
+}
+
+/**
+ * VIMS subscription pricing (data v1.11): platform-level — the same for every company — and edited only by VIMS master admins
+ * (`support.platformOwners`) in Plans & pricing. Defaults come from `subscription` in vims-checklists.json; a master admin's
+ * edits are kept in [PlatformSettings]. TODO(backend): the server owns plans and prices (Square catalog).
+ */
+data class Pricing(val plans: List<Plan>, val extraMonthly: Double, val extraYearly: Double?) {
+    val selectablePlans: List<Plan> get() = plans.filter { it.selectable }
+    /** The company's plan; a deleted or not-yet-selectable plan falls back to the first selectable one. */
+    fun plan(a: AccountState): Plan = plan(a.planId)
+    fun plan(id: String): Plan = plans.firstOrNull { it.id == id } ?: selectablePlans.firstOrNull() ?: plans.firstOrNull() ?: Plan("app", "App", 0.0)
+    /** The period actually billed: yearly only when the company chose it and the plan has a yearly price. */
+    fun period(a: AccountState): String = period(plan(a), a.billingPeriod)
+    fun period(plan: Plan, chosen: String): String = if (chosen == BillingPeriod.YEARLY && plan.hasYearly) BillingPeriod.YEARLY else BillingPeriod.MONTHLY
+    /** Additional inspector rate for a period (follows the company's period; yearly falls back to 12 × monthly when unset). */
+    fun extra(period: String): Double = if (period == BillingPeriod.YEARLY) extraYearly ?: (extraMonthly * 12) else extraMonthly
+    fun price(plan: Plan, period: String): Double = if (period == BillingPeriod.YEARLY) plan.priceYearly ?: plan.price else plan.price
+    /** Plan + additional inspectors for one period (0 for Pay per report). */
+    fun total(plan: Plan, period: String, seats: Int): Double = if (plan.perReport) 0.0 else price(plan, period) + maxOf(0, seats - 1) * extra(period)
+    fun total(a: AccountState): Double = total(plan(a), period(a), a.seatCount)
+    /** "/report", "/mo" or "/yr". */
+    fun unit(plan: Plan, period: String): String = if (plan.perReport) plan.unit ?: "/report" else BillingPeriod.unit(period)
+}
 
 @Serializable
 data class CoverChoice(
@@ -51,7 +89,7 @@ data class Session(
     val userId: String = "",
     /** Owner of the company profile, logo, checklist customizations, plans, inspectors, subscription. */
     val companyId: String = "",
-    /** The VIMS platform owner (not a company role): may edit platform settings — feedback email, report BCC. */
+    /** VIMS master admin / platform owner (not a company role): may edit platform settings — plans & prices, feedback email, report BCC. */
     val platformOwner: Boolean = false,
     /** EULA version this user has accepted (null = never). */
     val eulaVersion: String? = null,
@@ -76,9 +114,13 @@ data class Inspector(
 @Serializable
 data class AccountState(
     val companyCode: String = "",
+    /** Legacy (≤ v0.21.0): a per-company copy of the plans. Not read since v0.22.0 — plans and prices are platform-level ([Pricing]). */
     val plans: List<Plan> = emptyList(),
+    /** Legacy (≤ v0.21.0), not read — see [plans]. */
     val extraInspectorMonthly: Double = 0.0,
     val planId: String = "app",
+    /** Data v1.11: [BillingPeriod.MONTHLY] or [BillingPeriod.YEARLY]; additional inspectors follow it. */
+    val billingPeriod: String = BillingPeriod.MONTHLY,
     val active: Boolean = false,
     val seats: Int = 1,
     val trialDays: Int = 30,
@@ -94,9 +136,8 @@ data class AccountState(
     /** Client Oct 25: created on a device whose one free trial was already used — starts with no trial days (Subscribe shown). */
     val trialUsedOnDevice: Boolean = false,
 ) {
-    /** Next billing date (or, when cancelled, the date access ends). */
-    val periodEndEpochDay: Long? get() = subscribedEpochDay?.let { java.time.LocalDate.ofEpochDay(it).plusMonths(1).toEpochDay() }
-    val plan: Plan get() = plans.firstOrNull { it.id == planId } ?: plans.firstOrNull() ?: Plan("app", "App", 0.0)
+    /** Next billing date (or, when cancelled, the date access ends): one month or one year after the start. */
+    val periodEndEpochDay: Long? get() = subscribedEpochDay?.let { java.time.LocalDate.ofEpochDay(it).let { d -> if (billingPeriod == BillingPeriod.YEARLY) d.plusYears(1) else d.plusMonths(1) }.toEpochDay() }
     val seatCount: Int get() = maxOf(seats, inspectors.size, 1)
     /** The remembered card (subscriptions started before Oct 21 only kept the last 4 — shown as "Card •••• 1234"). */
     val cardOnFile: CardOnFile? get() = card ?: cardLast4?.takeIf { active && it.isNotBlank() }?.let { CardOnFile("Card", it, 0, 0) }
@@ -124,7 +165,14 @@ data class PlatformSettings(
     /** "Report quality copy (BCC)": blind-copy every emailed report (disclosed in the VIMS EULA). */
     val reportBccOn: Boolean = false,
     val reportBccEmail: String = "",
+    /** Data v1.11: VIMS plans as edited by a master admin in Plans & pricing; null = the shipped `subscription.plans`. */
+    val plans: List<Plan>? = null,
+    /** Master-admin edited additional-inspector rates; null = the shipped `subscription.extraInspectorMonthly / Yearly`. */
+    val extraInspectorMonthly: Double? = null,
+    val extraInspectorYearly: Double? = null,
 ) {
+    fun pricing(def: SubscriptionDef): Pricing = Pricing(plans ?: def.plans, extraInspectorMonthly ?: def.extraInspectorMonthly, extraInspectorYearly ?: def.extraInspectorYearly)
+
     /** The BCC address to add to a report email, or null when the setting is off. */
     val activeBcc: String? get() = reportBccEmail.trim().takeIf { reportBccOn && it.isNotEmpty() }
 
@@ -182,6 +230,12 @@ data class AppSettings(
 data class ChecklistEdits(
     val overrides: Map<String, SectionOverride> = emptyMap(),
     val custom: List<CustomSection> = emptyList(),
+    /**
+     * Client Oct 28: VIMS sections whose company edits were removed with Restore original. Inspections started while the edit was
+     * in place keep their saved checklist, so data-added items are never merged into these sections' snapshots
+     * ([ChecklistEngine.mergeAdded] would otherwise put back items the company had removed).
+     */
+    val restored: Set<String> = emptySet(),
 )
 
 @Serializable

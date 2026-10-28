@@ -429,6 +429,10 @@ data class SubscriptionDef(
     val trialDays: Int = 30,
     val plans: List<Plan> = emptyList(),
     val extraInspectorMonthly: Double = 0.0,
+    /** Data v1.11 (client Oct 28): yearly rate per additional inspector. */
+    val extraInspectorYearly: Double? = null,
+    /** Data v1.11: billing periods offered on Subscribe ("monthly", "yearly"). */
+    val billingPeriods: List<String> = listOf("monthly"),
 )
 
 @Serializable

@@ -5,6 +5,11 @@ import android.app.TimePickerDialog
 import android.content.Context
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.vims.app.ui.AppViewModel
 import com.vims.app.ui.back
@@ -71,3 +76,19 @@ fun SignOutDialog(vm: AppViewModel, nav: NavHostController, onDismiss: () -> Uni
         onConfirm = { onDismiss(); vm.signOut { nav.navigate(com.vims.app.ui.LoginR) { popUpTo(0) { inclusive = true } } } }, onDismiss = onDismiss,
     )
 }
+
+/**
+ * Client Oct 28: "Master admin" badge for VIMS platform owners (`support.platformOwners`) — account card in Settings and the
+ * side-menu header. Amber with dark text: readable on the white card and on the blue header.
+ */
+@Composable
+fun MasterAdminBadge(modifier: androidx.compose.ui.Modifier = androidx.compose.ui.Modifier) {
+    androidx.compose.material3.Text(
+        "Master admin",
+        style = com.vims.app.ui.theme.T.ui(11.5.sp, androidx.compose.ui.text.font.FontWeight.Bold, MASTER_INK),
+        modifier = modifier.clip(androidx.compose.foundation.shape.RoundedCornerShape(20.dp)).background(MASTER_BG).padding(horizontal = 9.dp, vertical = 3.dp),
+    )
+}
+
+private val MASTER_BG = androidx.compose.ui.graphics.Color(0xFFF6D27A)
+private val MASTER_INK = androidx.compose.ui.graphics.Color(0xFF3A2A00)

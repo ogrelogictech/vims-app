@@ -149,9 +149,9 @@ class RoomRepository(
         val photos = dao.photosFor(user.id).groupBy { it.inspectionId }
         val findings = dao.findingsFor(user.id).groupBy { it.inspectionId }
         val migrated = mutableListOf<Inspection>()
-        // Sections the company admin edited (Manage checklist) or added never get data-added items merged in (admin edits apply
-        // to new inspections only).
-        val noMerge = dec(ChecklistEdits.serializer(), co.editsJson, ChecklistEdits()).let { ed -> ed.overrides.keys + ed.custom.map { it.def.name } }
+        // Sections the company admin edited (Manage checklist), added, or edited and later restored (client Oct 28) never get
+        // data-added items merged in (admin edits apply to new inspections only; started inspections keep their checklist).
+        val noMerge = dec(ChecklistEdits.serializer(), co.editsJson, ChecklistEdits()).let { ed -> ed.overrides.keys + ed.custom.map { it.def.name } + ed.restored }
         val bundles = ins.mapNotNull { e ->
             var insp = try { json.decodeFromString(Inspection.serializer(), e.json) } catch (_: Exception) { return@mapNotNull null }
             // Client Oct 17: covers saved with the old "Solid" category become style Solid + No picture (written back below).
@@ -179,6 +179,7 @@ class RoomRepository(
         _memberPhotos.value = dao.usersInCompany(co.id).mapNotNull { u -> u.photoFile?.let { u.email.lowercase() to it } }.toMap()
         _session.value = session
         if (persist) dao.putKv(KvEntity(KEY_SESSION, enc(Session.serializer(), session)))
+        if (com.vims.app.BuildConfig.DEBUG) android.util.Log.i("VIMS-Session", "activate ${session.email} role=${session.role} masterAdmin=${session.platformOwner}")
     }
 
     private fun clearMemory() {
@@ -345,7 +346,9 @@ class RoomRepository(
  * VIMS platform owners (system admins) = `support.platformOwners` in vims-checklists.json (data v1.5), matched
  * case-insensitively on the trimmed email. Several addresses are allowed so there are always at least two system admins.
  * No password is stored or seeded for them: the owner creates an account / signs in with that email and their own
- * password, and gets the VIMS owner settings (Report quality copy, Feedback & support).
+ * password, and is a "Master admin" (client Oct 28): a Master admin section in the side menu and Settings with Plans &
+ * pricing, Report quality copy (BCC) and Feedback & support, plus a Master admin badge. Only the exact addresses count —
+ * another domain (masteradmin@vimsinspection.com) is not an owner.
  * TODO(backend): the server owns this list and sends the flag with the session.
  */
 class PlatformOwners(emails: List<String>) {

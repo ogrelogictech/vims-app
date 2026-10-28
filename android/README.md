@@ -201,8 +201,8 @@ bottom of Settings for developers.
 
 ### Home side menu
 The Home hamburger opens a left drawer (user photo or initials, user name, email, company with logo badge; Inspections, New inspection,
-Settings, Company profile, How VIMS works, Help & feedback; admin-only Manage checklist, Plans & pricing, Inspectors;
-Sign out at the bottom). The company logo also shows in the Home header, Company profile, and the
+Settings, Company profile, How VIMS works, Help & feedback; admin-only Manage checklist, Inspectors; a **Master admin** group
+(Plans & pricing, Report quality copy (BCC), Feedback & support) for VIMS master admins only (v0.22.0); Sign out at the bottom). The company logo also shows in the Home header, Company profile, and the
 PDF cover + page headers; without a logo an initials badge is used everywhere.
 
 ## State & insurance forms (Texas TREC, 4 Point) — data v1.1
@@ -649,3 +649,39 @@ Shared v1.9 (client item 13):
 - **Inspection agreement** 2026-10-25 (final): "☐ Wind Mitigation Inspection $____" on the Boiler System line; agent name and agent
   email on separate lines. Companies with an edited or uploaded agreement keep theirs (the locked form block is always the VIMS one).
 - Screenshots: `screenshots/oct25-*.png` (phone 1080×2400 and tablet 1600×2560). Test APK: `../../VIMS-Android-test-v0.21.0-2026-10-25.apk`.
+
+## Client Oct 28 + shared v1.11.0 (v0.22.0)
+
+- **Master admin** (`support.platformOwners`: masteradmin@ and admin@vimsinspect.com, trimmed + case-insensitive, exact addresses
+  only — masteradmin@vimsinspection.com is not one): a clearly labeled **Master admin** group in the side menu and a **Master admin**
+  section in Settings (Plans & pricing, Report quality copy (BCC), Feedback & support), plus a **Master admin** badge on the
+  Settings account card and the side-menu header. Company admins keep Manage checklist and Inspectors; Plans & pricing is gone from
+  the company Admin group and the screen itself shows "Only a VIMS master admin…" to anyone else (like the other owner screens).
+  - What was wrong on Android: the owner flag *was* set (checked on v0.21.0: a fresh masteradmin sign-up got it), but the owner
+    tools were two unlabeled rows inside the company "Admin" group of Settings — nothing in the side menu, no badge — so a master
+    admin looked exactly like any company admin; and **Plans & pricing was company data** (`AccountState.plans` in the companies
+    row): every company admin could edit it, and a master admin's edits only changed his own company's prices.
+  - Plans and prices are now **platform-level** (`PlatformSettings.plans` / `extraInspectorMonthly` / `extraInspectorYearly` in the
+    `kv` table, null = the shipped `subscription` defaults; `Pricing`): one set for every company, written only by a master admin
+    (`updatePlatform` ignores anyone else). The legacy per-company copy in `AccountState.plans` is no longer read, so upgraded
+    companies get the v1.11 prices. `TODO(backend)`: the server owns plans and prices.
+  - The flag is set by `LocalAuthService` on every session it hands out (Create account, Sign in, Join company) and re-checked by
+    `RoomRepository.activate` (also session restore at launch); debug builds log `VIMS-Session: activate … masterAdmin=…`.
+    Verified: v0.21.0 sign-up → upgrade → restored session is master admin; Create account " Masteradmin@VIMSInspect.com ";
+    Sign in "MasterAdmin@VIMSINSPECT.COM"; Join company " Admin@VimsInspect.COM " (plain inspector + master admin).
+- **Restore checklist to original** (Manage checklist, company admins): edited VIMS sections show an **Edited** tag and
+  company-added ones **Added**; Edit section has **Restore original** (or **Remove section** for an added one) and Manage checklist
+  ends with **Restore entire checklist to original** — each with a confirmation saying it removes the company's changes. Restoring
+  drops the company's overrides / added sections and the VIMS default from the shared JSON is used again for new inspections.
+  Inspections already started keep their saved checklist; restored sections are remembered (`ChecklistEdits.restored`) so the
+  data-added-items merge never puts back an item the company had removed into a started inspection. Saving a section unchanged no
+  longer counts as an edit.
+- **Pricing (data v1.11):** App only $34.95/mo or $385/yr; additional inspector $24.95/mo or $275/yr; Pay per report $5 (no
+  yearly); Portal + App $74.95/mo or $825/yr with `comingSoon` → "Coming soon" label, dimmed, not selectable. New optional keys
+  `priceYearly`, `comingSoon`, `extraInspectorYearly`, `billingPeriods` decode with defaults; `AccountState.billingPeriod`
+  (default monthly). Subscribe: **Monthly / Yearly** toggle, prices and totals per period ("Yearly total $660.00/yr"), extra
+  inspectors at the company's period; the plan / period choice is saved with Start / Update subscription. Confirmation, Billing
+  ("Billing period", "Yearly total", next billing a year out), Settings "Plan & billing" and Inspectors show the period. Plans &
+  pricing (master admin) edits monthly and yearly prices (and the additional-inspector rates). Billing stays the local stub
+  (`TODO(backend)` Square).
+- Screenshots: `screenshots/oct28-*.png` (phone 1080×2400 and tablet 1600×2560). Test APK: `../../VIMS-Android-test-v0.22.0-2026-10-28.apk`.

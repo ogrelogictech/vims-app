@@ -188,6 +188,7 @@ private fun HomeMenu(vm: AppViewModel, nav: NavHostController, close: () -> Unit
             Spacer(Modifier.height(12.dp))
             Text(session?.name.orEmpty(), style = T.display(16.sp, FontWeight.Bold, Color.White), maxLines = 2)
             Text(session?.email.orEmpty(), style = T.ui(12.sp, color = V.hdrSub), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (session?.platformOwner == true) MasterAdminBadge(Modifier.padding(top = 7.dp))
             Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 CompanyMark(vm, 20.dp, bordered = false)
                 Text(companyName(vm), style = T.ui(12.5.sp, FontWeight.SemiBold, V.hdrSub), maxLines = 2)
@@ -208,8 +209,14 @@ private fun HomeMenu(vm: AppViewModel, nav: NavHostController, close: () -> Unit
             if (admin) {
                 Text("ADMIN", style = T.mono(10.5.sp, color = V.ink3, letterSpacing = 0.12.em), modifier = Modifier.padding(start = 12.dp, top = 16.dp, bottom = 6.dp))
                 MenuRow(VIcons.pencil, "Manage checklist") { go(AdminR) }
-                MenuRow(VIcons.dollar, "Plans & pricing") { go(PlansR) }
                 MenuRow(VIcons.users, "Inspectors") { go(InspectorsR) }
+            }
+            // Client Oct 28: VIMS master admins (support.platformOwners) — platform settings, not company settings.
+            if (session?.platformOwner == true) {
+                Text("MASTER ADMIN", style = T.mono(10.5.sp, color = V.ink3, letterSpacing = 0.12.em), modifier = Modifier.padding(start = 12.dp, top = 16.dp, bottom = 6.dp))
+                MenuRow(VIcons.dollar, "Plans & pricing") { go(PlansR) }
+                MenuRow(VIcons.mailPlus, "Report quality copy (BCC)") { go(com.vims.app.ui.ReportBccR) }
+                MenuRow(VIcons.mail, "Feedback & support") { go(com.vims.app.ui.FeedbackAdminR) }
             }
         }
         Box(Modifier.fillMaxWidth().height(1.dp).background(V.line))

@@ -127,6 +127,7 @@ fun SettingsScreen(vm: AppViewModel, nav: NavHostController) {
                     Text(session?.name ?: "Signed out", style = T.ui(15.sp, FontWeight.Bold))
                     Text(session?.email.orEmpty(), style = T.ui(12.5.sp, color = V.ink3), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(listOfNotNull(company.name.ifBlank { null }, if (session?.isAdmin == false) "Inspector" else null).joinToString(" · "), style = T.ui(12.5.sp, FontWeight.SemiBold, V.ink2), modifier = Modifier.padding(top = 2.dp))
+                    if (session?.platformOwner == true) MasterAdminBadge(Modifier.padding(top = 6.dp))
                 }
             }
         }
@@ -154,20 +155,21 @@ fun SettingsScreen(vm: AppViewModel, nav: NavHostController) {
         }
 
         Lbl("Subscription & licensing")
-        NavRow(VIcons.card, "Plan & billing", "${account.plan.name} · ${if (account.active) subTotalLabel(vm) else "trial"}") { nav.navigate(BillingR) }
+        NavRow(VIcons.card, "Plan & billing", "${vm.pricing(vm.platform.collectAsState().value).plan(account).name} · ${if (account.active) subTotalLabel(vm) else "trial"}") { nav.navigate(BillingR) }
         NavRow(VIcons.users, "Inspector accounts", "${account.inspectors.size} inspector${if (account.inspectors.size == 1) "" else "s"}") { nav.navigate(InspectorsR) }
 
         if (admin) {
             Lbl("Admin")
             NavRow(VIcons.pencil, "Manage checklist", "Add & edit sections and items") { nav.navigate(AdminR) }
-            NavRow(VIcons.dollar, "Plans & pricing", "Edit subscription plans & prices") { nav.navigate(PlansR) }
         }
-        // VIMS platform-owner settings (not per company): only the platform owner sees these.
-        if (vm.isPlatformOwner) {
-            if (!admin) Lbl("Admin")
-            NavRow(VIcons.mail, "Feedback & support", "Change the feedback contact email") { nav.navigate(FeedbackAdminR) }
+        // Client Oct 28 — VIMS master admin (support.platformOwners): platform settings for every company, never per company.
+        if (session?.platformOwner == true) {
+            Lbl("Master admin")
+            Text("VIMS platform settings — they apply to every company.", style = T.ui(12.sp, color = V.ink3), modifier = Modifier.padding(start = 2.dp, bottom = 10.dp))
+            NavRow(VIcons.dollar, "Plans & pricing", "VIMS plans · monthly & yearly prices") { nav.navigate(PlansR) }
             val p = vm.platform.collectAsState().value
             NavRow(VIcons.mailPlus, "Report quality copy (BCC)", p.activeBcc?.let { "On · $it" } ?: "Off") { nav.navigate(ReportBccR) }
+            NavRow(VIcons.mail, "Feedback & support", "Change the feedback contact email") { nav.navigate(FeedbackAdminR) }
         }
 
         Lbl("Help & feedback")
@@ -201,9 +203,12 @@ fun SettingsScreen(vm: AppViewModel, nav: NavHostController) {
     }
 }
 
+/** "$34.95/mo", "$385.00/yr" or "$5.00 / report" for the company's plan and billing period. */
 fun subTotalLabel(vm: AppViewModel): String {
     val a = vm.account.value
-    return if (a.plan.perReport) "${Fmt.money(a.plan.price)} / report" else "${Fmt.money(vm.monthlyTotal(a))}/mo"
+    val pr = vm.pricing()
+    val plan = pr.plan(a)
+    return if (plan.perReport) "${Fmt.money(plan.price)} / report" else "${Fmt.money(pr.total(a))}${com.vims.app.data.BillingPeriod.unit(pr.period(a))}"
 }
 
 @Composable
@@ -400,11 +405,11 @@ private fun HowCard(icon: ImageVector, title: String, body: String) {
 
 @Composable
 fun FeedbackAdminScreen(vm: AppViewModel, nav: NavHostController) {
-    if (!vm.isPlatformOwner) { OwnerOnly(vm, nav, "Feedback & support"); return }
+    if (vm.session.collectAsState().value?.platformOwner != true) { OwnerOnly(vm, nav, "Feedback & support"); return }
     val platform by vm.platform.collectAsState()
     var email by rememberSaveable(platform.feedbackEmail) { mutableStateOf(platform.feedbackEmail) }
     VScreen("Feedback & support", companyName(vm), net(vm), backAction(nav), listOf(homeAction(nav))) {
-        Hint("Owner admin — set the email address that receives help & feedback messages sent from the app.", Modifier.padding(top = 2.dp, bottom = 14.dp))
+        Hint("Master admin — set the email address that receives help & feedback messages sent from the app.", Modifier.padding(top = 2.dp, bottom = 14.dp))
         val form = rememberForm()
         val err = form.check("email", email) { Checks.email(email) }
         VField("Feedback contact email", email, { email = it }, Modifier.formField(form, "email"), keyboard = KeyboardType.Email, error = err, required = true)
@@ -416,7 +421,7 @@ fun FeedbackAdminScreen(vm: AppViewModel, nav: NavHostController) {
 @Composable
 fun OwnerOnly(vm: AppViewModel, nav: NavHostController, title: String) {
     VScreen(title, companyName(vm), net(vm), backAction(nav), listOf(homeAction(nav))) {
-        Hint("Only the VIMS platform owner can view or change this setting.", Modifier.padding(top = 2.dp))
+        Hint("Only a VIMS master admin can view or change this setting.", Modifier.padding(top = 2.dp))
     }
 }
 
@@ -426,14 +431,14 @@ fun OwnerOnly(vm: AppViewModel, nav: NavHostController, title: String) {
  */
 @Composable
 fun ReportBccScreen(vm: AppViewModel, nav: NavHostController) {
-    if (!vm.isPlatformOwner) { OwnerOnly(vm, nav, "Report quality copy"); return }
+    if (vm.session.collectAsState().value?.platformOwner != true) { OwnerOnly(vm, nav, "Report quality copy"); return }
     val platform by vm.platform.collectAsState()
     var on by rememberSaveable(platform.reportBccOn) { mutableStateOf(platform.reportBccOn) }
     var email by rememberSaveable(platform.reportBccEmail) { mutableStateOf(platform.reportBccEmail) }
     val form = rememberForm()
     val err = form.check("email", email) { if (on || email.isNotBlank()) Checks.email(email) else null }
     VScreen("Report quality copy", companyName(vm), net(vm), backAction(nav), listOf(homeAction(nav))) {
-        Hint("Owner admin — every inspection report emailed from the app is also sent as a **blind carbon copy (BCC)** to this address, so report quality can be reviewed. Clients and agents don’t see this address. Disclosed in the VIMS EULA.",
+        Hint("Master admin — every inspection report emailed from the app is also sent as a **blind carbon copy (BCC)** to this address, so report quality can be reviewed. Clients and agents don’t see this address. Disclosed in the VIMS EULA.",
             Modifier.padding(top = 2.dp, bottom = 14.dp))
         Row(Modifier.padding(bottom = 14.dp).fillMaxWidth().vCard(12.dp).padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("BCC every emailed report", style = T.ui(14.5.sp, FontWeight.Bold), modifier = Modifier.weight(1f))

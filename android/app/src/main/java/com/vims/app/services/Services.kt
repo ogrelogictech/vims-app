@@ -49,7 +49,7 @@ interface SubscriptionService {
      * Card details go straight to Square's tokenizer in production; the app never stores the card number.
      * [cardNumber] null = charge the card on file (TODO(backend): Square Cards API card id).
      */
-    suspend fun startSubscription(plan: Plan, seats: Int, cardNumber: String?): SubscriptionResult
+    suspend fun startSubscription(plan: Plan, period: String, seats: Int, cardNumber: String?): SubscriptionResult
     /** Stops renewal at the end of the current period (no refunds / proration — EULA 12.3). */
     suspend fun cancelSubscription(): Boolean
     suspend fun resumeSubscription(): Boolean
@@ -66,8 +66,18 @@ interface SyncService {
  * Local stub: a users table (UUID id, unique lowercased email, name, companyId, salted PBKDF2 hash) and a companies table.
  * Create account = new user + new company (owner). Join with code = new user attached to that company.
  */
-class LocalAuthService(private val dao: VimsDao, private val config: ChecklistConfig, private val deviceTrial: DeviceTrial? = null) : AuthService {
+class LocalAuthService(
+    private val dao: VimsDao, private val config: ChecklistConfig, private val deviceTrial: DeviceTrial? = null,
+    private val owners: com.vims.app.data.PlatformOwners = com.vims.app.data.PlatformOwners(config.support.platformOwners),
+) : AuthService {
     private val json = ChecklistLoader.json
+
+    /**
+     * Client Oct 28: every session the auth service hands out already carries the master-admin flag (matched on the stored,
+     * trimmed + lowercased email), so no path — Create account, Sign in, Join company — depends on a later step to add it.
+     * The repository re-checks it on every activate / session restore. TODO(backend): the server sends the flag.
+     */
+    private fun Session.withOwner() = copy(platformOwner = owners.isOwner(email))
 
     private fun roleFor(email: String, account: AccountState): Role {
         val ins = account.inspectors.firstOrNull { it.email.equals(email, ignoreCase = true) }
@@ -81,7 +91,7 @@ class LocalAuthService(private val dao: VimsDao, private val config: ChecklistCo
         val u = dao.userByEmail(e) ?: return@withContext AuthResult.Error("No account found for that email. Check it, or create an account / join a company with a code.", "email")
         if (!PasswordHasher.verify(password, u.salt, u.passwordHash)) return@withContext AuthResult.Error("Incorrect password. Try again or tap Forgot password.", "password")
         val c = dao.company(u.companyId) ?: return@withContext AuthResult.Error("This account's company is missing on this device.")
-        AuthResult.Success(Session(u.name, u.email, roleFor(u.email, account(c)), userId = u.id, companyId = c.id))
+        AuthResult.Success(Session(u.name, u.email, roleFor(u.email, account(c)), userId = u.id, companyId = c.id).withOwner())
     }
 
     override suspend fun createAccount(name: String, company: String, email: String, password: String, eulaVersion: String): AuthResult = withContext(Dispatchers.IO) {
@@ -107,7 +117,7 @@ class LocalAuthService(private val dao: VimsDao, private val config: ChecklistCo
         val u = newUser(name, e, password, cid, config).copy(eulaVersion = eulaVersion, eulaAcceptedAt = System.currentTimeMillis())
         dao.insertUser(u)
         if (!trialUsed) deviceTrial?.record(today)
-        AuthResult.Success(Session(u.name, u.email, Role.OWNER, userId = u.id, companyId = cid, eulaVersion = eulaVersion))
+        AuthResult.Success(Session(u.name, u.email, Role.OWNER, userId = u.id, companyId = cid, eulaVersion = eulaVersion).withOwner())
     }
 
     override suspend fun joinCompany(name: String, email: String, code: String, password: String, eulaVersion: String): AuthResult = withContext(Dispatchers.IO) {
@@ -121,7 +131,7 @@ class LocalAuthService(private val dao: VimsDao, private val config: ChecklistCo
             acct = acct.copy(inspectors = acct.inspectors + Inspector(UUID.randomUUID().toString(), name.trim(), e), seats = maxOf(acct.seats, acct.inspectors.size + 1))
             dao.updateCompanyAccount(c.id, json.encodeToString(AccountState.serializer(), acct))
         }
-        AuthResult.Success(Session(u.name, u.email, roleFor(e, acct), userId = u.id, companyId = c.id))
+        AuthResult.Success(Session(u.name, u.email, roleFor(e, acct), userId = u.id, companyId = c.id).withOwner())
     }
 
     override suspend fun companyExists(code: String): Boolean = withContext(Dispatchers.IO) { dao.companyByCode(normalizeCode(code)) != null }
@@ -145,8 +155,8 @@ class LocalAuthService(private val dao: VimsDao, private val config: ChecklistCo
 
     companion object {
         fun newAccount(config: ChecklistConfig, code: String) = AccountState(
-            companyCode = code, plans = config.subscription.plans, extraInspectorMonthly = config.subscription.extraInspectorMonthly,
-            planId = config.subscription.plans.firstOrNull()?.id ?: "app", trialDays = config.subscription.trialDays,
+            // Plans and prices are platform-level since v0.22.0 (Pricing); the company only keeps its choice.
+            companyCode = code, planId = config.subscription.plans.firstOrNull { !it.comingSoon }?.id ?: "app", trialDays = config.subscription.trialDays,
             trialStartEpochDay = LocalDate.now().toEpochDay(), feedbackEmail = config.support.feedbackEmail, seats = 1,
         )
 
@@ -162,7 +172,8 @@ class LocalAuthService(private val dao: VimsDao, private val config: ChecklistCo
 // TODO(backend): Laravel API + Square Subscriptions API. Replace the raw card fields with the Square
 // In-App Payments SDK card entry (tokenized nonce); never send or persist the card number.
 class LocalSubscriptionService : SubscriptionService {
-    override suspend fun startSubscription(plan: Plan, seats: Int, cardNumber: String?): SubscriptionResult {
+    // [period] = "monthly" / "yearly" (data v1.11). TODO(backend): Square subscription plan variation per period.
+    override suspend fun startSubscription(plan: Plan, period: String, seats: Int, cardNumber: String?): SubscriptionResult {
         if (cardNumber == null) return SubscriptionResult(ok = true) // card on file
         val digits = cardNumber.filter { it.isDigit() }
         return SubscriptionResult(ok = true, cardLast4 = if (digits.length >= 4) digits.takeLast(4) else "4242")

@@ -105,7 +105,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun resumeSubscription() = viewModelScope.launch {
         if (container.subscriptions.resumeSubscription()) { repo.updateAccount { it.copy(cancelled = false) }; toast("Cancellation undone — auto-pay continues") }
     }
+    /** VIMS master admin (`support.platformOwners`, client Oct 28) — composables read `session.platformOwner` from collected state. */
     val isPlatformOwner: Boolean get() = session.value?.platformOwner == true
+
+    /** VIMS plans and prices (platform-level, data v1.11): the shipped defaults or a master admin's edits. */
+    fun pricing(p: com.vims.app.data.PlatformSettings = platform.value): com.vims.app.data.Pricing = p.pricing(config.subscription)
 
     /** Owner-only: Report quality copy (BCC). The address is validated by the screen. */
     fun saveReportBcc(on: Boolean, email: String) {
@@ -721,16 +725,41 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     // Checklist admin -------------------------------------------------------
 
     fun saveSectionItems(name: String, high: Boolean, items: List<ItemDef>) {
+        if (!isAdmin) return
         val eng = engine.value
         val custom = repo.edits.value.custom.firstOrNull { it.def.name == name }
+        val shared = config.section(name)
         repo.updateEdits { e ->
             if (custom != null) e.copy(custom = e.custom.map { if (it.def.name == name) it.copy(def = if (high) it.def.copy(itemsHigh = items) else it.def.copy(items = items)) else it })
             else {
                 val o = e.overrides[name] ?: SectionOverride()
-                e.copy(overrides = e.overrides + (name to if (high) o.copy(itemsHigh = items) else o.copy(items = items)))
+                // Saving the VIMS items unchanged is not an edit (no "Edited" tag): that tier's override is dropped.
+                val n = if (high) o.copy(itemsHigh = items.takeIf { it != shared?.itemsHigh && !(shared?.itemsHigh == null && it == shared?.items) })
+                        else o.copy(items = items.takeIf { it != shared?.items })
+                e.copy(overrides = if (n.items == null && n.itemsHigh == null) e.overrides - name else e.overrides + (name to n))
             }
         }
         if (eng.def(name) != null) toast("Checklist updated")
+    }
+
+    /**
+     * Client Oct 28 — Manage checklist → Restore original (company admins). A VIMS section loses the company's item edits and
+     * goes back to the VIMS default from the shared JSON; a section the company added is removed. Inspections already started
+     * keep the checklist saved with them (their snapshot); only new inspections use the restored version.
+     */
+    fun restoreSection(name: String) {
+        if (!isAdmin) return
+        val custom = repo.edits.value.custom.any { it.def.name == name }
+        repo.updateEdits { e -> e.copy(overrides = e.overrides - name, custom = e.custom.filterNot { it.def.name == name },
+            restored = if (name in e.overrides) e.restored + name else e.restored) }
+        toast(if (custom) "Removed “${com.vims.app.data.sectionTitle(name)}”" else "“${com.vims.app.data.sectionTitle(name)}” restored to the VIMS original")
+    }
+
+    /** Restore entire checklist to original: every item edit and every added section of the company is removed. */
+    fun restoreChecklist() {
+        if (!isAdmin) return
+        repo.updateEdits { e -> ChecklistEdits(restored = e.restored + e.overrides.keys) }
+        toast("Checklist restored to the VIMS original")
     }
 
     fun addCustomSection(name: String, group: String): Boolean {
@@ -746,27 +775,33 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     // Subscription / inspectors / plans -------------------------------------
 
-    fun selectPlan(planId: String) = repo.updateAccount { it.copy(planId = planId) }
     fun setSeats(n: Int) = repo.updateAccount { it.copy(seats = n.coerceAtMost(com.vims.app.util.Limits.SEATS_MAX).coerceAtLeast(maxOf(1, it.inspectors.size))) }
 
-    fun monthlyTotal(a: AccountState = account.value): Double = if (a.plan.perReport) 0.0 else a.plan.price + maxOf(0, a.seatCount - 1) * a.extraInspectorMonthly
+    /** One billing period's total (plan + additional inspectors at the company's period); 0 for Pay per report. */
+    fun periodTotal(a: AccountState = account.value): Double = pricing().total(a)
 
     /**
      * Start / update the subscription. [cardNumber] + [expiry] ("MMYY") are a new card; null = keep the card on file.
      * Only the card's brand, last 4 and expiry are kept (a stand-in for Square's card-on-file id) — never the number or CVC.
      */
-    fun startSubscription(cardNumber: String?, expiry: String?, onOk: () -> Unit) = viewModelScope.launch {
+    fun startSubscription(planId: String, period: String, cardNumber: String?, expiry: String?, onOk: () -> Unit) = viewModelScope.launch {
         val a = account.value
         val onFile = a.cardOnFile
         if (cardNumber == null && onFile == null) { toast("Add a card"); return@launch }
-        val r = container.subscriptions.startSubscription(a.plan, a.seatCount, cardNumber)
+        val pricing = pricing()
+        val plan = pricing.plan(planId)
+        if (!plan.selectable) { toast("${plan.name} is coming soon — choose another plan"); return@launch }
+        val billed = pricing.period(plan, period)
+        val r = container.subscriptions.startSubscription(plan, billed, a.seatCount, cardNumber)
         if (r.ok) {
             val card = if (cardNumber != null) com.vims.app.data.CardOnFile(
                 brand = com.vims.app.util.CardBrand.of(cardNumber.filter { it.isDigit() }).label.ifEmpty { "Card" },
                 last4 = r.cardLast4 ?: cardNumber.filter { it.isDigit() }.takeLast(4), expMonth = expiry.orEmpty().take(2).toIntOrNull() ?: 0,
                 expYear = expiry.orEmpty().drop(2).take(2).toIntOrNull()?.plus(2000) ?: 0, squareCardId = r.cardId,
             ) else onFile
-            repo.updateAccount { it.copy(active = true, cancelled = false, cardLast4 = card?.last4, card = card, subscribedEpochDay = if (it.active) it.subscribedEpochDay else LocalDate.now().toEpochDay()) }
+            // A new period (monthly ↔ yearly) starts a new billing cycle today. TODO(backend): Square proration / plan change rules.
+            repo.updateAccount { it.copy(planId = plan.id, billingPeriod = billed, active = true, cancelled = false, cardLast4 = card?.last4, card = card,
+                subscribedEpochDay = if (it.active && it.billingPeriod == billed) it.subscribedEpochDay else LocalDate.now().toEpochDay()) }
             onOk()
         } else toast(r.message ?: "Payment failed")
     }
@@ -774,7 +809,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun addInspector(name: String, email: String): Boolean {
         if (name.isBlank()) { toast("Enter a name"); return false }
         repo.updateAccount { it.copy(inspectors = it.inspectors + Inspector(UUID.randomUUID().toString(), name.trim(), email.trim()), seats = maxOf(it.seats, it.inspectors.size + 1)) }
-        toast("Inspector added · +${com.vims.app.util.Fmt.money(account.value.extraInspectorMonthly)}/mo")
+        val period = pricing().period(account.value)
+        toast("Inspector added · +${com.vims.app.util.Fmt.money(pricing().extra(period))}${com.vims.app.data.BillingPeriod.unit(period)}")
         return true
     }
 
@@ -796,29 +832,52 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         toast(if (!ins.admin) "${ins.name} is now an admin" else "${ins.name} is no longer an admin")
     }
 
-    fun setPlanPrice(planId: String, price: Double) {
-        repo.updateAccount { a -> a.copy(plans = a.plans.map { if (it.id == planId) it.copy(price = price) else it }) }
-        account.value.plans.firstOrNull { it.id == planId }?.let { toast("${it.name} → ${com.vims.app.util.Fmt.money(price)}") }
+    /* Plans & pricing — VIMS master admins only (client Oct 28). Platform-level: one set of plans for every company. */
+
+    private fun editPlans(f: (List<Plan>) -> List<Plan>) {
+        if (!isPlatformOwner) return
+        repo.updatePlatform { p -> p.copy(plans = f(p.pricing(config.subscription).plans)) }
     }
 
-    /** Plans & pricing → Delete (confirmed on screen). The last plan can't be deleted; a deleted selected plan falls back to the first left. */
+    fun setPlanPrice(planId: String, price: Double) {
+        if (!isPlatformOwner) return
+        editPlans { l -> l.map { if (it.id == planId) it.copy(price = price) else it } }
+        pricing().plans.firstOrNull { it.id == planId }?.let { toast("${it.name} → ${com.vims.app.util.Fmt.money(price)}${it.unit ?: "/mo"}") }
+    }
+
+    fun setPlanYearly(planId: String, price: Double) {
+        if (!isPlatformOwner) return
+        editPlans { l -> l.map { if (it.id == planId) it.copy(priceYearly = price) else it } }
+        pricing().plans.firstOrNull { it.id == planId }?.let { toast("${it.name} → ${com.vims.app.util.Fmt.money(price)}/yr") }
+    }
+
+    /** Plans & pricing → Delete (confirmed on screen). The last plan can't be deleted; companies on it fall back to the first plan left. */
     fun deletePlan(planId: String) {
-        val plan = account.value.plans.firstOrNull { it.id == planId } ?: return
-        if (account.value.plans.size <= 1) { toast("Keep at least one plan"); return }
-        repo.updateAccount { a ->
-            val left = a.plans.filterNot { it.id == planId }
-            a.copy(plans = left, planId = if (a.planId == planId) left.first().id else a.planId)
-        }
+        if (!isPlatformOwner) return
+        val plans = pricing().plans
+        val plan = plans.firstOrNull { it.id == planId } ?: return
+        if (plans.size <= 1) { toast("Keep at least one plan"); return }
+        editPlans { l -> l.filterNot { it.id == planId } }
         toast("Deleted “${plan.name}”")
     }
 
-    fun setExtraRate(v: Double) { repo.updateAccount { it.copy(extraInspectorMonthly = v) }; toast("Extra inspector → ${com.vims.app.util.Fmt.money(v)}") }
+    fun setExtraRate(v: Double) {
+        if (!isPlatformOwner) return
+        repo.updatePlatform { it.copy(extraInspectorMonthly = v) }; toast("Additional inspector → ${com.vims.app.util.Fmt.money(v)}/mo")
+    }
 
-    fun addPlan(name: String, price: String, desc: String): Boolean {
+    fun setExtraYearly(v: Double) {
+        if (!isPlatformOwner) return
+        repo.updatePlatform { it.copy(extraInspectorYearly = v) }; toast("Additional inspector → ${com.vims.app.util.Fmt.money(v)}/yr")
+    }
+
+    fun addPlan(name: String, price: String, yearly: String, desc: String): Boolean {
+        if (!isPlatformOwner) return false
         val p = com.vims.app.util.Num.parse(price)
+        val y = yearly.takeIf { it.isNotBlank() }?.let { com.vims.app.util.Num.parse(it) }
         if (name.isBlank()) { toast("Enter a plan name"); return false }
         if (p == null || p < 0) { toast("Enter a valid price"); return false }
-        repo.updateAccount { a -> a.copy(plans = a.plans + Plan("plan${a.plans.size + 1}-${System.currentTimeMillis() % 10000}", name.trim(), p, desc.trim().replace(Regex("\n{2,}"), "\n").ifEmpty { "Custom plan" })) }
+        editPlans { l -> l + Plan("plan${l.size + 1}-${System.currentTimeMillis() % 10000}", name.trim(), p, desc.trim().replace(Regex("\n{2,}"), "\n").ifEmpty { "Custom plan" }, priceYearly = y) }
         toast("Added “${name.trim()}”")
         return true
     }

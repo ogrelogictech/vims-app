@@ -47,6 +47,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.em
 import androidx.navigation.NavHostController
 import com.vims.app.data.ItemDef
 import com.vims.app.ui.AppViewModel
@@ -91,6 +92,21 @@ fun AdminScreen(vm: AppViewModel, nav: NavHostController) {
     var group by rememberSaveable { mutableStateOf("Exterior") }
     val open = remember { mutableStateMapOf(engine.adminGroups.firstOrNull()?.first.orEmpty() to true) }
     val form = rememberForm()
+    // Client Oct 28: Restore entire checklist to original (confirmed first).
+    var askRestoreAll by rememberSaveable { mutableStateOf(false) }
+    if (askRestoreAll) {
+        val added = engine.edits.custom.size
+        val edited = engine.edits.overrides.keys.count { engine.isEdited(it) }
+        val parts = listOfNotNull(
+            if (edited > 0) "your changes to **$edited section${if (edited == 1) "" else "s"}** (renamed, added and removed items)" else null,
+            if (added > 0) "the **$added section${if (added == 1) "" else "s"}** your company added" else null,
+        ).joinToString(" and ")
+        com.vims.app.ui.components.ConfirmDialog(
+            "Restore the entire checklist to the original?",
+            "This removes $parts, and every section goes back to the VIMS default. Inspections already started keep their saved checklist. This can't be undone.",
+            "Restore all", onConfirm = { vm.restoreChecklist(); askRestoreAll = false }, onDismiss = { askRestoreAll = false }, danger = true,
+        )
+    }
     VScreen("Manage checklist", companyName(vm), net(vm), backAction(nav), listOf(homeAction(nav))) {
         Hint("Add and edit checklist sections and items yourself — changes apply to new inspections.", Modifier.padding(top = 2.dp, bottom = 12.dp))
         AddBox {
@@ -122,13 +138,27 @@ fun AdminScreen(vm: AppViewModel, nav: NavHostController) {
                         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         Text(sectionTitle(n), style = T.ui(14.sp, FontWeight.Medium), modifier = Modifier.weight(1f))
+                        // Client Oct 28: edited / company-added sections are tagged so "Restore original" is easy to find.
+                        if (engine.isEdited(n)) EditTag("Edited") else if (engine.isCustom(n)) EditTag("Added")
                         Text("${engine.def(n)?.items?.count { it.q != null } ?: 0} items", style = T.mono(10.5.sp, FontWeight.SemiBold, V.ink2))
                         Icon(VIcons.chevRight, null, tint = V.chev, modifier = Modifier.size(18.dp))
                     }
                 }
             }
         }
+        Lbl("Restore")
+        VBtn("Restore entire checklist to original", { askRestoreAll = true }, kind = BtnKind.GhostDanger, icon = VIcons.undo, enabled = engine.hasCompanyEdits)
+        Text(if (engine.hasCompanyEdits) "Removes all of your company's checklist changes and returns to the VIMS default. Inspections already started keep their saved checklist."
+            else "Your checklist matches the VIMS original — nothing to restore.",
+            style = T.ui(12.sp, color = V.ink3, lineHeight = 17.sp), modifier = Modifier.padding(start = 2.dp, top = 8.dp))
     }
+}
+
+/** "Edited" / "Added" tag on a Manage checklist row (client Oct 28). */
+@Composable
+fun EditTag(text: String) {
+    Text(text.uppercase(), style = T.mono(9.5.sp, FontWeight.SemiBold, V.brandDeep, 0.08.em),
+        modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(V.brand.copy(alpha = .12f)).padding(horizontal = 7.dp, vertical = 3.dp))
 }
 
 private class DraftItem(val id: Long, val item: ItemDef)
@@ -139,7 +169,8 @@ fun EditSectionScreen(vm: AppViewModel, nav: NavHostController, name: String) {
     val def = engine.def(name)
     var high by rememberSaveable { mutableStateOf(false) }
     var seq by remember { mutableStateOf(0L) }
-    val draft = remember(name, high) {
+    // Re-read from the effective definition when it changes (e.g. after Restore original).
+    val draft = remember(name, high, def) {
         mutableStateListOf<DraftItem>().apply {
             val src = if (high) def?.itemsHigh ?: def?.items.orEmpty() else def?.items.orEmpty()
             src.forEach { add(DraftItem(seq++, it)) }
@@ -163,8 +194,31 @@ fun EditSectionScreen(vm: AppViewModel, nav: NavHostController, name: String) {
         }
     }
 
+    // Client Oct 28: Restore original (edited VIMS section) / remove a company-added section — confirmed first.
+    val edited = engine.isEdited(name)
+    val custom = engine.isCustom(name)
+    var askRestore by rememberSaveable { mutableStateOf(false) }
+    if (askRestore) com.vims.app.ui.components.ConfirmDialog(
+        if (custom) "Remove “${sectionTitle(name)}”?" else "Restore “${sectionTitle(name)}” to the original?",
+        if (custom) "This section was added by your company and isn't part of the VIMS checklist, so restoring the original removes it from new inspections. Inspections already started keep their saved checklist."
+        else "This removes your company's changes to this section — renamed, added and removed items — and brings back the VIMS default. Inspections already started keep their saved checklist.",
+        if (custom) "Remove section" else "Restore original", danger = true, onDismiss = { askRestore = false },
+        onConfirm = { askRestore = false; vm.restoreSection(name); if (custom) nav.back() },
+    )
+
     VScreen(sectionTitle(name), companyName(vm), net(vm), backAction(nav), listOf(homeAction(nav)), scroll = false) {
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 34.dp)) {
+            if (edited || custom) item(key = "restore") {
+                Column(Modifier.padding(bottom = 14.dp).fillMaxWidth().vCard(13.dp, bg = V.brand.copy(alpha = .05f)).padding(horizontal = 14.dp, vertical = 13.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        EditTag(if (custom) "Added" else "Edited")
+                        Text(if (custom) "Added by your company" else "Changed by your company", style = T.ui(13.5.sp, FontWeight.Bold), modifier = Modifier.weight(1f))
+                    }
+                    Text(if (custom) "Not part of the VIMS checklist." else "This section differs from the VIMS original.",
+                        style = T.ui(12.sp, color = V.ink3, lineHeight = 17.sp), modifier = Modifier.padding(top = 6.dp, bottom = 10.dp))
+                    VBtn(if (custom) "Remove section" else "Restore original", { askRestore = true }, kind = BtnKind.GhostDanger, icon = if (custom) VIcons.trash else VIcons.undo, minHeight = 48.dp)
+                }
+            }
             item(key = "tier") {
                 Column {
                     if (def?.form == null) {
@@ -265,10 +319,13 @@ private fun EdBtn(icon: ImageVector, label: String, enabled: Boolean, onClick: (
 
 /** Price input that commits on Done / focus loss (like the prototype's onchange). */
 @Composable
-fun PriceField(value: Double, onCommit: (Double) -> Unit, modifier: Modifier = Modifier, onError: (String?) -> Unit = {}) {
-    var text by remember(value) { mutableStateOf(Fmt.price(value)) }
+fun PriceField(value: Double, onCommit: (Double) -> Unit, modifier: Modifier = Modifier, onError: (String?) -> Unit = {}, blankWhenZero: Boolean = false) {
+    var text by remember(value) { mutableStateOf(if (blankWhenZero && value == 0.0) "" else Fmt.price(value)) }
     var bad by remember { mutableStateOf(false) }
-    fun commit() { val e = Checks.price(text); bad = e != null; onError(e); if (e == null) { val v = com.vims.app.util.Num.parse(text) ?: return; if (v != value) onCommit(v) } }
+    fun commit() {
+        if (blankWhenZero && text.isBlank()) { bad = false; onError(null); return } // optional and still empty
+        val e = Checks.price(text); bad = e != null; onError(e); if (e == null) { val v = com.vims.app.util.Num.parse(text) ?: return; if (v != value) onCommit(v) }
+    }
     val field = com.vims.app.ui.components.rememberFieldText()
     BasicTextField(
         field.shown(text), { text = field.change(it, Filters::price); if (bad) { val e = Checks.price(text); bad = e != null; onError(e) } }, singleLine = true, textStyle = T.ui(15.sp, color = V.ink), cursorBrush = SolidColor(V.brand),
@@ -280,51 +337,66 @@ fun PriceField(value: Double, onCommit: (Double) -> Unit, modifier: Modifier = M
 
 @Composable
 fun PlansAdminScreen(vm: AppViewModel, nav: NavHostController) {
-    val account by vm.account.collectAsState()
+    // Client Oct 28: VIMS plans and prices belong to the master admins (support.platformOwners), not to company admins.
+    val session by vm.session.collectAsState()
+    if (session?.platformOwner != true) { OwnerOnly(vm, nav, "Plans & pricing"); return }
+    val platform by vm.platform.collectAsState()
+    val pricing = vm.pricing(platform)
     var n by rememberSaveable { mutableStateOf("") }
     var p by rememberSaveable { mutableStateOf("") }
+    var y by rememberSaveable { mutableStateOf("") }
     var d by rememberSaveable { mutableStateOf("") }
     val form = rememberForm()
     var deleteId by rememberSaveable { mutableStateOf<String?>(null) }
     deleteId?.let { id ->
-        val plan = account.plans.firstOrNull { it.id == id }
+        val plan = pricing.plans.firstOrNull { it.id == id }
         if (plan == null) deleteId = null else {
-            val next = account.plans.firstOrNull { it.id != id }
+            val next = pricing.plans.firstOrNull { it.id != id && it.selectable }
             com.vims.app.ui.components.ConfirmDialog(
                 "Delete the “${plan.name}” plan?",
-                "It will no longer be offered on the Subscription screen." + if (plan.id == account.planId && next != null) " Your company will move to **${next.name}**." else "",
+                "It will no longer be offered on the Subscription screen of any company." + if (next != null) " Companies on it move to **${next.name}**." else "",
                 "Delete", onConfirm = { vm.deletePlan(id); deleteId = null }, onDismiss = { deleteId = null }, danger = true,
             )
         }
     }
-    VScreen("Plans & pricing", companyName(vm), net(vm), backAction(nav), listOf(homeAction(nav))) {
-        Hint("Owner admin — edit plan prices, add or delete a plan, or set the per-inspector rate. Changes apply to the subscribe screen.", Modifier.padding(top = 2.dp, bottom = 12.dp))
+    VScreen("Plans & pricing", "Master admin · VIMS", net(vm), backAction(nav), listOf(homeAction(nav))) {
+        Hint("Master admin — VIMS subscription plans and prices for **every company**. Edit the monthly and yearly prices, add or delete a plan, or set the additional-inspector rates. Changes apply to the Subscription screen.", Modifier.padding(top = 2.dp, bottom = 12.dp))
         // Delete: at least one plan always stays (no Delete on the last one); the Additional inspector rate isn't a plan.
-        val canDelete = account.plans.size > 1
-        account.plans.forEach { plan ->
-            PlanCard(plan.name, plan.price, plan.unit ?: "/mo", plan.desc, onDelete = if (canDelete) ({ deleteId = plan.id }) else null) { vm.setPlanPrice(plan.id, it) }
+        val canDelete = pricing.plans.size > 1
+        pricing.plans.forEach { plan ->
+            PlanCard(plan.name, plan.price, plan.unit ?: "/mo", plan.desc, comingSoon = plan.comingSoon,
+                yearly = if (plan.perReport) null else plan.priceYearly, onYearly = if (plan.perReport) null else ({ v -> vm.setPlanYearly(plan.id, v) }),
+                onDelete = if (canDelete) ({ deleteId = plan.id }) else null) { vm.setPlanPrice(plan.id, it) }
         }
-        PlanCard("Additional inspector", account.extraInspectorMonthly, "/mo each", null) { vm.setExtraRate(it) }
+        PlanCard("Additional inspector", pricing.extraMonthly, "/mo each", "Follows the company's billing period.", yearly = pricing.extra(com.vims.app.data.BillingPeriod.YEARLY),
+            onYearly = { vm.setExtraYearly(it) }) { vm.setExtraRate(it) }
         AddBox {
             val nErr = form.check("n", n) { Checks.required(n, "Enter a plan name") }
             val pErr = form.check("p", p) { Checks.price(p) }
+            val yErr = form.check("y", y) { if (y.isBlank()) null else Checks.price(y) }
             VField("Plan name", n, { n = it }, Modifier.formField(form, "n"), placeholder = "e.g. Team", filter = { Filters.base(it, 40) }, error = nErr, required = true, bottom = 0.dp)
             VField("Monthly price", p, { p = it }, Modifier.formField(form, "p"), placeholder = "e.g. 99.00", keyboard = KeyboardType.Decimal, filter = Filters::price, error = pErr, required = true, bottom = 0.dp)
+            VField("Yearly price (optional)", y, { y = it }, Modifier.formField(form, "y"), placeholder = "e.g. 990.00", keyboard = KeyboardType.Decimal, filter = Filters::price, error = yErr, bottom = 0.dp)
             // QA Oct 14: the short description is multi-line (wraps as typed, line breaks kept) and wraps on the plan cards.
             VField("Description", d, { d = it }, placeholder = "Short description", multiline = true, filter = { Filters.base(it, 200, multiline = true) }, bottom = 0.dp)
-            VBtn("Add plan", { if (form.submit() && vm.addPlan(n, p, d)) { n = ""; p = ""; d = ""; form.reset() } }, icon = VIcons.plus, minHeight = 48.dp)
+            VBtn("Add plan", { if (form.submit() && vm.addPlan(n, p, y, d)) { n = ""; p = ""; y = ""; d = ""; form.reset() } }, icon = VIcons.plus, minHeight = 48.dp)
         }
     }
 }
 
 @Composable
-private fun PlanCard(name: String, price: Double, unit: String, desc: String?, onDelete: (() -> Unit)? = null, onCommit: (Double) -> Unit) {
+private fun PlanCard(name: String, price: Double, unit: String, desc: String?, comingSoon: Boolean = false, yearly: Double? = null, onYearly: ((Double) -> Unit)? = null,
+                     onDelete: (() -> Unit)? = null, onCommit: (Double) -> Unit) {
     var err by remember { mutableStateOf<String?>(null) }
+    var yErr by remember { mutableStateOf<String?>(null) }
     Column(Modifier.padding(bottom = 11.dp).fillMaxWidth().vCard(13.dp).padding(horizontal = 14.dp, vertical = 13.dp)) {
-        Row(Modifier.padding(bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(name, style = T.ui(14.5.sp, FontWeight.Bold), modifier = Modifier.weight(1f))
+        Row(Modifier.padding(bottom = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(name, style = T.ui(14.5.sp, FontWeight.Bold), modifier = Modifier.weight(1f, fill = false))
+                if (comingSoon) ComingSoonTag()
+            }
             if (onDelete != null) Row(
-                Modifier.padding(start = 8.dp).heightIn(min = 40.dp).clip(RoundedCornerShape(9.dp)).clickable(role = Role.Button, onClickLabel = "Delete plan $name", onClick = onDelete).padding(horizontal = 10.dp),
+                Modifier.heightIn(min = 40.dp).clip(RoundedCornerShape(9.dp)).clickable(role = Role.Button, onClickLabel = "Delete plan $name", onClick = onDelete).padding(horizontal = 10.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp),
             ) {
                 Icon(VIcons.trash, null, tint = V.c1, modifier = Modifier.size(15.dp))
@@ -332,11 +404,27 @@ private fun PlanCard(name: String, price: Double, unit: String, desc: String?, o
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Price $", style = T.ui(13.sp, color = V.ink2))
+            Text(if (onYearly != null) "Monthly $" else "Price $", style = T.ui(13.sp, color = V.ink2), modifier = Modifier.width(78.dp))
             PriceField(price, onCommit, onError = { err = it })
             Text(unit, style = T.ui(12.5.sp, color = V.ink3))
         }
         com.vims.app.ui.components.FieldError(err)
+        if (onYearly != null) {
+            Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Yearly $", style = T.ui(13.sp, color = V.ink2), modifier = Modifier.width(78.dp))
+                if (yearly != null) PriceField(yearly, onYearly, onError = { yErr = it })
+                else PriceField(0.0, onYearly, onError = { yErr = it }, blankWhenZero = true)
+                Text(if (unit.endsWith("each")) "/yr each" else "/yr", style = T.ui(12.5.sp, color = V.ink3))
+            }
+            com.vims.app.ui.components.FieldError(yErr)
+        }
         if (desc != null) Text(desc, style = T.ui(12.sp, color = V.ink3, lineHeight = 16.5.sp), softWrap = true, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
     }
+}
+
+/** "Coming soon" label (data v1.11 `comingSoon`): Portal + App is shown but can't be chosen until Phase 2. */
+@Composable
+fun ComingSoonTag() {
+    Text("COMING SOON", style = T.mono(9.5.sp, FontWeight.SemiBold, Color(0xFF7A5200), 0.08.em),
+        modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(V.c2Bg).padding(horizontal = 7.dp, vertical = 3.dp))
 }

@@ -60,9 +60,7 @@ object DemoSeed {
         val json = ChecklistLoader.json
         val account = AccountState(
             companyCode = sample?.company?.code ?: "VIS-4827",
-            plans = cfg.subscription.plans,
-            extraInspectorMonthly = cfg.subscription.extraInspectorMonthly,
-            planId = cfg.subscription.plans.firstOrNull()?.id ?: "app",
+            planId = cfg.subscription.plans.firstOrNull { !it.comingSoon }?.id ?: "app",
             trialDays = cfg.subscription.trialDays,
             // 20 days into the 30-day free look → "10 days left", as in the approved screens.
             trialStartEpochDay = today.toEpochDay() - 20,
