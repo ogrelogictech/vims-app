@@ -31650,11 +31650,11 @@
   "_notes": "'?' = included when selected in wizard step 3 rooms; '×n' = repeated per count. Admin-added custom sections are appended to the end of their group (Exterior, Interior, Utility, Testing).",
   "_formNotes": "Sections with 'form' (texas | fourPoint) are client-supplied state/insurance forms: ignore checklist depth (always show 'items'), no Overall condition row, badge = formLabels[form]. 'photosOnly' sections have no items: opening one goes straight to the photo screen, whose primary button is 'Save & continue to summary' (or '… to report' when the layout has no Summary). Layouts without a Summary entry (4 Point) hide 'Review summary'.",
   "_testsOnlyAbout": "Client Oct 25 (areas locked for Tests Only): the checklist is Inspection Info + the tests selected in wizard step 4 + Summary. No exterior / interior / utility sections.",
-  "_restoreAbout": "Client Oct 28: Manage checklist (company admins) gets 'Restore original' per section and 'Restore entire checklist to original'. Restoring removes the company's edits (renamed/added/removed items and sections) and returns to the VIMS default from this file. Confirm first; inspections already started keep their saved checklist."
+  "_restoreAbout": "Client Oct 28: Manage checklist (company admins) gets 'Restore original' per section and 'Restore entire checklist to original'. Restoring removes the company's edits (renamed/added/removed items and sections) and returns to the VIMS default from this file. Confirm first; inspections already started keep their saved checklist. Client Oct 28 (2nd email): the Restore block sits at the TOP of Manage checklist with two buttons in the client's words: 'Restore all checklists' (whole checklist) and 'Restore selected checklists' (each section is one checklist; a picker lists only Edited / Added sections with checkboxes, then one confirm naming them; an Added section is removed). Both disabled when nothing is edited."
  },
  "wizard": {
   "steps": [
-   "Client & inspection Client Oct 28 (2nd email): the Restore block sits at the TOP of Manage checklist with two buttons in the client's words: 'Restore all checklists' (whole checklist) and 'Restore selected checklists' (each section is one checklist; a picker lists only Edited / Added sections with checkboxes, then one confirm naming them; an Added section is removed). Both disabled when nothing is edited.",
+   "Client & inspection",
    "Property",
    "Areas to inspect",
    "Testing"
