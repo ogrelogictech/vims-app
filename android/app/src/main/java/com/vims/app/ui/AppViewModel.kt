@@ -401,10 +401,21 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun prefillSection(id: String, section: String) {
         val b = bundle(id) ?: return
         val def = sectionDef(id, section) ?: return
-        val items = ChecklistEngine.keyed(ChecklistEngine.itemsFor(def, ChecklistEngine.effectiveDepth(def, b.inspection.selections.depth)))
-            .filter { (k, it) -> k != null && it.prefill != null }
-        if (items.isEmpty()) return
+        val depth = ChecklistEngine.effectiveDepth(def, b.inspection.selections.depth)
+        val keyed = ChecklistEngine.keyed(ChecklistEngine.itemsFor(def, depth))
         val a = b.answers[section] ?: SectionAnswers()
+        // Data v1.12 `defaultFromRoomNumber` (client Oct 29): "Bathroom No." in "Bathroom 2" starts answered "2". Only an item
+        // never answered (no key yet: a deselected answer stays cleared), never in a section already saved Done, and only when
+        // the number is one of its options. Written without changing the section's status — progress counts sections saved
+        // with Save / Save & next, so a pre-answer never makes a section "In progress" or "Done" on its own.
+        val room = ChecklistEngine.roomNumber(section)
+        val roomAdd = if (room == null || depth == "fast" || a.status == SecStatus.DONE) emptyMap() else keyed
+            .filter { (k, it) -> k != null && it.defaultFromRoomNumber == true && it.type == "single" && k !in a.values &&
+                room in ChecklistEngine.choiceOptions(it, b.inspection.selections.counts) }
+            .associate { (k, _) -> k!! to listOf(room) }
+        if (roomAdd.isNotEmpty()) repo.updateAnswers(id, section) { s -> s.copy(values = s.values + roomAdd.filterKeys { it !in s.values }) }
+        val items = keyed.filter { (k, it) -> k != null && it.prefill != null }
+        if (items.isEmpty()) return
         if (a.status != SecStatus.TODO) return
         val sel = b.inspection.selections
         val legacy = if (sel.splitAddress) null else WizardSelections.splitLegacy(sel.address, sel.state)

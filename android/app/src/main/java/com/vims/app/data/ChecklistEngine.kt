@@ -151,7 +151,12 @@ class ChecklistEngine(val config: ChecklistConfig, val edits: ChecklistEdits) {
             val out = defs.mapValues { (name, d) ->
                 val cur = byName[name] ?: return@mapValues d
                 val now = (cur.items + cur.itemsHigh.orEmpty()).filter { it.q != null }.groupBy { it.q!! }.mapValues { it.value.first() }
-                var u = d.copy(items = upItems(d.items, now), itemsHigh = d.itemsHigh?.let { upItems(it, now) })
+                // Data v1.12 (client Oct 29): renamed items (`renamedFrom`) take their new label, items gain the
+                // `optionsFromCount` / `defaultFromRoomNumber` flags, and single / multi items whose options only grew
+                // (Exterior Walls "Water Pressure rating" + High) get the new options — not in company-edited sections.
+                val opts = name !in noMerge
+                var u = d.copy(items = upItems(carry(d.items, cur.items + cur.itemsHigh.orEmpty(), opts), now),
+                    itemsHigh = d.itemsHigh?.let { upItems(carry(it, cur.items + cur.itemsHigh.orEmpty(), opts), now) })
                 // Client Oct 25 (shower pan items): questions ADDED to a section since the snapshot was taken join it, in data
                 // order, answers untouched. Only for purely additive changes (every saved line is still in the current data) of
                 // sections the company admin hasn't edited ([noMerge]); restructured sections (e.g. Termite / Wind Mitigation
@@ -207,6 +212,73 @@ class ChecklistEngine(val config: ChecklistConfig, val edits: ChecklistEdits) {
             return out
         }
 
+        /**
+         * Data v1.12 (client Oct 29), matched by label within one section:
+         *  - `renamedFrom`: a saved line still labelled with an item's old label takes the new label (unless the new label is
+         *    already in the list), so its answer key follows ([upgradeAnswers] moves the answer) and [mergeAdded] still sees
+         *    an additive change;
+         *  - `optionsFromCount` / `defaultFromRoomNumber` are copied onto a saved single-choice line of the same label;
+         *  - with [options]: a single / multi line whose saved options are all still offered gets the added ones, in data
+         *    order (Water Pressure rating: Good, Low → Good, Low, High). Options a line has that the data dropped stay.
+         */
+        fun carry(list: List<ItemDef>, current: List<ItemDef>, options: Boolean = true): List<ItemDef> {
+            if (list.isEmpty() || current.isEmpty()) return list
+            val now = current.filter { it.q != null }.groupBy { it.q!! }.mapValues { it.value.first() }
+            val renames = current.filter { it.q != null && !it.renamedFrom.isNullOrBlank() }.associateBy { it.renamedFrom!! }
+            val labels = list.mapNotNull { it.q }.toSet()
+            var changed = false
+            val out = list.map { i0 ->
+                var i = i0
+                val q0 = i.q ?: return@map i
+                if (q0 !in now) renames[q0]?.takeIf { c -> c.q !in labels }?.let { c -> i = i.copy(q = c.q, renamedFrom = c.renamedFrom) }
+                val c = now[i.q]
+                if (c != null) {
+                    if (c.optionsFromCount != null && i.optionsFromCount == null && i.type == "single" && c.type == "single")
+                        i = i.copy(optionsFromCount = c.optionsFromCount, defaultFromRoomNumber = c.defaultFromRoomNumber)
+                    val mine = i.options
+                    val theirs = c.options
+                    if (options && i.isChoice && c.type == i.type && mine != null && theirs != null && theirs.containsAll(mine) && theirs.size > mine.size)
+                        i = i.copy(options = mergeCats(mine, theirs))
+                }
+                if (i != i0) changed = true
+                i
+            }
+            return if (changed) out else list
+        }
+
+        /**
+         * Data v1.12: a company's Manage checklist overrides were saved with the labels of their day. Renamed items take the new
+         * label (an override keeps its own options) and gain the room-count flags, so new inspections built from the edited
+         * section keep both the company's list and working answer keys. Runs in memory on load; written with the next edit.
+         */
+        fun upgradeEdits(e: ChecklistEdits, current: List<SectionDef>): ChecklistEdits {
+            if (e.overrides.isEmpty()) return e
+            val byName = current.associateBy { it.name }
+            var changed = false
+            val o = e.overrides.mapValues { (name, ov) ->
+                val cur = byName[name] ?: return@mapValues ov
+                val all = cur.items + cur.itemsHigh.orEmpty()
+                val n = ov.copy(items = ov.items?.let { carry(it, all, options = false) }, itemsHigh = ov.itemsHigh?.let { carry(it, all, options = false) })
+                if (n != ov) changed = true
+                n
+            }
+            return if (changed) e.copy(overrides = o) else e
+        }
+
+        /**
+         * Data v1.12 `optionsFromCount`: "1".."n" for the inspection's room count (n ≥ 1); the item's own options when the
+         * inspection has no such count. A saved answer outside 1..n (the count was lowered later) stays listed so it still shows.
+         */
+        fun choiceOptions(item: ItemDef, counts: Map<String, Int>, saved: List<String> = emptyList()): List<String> {
+            val key = item.optionsFromCount ?: return item.options.orEmpty()
+            val n = counts[key] ?: return item.options.orEmpty()
+            val opts = (1..maxOf(1, n)).map { "$it" }
+            return opts + saved.filter { it.isNotBlank() && it !in opts }
+        }
+
+        /** "Bathroom 2" → "2"; null for a section without a number. */
+        fun roomNumber(section: String): String? = Regex("\\s(\\d+)$").find(section)?.groupValues?.get(1)?.toIntOrNull()?.toString()
+
         /** Data v1.9.1: one free-text item that became two pickers, and the chip that went with it (Meth Test, High Detail). */
         private val LEGACY_SPLITS = mapOf("Test date and time" to listOf("Test date", "Test time"))
         private val LEGACY_SPLIT_COMPANION = mapOf("AM/PM" to "Test date and time")
@@ -253,6 +325,19 @@ class ChecklistEngine(val config: ChecklistConfig, val edits: ChecklistEdits) {
                         val (date, time) = splitDateTime(text, ampm)
                         r = r.copy(inputs = r.inputs + (toKeys[0] to (date ?: text)) + (if (time != null) mapOf(toKeys[1] to time) else emptyMap()))
                         changed = true
+                    }
+                    // Data v1.12 `renamedFrom` ("Compressor size (sq ft)" → "Compressor size (home sq ft)"): the answer under the
+                    // old label's key moves to the new key unless the new key already has one; the old key is kept as is.
+                    k.forEach { (key, item) ->
+                        val from = item.renamedFrom?.takeIf { key != null && it.isNotBlank() } ?: return@forEach
+                        val header = key!!.substringBefore('|')
+                        val suffix = key.substringAfter('|').removePrefix(item.q.orEmpty())
+                        val old = "$header|$from$suffix"
+                        if (old == key) return@forEach
+                        val v = r.values[old]
+                        if (v != null && key !in r.values) { r = r.copy(values = r.values + (key to v)); changed = true }
+                        val t = r.inputs[old]
+                        if (t != null && r.inputs[key].isNullOrBlank()) { r = r.copy(inputs = r.inputs + (key to t)); changed = true }
                     }
                 }
                 r

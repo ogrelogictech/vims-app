@@ -70,6 +70,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -83,10 +84,19 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.calculateCentroid
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -254,6 +264,17 @@ fun CameraScreen(vm: AppViewModel, nav: NavHostController, inspId: String, name:
     var busy by remember { mutableStateOf(false) }
     var ready by remember { mutableStateOf(false) }
     val capture = remember { ImageCapture.Builder().setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY).build() }
+    // Client Oct 29: zoom. The bound camera and its live zoom state (ratio + the lens's min / max) from CameraX.
+    var camera by remember { mutableStateOf<androidx.camera.core.Camera?>(null) }
+    var zoomRatio by remember { mutableFloatStateOf(1f) }
+    var zoomMin by remember { mutableFloatStateOf(1f) }
+    var zoomMax by remember { mutableFloatStateOf(1f) }
+    val pinchTarget = remember { floatArrayOf(1f) }
+    fun setZoom(r: Float) {
+        val v = r.coerceIn(zoomMin, zoomMax)
+        pinchTarget[0] = v
+        camera?.cameraControl?.setZoomRatio(v)
+    }
 
     fun openMarkup(p: Photo) = nav.navigate(MarkupR(inspId, p.id)) { popUpTo<CameraR> { inclusive = true } }
 
@@ -276,7 +297,11 @@ fun CameraScreen(vm: AppViewModel, nav: NavHostController, inspId: String, name:
                                 val provider = future.get()
                                 val preview = Preview.Builder().build().also { it.surfaceProvider = surfaceProvider }
                                 provider.unbindAll()
-                                provider.bindToLifecycle(lifecycle, CameraSelector.DEFAULT_BACK_CAMERA, preview, capture)
+                                val cam = provider.bindToLifecycle(lifecycle, CameraSelector.DEFAULT_BACK_CAMERA, preview, capture)
+                                camera = cam
+                                cam.cameraInfo.zoomState.observe(lifecycle) { zs ->
+                                    zoomRatio = zs.zoomRatio; zoomMin = zs.minZoomRatio; zoomMax = zs.maxZoomRatio
+                                }
                                 ready = true
                             } catch (_: Exception) { cameraError = true }
                         }, ContextCompat.getMainExecutor(c))
@@ -284,6 +309,12 @@ fun CameraScreen(vm: AppViewModel, nav: NavHostController, inspId: String, name:
                 },
                 modifier = Modifier.fillMaxSize(),
             )
+            // Pinch anywhere on the preview to zoom (within the lens's zoom range).
+            Box(Modifier.fillMaxSize().pointerInput(Unit) {
+                detectTransformGestures { _, _, zoomChange, _ ->
+                    if (zoomChange != 1f && camera != null) setZoom(pinchTarget[0] * zoomChange)
+                }
+            })
         } else {
             Column(Modifier.align(Alignment.Center).padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(VIcons.camera, null, tint = Color.White, modifier = Modifier.size(40.dp))
@@ -303,9 +334,11 @@ fun CameraScreen(vm: AppViewModel, nav: NavHostController, inspId: String, name:
             DarkBtn(VIcons.close, "Close") { nav.back() }
             Text("${sectionTitle(name)} — $cat", style = T.ui(14.sp, FontWeight.SemiBold, Color.White), modifier = Modifier.weight(1f))
         }
-        // bottom controls
-        if (granted && !cameraError) Row(
-            Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(Color(0x99000000)).navigationBarsPadding().padding(horizontal = 28.dp, vertical = 22.dp),
+        // bottom controls: zoom chips (client Oct 29) above the library / shutter row
+        if (granted && !cameraError) Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+        if (ready && zoomMax > zoomMin + 0.01f) ZoomChips(zoomRatio, zoomMin, zoomMax) { setZoom(it) }
+        Row(
+            Modifier.fillMaxWidth().background(Color(0x99000000)).navigationBarsPadding().padding(horizontal = 28.dp, vertical = 22.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             DarkBtn(VIcons.image, "Choose from library") { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
@@ -333,8 +366,41 @@ fun CameraScreen(vm: AppViewModel, nav: NavHostController, inspId: String, name:
             Spacer(Modifier.weight(1f))
             Spacer(Modifier.size(48.dp))
         }
+        }
     }
     DisposableEffect(Unit) { onDispose { try { ProcessCameraProvider.getInstance(ctx).get().unbindAll() } catch (_: Exception) {} } }
+}
+
+/**
+ * Camera zoom chips (client Oct 29): 0.5x (or the lens's minimum) when the camera can zoom out, 1x, 2x, and 5x (or the maximum
+ * when below 5x) when it can zoom in that far. The chip matching the current ratio is filled; when the ratio sits between chips
+ * (after a pinch) the current ratio is shown above them.
+ */
+@Composable
+private fun ZoomChips(ratio: Float, min: Float, max: Float, onZoom: (Float) -> Unit) {
+    val stops = buildList {
+        if (min < 0.95f) add(if (min <= 0.5f) 0.5f else min)
+        add(1f)
+        if (max >= 2f) add(2f)
+        if (max >= 5f) add(5f) else if (max > 2.2f) add(max)
+    }.distinct()
+    fun label(v: Float) = (if (kotlin.math.abs(v - Math.round(v)) < 0.05f) "${Math.round(v)}" else String.format(java.util.Locale.US, "%.1f", v)) + "x"
+    val active = stops.firstOrNull { kotlin.math.abs(it - ratio) < 0.05f }
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(bottom = 12.dp)) {
+        Text(label(ratio), style = T.mono(12.sp, FontWeight.Bold, Color.White),
+            modifier = Modifier.padding(bottom = 6.dp).clip(RoundedCornerShape(20.dp)).background(Color(0x99000000)).padding(horizontal = 10.dp, vertical = 3.dp)
+                .semantics { contentDescription = "Zoom ${label(ratio)}" })
+        Row(Modifier.clip(RoundedCornerShape(30.dp)).background(Color(0x80000000)).padding(4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            stops.forEach { v ->
+                val on = v == active
+                Box(
+                    Modifier.size(44.dp).clip(CircleShape).background(if (on) Color.White else Color.White.copy(alpha = .14f))
+                        .clickable(role = Role.Button, onClickLabel = "Zoom ${label(v)}") { onZoom(v) },
+                    contentAlignment = Alignment.Center,
+                ) { Text(label(v), style = T.ui(12.sp, FontWeight.Bold, if (on) Color.Black else Color.White)) }
+            }
+        }
+    }
 }
 
 @Composable
@@ -366,6 +432,9 @@ fun MarkupScreen(vm: AppViewModel, nav: NavHostController, inspId: String, photo
     var custom by rememberSaveable { mutableStateOf(photo.customComment) }
     var sheet by rememberSaveable { mutableStateOf(openFinding) }
     val geo = remember { floatArrayOf(1f) } // display scale (view px per image px), for flattening
+    // Client Oct 29: markup zoom (two-finger pinch / pan), 1x–5x; the drawing itself is unaffected.
+    var zoom by remember { mutableFloatStateOf(1f) }
+    var pan by remember { mutableStateOf(Offset.Zero) }
     val density = LocalDensity.current
     val scope = rememberCoroutineScope()
     val quickComments = vm.config.findings.quickComments
@@ -388,8 +457,9 @@ fun MarkupScreen(vm: AppViewModel, nav: NavHostController, inspId: String, photo
                 Text("${photo.section} — ${photo.category}", style = T.ui(14.sp, FontWeight.SemiBold, Color.White), modifier = Modifier.weight(1f), maxLines = 1)
                 DarkBtn(VIcons.flag, "Flag a finding") { sheet = true }
             }
-            // stage
-            BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
+            // stage — client Oct 29: two fingers pinch / pan to zoom the photo (up to 5x), one finger draws or stamps as before.
+            // Marks are stored in image coordinates, so zooming never changes what is drawn or saved.
+            BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().clipToBounds()) {
                 val bmp = img
                 if (bmp != null) {
                     val cw = constraints.maxWidth.toFloat(); val ch = constraints.maxHeight.toFloat()
@@ -399,36 +469,75 @@ fun MarkupScreen(vm: AppViewModel, nav: NavHostController, inspId: String, photo
                     geo[0] = s
                     fun toImg(o: Offset) = Offset(((o.x - left) / dw).coerceIn(0f, 1f), ((o.y - top) / dh).coerceIn(0f, 1f))
                     fun toView(o: Offset) = Offset(left + o.x * dw, top + o.y * dh)
-                    Image(bmp, "Inspection photo", Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
-                    Canvas(
-                        Modifier.fillMaxSize().pointerInput(stamp, pen, bmp) {
+                    // Screen point → point on the unzoomed stage (what toImg expects).
+                    fun local(p: Offset) = Offset((p.x - pan.x) / zoom, (p.y - pan.y) / zoom)
+                    fun zoomAt(change: Float, centroid: Offset, move: Offset) {
+                        val nz = (zoom * change).coerceIn(1f, 5f)
+                        val np = centroid - (centroid - pan) * (nz / zoom) + move
+                        zoom = nz
+                        pan = Offset(np.x.coerceIn(cw * (1 - nz), 0f), np.y.coerceIn(ch * (1 - nz), 0f))
+                    }
+                    Box(
+                        Modifier.fillMaxSize().pointerInput(stamp, pen, bmp, cw, ch) {
                             awaitEachGesture {
                                 val down = awaitFirstDown()
                                 val st = stamp
-                                if (st != null) { marks.add(Mark(pen, listOf(toImg(down.position)), st)); return@awaitEachGesture }
-                                var m = Mark(pen, listOf(toImg(down.position)))
+                                var pinch = false
+                                var m: Mark? = if (st == null) Mark(pen, listOf(toImg(local(down.position)))) else null
                                 current = m
                                 while (true) {
                                     val ev = awaitPointerEvent()
-                                    val c = ev.changes.firstOrNull() ?: break
-                                    if (!c.pressed) break
+                                    val pressed = ev.changes.count { it.pressed }
+                                    if (pressed == 0) break
+                                    if (pressed >= 2) {
+                                        // A second finger: this gesture zooms / pans; the stroke started by the first finger is dropped.
+                                        if (!pinch) { pinch = true; m = null; current = null }
+                                        zoomAt(ev.calculateZoom(), ev.calculateCentroid(useCurrent = true), ev.calculatePan())
+                                        ev.changes.forEach { it.consume() }
+                                        continue
+                                    }
+                                    val c = ev.changes.firstOrNull { it.pressed } ?: break
                                     c.consume()
-                                    m = m.copy(points = m.points + toImg(c.position)); current = m
+                                    if (pinch) {
+                                        // One finger left after a pinch keeps panning (never draws).
+                                        if (zoom > 1f) zoomAt(1f, c.position, c.position - c.previousPosition)
+                                        continue
+                                    }
+                                    m?.let { mk -> m = mk.copy(points = mk.points + toImg(local(c.position))); current = m }
                                 }
-                                marks.add(m); current = null
+                                if (!pinch) {
+                                    if (st != null) marks.add(Mark(pen, listOf(toImg(local(down.position))), st)) else m?.let { marks.add(it) }
+                                }
+                                current = null
                             }
                         },
                     ) {
-                        val strokeW = 4.dp.toPx()
-                        (marks + listOfNotNull(current)).forEach { mk ->
-                            if (mk.stamp != null) {
-                                val p = toView(mk.points.first())
-                                drawContext.canvas.nativeCanvas.drawText(mk.stamp, p.x, p.y + 34.sp.toPx() * .35f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = mk.color.toArgb(); textSize = 34.sp.toPx(); textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD })
-                            } else if (mk.points.isNotEmpty()) {
-                                val path = Path().apply { val f = toView(mk.points.first()); moveTo(f.x, f.y); mk.points.drop(1).forEach { val v = toView(it); lineTo(v.x, v.y) }; if (mk.points.size == 1) lineTo(f.x + .1f, f.y) }
-                                drawPath(path, SolidColor(mk.color), style = Stroke(strokeW, cap = StrokeCap.Round, join = StrokeJoin.Round))
+                        Box(Modifier.fillMaxSize().graphicsLayer {
+                            scaleX = zoom; scaleY = zoom; translationX = pan.x; translationY = pan.y; transformOrigin = TransformOrigin(0f, 0f)
+                        }) {
+                            Image(bmp, "Inspection photo", Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+                            Canvas(Modifier.fillMaxSize()) {
+                                val strokeW = 4.dp.toPx()
+                                (marks + listOfNotNull(current)).forEach { mk ->
+                                    if (mk.stamp != null) {
+                                        val p = toView(mk.points.first())
+                                        drawContext.canvas.nativeCanvas.drawText(mk.stamp, p.x, p.y + 34.sp.toPx() * .35f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = mk.color.toArgb(); textSize = 34.sp.toPx(); textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD })
+                                    } else if (mk.points.isNotEmpty()) {
+                                        val path = Path().apply { val f = toView(mk.points.first()); moveTo(f.x, f.y); mk.points.drop(1).forEach { val v = toView(it); lineTo(v.x, v.y) }; if (mk.points.size == 1) lineTo(f.x + .1f, f.y) }
+                                        drawPath(path, SolidColor(mk.color), style = Stroke(strokeW, cap = StrokeCap.Round, join = StrokeJoin.Round))
+                                    }
+                                }
                             }
                         }
+                    }
+                    // Zoomed: the ratio + a one-tap way back to the whole photo.
+                    if (zoom > 1.01f) Row(
+                        Modifier.align(Alignment.TopEnd).padding(10.dp).heightIn(min = 44.dp).clip(RoundedCornerShape(22.dp)).background(Color(0xB3000000))
+                            .clickable(role = Role.Button, onClickLabel = "Fit photo") { zoom = 1f; pan = Offset.Zero }.padding(horizontal = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(String.format(java.util.Locale.US, "%.1fx", zoom), style = T.mono(12.sp, FontWeight.Bold, Color.White))
+                        Text("Fit", style = T.ui(13.sp, FontWeight.SemiBold, Color.White))
                     }
                 }
             }

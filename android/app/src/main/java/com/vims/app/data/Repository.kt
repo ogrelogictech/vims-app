@@ -169,7 +169,8 @@ class RoomRepository(
         }.associateBy { it.id }
         _company.value = dec(CompanyProfile.serializer(), co.profileJson, CompanyProfile()).copy(agreementText = co.agreementText, agreementEditedAt = co.agreementEditedAt)
         _account.value = acct
-        _edits.value = dec(ChecklistEdits.serializer(), co.editsJson, ChecklistEdits())
+        // Data v1.12: overrides saved under a renamed item's old label take the new label (in memory; written with the next edit).
+        _edits.value = ChecklistEngine.upgradeEdits(dec(ChecklistEdits.serializer(), co.editsJson, ChecklistEdits()), currentSections)
         _settings.value = dec(AppSettings.serializer(), user.settingsJson, AppSettings()).let { st ->
             if (!st.defaultCover.isLegacySolid) st else st.copy(defaultCover = st.defaultCover.normalized()).also { dao.updateUserSettings(user.id, enc(AppSettings.serializer(), it)) }
         }

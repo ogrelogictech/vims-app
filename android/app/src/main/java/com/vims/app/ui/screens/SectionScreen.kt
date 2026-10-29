@@ -186,7 +186,7 @@ fun SectionScreen(vm: AppViewModel, nav: NavHostController, inspId: String, name
             } else {
                 itemsIndexed(keyed, key = { i, p -> p.first ?: "h$i" }) { _, (key, it) ->
                     if (key == null) LiHead(it.header.orEmpty())
-                    else ItemCard(key, it, a, detail, ctx, actionPrefix, ::edit) { q -> concernItem = q }
+                    else ItemCard(key, it, a, detail, ctx, actionPrefix, b.inspection.selections.counts, ::edit) { q -> concernItem = q }
                 }
             }
             item(key = "overall") {
@@ -216,14 +216,16 @@ fun SectionScreen(vm: AppViewModel, nav: NavHostController, inspId: String, name
 }
 
 @Composable
-private fun ItemCard(key: String, it: ItemDef, a: SectionAnswers, detail: Boolean, ctx: android.content.Context, actionPrefix: String, edit: ((SectionAnswers) -> SectionAnswers) -> Unit, onConcern: (String) -> Unit) {
+private fun ItemCard(key: String, it: ItemDef, a: SectionAnswers, detail: Boolean, ctx: android.content.Context, actionPrefix: String, counts: Map<String, Int>, edit: ((SectionAnswers) -> SectionAnswers) -> Unit, onConcern: (String) -> Unit) {
     if (it.isAirReading) { AirReadingCard(key, it, a, actionPrefix, edit); return }
     val q = it.q.orEmpty()
     val input = a.inputs[key].orEmpty()
     val setInput: (String) -> Unit = { v -> edit { s -> s.copy(inputs = s.inputs + (key to v)) } }
     LiCard(q) {
         when (it.type) {
-            "single" -> SingleChips(it.options.orEmpty(), a.values[key]?.firstOrNull(), { v ->
+            // Data v1.12 `optionsFromCount`: Bathroom No. / Bedroom No. offer 1..n for this inspection's room count (live, so
+            // a count changed later in Inspection info is followed); `defaultFromRoomNumber` pre-answers it (AppViewModel.prefillSection).
+            "single" -> SingleChips(ChecklistEngine.choiceOptions(it, counts, a.values[key].orEmpty()), a.values[key]?.firstOrNull(), { v ->
                 edit { s -> s.copy(values = s.values + (key to listOfNotNull(v))) }
                 // Selecting (not deselecting) Concern(s) asks for the concern; deselecting never deletes a finding.
                 if (v != null && v != a.values[key]?.firstOrNull() && isConcern(v)) onConcern(q)

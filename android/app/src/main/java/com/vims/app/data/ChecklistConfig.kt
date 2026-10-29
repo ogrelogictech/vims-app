@@ -217,6 +217,20 @@ data class ItemDef(
      */
     val integer: Boolean? = null,
     val decimals: Int? = null,
+    /**
+     * Data v1.12 `itemTypes.renamedFrom` (client Oct 29): the item's previous label ("Compressor size (sq ft)" → "Compressor
+     * size (home sq ft)"). Answers are keyed by label ("header|question"), so saved answers, inspection snapshots and company
+     * overrides under the old label are carried over to this one (see [ChecklistEngine.upgradeAnswers] / [ChecklistEngine.upgradeEdits]).
+     */
+    val renamedFrom: String? = null,
+    /**
+     * Data v1.12 `itemTypes.optionsFromCount` (client Oct 29): a single-choice item whose options are "1".."n", n = the
+     * inspection's wizard room count for this key ("bathrooms" / "bedrooms", minimum 1). [options] is the fallback when the
+     * inspection has no such count. Read through [ChecklistEngine.choiceOptions].
+     */
+    val optionsFromCount: String? = null,
+    /** Data v1.12 `itemTypes.defaultFromRoomNumber`: in "Bathroom 2" the item starts answered "2" (still changeable). */
+    val defaultFromRoomNumber: Boolean? = null,
 ) {
     val isHeader: Boolean get() = header != null
     /** Decimal places a `num` item accepts while typing: 0 for `integer`, else `decimals` (default 2). */

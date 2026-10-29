@@ -69,7 +69,7 @@ object VIcons {
     val chevUp by lazy { icon("chevUp", "m18 15-6-6-6 6") }
     val check by lazy { s("link-my-account") { icon("check", "M20 6 9 17l-5-5") } }
     val checkBold by lazy { icon("checkBold", "M20 6 9 17l-5-5", stroke = 2.4f) }
-    val checkNext by lazy { s("save-return-svg") { icon("checkNext", "M20 6 9 17l-5-5M13 6l6 6-6 6") } }
+    val checkNext by lazy { s("save-return-svg") { icon("checkNext", "M5 12h14", "m13 6 6 6-6 6") } }
     val reviewSummary by lazy { s("review-summary-svg") { icon("reviewSummary", "M9 11l3 3 8-8M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9") } }
     val eye by lazy { s("show-password") { icon("eye", "M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z", c(12f, 12f, 3f)) } }
     val userPlus by lazy { s("join-a-company") { icon("userPlus", "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2", c(9f, 7f, 4f), "M19 8v6M22 11h-6") } }

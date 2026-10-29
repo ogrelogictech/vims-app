@@ -723,3 +723,30 @@ Shared v1.9 (client item 13):
   place: gate → I agree → no gate after relaunch). Settings → Legal shows "Revised October 28, 2026".
 - **Cancellation** per EULA 4.1 / 12.3 / 12.4 — see "Cancel subscription" above.
 - Screenshots `screenshots/oct28b-*.png`. Test APK `../../VIMS-Android-test-v0.23.0-2026-10-28.apk` (debug-signed like v0.22.1, installs over it).
+
+## Client Oct 29 + shared v1.12.0 (v0.24.0)
+
+- **Checklist data v1.12.0:** Exterior Walls (High Detail) "Water Pressure rating" Good / Low / High; Outside Utilities
+  "Compressor size (home sq ft)" (`renamedFrom` "Compressor size (sq ft)"); Garage + Attic "Receptacles" + Non GFCI; Garage, Attic
+  and Kitchen "GFCI receptacles (count)" / "Standard receptacles (count)" (`num`, `integer`, number pad). Printed like any answer.
+- **Started inspections** (`ChecklistEngine.upgradePickers` → `carry`, in memory on load): a line still carrying a renamed item's
+  old label takes the new one, so `mergeAdded` still sees an additive change and new items (the counts) join the snapshot as
+  before; single / multi lines whose options only grew get the new options (not in company-edited sections); the room-count flags
+  are copied on. `upgradeAnswers` copies an answer saved under the old label's key ("header|Compressor size (sq ft)") to the new key
+  unless that already has one; the old key is left in place. **Company overrides** (`upgradeEdits`, on load): renamed labels + the
+  flags; the company's own options and item list are kept (new data items reach an edited section only via Restore original).
+- **`optionsFromCount`** (Bathroom No. / Bedroom No.): options 1..n from the inspection's live room count (min 1; the static list
+  when the count is missing); a saved answer outside 1..n (count lowered later) stays listed. **`defaultFromRoomNumber`**: on opening
+  "Bathroom 2" the item is written "2" if it has never been answered (no key — a deselected answer stays cleared), the section
+  isn't Done and 2 is an option (`AppViewModel.prefillSection`, like the v1.9 `prefill`). Status is not touched: progress counts
+  sections saved with Save / Save & next, so a pre-answer never makes a section In progress or Done; the report prints Done
+  sections only.
+- **Camera zoom:** pinch on the preview + chips 0.5x (when the lens goes below 1x) / 1x / 2x / 5x (or the max when below 5x) via
+  `cameraControl.setZoomRatio` within `zoomState`; current ratio shown above the chips. **Markup zoom:** two fingers pinch / pan
+  (1x–5x), one finger draws / stamps as before (a stroke started before the second finger lands is dropped; stamps are placed on
+  release); "4.0x Fit" pill resets. Marks stay in image coordinates, so the saved markup is unchanged by zoom. No double-tap zoom in
+  markup (one finger draws there; there's no separate plain photo viewer).
+- **Save & next / Save & return icon:** plain right arrow (`save-return-svg`, inline fallback updated).
+- Verified by installing over v0.23.0 with existing data (renamed answer 2400 kept, Low + High, Garage/Kitchen counts merged,
+  company override renamed, Bathroom 1's own answer kept). Screenshots `screenshots/oct29-*.png`. Test APK
+  `../../VIMS-Android-test-v0.24.0-2026-10-29.apk` (debug-signed like v0.23.0, installs over it).
