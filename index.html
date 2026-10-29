@@ -257,9 +257,14 @@
   .viewer .vtop button{background:rgba(255,255,255,.12);border:0;color:#fff;width:38px;height:38px;border-radius:10px;display:grid;place-items:center;cursor:pointer}
   .viewer .vtop button svg{width:19px;height:19px}
   .viewer .vtop b{font-size:14px;font-weight:600}
-  .viewer .vstage{flex:1;position:relative;display:grid;place-items:center;overflow:hidden}
+  .viewer .vstage{flex:1;position:relative;overflow:hidden;touch-action:none;min-width:0}
+  /* pinch / double-tap zoom (client Oct 29): image + markup canvas scale together so strokes stay on the photo */
+  .viewer .vzoom{position:absolute;inset:0;transform-origin:0 0;will-change:transform}
   .viewer canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none}
-  .viewer .vimg{width:100%;height:100%;object-fit:contain}
+  .viewer .vimg{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;-webkit-user-drag:none;user-select:none}
+  .viewer .vzreset{position:absolute;right:12px;bottom:12px;min-height:44px;padding:0 14px;border-radius:22px;border:0;background:rgba(11,15,21,.78);color:#fff;font:600 13px/1 var(--fb,inherit);cursor:pointer;display:none}
+  .viewer .vzreset.on{display:block}
+  .viewer .vzreset:focus-visible{outline:2px solid #fff;outline-offset:2px}
   .vtools{background:#12181f;padding:12px 14px 18px;display:flex;flex-direction:column;gap:12px}
   .vtools .toolrow{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
   .swatch{width:34px;height:34px;border-radius:9px;border:2px solid rgba(255,255,255,.25);cursor:pointer}
@@ -793,13 +798,13 @@
 
   <div class="viewer" id="viewer">
     <div class="vtop"><button onclick="closeViewer()" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button><b id="viewer-title">Photo</b><button style="margin-left:auto" onclick="openFinding()" aria-label="Flag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><path d="M4 22v-7"/></svg></button></div>
-    <div class="vstage" id="vstage"><img class="vimg" id="vimg" alt="Inspection photo"><canvas id="vcanvas"></canvas></div>
+    <div class="vstage" id="vstage"><div class="vzoom" id="vzoom"><img class="vimg" id="vimg" alt="Inspection photo"><canvas id="vcanvas"></canvas></div><button class="vzreset" id="vzreset" type="button" onclick="resetZoom()" aria-label="Reset zoom">Reset zoom</button></div>
     <div class="vtools">
       <div class="toolrow"><select class="qcsel" id="qcsel" aria-label="Quick comment" style="flex:1" onchange="applyQuickComment(this.value)"></select></div>
       <div class="toolrow"><input class="qcinput" id="qccustom" placeholder="Custom comment…"></div>
       <div class="toolrow"><span style="color:#9aa8ba;font-size:12px;font-family:var(--fm)">Draw</span><span class="swatch on" style="background:#e5483b" data-color="#e5483b" onclick="pickPen(this)"></span><span class="swatch" style="background:#f0c020" data-color="#f0c020" onclick="pickPen(this)"></span><span class="swatch" style="background:#3d8bf0" data-color="#3d8bf0" onclick="pickPen(this)"></span><button class="tbtn" onclick="undoDraw()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 5 5v1a5 5 0 0 1-5 5H9"/></svg></button><button class="tbtn" onclick="clearDraw()">Clear</button></div>
       <div class="toolrow"><span style="color:#9aa8ba;font-size:12px;font-family:var(--fm)">Stamp</span><button class="tbtn sym" onclick="setStamp('★')">★</button><button class="tbtn sym" onclick="setStamp('↑')">↑</button><button class="tbtn sym" onclick="setStamp('↓')">↓</button><button class="tbtn sym" onclick="setStamp('←')">←</button><button class="tbtn sym" onclick="setStamp('→')">→</button></div>
-      <div class="btnrow"><button class="btn signal" onclick="closeViewer();toast('Markup saved to photo')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Save markup</button><button class="btn primary" onclick="closeViewer();go('s-section')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5M13 6l6 6-6 6"/></svg>Save &amp; return</button></div>
+      <div class="btnrow"><button class="btn signal" onclick="closeViewer();toast('Markup saved to photo')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Save markup</button><button class="btn primary" onclick="closeViewer();go('s-section')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>Save &amp; return</button></div>
     </div>
   </div>
 
@@ -1382,7 +1387,7 @@
     {q:'Thermal camera shows leaks',t:'single',o:['Yes','No','N/A']},
     {q:'Cut off location',t:'single',o:['Near unit','Near door']},
     {q:'Cut off condition',t:'single',o:['Good','Bad','Damaged']},
-    {q:'Compressor size (sq ft)',t:'num',ph:'e.g. 2400'},
+    {q:'Compressor size (home sq ft)',t:'num',ph:'e.g. 2400'},
     {q:'Compressor size (tons)',t:'num',ph:'sq ft × 20 ÷ 12,000 BTU'},
     {q:'Proper size',t:'single',o:['Yes','No']},
     {q:'Overall condition',t:'single',o:OVERALL},
@@ -2021,7 +2026,7 @@ SEC['Exterior Walls'].itemsHigh=[
   {q:'Leaking',t:'single',o:['Yes','No']},
   {q:'Hose Bib condition',t:'single',o:['Good','Poor','Leaking']},
   {q:'Water Pressure (psi)',t:'num',ph:'psi'},
-  {q:'Water Pressure rating',t:'single',o:['Good','Low']},
+  {q:'Water Pressure rating',t:'single',o:['Good','Low','High']},
   {q:'Hose bib locations',t:'multi',o:['Front','Back','Right Side','Left Side','In Yard']},
   {h:'Lighting'},
   {q:'Lighting',t:'single',o:['None','Good','Poor']},
@@ -2344,7 +2349,9 @@ SEC['Garage'].itemsHigh=[
   {q:'Any damage',t:'single',o:['Yes','No']},
   {q:'Wiring type',t:'single',o:['Open','Plastic Conduit','Metal Conduit','Romex']},
   {h:'Electrical'},
-  {q:'Receptacles',t:'single',o:['None','GFCI']},
+  {q:'Receptacles',t:'single',o:['None','GFCI','Non GFCI']},
+  {q:'GFCI receptacles (count)',t:'num',int:1,ph:'e.g. 4'},
+  {q:'Standard receptacles (count)',t:'num',int:1,ph:'e.g. 6'},
   {q:'GFCI',t:'single',o:['Yes','No']},
   {q:'Functional',t:'single',o:['Yes','No']},
   {q:'Grounded',t:'single',o:['Yes','No']},
@@ -2364,6 +2371,8 @@ SEC['Garage'].itemsHigh=[
   {q:'Comments',t:'text',ph:'notes'}
 ];
 SEC['Garage'].picsHigh=['Front','Roof','Garage Inside #1','Garage Inside #2','Concerns'];
+// Detached Garage shares Garage's lists but keeps the pre-Oct 29 receptacle lines (client Oct 29 changed Garage + Attic only; shared v1.12.0)
+SEC['Detached Garage']=Object.assign({},SEC['Garage'],{itemsHigh:SEC['Garage'].itemsHigh.filter(function(it){ return !/^(GFCI|Standard) receptacles \(count\)$/.test(it.q||''); }).map(function(it){ return it.q==='Receptacles'?{q:'Receptacles',t:'single',o:['None','GFCI']}:it; })});
 
 SEC['Attic'].itemsHigh=[
   {q:'Attic',t:'single',o:['None','No Access']},
@@ -2405,7 +2414,9 @@ SEC['Attic'].itemsHigh=[
   {q:'Wiring',t:'multi',o:['Knob & Tube','Aluminum','Romex','Plastic','Conduit']},
   {q:'Wiring connections',t:'single',o:['Exposed','In Box']},
   {h:'Electrical'},
-  {q:'Receptacles',t:'single',o:['None','GFCI']},
+  {q:'Receptacles',t:'single',o:['None','GFCI','Non GFCI']},
+  {q:'GFCI receptacles (count)',t:'num',int:1,ph:'e.g. 4'},
+  {q:'Standard receptacles (count)',t:'num',int:1,ph:'e.g. 6'},
   {q:'GFCI',t:'single',o:['Yes','No']},
   {q:'Functional',t:'single',o:['Yes','No']},
   {q:'Grounded',t:'single',o:['Yes','No']},
@@ -2490,7 +2501,7 @@ SEC['Chimney'].picsHigh=['Chimney','Crown','Flue & Lining','Mantle','FireBox','D
 
 SEC['Bathroom'].picsHigh=['Vanity/Sink','Under Sink Plumbing','Toilet','Toilet Valve','Bath/Shower','Concerns'];
 SEC['Bathroom'].itemsHigh=[
-  {q:'Bathroom No.',t:'single',o:['1','2','3','4']},
+  {q:'Bathroom No.',t:'single',o:['1','2','3','4'],cnt:'bathrooms',rn:1},
   {q:'Type',t:'single',o:['Master Bath','Full','1/2 Bath','Water Closet']},
   {q:'Location',t:'single',o:['Main Floor','Basement','2nd Story','3rd Story','Du-plex 1','Du-plex 2']},
   {h:'Remodel'},
@@ -2619,7 +2630,7 @@ SEC['Bathroom'].itemsHigh=[
 
 SEC['Bedroom'].picsHigh=['General Room','Closet','Windows','Smoke Detector','Concerns'];
 SEC['Bedroom'].itemsHigh=[
-  {q:'Bedroom No.',t:'single',o:['1','2','3','4','5','6']},
+  {q:'Bedroom No.',t:'single',o:['1','2','3','4','5','6'],cnt:'bedrooms',rn:1},
   {q:'Type',t:'single',o:['Master Bed','Standard Bed','Small Bed']},
   {q:'Du-plex',t:'single',o:['Du-plex 1','Du-plex 2']},
   {q:'Location',t:'single',o:['Main Floor','Basement','2nd Floor','3rd Floor','4th Floor']},
@@ -3307,6 +3318,8 @@ SEC['Kitchen'].itemsHigh=[
   {q:'Exposed wiring',t:'single',o:['Yes','No']},
   {q:'Any damage',t:'single',o:['Yes','No']},
   {h:'Electrical'},
+  {q:'GFCI receptacles (count)',t:'num',int:1,ph:'e.g. 4'},
+  {q:'Standard receptacles (count)',t:'num',int:1,ph:'e.g. 6'},
   {q:'Receptacles GFCI',t:'single',o:['Yes','No']},
   {q:'Receptacles functional',t:'single',o:['Yes','No']},
   {q:'Receptacles grounded',t:'single',o:['Yes','No']},
@@ -4288,7 +4301,7 @@ SEC['Wind Mitigation'].itemsHigh=[
   ];
 
   var THUMBS=['%234a6572','%235b6b78','%237a6a55','%238a5a4a','%235a6b52'];
-  function thumb(i){var c=THUMBS[i%THUMBS.length];return "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><rect width='120' height='120' fill='"+c+"'/><path d='M0 80 L45 46 L78 68 L120 42 L120 120 L0 120Z' fill='rgba(0,0,0,0.22)'/></svg>";}
+  function thumb(i){var c=THUMBS[i%THUMBS.length];return ("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><rect width='120' height='120' fill='"+c+"'/><path d='M0 80 L45 46 L78 68 L120 42 L120 120 L0 120Z' fill='rgba(0,0,0,0.22)'/></svg>").replace(/'/g,'%27');} // %27: the URI sits inside url('…') on the photo tiles
 
   // ---------- router ----------
   var stack=[], curSection='Roof';
@@ -4419,10 +4432,15 @@ SEC['Wind Mitigation'].itemsHigh=[
       var items = useHigh ? s.itemsHigh : (s.items||[]);
       items.forEach(function(it){
         if(it.h){ h+='<div class="lihead">'+ico('list')+it.h+'</div>'; return; }
-        if(it.t==='num'||it.t==='text'||it.t==='date'||it.t==='time'){ var itype=it.t==='date'?'date':it.t==='time'?'time':'text'; var extra=it.t==='num'?'inputmode="decimal" ':''; var ph=(it.t==='date'||it.t==='time')?'':'placeholder="'+(it.ph||'Enter a value')+'" '; h+='<div class="li"><div class="q">'+it.q+'</div><input class="txt" type="'+itype+'" '+extra+ph+'></div>'; return; }
+        if(it.t==='num'||it.t==='text'||it.t==='date'||it.t==='time'){ var itype=it.t==='date'?'date':it.t==='time'?'time':'text'; var extra=it.t==='num'?(it.int?'inputmode="numeric" pattern="[0-9]*" oninput="this.value=this.value.replace(/[^0-9]/g,\'\')" ':'inputmode="decimal" '):''; var ph=(it.t==='date'||it.t==='time')?'':'placeholder="'+(it.ph||'Enter a value')+'" '; h+='<div class="li"><div class="q">'+it.q+'</div><input class="txt" type="'+itype+'" '+extra+ph+'></div>'; return; }
         if(it.t==='air'){ h+='<div class="li air" data-q="'+String(it.q).replace(/"/g,'&quot;')+'"><div class="q">'+it.q+'</div><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><input class="txt" style="flex:0 0 150px;min-height:42px" inputmode="decimal" placeholder="Level ('+it.unit+')" aria-label="Level measured, '+it.unit+'"><div class="chips" data-single style="margin:0">'; it.o.forEach(function(op){ h+='<button class="chip">'+op+'</button>'; }); h+='</div></div><div style="font-size:11.5px;color:var(--ink-3);margin-top:7px;line-height:1.45">'+it.ref+'<br>Corrective action if needed — '+it.act+'</div></div>'; return; }
         h+='<div class="li" data-q="'+String(it.q).replace(/"/g,'&quot;')+'"><div class="q">'+it.q+'</div><div class="chips"'+(it.t==='single'?' data-single':'')+'>';
-        it.o.forEach(function(op){ h+='<button class="chip">'+op+'</button>'; });
+        // Bathroom No. / Bedroom No. (client Oct 29): options 1..n from the wizard room count (min 1; static list without a count);
+        // in 'Bathroom 2' the room's own number is pre-selected (still changeable). Progress is set on Save, so this alone never completes a section.
+        var opts=it.o, pre=null;
+        if(it.cnt && typeof sel[it.cnt]==='number'){ var nC=Math.max(1,sel[it.cnt]); opts=[]; for(var k=1;k<=nC;k++) opts.push(String(k)); }
+        if(it.rn){ var rm=/\s(\d+)$/.exec(name); if(rm && opts.indexOf(rm[1])>=0) pre=rm[1]; }
+        opts.forEach(function(op){ h+='<button class="chip'+(op===pre?' on':'')+'">'+op+'</button>'; });
         h+='</div>';
         if(depth==='high' && !s.itemsHigh){ h+='<input class="txt" style="margin-top:9px;min-height:42px;font-size:13px" placeholder="Detail / measurement (optional)">'; }
         h+='</div>';
@@ -4435,7 +4453,7 @@ SEC['Wind Mitigation'].itemsHigh=[
     }
     h+='<p class="lbl">Comments</p><textarea class="txt" placeholder="Notes for this section…"></textarea>';
     h+='<div class="btnrow"><button class="btn ghost" onclick="go(\'s-photos\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"/><circle cx="12" cy="13" r="3"/></svg>Photos</button><button class="btn ghost" onclick="saveSection()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Save</button></div>';
-    h+='<button class="btn primary" style="margin-top:10px" onclick="saveNext()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5M13 6l6 6-6 6"/></svg>Save &amp; next section</button>';
+    h+='<button class="btn primary" style="margin-top:10px" onclick="saveNext()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>Save &amp; next section</button>';
     document.getElementById('sectionbody').innerHTML=h;
   }
   window.saveSection=function(){ STATUS[curSection]='done'; toast('Section saved'); setTimeout(function(){ renderOverview(); go('s-sections'); },550); };
@@ -4471,7 +4489,7 @@ SEC['Wind Mitigation'].itemsHigh=[
     });
     if(sp.photosOnly){
       var toSummary=GROUPS.some(function(g){return g.link==='s-summary';});
-      h+='<button class="btn primary" style="margin-top:6px" onclick="finishPictures(\''+js(name)+'\')">Save &amp; continue to '+(toSummary?'summary':'report')+'</button>';
+      h+='<button class="btn primary" style="margin-top:6px" onclick="finishPictures(\''+js(name)+'\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>Save &amp; continue to '+(toSummary?'summary':'report')+'</button>';
     } else h+='<button class="btn primary" style="margin-top:6px" onclick="go(\'s-section\')">Done</button>';
     document.getElementById('photosbody').innerHTML=h;
   }
@@ -4821,20 +4839,48 @@ SEC['Wind Mitigation'].itemsHigh=[
   // viewer + annotation
   var cv,ctx,drawing=false,pen='#e5483b',stamp=null,strokes=[],cur=null;
   window.openViewer=function(title,tile){ var bg=tile&&tile.style.backgroundImage; openViewerSrc(title, bg?bg.slice(5,-2).replace(/^["']|["']$/g,''):''); };
-  window.openViewerSrc=function(title,src){ document.getElementById('viewer-title').textContent=title; document.getElementById('vimg').src=src||''; document.getElementById('viewer').classList.add('on'); setTimeout(initCanvas,60); };
+  window.openViewerSrc=function(title,src){ document.getElementById('viewer-title').textContent=title; document.getElementById('vimg').src=src||''; document.getElementById('viewer').classList.add('on'); resetZoom(); setTimeout(initCanvas,60); };
   window.closeViewer=function(){ document.getElementById('viewer').classList.remove('on'); };
   function initCanvas(){ cv=document.getElementById('vcanvas'); var st=document.getElementById('vstage'); cv.width=st.clientWidth; cv.height=st.clientHeight; ctx=cv.getContext('2d'); strokes=[]; redraw(); }
-  function pos(e){ var r=cv.getBoundingClientRect(); var t=e.touches?e.touches[0]:e; return {x:t.clientX-r.left,y:t.clientY-r.top}; }
-  function start(e){ e.preventDefault(); var p=pos(e); if(stamp){ strokes.push({stamp:stamp,color:pen,x:p.x,y:p.y}); redraw(); return; } drawing=true; cur={color:pen,pts:[p]}; }
-  function move(e){ if(!drawing)return; e.preventDefault(); cur.pts.push(pos(e)); redraw(); drawCur(); }
-  function end(){ if(drawing&&cur){strokes.push(cur);cur=null;} drawing=false; }
+  // canvas coords: the canvas sits inside the zoom layer, so map screen -> canvas through its scaled rect
+  function pos(e){ var r=cv.getBoundingClientRect(); var t=e.touches?e.touches[0]:e; return {x:(t.clientX-r.left)*cv.width/r.width,y:(t.clientY-r.top)*cv.height/r.height}; }
+  // ---- zoom: two-finger pinch (zoom + pan), double-tap / double-click toggles 2.5x, wheel zooms; one finger keeps drawing ----
+  var Z={s:1,x:0,y:0}, pinch=null, lastTap=null, ZMAX=5;
+  function stageEl(){ return document.getElementById('vstage'); }
+  function clampZ(){ var st=stageEl(), W=st.clientWidth, H=st.clientHeight; Z.s=Math.max(1,Math.min(ZMAX,Z.s)); Z.x=Math.min(0,Math.max(W-W*Z.s,Z.x)); Z.y=Math.min(0,Math.max(H-H*Z.s,Z.y)); }
+  function applyZ(){ clampZ(); document.getElementById('vzoom').style.transform='translate('+Z.x+'px,'+Z.y+'px) scale('+Z.s+')'; document.getElementById('vzreset').classList.toggle('on',Z.s>1.01); }
+  function zoomAt(ns,cx,cy){ var px=(cx-Z.x)/Z.s, py=(cy-Z.y)/Z.s; Z.s=Math.max(1,Math.min(ZMAX,ns)); Z.x=cx-px*Z.s; Z.y=cy-py*Z.s; applyZ(); }
+  window.resetZoom=function(){ Z={s:1,x:0,y:0}; pinch=null; applyZ(); };
+  function stagePt(t){ var r=stageEl().getBoundingClientRect(); return {x:t.clientX-r.left,y:t.clientY-r.top}; }
+  function toggleZoomAt(cx,cy){ if(Z.s>1.01) resetZoom(); else zoomAt(2.5,cx,cy); }
+  function start(e){ e.preventDefault();
+    if(e.touches&&e.touches.length>=2){ // second finger: drop the stroke the first finger began and pinch instead
+      if(drawing){ drawing=false; cur=null; redraw(); }
+      if(lastTap&&Date.now()-lastTap.t<400){ strokes.length=Math.min(strokes.length,lastTap.n0); redraw(); } // a stamp the first finger just dropped
+      var a=stagePt(e.touches[0]), b=stagePt(e.touches[1]);
+      pinch={d:Math.hypot(a.x-b.x,a.y-b.y)||1, s:Z.s, px:((a.x+b.x)/2-Z.x)/Z.s, py:((a.y+b.y)/2-Z.y)/Z.s}; lastTap=null; return; }
+    if(pinch) return;
+    var t=e.touches?e.touches[0]:e, sp=stagePt(t), now=Date.now();
+    var n0=strokes.length;
+    if(lastTap && now-lastTap.t<(e.touches?320:400) && Math.hypot(sp.x-lastTap.x,sp.y-lastTap.y)<30){ // double-tap: undo both taps' marks, toggle zoom
+      strokes.length=lastTap.n0; drawing=false; cur=null; redraw(); lastTap=null; toggleZoomAt(sp.x,sp.y); return; }
+    lastTap={t:now,x:sp.x,y:sp.y,n0:n0};
+    var p=pos(e); if(stamp){ strokes.push({stamp:stamp,color:pen,x:p.x,y:p.y}); redraw(); return; } drawing=true; cur={color:pen,pts:[p]}; }
+  function move(e){
+    if(pinch&&e.touches&&e.touches.length>=2){ e.preventDefault(); var a=stagePt(e.touches[0]), b=stagePt(e.touches[1]); var mx=(a.x+b.x)/2, my=(a.y+b.y)/2;
+      Z.s=Math.max(1,Math.min(ZMAX,pinch.s*Math.hypot(a.x-b.x,a.y-b.y)/pinch.d)); Z.x=mx-pinch.px*Z.s; Z.y=my-pinch.py*Z.s; applyZ(); return; }
+    if(!drawing)return; e.preventDefault(); var p=pos(e); cur.pts.push(p); if(lastTap&&Math.hypot(p.x-cur.pts[0].x,p.y-cur.pts[0].y)>12) lastTap=null; redraw(); drawCur(); }
+  function end(e){ if(pinch){ if(!e||!e.touches||e.touches.length===0) pinch=null; return; } if(drawing&&cur){strokes.push(cur);cur=null;} drawing=false; }
   function drawCur(){ if(!cur)return; ctx.strokeStyle=cur.color;ctx.lineWidth=4;ctx.lineCap='round';ctx.lineJoin='round';ctx.beginPath();cur.pts.forEach(function(p,i){i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y);});ctx.stroke(); }
   function redraw(){ if(!ctx)return; ctx.clearRect(0,0,cv.width,cv.height); strokes.forEach(function(s){ if(s.stamp){ctx.fillStyle=s.color;ctx.font='34px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(s.stamp,s.x,s.y);} else {ctx.strokeStyle=s.color;ctx.lineWidth=4;ctx.lineCap='round';ctx.lineJoin='round';ctx.beginPath();s.pts.forEach(function(p,i){i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y);});ctx.stroke();} }); }
   window.pickPen=function(el){ document.querySelectorAll('.swatch').forEach(function(x){x.classList.remove('on');}); el.classList.add('on'); pen=el.getAttribute('data-color'); stamp=null; };
   window.setStamp=function(s){ stamp=s; };
   window.undoDraw=function(){ strokes.pop(); redraw(); };
   window.clearDraw=function(){ strokes=[]; redraw(); };
-  (function(){ var stage=document.getElementById('vstage'); ['mousedown','touchstart'].forEach(function(ev){stage.addEventListener(ev,start,{passive:false});}); ['mousemove','touchmove'].forEach(function(ev){stage.addEventListener(ev,move,{passive:false});}); ['mouseup','mouseleave','touchend'].forEach(function(ev){stage.addEventListener(ev,end);}); })();
+  (function(){ var stage=document.getElementById('vstage'); var cvs=document.getElementById('vcanvas');
+    ['mousedown','touchstart'].forEach(function(ev){cvs.addEventListener(ev,start,{passive:false});}); ['mousemove','touchmove'].forEach(function(ev){cvs.addEventListener(ev,move,{passive:false});}); ['mouseup','mouseleave','touchend','touchcancel'].forEach(function(ev){cvs.addEventListener(ev,end);});
+    stage.addEventListener('wheel',function(e){ e.preventDefault(); var p=stagePt(e); zoomAt(Z.s*Math.exp(-e.deltaY*0.0025),p.x,p.y); },{passive:false});
+    window.addEventListener('resize',function(){ if(document.getElementById('viewer').classList.contains('on')) applyZ(); }); })();
 
   window.addPhoto=function(name,cat){
     if(!name){ toast('Camera / upload…'); return; }
