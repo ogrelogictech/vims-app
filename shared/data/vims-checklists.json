@@ -1,6 +1,6 @@
 {
  "_about": "VIMS shared checklist + configuration data. Single source of truth for the native iOS (SwiftUI) and Android (Kotlin/Compose) apps. Extracted from the client-approved prototype (index.html, approved Sep 15, 2026). Edit here, not in app code.",
- "version": "1.11.0",
+ "version": "1.11.1",
  "generated": "2026-10-28",
  "depths": [
   {
@@ -31654,7 +31654,7 @@
  },
  "wizard": {
   "steps": [
-   "Client & inspection",
+   "Client & inspection Client Oct 28 (2nd email): the Restore block sits at the TOP of Manage checklist with two buttons in the client's words: 'Restore all checklists' (whole checklist) and 'Restore selected checklists' (each section is one checklist; a picker lists only Edited / Added sections with checkboxes, then one confirm naming them; an Added section is removed). Both disabled when nothing is edited.",
    "Property",
    "Areas to inspect",
    "Testing"
@@ -32522,6 +32522,7 @@
     "perReport": true
    }
   ],
+  "_extraInspectorAbout": "Client Oct 28: the Additional inspector rate is not a plan; it applies to every plan, so Plans & pricing shows it with monthly + yearly prices but no Delete (card note: 'Applies to every plan, so it can't be deleted.').",
   "extraInspectorMonthly": 24.95,
   "note": "Company subscription billed through Square (Phase 1). Client inspection-fee payment is a separate add-on, NOT Phase 1.",
   "extraInspectorYearly": 275,
