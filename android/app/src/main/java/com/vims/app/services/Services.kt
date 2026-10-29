@@ -50,8 +50,10 @@ interface SubscriptionService {
      * [cardNumber] null = charge the card on file (TODO(backend): Square Cards API card id).
      */
     suspend fun startSubscription(plan: Plan, period: String, seats: Int, cardNumber: String?): SubscriptionResult
-    /** Stops renewal at the end of the current period (no refunds / proration — EULA 12.3). */
+    /** Monthly: stops renewal at the next billing date (no refund). Yearly: ends now (EULA 12.3) — see [refundUnused]. */
     suspend fun cancelSubscription(): Boolean
+    /** EULA 12.4: refunds the unused days of a cancelled yearly plan to the card on file. */
+    suspend fun refundUnused(amount: Double): Boolean
     suspend fun resumeSubscription(): Boolean
 }
 
@@ -185,6 +187,9 @@ class LocalSubscriptionService : SubscriptionService {
     // TODO(backend): Square Subscriptions API — cancel at period end / resume.
     override suspend fun cancelSubscription(): Boolean = true
     override suspend fun resumeSubscription(): Boolean = true
+    // TODO(backend): Square refund — Refunds API (RefundPayment) against the yearly payment for [amount] (EULA 12.4), then cancel
+    // the Square subscription immediately instead of at the period end.
+    override suspend fun refundUnused(amount: Double): Boolean = true
 }
 
 // TODO(backend): Laravel API — upload pending inspections, photos, findings, and reports; pull checklist/plan edits.
@@ -202,15 +207,17 @@ fun trialDaysLeft(trialDays: Int, trialStartEpochDay: Long, today: LocalDate = L
     (trialDays - (today.toEpochDay() - trialStartEpochDay)).toInt().coerceAtLeast(0)
 
 /**
- * Whether the company may start NEW inspections (client Oct 25): an active subscription (a cancelled one until the end of its
- * paid period, EULA 12.3) or free-look days left. Existing inspections and their reports stay available either way.
+ * Whether the company may start NEW inspections (client Oct 25): an active subscription (a cancelled monthly one until the next
+ * billing date, a cancelled yearly one not at all — EULA 12.3) or free-look days left. Existing inspections and their reports stay available either way.
  */
 fun hasAccess(a: AccountState, today: LocalDate = LocalDate.now(), masterAdmin: Boolean = false): Boolean {
     // Client Oct 28: VIMS master admins (support.platformOwners) can always start inspections. TODO(backend): server-granted.
     if (masterAdmin) return true
     if (a.active) {
-        val end = a.periodEndEpochDay
-        if (!a.cancelled || end == null || today.toEpochDay() < end) return true
+        // EULA 2026-10-28: a cancelled monthly plan keeps access until the next billing date; a cancelled yearly plan ends on the
+        // cancellation date. Once a cancelled subscription has ended, the leftover free-trial days don't reopen access.
+        if (!a.subscriptionEnded(today)) return true
+        return false
     }
     return trialDaysLeft(a.trialDays, a.trialStartEpochDay, today) > 0
 }

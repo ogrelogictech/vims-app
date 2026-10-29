@@ -95,6 +95,7 @@ class MainActivity : ComponentActivity() {
             state = i.getStringExtra("state"), cover = i.getStringExtra("cover"), inspType = i.getStringExtra("inspType"),
             generate = i.getBooleanExtra("generate", false),
             trialEnded = i.getBooleanExtra("trialEnded", false), resetDeviceTrial = i.getBooleanExtra("resetDeviceTrial", false),
+            subscribed = i.getStringExtra("subscribed"), subscribedDaysAgo = i.getIntExtra("subscribedDaysAgo", 0),
         )
     }
 }

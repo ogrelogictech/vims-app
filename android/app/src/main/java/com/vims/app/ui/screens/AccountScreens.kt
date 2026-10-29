@@ -206,6 +206,7 @@ fun SubscribeScreen(vm: AppViewModel, nav: NavHostController) {
             Icon(VIcons.clock, null, tint = V.brandDeep, modifier = Modifier.padding(top = 1.dp).size(19.dp))
             Text(
                 if (vm.session.collectAsState().value?.platformOwner == true && !account.active) rich("**Master admin · no subscription needed.** VIMS master admins can always start new inspections; these are the plans companies see.", V.bannerBold)
+                else if (account.subscriptionEnded()) rich("**Your subscription has ended.** Subscribe to start new inspections — your saved inspections and reports stay available.", V.bannerBold)
                 else if (account.active) rich("**Subscription active.** Change your plan or seats below.", V.bannerBold)
                 else if (!vm.canStartInspection()) rich(if (account.trialUsedOnDevice) "**This device's free trial has already been used.** Subscribe to start new inspections." else "**Your free trial has ended.** Subscribe to start new inspections — your saved inspections and reports stay available.", V.bannerBold)
                 else rich("**Free trial — ${vm.trialDaysLeft()} days left.** Set up your subscription now so access continues automatically when the trial ends.", V.bannerBold),
@@ -314,7 +315,7 @@ fun SubscribeScreen(vm: AppViewModel, nav: NavHostController) {
             Icon(VIcons.lock, null, tint = V.ink3, modifier = Modifier.size(14.dp))
             Text("Secured by Square · ${if (plan.perReport) "charged per report" else "auto-renews ${if (yearly) "yearly" else "monthly"}"} · cancel anytime", style = T.ui(12.sp, color = V.ink3))
         }
-        VBtn(if (account.active) "Update subscription" else "Start subscription", {
+        VBtn(if (account.active && !account.subscriptionEnded()) "Update subscription" else "Start subscription", {
             if (!newCard || form.submit()) vm.startSubscription(plan.id, billed, if (newCard) card else null, if (newCard) exp else null) {
                 card = ""; exp = ""; cvc = ""; nav.navigate(SubStartedR) { popUpTo<SubscribeR> { inclusive = true } }
             }
@@ -368,6 +369,9 @@ fun BillingScreen(vm: AppViewModel, nav: NavHostController) {
     val session by vm.session.collectAsState()
     var confirmCancel by rememberSaveable { mutableStateOf(false) }
     val endDate = a.periodEndEpochDay?.let { Fmt.date(LocalDate.ofEpochDay(it)) } ?: "the end of the billing period"
+    // EULA 2026-10-28 (4.1 / 12.3 / 12.4): a cancelled yearly plan ends on the cancellation date, with a pro-rated refund.
+    val ended = a.subscriptionEnded()
+    val accessEnd = a.accessEndEpochDay?.let { Fmt.date(LocalDate.ofEpochDay(it)) } ?: endDate
     // Client Oct 28: VIMS master admins aren't billed (no trial countdown, plan or Subscribe). TODO(backend): server-granted.
     if (session?.platformOwner == true && !a.active) {
         VScreen("Subscription", companyName(vm), net(vm), backAction(nav), listOf(homeAction(nav))) {
@@ -384,6 +388,7 @@ fun BillingScreen(vm: AppViewModel, nav: NavHostController) {
         Column(Modifier.padding(bottom = 12.dp).fillMaxWidth().vCard()) {
             BinfoRow({ Text("Status", style = T.ui(14.sp)) }, {
                 when {
+                    ended -> Pill("Cancelled · ended $accessEnd", PillKind.Queued)
                     a.active && a.cancelled -> Pill("Cancelled · active until $endDate", PillKind.Queued)
                     a.active -> Pill("Active · auto-pay", PillKind.Done)
                     !vm.canStartInspection() -> Pill("Trial ended", PillKind.Queued)
@@ -396,25 +401,56 @@ fun BillingScreen(vm: AppViewModel, nav: NavHostController) {
             BinfoRow(if (plan.perReport) "Billing" else if (yearly) "Yearly total" else "Monthly total", subTotalLabel(vm))
             BinfoRow("Payment", if (a.active) "Square · ${a.cardOnFile?.label ?: "Card"}" else "Not set up")
             val next = a.periodEndEpochDay?.let { Fmt.date(LocalDate.ofEpochDay(it)) }
-            BinfoRow(if (a.active && a.cancelled) "Access ends" else if (a.active) "Next billing" else if (!vm.canStartInspection()) "Trial" else "Trial ends",
-                if (a.active) next ?: "—" else if (!vm.canStartInspection()) "Ended" else "in ${vm.trialDaysLeft()} days", last = true)
+            val refund = a.refundAmount?.takeIf { a.endsOnCancel && it > 0.0 }
+            BinfoRow(if (ended) "Access ended" else if (a.active && a.cancelled) "Access ends" else if (a.active) "Next billing" else if (!vm.canStartInspection()) "Trial" else "Trial ends",
+                if (a.active && a.cancelled) accessEnd else if (a.active) next ?: "—" else if (!vm.canStartInspection()) "Ended" else "in ${vm.trialDaysLeft()} days", last = refund == null)
+            if (refund != null) BinfoRow("Pro-rated refund", "${Fmt.money(refund)} to your card", last = true)
         }
         VBtn("Manage inspectors", { nav.navigate(InspectorsR) }, kind = BtnKind.Ghost, icon = VIcons.usersSmall)
-        VBtn(if (a.active) "Change plan / payment" else "Set up subscription", { nav.navigate(SubscribeR) }, Modifier.padding(top = 10.dp), if (a.active) BtnKind.Ghost else BtnKind.Primary)
+        val live = a.active && !ended
+        VBtn(if (ended) "Subscribe again" else if (a.active) "Change plan / payment" else "Set up subscription", { nav.navigate(SubscribeR) }, Modifier.padding(top = 10.dp), if (live) BtnKind.Ghost else BtnKind.Primary)
         // Cancel (EULA 12.3): active subscriptions only, owner / admins only. TODO(backend): Square cancel / resume.
         if (a.active && session?.isAdmin != false) {
             when {
-                a.cancelled -> {
+                a.cancelled && a.endsOnCancel -> {
+                    // Yearly (EULA 12.3 / 12.4): access ended on the cancellation date; the unused days are refunded. No Undo.
                     VCard(Modifier.padding(top = 14.dp), bottom = 0.dp) {
-                        Text(rich("Your subscription is cancelled and stays active until **$endDate**. Download anything you need within 30 days after it ends.", V.ink),
+                        Text(rich("Your yearly subscription was cancelled on **$accessEnd** and access has ended — new inspections need a subscription." +
+                            (a.refundAmount?.takeIf { it > 0.0 }?.let { " A pro-rated refund of **${Fmt.money(it)}** for the unused days will be refunded to your card." } ?: "") +
+                            " Your saved inspections and reports stay available; download anything you need within 30 days.", V.ink),
                             style = T.ui(13.sp, color = V.ink2, lineHeight = 19.5.sp))
                     }
-                    VBtn("Undo cancellation", { vm.resumeSubscription() }, Modifier.padding(top = 10.dp), BtnKind.Ghost)
+                }
+                a.cancelled -> {
+                    VCard(Modifier.padding(top = 14.dp), bottom = 0.dp) {
+                        Text(rich(if (ended) "Your subscription was cancelled and ended on **$endDate**. Download anything you need within 30 days after it ended."
+                            else "Your subscription is cancelled and stays active until **$endDate**. Download anything you need within 30 days after it ends.", V.ink),
+                            style = T.ui(13.sp, color = V.ink2, lineHeight = 19.5.sp))
+                    }
+                    if (!ended) VBtn("Undo cancellation", { vm.resumeSubscription() }, Modifier.padding(top = 10.dp), BtnKind.Ghost)
+                }
+                confirmCancel && yearly -> {
+                    // EULA 4.1 / 12.3 / 12.4: yearly plans end at cancellation with a pro-rated refund for the unused days.
+                    val today = LocalDate.now()
+                    val (left, days) = a.unusedDays(today)
+                    val refund = vm.yearlyRefund(a, today)
+                    Column(Modifier.padding(top = 14.dp).fillMaxWidth().vCard(border = V.c1).padding(horizontal = 16.dp, vertical = 15.dp)) {
+                        Text("Cancel your yearly subscription?", style = T.ui(13.sp, FontWeight.Bold, V.ink))
+                        Text(rich("Access ends today (**${Fmt.date(today)}**) — you won't be able to start new inspections after you cancel. " +
+                            "A pro-rated refund of **${Fmt.money(refund)}** for the $left unused day${if (left == 1L) "" else "s"} of this $days-day period " +
+                            "(${Fmt.money(vm.periodTotal(a))} × $left ÷ $days) will be refunded to your card. " +
+                            "Your saved inspections and reports stay available; download anything you need within 30 days.", V.ink),
+                            style = T.ui(13.sp, color = V.ink2, lineHeight = 19.5.sp), modifier = Modifier.padding(top = 6.dp))
+                    }
+                    BtnRow(Modifier.padding(top = 0.dp)) {
+                        VBtn("Keep subscription", { confirmCancel = false }, Modifier.weight(1f), BtnKind.Ghost)
+                        VBtn("Yes, cancel", { confirmCancel = false; vm.cancelSubscription() }, Modifier.weight(1f), BtnKind.Danger)
+                    }
                 }
                 confirmCancel -> {
                     Column(Modifier.padding(top = 14.dp).fillMaxWidth().vCard(border = V.c1).padding(horizontal = 16.dp, vertical = 15.dp)) {
                         Text("Cancel your subscription?", style = T.ui(13.sp, FontWeight.Bold, V.ink))
-                        Text(rich("It stays active until the end of the current billing period (**$endDate**), then stops renewing. There are no refunds or prorated charges. Download anything you need within 30 days after it ends.", V.ink),
+                        Text(rich("Monthly plans stay active until the next billing date (**$endDate**), then stop renewing. There is no refund for the current month. Download anything you need within 30 days after it ends.", V.ink),
                             style = T.ui(13.sp, color = V.ink2, lineHeight = 19.5.sp))
                     }
                     BtnRow(Modifier.padding(top = 0.dp)) {

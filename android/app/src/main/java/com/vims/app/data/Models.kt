@@ -131,13 +131,39 @@ data class AccountState(
     /** Card on file for subscription updates (QA Oct 14): brand + last 4 + expiry only — never the number or CVC. */
     val card: CardOnFile? = null,
     val subscribedEpochDay: Long? = null,
-    /** Cancelled subscriptions stay active until the end of the current billing period (EULA 12.3). */
+    /** Cancelled: a monthly plan stays active until the next billing date; a yearly plan ends on [cancelledEpochDay] (EULA 12.3). */
     val cancelled: Boolean = false,
     /** Client Oct 25: created on a device whose one free trial was already used — starts with no trial days (Subscribe shown). */
     val trialUsedOnDevice: Boolean = false,
+    /** EULA 2026-10-28 (4.1 / 12.3 / 12.4): the day a YEARLY plan was cancelled — access ends that day. Null for monthly cancels. */
+    val cancelledEpochDay: Long? = null,
+    /** Pro-rated refund for the unused days of a cancelled yearly plan (to the card on file). TODO(backend): Square refund. */
+    val refundAmount: Double? = null,
 ) {
-    /** Next billing date (or, when cancelled, the date access ends): one month or one year after the start. */
+    /** Next billing date (or, when a monthly plan is cancelled, the date access ends): one month or one year after the start. */
     val periodEndEpochDay: Long? get() = subscribedEpochDay?.let { java.time.LocalDate.ofEpochDay(it).let { d -> if (billingPeriod == BillingPeriod.YEARLY) d.plusYears(1) else d.plusMonths(1) }.toEpochDay() }
+    /** EULA 12.3: a cancelled yearly plan ends on the cancellation date (no access after it). */
+    val endsOnCancel: Boolean get() = cancelled && cancelledEpochDay != null && billingPeriod == BillingPeriod.YEARLY
+    /** The day access ends: the cancellation date for a cancelled yearly plan (EULA 12.3), otherwise the period end. */
+    val accessEndEpochDay: Long? get() = if (endsOnCancel) cancelledEpochDay else periodEndEpochDay
+    /** A cancelled subscription whose access has ended: new inspections are blocked like an ended trial (master admins exempt). */
+    fun subscriptionEnded(today: java.time.LocalDate = java.time.LocalDate.now()): Boolean =
+        active && cancelled && accessEndEpochDay?.let { today.toEpochDay() >= it } == true
+    /** Unused days of the current yearly period from [today] to the renewal date, and the period's length in days. */
+    fun unusedDays(today: java.time.LocalDate = java.time.LocalDate.now()): Pair<Long, Long> {
+        val start = subscribedEpochDay ?: return 0L to 0L
+        val end = periodEndEpochDay ?: return 0L to 0L
+        val days = end - start
+        if (days <= 0) return 0L to 0L
+        return (end - today.toEpochDay()).coerceIn(0L, days) to days
+    }
+    /** EULA 12.4 pro-rated refund: price paid × days remaining ÷ days in the period, rounded to cents. */
+    fun proratedRefund(paid: Double, today: java.time.LocalDate = java.time.LocalDate.now()): Double {
+        val (left, days) = unusedDays(today)
+        if (days <= 0 || paid <= 0.0) return 0.0
+        return java.math.BigDecimal.valueOf(paid).multiply(java.math.BigDecimal.valueOf(left))
+            .divide(java.math.BigDecimal.valueOf(days), 2, java.math.RoundingMode.HALF_UP).toDouble()
+    }
     val seatCount: Int get() = maxOf(seats, inspectors.size, 1)
     /** The remembered card (subscriptions started before Oct 21 only kept the last 4 — shown as "Card •••• 1234"). */
     val cardOnFile: CardOnFile? get() = card ?: cardLast4?.takeIf { active && it.isNotBlank() }?.let { CardOnFile("Card", it, 0, 0) }

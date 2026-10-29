@@ -4,6 +4,7 @@ import com.vims.app.data.sectionTitle
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,6 +36,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.onFocusChanged
@@ -107,8 +109,66 @@ fun AdminScreen(vm: AppViewModel, nav: NavHostController) {
             "Restore all", onConfirm = { vm.restoreChecklist(); askRestoreAll = false }, onDismiss = { askRestoreAll = false }, danger = true,
         )
     }
+    // Client Oct 28 (2nd email) — "Restore selected checklists" (each section is one checklist): pick from the Edited / Added
+    // sections (1 = picker), then one confirm naming them (2).
+    val changed = engine.adminGroups.flatMap { it.second }.distinct().filter { engine.isEdited(it) || engine.isCustom(it) }
+    var pickStage by rememberSaveable { mutableStateOf(0) }
+    var picked by rememberSaveable { mutableStateOf(listOf<String>()) }
+    val chosen = changed.filter { it in picked } // in Manage checklist order; drops anything restored meanwhile
+    if (pickStage == 1) com.vims.app.ui.components.ConfirmDialog(
+        "Restore selected checklists",
+        "Choose the checklists to restore to the VIMS original. Only checklists your company edited or added are listed.",
+        if (chosen.isEmpty()) "Restore" else "Restore ${chosen.size}", confirmEnabled = chosen.isNotEmpty(),
+        onConfirm = { pickStage = 2 }, onDismiss = { pickStage = 0 },
+    ) {
+        val all = chosen.size == changed.size && changed.isNotEmpty()
+        PickRow(all, { picked = if (all) emptyList() else changed }) {
+            Text("Select all (${changed.size})", style = T.ui(14.sp, FontWeight.Bold), modifier = Modifier.weight(1f))
+        }
+        Box(Modifier.fillMaxWidth().height(1.dp).background(V.line2))
+        changed.forEach { n ->
+            val on = n in chosen
+            PickRow(on, { picked = if (on) picked - n else picked + n }) {
+                Text(sectionTitle(n), style = T.ui(14.sp, FontWeight.Medium), modifier = Modifier.weight(1f))
+                EditTag(if (engine.isCustom(n)) "Added" else "Edited")
+            }
+        }
+        Box(Modifier.height(10.dp))
+    }
+    if (pickStage == 2 && chosen.isNotEmpty()) {
+        run {
+            val addedNames = chosen.filter { engine.isCustom(it) }
+            val editedNames = chosen - addedNames.toSet()
+            fun names(l: List<String>) = l.map { "**${sectionTitle(it)}**" }.let { if (it.size <= 1) it.joinToString() else it.dropLast(1).joinToString(", ") + " and " + it.last() }
+            val n = chosen.size
+            com.vims.app.ui.components.ConfirmDialog(
+                "Restore $n checklist${if (n == 1) "" else "s"}?",
+                listOfNotNull(
+                    if (editedNames.isEmpty()) null else "${names(editedNames)} go${if (editedNames.size == 1) "es" else ""} back to the VIMS original — your company's renamed, added and removed items are dropped.",
+                    if (addedNames.isEmpty()) null else "Added section${if (addedNames.size == 1) "" else "s"} ${if (addedNames.size == 1) "is" else "are"} removed: ${names(addedNames)}.",
+                    "Inspections already started keep their saved checklist. This can't be undone.",
+                ).joinToString(" "),
+                "Restore $n", danger = true, onDismiss = { pickStage = 1 },
+                onConfirm = { vm.restoreSections(chosen); picked = emptyList(); pickStage = 0 },
+            )
+        }
+    }
     VScreen("Manage checklist", companyName(vm), net(vm), backAction(nav), listOf(homeAction(nav))) {
         Hint("Add and edit checklist sections and items yourself — changes apply to new inspections.", Modifier.padding(top = 2.dp, bottom = 12.dp))
+        // Client Oct 28 (2nd email): the Restore block sits at the TOP, in the client's words.
+        Column(Modifier.padding(bottom = 14.dp).fillMaxWidth().vCard(13.dp).padding(horizontal = 14.dp, vertical = 13.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(VIcons.undo, null, tint = V.brand, modifier = Modifier.size(17.dp))
+                Text("Restore to the VIMS original", style = T.ui(14.sp, FontWeight.Bold), modifier = Modifier.weight(1f))
+            }
+            // Disabled (nothing edited): dimmed so it reads as unavailable — a ghost button's own disabled look is too faint.
+            val dim = if (engine.hasCompanyEdits) Modifier else Modifier.alpha(.45f)
+            VBtn("Restore all checklists", { askRestoreAll = true }, dim, kind = BtnKind.GhostDanger, icon = VIcons.undo, enabled = engine.hasCompanyEdits, minHeight = 48.dp)
+            VBtn("Restore selected checklists", { picked = emptyList(); pickStage = 1 }, dim, kind = BtnKind.Ghost, icon = VIcons.list, enabled = engine.hasCompanyEdits, minHeight = 48.dp)
+            Text(if (engine.hasCompanyEdits) "${changed.size} checklist${if (changed.size == 1) " differs" else "s differ"} from the VIMS original (tagged Edited or Added below). Inspections already started keep their saved checklist."
+                else "Your checklist matches the VIMS original — nothing to restore.",
+                style = T.ui(12.sp, color = V.ink3, lineHeight = 17.sp), modifier = Modifier.padding(start = 2.dp))
+        }
         AddBox {
             val nameErr = form.check("name", name) { Checks.sectionName(name) { n -> engine.def(n) != null } }
             VField("Section name", name, { name = it }, Modifier.formField(form, "name"), placeholder = "e.g. Solar Panels", filter = Filters::sectionName, error = nameErr, required = true, bottom = 0.dp)
@@ -146,11 +206,23 @@ fun AdminScreen(vm: AppViewModel, nav: NavHostController) {
                 }
             }
         }
-        Lbl("Restore")
-        VBtn("Restore entire checklist to original", { askRestoreAll = true }, kind = BtnKind.GhostDanger, icon = VIcons.undo, enabled = engine.hasCompanyEdits)
-        Text(if (engine.hasCompanyEdits) "Removes all of your company's checklist changes and returns to the VIMS default. Inspections already started keep their saved checklist."
-            else "Your checklist matches the VIMS original — nothing to restore.",
-            style = T.ui(12.sp, color = V.ink3, lineHeight = 17.sp), modifier = Modifier.padding(start = 2.dp, top = 8.dp))
+    }
+}
+
+/** A checkbox row in the Restore selected checklists picker (48dp+ tap target, whole row toggles). */
+@Composable
+private fun PickRow(checked: Boolean, onToggle: () -> Unit, content: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 52.dp).clip(RoundedCornerShape(8.dp))
+            .toggleable(checked, role = Role.Checkbox) { onToggle() }.padding(horizontal = 4.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        val shape = RoundedCornerShape(5.dp)
+        Box(
+            Modifier.size(22.dp).clip(shape).background(if (checked) V.brand else V.paper).border(1.5.dp, if (checked) V.brand else V.ink3, shape),
+            contentAlignment = Alignment.Center,
+        ) { if (checked) Icon(VIcons.checkBold, null, tint = Color.White, modifier = Modifier.size(15.dp)) }
+        content()
     }
 }
 
@@ -368,8 +440,9 @@ fun PlansAdminScreen(vm: AppViewModel, nav: NavHostController) {
                 yearly = if (plan.perReport) null else plan.priceYearly, onYearly = if (plan.perReport) null else ({ v -> vm.setPlanYearly(plan.id, v) }),
                 onDelete = if (canDelete) ({ deleteId = plan.id }) else null) { vm.setPlanPrice(plan.id, it) }
         }
+        // Client Oct 28 (2nd email): the rate isn't a plan — it applies to every plan, so it has no Delete (the card says why).
         PlanCard("Additional inspector", pricing.extraMonthly, "/mo each", "Follows the company's billing period.", yearly = pricing.extra(com.vims.app.data.BillingPeriod.YEARLY),
-            onYearly = { vm.setExtraYearly(it) }) { vm.setExtraRate(it) }
+            onYearly = { vm.setExtraYearly(it) }, note = "Applies to every plan, so it can't be deleted.") { vm.setExtraRate(it) }
         AddBox {
             val nErr = form.check("n", n) { Checks.required(n, "Enter a plan name") }
             val pErr = form.check("p", p) { Checks.price(p) }
@@ -386,7 +459,7 @@ fun PlansAdminScreen(vm: AppViewModel, nav: NavHostController) {
 
 @Composable
 private fun PlanCard(name: String, price: Double, unit: String, desc: String?, comingSoon: Boolean = false, yearly: Double? = null, onYearly: ((Double) -> Unit)? = null,
-                     onDelete: (() -> Unit)? = null, onCommit: (Double) -> Unit) {
+                     onDelete: (() -> Unit)? = null, note: String? = null, onCommit: (Double) -> Unit) {
     var err by remember { mutableStateOf<String?>(null) }
     var yErr by remember { mutableStateOf<String?>(null) }
     Column(Modifier.padding(bottom = 11.dp).fillMaxWidth().vCard(13.dp).padding(horizontal = 14.dp, vertical = 13.dp)) {
@@ -419,6 +492,10 @@ private fun PlanCard(name: String, price: Double, unit: String, desc: String?, c
             com.vims.app.ui.components.FieldError(yErr)
         }
         if (desc != null) Text(desc, style = T.ui(12.sp, color = V.ink3, lineHeight = 16.5.sp), softWrap = true, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
+        if (note != null) Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Icon(VIcons.lock, null, tint = V.ink3, modifier = Modifier.size(13.dp))
+            Text(note, style = T.ui(12.sp, FontWeight.Medium, V.ink2, lineHeight = 16.5.sp), softWrap = true, modifier = Modifier.weight(1f))
+        }
     }
 }
 

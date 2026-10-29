@@ -159,11 +159,18 @@ preferred (the emulator's "goldfish" decoder renders nothing under software GPU)
   with the error instead of a blank card. The build also fails (`verifySharedAssets`, runs before `preBuild`) if
   `../shared/legal/eula.json` or `../shared/icons/icons.json` is missing, since assets come from `../shared`.
 
-### Cancel subscription (EULA 12.3)
-Plan & billing, active subscriptions only, owner/admins only: **Cancel subscription** (red ghost) → inline confirm
-(active until the end of the period, no refunds/proration, download within 30 days) → **Keep subscription** / **Yes, cancel**.
-Cancelled: status "Cancelled · active until <date>", explanation card, **Undo cancellation**. Trial shows no cancel button.
-`TODO(backend)`: Square Subscriptions cancel / resume (`SubscriptionService.cancelSubscription/resumeSubscription`).
+### Cancel subscription (EULA 2026-10-28: 4.1 / 12.3 / 12.4)
+Plan & billing, active subscriptions only, owner/admins only: **Cancel subscription** (red ghost) → inline confirm → **Keep
+subscription** / **Yes, cancel**. Trial shows no cancel button.
+- **Monthly:** stays active until the next billing date, no refund; status "Cancelled · active until <date>", **Undo cancellation**.
+- **Yearly:** access ends on the cancellation date; the confirm shows the pro-rated refund (yearly total × unused days ÷ days in
+  the period, rounded to cents, e.g. $385.00 × 265 ÷ 365 = $279.52) "will be refunded to your card". After cancelling: status
+  "Cancelled · ended <date>", "Access ended" + "Pro-rated refund" rows, no Undo, **Subscribe again**; new inspections are gated
+  like an ended trial ("Your subscription has ended" / Home "Subscription ended"). Master admins stay exempt.
+- Once any cancelled subscription has ended, leftover free-trial days don't reopen access. Subscribing again starts a new period.
+- `AccountState.cancelledEpochDay` / `refundAmount` (JSON defaults, old rows decode unchanged). `TODO(backend)`: Square cancel /
+  resume and Square refund (`SubscriptionService.cancelSubscription/resumeSubscription/refundUnused`).
+- Billing QA (debug): `--es screen billing --es subscribed yearly --ei subscribedDaysAgo 100` (an active subscription started N days ago).
 
 ### Profile photo vs company logo
 - **Account picture = the user's own profile photo** (initials fallback). Tap the avatar in Settings → Account →
@@ -701,3 +708,18 @@ Shared v1.9 (client item 13):
   a normal company afterwards still gets "Free look already used"; fresh install → owner sign-up leaves `vims_device` empty (also
   after a relaunch) and the next normal company gets the full 30 days. Screenshots `screenshots/oct28-v0221-*.png`. Test APK:
   `../../VIMS-Android-test-v0.22.1-2026-10-28.apk`.
+
+## Client Oct 28, 2nd round + shared v1.11.1 / EULA 2026-10-28 (v0.23.0)
+
+- **Manage checklist:** the Restore block is now at the TOP (under the hint, above Add section) with the client's wording —
+  **Restore all checklists** (whole checklist, same confirm as before) and **Restore selected checklists** (each section is one
+  checklist): a picker listing only Edited / Added sections with checkboxes (52dp rows) and **Select all**, then one confirm naming
+  them ("Restore 2 checklists?"; added sections are named as removed). One batch write + one toast (`AppViewModel.restoreSections`).
+  Both buttons dimmed/disabled with "Your checklist matches the VIMS original — nothing to restore." Per-section Restore original
+  unchanged. Company admins and master admins alike.
+- **Plans & pricing:** the Additional inspector card says "Applies to every plan, so it can't be deleted." (no Delete, by design).
+- **EULA** `shared/legal/eula.json` 2026-10-28 (Revised October 28, 2026; 3.5, "Notices to Us:" address) is rendered from data as
+  before; the version bump shows the "Updated license agreement" gate once to every signed-in user (verified by upgrading v0.22.1 in
+  place: gate → I agree → no gate after relaunch). Settings → Legal shows "Revised October 28, 2026".
+- **Cancellation** per EULA 4.1 / 12.3 / 12.4 — see "Cancel subscription" above.
+- Screenshots `screenshots/oct28b-*.png`. Test APK `../../VIMS-Android-test-v0.23.0-2026-10-28.apk` (debug-signed like v0.22.1, installs over it).

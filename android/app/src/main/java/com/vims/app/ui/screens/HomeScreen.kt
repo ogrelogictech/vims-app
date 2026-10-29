@@ -137,7 +137,7 @@ fun HomeScreen(vm: AppViewModel, nav: NavHostController) {
         if (vm.session.collectAsState().value?.platformOwner == true) {
             Text("Master admin · no subscription needed", style = T.ui(13.sp, FontWeight.SemiBold, V.ink2),
                 modifier = Modifier.padding(bottom = 14.dp).fillMaxWidth().clip(RoundedCornerShape(13.dp)).background(V.paper3).padding(horizontal = 16.dp, vertical = 14.dp))
-        } else if (!account.active) {
+        } else if (!account.active || account.subscriptionEnded()) {
             Row(
                 Modifier.padding(bottom = 14.dp).fillMaxWidth().clip(RoundedCornerShape(13.dp))
                     .background(Brush.horizontalGradient(listOf(V.brand, V.brandBright))).clickable(role = Role.Button) { nav.navigate(SubscribeR) }
@@ -145,7 +145,9 @@ fun HomeScreen(vm: AppViewModel, nav: NavHostController) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 // Client Oct 25: after the free look, new inspections need a subscription.
-                Text(rich(if (vm.canStartInspection()) "**Free trial** · ${vm.trialDaysLeft()} days left" else "**Free trial ended** · subscribe to start new inspections"),
+                // EULA 12.3: a cancelled subscription that has ended (yearly: on the cancellation date) blocks new inspections too.
+                Text(rich(if (account.subscriptionEnded()) "**Subscription ended** · subscribe to start new inspections"
+                    else if (vm.canStartInspection()) "**Free trial** · ${vm.trialDaysLeft()} days left" else "**Free trial ended** · subscribe to start new inspections"),
                     style = T.ui(13.5.sp, color = Color.White), modifier = Modifier.weight(1f))
                 Text("Subscribe", style = T.ui(13.5.sp, FontWeight.SemiBold, Color.White))
                 Icon(VIcons.chevRight, null, tint = Color.White, modifier = Modifier.padding(start = 3.dp).size(16.dp))

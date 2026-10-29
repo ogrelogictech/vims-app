@@ -96,13 +96,30 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun acceptEula() = viewModelScope.launch { repo.acceptEula(currentEulaVersion); toast("License agreement accepted") }
 
     // Subscription cancel / resume (owner & admins; TODO(backend): Square).
+    /**
+     * EULA 2026-10-28 (4.1 / 12.3 / 12.4): a MONTHLY plan stays active until the next billing date (no refund, Undo possible);
+     * a YEARLY plan ends today and the unused days are refunded pro rata to the card on file ([yearlyRefund]).
+     */
     fun cancelSubscription() = viewModelScope.launch {
-        if (container.subscriptions.cancelSubscription()) {
-            repo.updateAccount { it.copy(cancelled = true) }
+        val a = account.value
+        val yearly = pricing().period(a) == com.vims.app.data.BillingPeriod.YEARLY
+        if (!container.subscriptions.cancelSubscription()) return@launch
+        if (yearly) {
+            val refund = yearlyRefund(a)
+            container.subscriptions.refundUnused(refund) // TODO(backend): Square refund
+            repo.updateAccount { it.copy(cancelled = true, cancelledEpochDay = LocalDate.now().toEpochDay(), refundAmount = refund) }
+            toast("Subscription cancelled — ${com.vims.app.util.Fmt.money(refund)} will be refunded to your card")
+        } else {
+            repo.updateAccount { it.copy(cancelled = true, cancelledEpochDay = null, refundAmount = null) }
             toast("Subscription cancelled — active until ${account.value.periodEndEpochDay?.let { com.vims.app.util.Fmt.date(java.time.LocalDate.ofEpochDay(it)) } ?: "the end of the period"}")
         }
     }
+    /** EULA 12.4: yearly price paid (plan + additional inspectors) × unused days ÷ days in the period, rounded to cents. */
+    fun yearlyRefund(a: AccountState = account.value, today: LocalDate = LocalDate.now()): Double = a.proratedRefund(periodTotal(a), today)
     fun resumeSubscription() = viewModelScope.launch {
+        // Undo is for a cancelled monthly plan that hasn't ended yet; a cancelled yearly plan has ended (and was refunded).
+        val a = account.value
+        if (a.endsOnCancel || a.subscriptionEnded()) return@launch
         if (container.subscriptions.resumeSubscription()) { repo.updateAccount { it.copy(cancelled = false) }; toast("Cancellation undone — auto-pay continues") }
     }
     /** VIMS master admin (`support.platformOwners`, client Oct 28) — composables read `session.platformOwner` from collected state. */
@@ -755,6 +772,18 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         toast(if (custom) "Removed “${com.vims.app.data.sectionTitle(name)}”" else "“${com.vims.app.data.sectionTitle(name)}” restored to the VIMS original")
     }
 
+    /**
+     * Client Oct 28 (2nd email) — "Restore selected checklists": each section is one checklist. Restores every chosen edited
+     * VIMS section and removes every chosen company-added section in one write, with one toast.
+     */
+    fun restoreSections(names: Collection<String>) {
+        if (!isAdmin || names.isEmpty()) return
+        val set = names.toSet()
+        repo.updateEdits { e -> e.copy(overrides = e.overrides - set, custom = e.custom.filterNot { it.def.name in set },
+            restored = e.restored + set.filter { it in e.overrides }) }
+        toast(if (set.size == 1) "1 checklist restored to the VIMS original" else "${set.size} checklists restored to the VIMS original")
+    }
+
     /** Restore entire checklist to original: every item edit and every added section of the company is removed. */
     fun restoreChecklist() {
         if (!isAdmin) return
@@ -800,8 +829,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 expYear = expiry.orEmpty().drop(2).take(2).toIntOrNull()?.plus(2000) ?: 0, squareCardId = r.cardId,
             ) else onFile
             // A new period (monthly ↔ yearly) starts a new billing cycle today. TODO(backend): Square proration / plan change rules.
-            repo.updateAccount { it.copy(planId = plan.id, billingPeriod = billed, active = true, cancelled = false, cardLast4 = card?.last4, card = card,
-                subscribedEpochDay = if (it.active && it.billingPeriod == billed) it.subscribedEpochDay else LocalDate.now().toEpochDay()) }
+            // Subscribing again after a cancelled plan ended (yearly: on the cancellation date) starts a new period today.
+            repo.updateAccount { it.copy(planId = plan.id, billingPeriod = billed, active = true, cancelled = false, cancelledEpochDay = null, refundAmount = null, cardLast4 = card?.last4, card = card,
+                subscribedEpochDay = if (it.active && !it.subscriptionEnded() && !it.endsOnCancel && it.billingPeriod == billed) it.subscribedEpochDay else LocalDate.now().toEpochDay()) }
             onOk()
         } else toast(r.message ?: "Payment failed")
     }
@@ -894,6 +924,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun debugEndTrial() {
         if (!com.vims.app.BuildConfig.DEBUG) return
         repo.updateAccount { it.copy(active = false, cancelled = false, trialStartEpochDay = LocalDate.now().toEpochDay() - it.trialDays - 1) }
+    }
+    /** Debug-only (billing QA, `--es subscribed yearly --ei subscribedDaysAgo 100`): an active subscription started N days ago. */
+    fun debugSubscribe(period: String, daysAgo: Int) {
+        if (!com.vims.app.BuildConfig.DEBUG) return
+        val billed = if (period == com.vims.app.data.BillingPeriod.YEARLY) period else com.vims.app.data.BillingPeriod.MONTHLY
+        repo.updateAccount { it.copy(active = true, cancelled = false, cancelledEpochDay = null, refundAmount = null, billingPeriod = billed,
+            subscribedEpochDay = LocalDate.now().toEpochDay() - daysAgo.coerceAtLeast(0), cardLast4 = it.cardLast4 ?: "4242",
+            card = it.card ?: com.vims.app.data.CardOnFile("Visa", "4242", 8, 2028)) }
     }
     /** Debug-only (testers, `--ez resetDeviceTrial true`): forget this device's free-trial record, so the next new company gets a trial. */
     fun debugResetDeviceTrial() {
