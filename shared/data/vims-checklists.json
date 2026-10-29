@@ -1,7 +1,7 @@
 {
  "_about": "VIMS shared checklist + configuration data. Single source of truth for the native iOS (SwiftUI) and Android (Kotlin/Compose) apps. Extracted from the client-approved prototype (index.html, approved Sep 15, 2026). Edit here, not in app code.",
- "version": "1.11.1",
- "generated": "2026-10-28",
+ "version": "1.12.0",
+ "generated": "2026-10-29",
  "depths": [
   {
    "id": "high",
@@ -30,7 +30,10 @@
   "time": "time picker",
   "header": "sub-section header band (not an input)",
   "airReading": "Indoor Air Quality reading: optional numeric 'Level measured' (decimal keypad, unit shown) + a 1–6 rating (single choice). Answer = {level, rating}. Carries code/unit/reference/action for the report table (see the section's airQuality block).",
-  "visibleIf": "Optional on any item: show it only when another item in the same section matches. {q, atLeast: n} = that single-choice answer is a number ≥ n; {q, includes: option} = that answer (single or multi) includes the option. Hidden items are not validated and not printed."
+  "visibleIf": "Optional on any item: show it only when another item in the same section matches. {q, atLeast: n} = that single-choice answer is a number ≥ n; {q, includes: option} = that answer (single or multi) includes the option. Hidden items are not validated and not printed.",
+  "optionsFromCount": "Optional on a single-choice item: its options are '1'..n where n = the inspection's room count for that key (wizard roomCounts, e.g. bathrooms = 2 → '1','2'; minimum 1). The static options list is only the fallback for an inspection without that count (e.g. Multi-Unit). Client Oct 29.",
+  "defaultFromRoomNumber": "Optional with optionsFromCount: in a numbered room section ('Bathroom 2') the item is pre-answered with that room's own number ('2'); the inspector can still change it. Not pre-answered in a section without a number. Client Oct 29.",
+  "renamedFrom": "Optional: the item's previous label. Apps that key answers by label must carry an existing answer over from this old label so nothing is lost; started inspections keep their saved checklist. Client Oct 29."
  },
  "overallCondition": [
   "Satisfactory",
@@ -3187,7 +3190,8 @@
      "type": "single",
      "options": [
       "Good",
-      "Low"
+      "Low",
+      "High"
      ]
     },
     {
@@ -3772,9 +3776,10 @@
      ]
     },
     {
-     "q": "Compressor size (sq ft)",
+     "q": "Compressor size (home sq ft)",
      "type": "num",
-     "placeholder": "e.g. 2400"
+     "placeholder": "e.g. 2400",
+     "renamedFrom": "Compressor size (sq ft)"
     },
     {
      "q": "Compressor size (tons)",
@@ -11089,8 +11094,21 @@
      "type": "single",
      "options": [
       "None",
-      "GFCI"
+      "GFCI",
+      "Non GFCI"
      ]
+    },
+    {
+     "q": "GFCI receptacles (count)",
+     "type": "num",
+     "integer": true,
+     "placeholder": "e.g. 4"
+    },
+    {
+     "q": "Standard receptacles (count)",
+     "type": "num",
+     "integer": true,
+     "placeholder": "e.g. 6"
     },
     {
      "q": "GFCI",
@@ -11670,8 +11688,21 @@
      "type": "single",
      "options": [
       "None",
-      "GFCI"
+      "GFCI",
+      "Non GFCI"
      ]
+    },
+    {
+     "q": "GFCI receptacles (count)",
+     "type": "num",
+     "integer": true,
+     "placeholder": "e.g. 4"
+    },
+    {
+     "q": "Standard receptacles (count)",
+     "type": "num",
+     "integer": true,
+     "placeholder": "e.g. 6"
     },
     {
      "q": "GFCI",
@@ -11990,7 +12021,9 @@
       "2",
       "3",
       "4"
-     ]
+     ],
+     "optionsFromCount": "bathrooms",
+     "defaultFromRoomNumber": true
     },
     {
      "q": "Type",
@@ -13096,7 +13129,9 @@
       "4",
       "5",
       "6"
-     ]
+     ],
+     "optionsFromCount": "bedrooms",
+     "defaultFromRoomNumber": true
     },
     {
      "q": "Type",
@@ -19059,6 +19094,18 @@
     },
     {
      "header": "Electrical"
+    },
+    {
+     "q": "GFCI receptacles (count)",
+     "type": "num",
+     "integer": true,
+     "placeholder": "e.g. 4"
+    },
+    {
+     "q": "Standard receptacles (count)",
+     "type": "num",
+     "integer": true,
+     "placeholder": "e.g. 6"
     },
     {
      "q": "Receptacles GFCI",
