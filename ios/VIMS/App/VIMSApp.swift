@@ -100,7 +100,7 @@ struct RootView: View {
         }
         .animation(.easeOut(duration: 0.25), value: store.toastMessage)
         // Free trial over, no subscription: New inspection asks to subscribe instead of opening the wizard.
-        .alert("Your free trial has ended", isPresented: $store.trialEndedPrompt) {
+        .alert(TrialEndedText.title(store), isPresented: $store.trialEndedPrompt) {
             Button("Not now", role: .cancel) {}
             Button("Subscribe") { store.push(.subscribe) }
         } message: {

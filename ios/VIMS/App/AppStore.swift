@@ -778,20 +778,66 @@ final class AppStore {
     /// new inspections get the VIMS default from the shared JSON. Inspections already created keep their saved checklist.
     func restoreSection(_ name: String) {
         guard isAdmin, isEditedSection(name) else { return }
+        let title = catalog.title(name)
         keepSavedChecklist([name])
         state.overrides.sections[name] = nil
         saveAppStateNow()
-        toast("\u{201C}\(catalog.title(name))\u{201D} restored to the original")
+        toast("\u{201C}\(title)\u{201D} restored to the original")
     }
 
-    /// Client Oct 28 — "Restore entire checklist to original": removes every company edit (edited items and sections,
-    /// custom sections). Inspections already created keep their saved checklist. TODO(backend): sync the reset.
+    /// A section "Restore selected checklists" can pick (client Oct 28, 2nd email: each section is one checklist).
+    struct RestorableSection: Identifiable, Hashable {
+        let name: String
+        let title: String
+        let group: String
+        /// Added by the company (removed when restored); otherwise an edited VIMS section.
+        let added: Bool
+        var id: String { name }
+    }
+
+    /// Edited and added sections, in Manage checklist order (then any other edited section, e.g. one not in a group).
+    var restorableSections: [RestorableSection] {
+        let cat = catalog
+        var out: [RestorableSection] = [], seen = Set<String>()
+        for g in cat.adminGroups() {
+            for n in g.sections where !seen.contains(n) && (isCustomSection(n) || isEditedSection(n)) {
+                seen.insert(n)
+                out.append(RestorableSection(name: n, title: cat.title(n), group: g.group, added: isCustomSection(n)))
+            }
+        }
+        for n in state.overrides.sections.keys.sorted() where !seen.contains(n) && isEditedSection(n) {
+            out.append(RestorableSection(name: n, title: cat.title(n), group: "", added: false))
+        }
+        return out
+    }
+
+    /// Client Oct 28 (2nd email) — "Restore selected checklists": the same restore as each section's Restore original
+    /// for the picked edited sections, and an added section is removed. Inspections already started keep their saved
+    /// checklist. One toast for the whole pick. TODO(backend): sync the reset.
+    func restoreSections(_ names: [String]) {
+        guard isAdmin else { return }
+        let picked = restorableSections.filter { names.contains($0.name) }
+        guard !picked.isEmpty else { return }
+        keepSavedChecklist(picked.map(\.name))
+        for s in picked {
+            if s.added { for k in state.overrides.custom.keys { state.overrides.custom[k]?.removeAll { $0 == s.name } } }
+            state.overrides.sections[s.name] = nil
+        }
+        state.overrides.custom = state.overrides.custom.filter { !$0.value.isEmpty }
+        saveAppStateNow()
+        toast(picked.count == 1 ? "\u{201C}\(picked[0].title)\u{201D} restored to the VIMS original"
+                                : "\(picked.count) checklists restored to the VIMS original")
+    }
+
+    /// Client Oct 28 — "Restore all checklists" (was "Restore entire checklist to original"): removes every company edit
+    /// (edited items and sections, custom sections). Inspections already created keep their saved checklist.
+    /// TODO(backend): sync the reset.
     func restoreEntireChecklist() {
         guard isAdmin, hasChecklistEdits else { return }
         keepSavedChecklist(Array(state.overrides.sections.keys))
         state.overrides = ChecklistOverrides()
         saveAppStateNow()
-        toast("Checklist restored to the VIMS original")
+        toast("All checklists restored to the VIMS original")
     }
 
     /// Before a restore removes these section definitions, every inspection of this company on the device that uses one
@@ -928,7 +974,7 @@ final class AppStore {
         flushNow()
         if isCompanyOwner {
             if state.subscription.active && !state.subscription.cancelled {
-                try? await subscriptionService.cancelSubscription()
+                try? await subscriptionService.cancelSubscription(period: state.subscription.period, refund: nil)
                 state.subscription.cancelledAt = Date()
             }
             loadingSession = true          // don't re-save the company we're deleting
@@ -984,14 +1030,33 @@ final class AppStore {
         state.subscription.cardOnFile = card
         state.subscription.startedAt = Date()
         state.subscription.cancelledAt = nil
+        state.subscription.endedAt = nil
+        state.subscription.refundAmount = nil
+        state.subscription.refundDays = nil
+        state.subscription.paidAmount = state.subscription.total(plan: plan, period: per, seats: seats())
     }
 
-    /// Owner/admin only. Stays active until the end of the billing period, then stops renewing.
+    /// Owner/admin only (EULA 2026-10-28, 4.1 / 12.3 / 12.4). Monthly: stays active until the end of the billing period,
+    /// then stops renewing. Yearly: access ends now and the unused days are refunded pro-rated (`proratedRefund`); new
+    /// inspections then need a new subscription, like an ended trial (master admins stay exempt).
     func cancelSubscription() async throws {
-        guard isAdmin, state.subscription.active else { return }
-        try await subscriptionService.cancelSubscription()
-        state.subscription.cancelledAt = Date()
-        toast("Subscription cancelled — active until \(Fmt.date(state.subscription.nextBillingDate, "MMM d, yyyy").replacingOccurrences(of: " ", with: "\u{00A0}"))")
+        guard isAdmin, state.subscription.active, !state.subscription.cancelled else { return }
+        let now = Date()
+        if state.subscription.period == .yearly {
+            let r = state.subscription.proratedRefund(on: now, seats: seats())
+            try await subscriptionService.cancelSubscription(period: .yearly, refund: r.amount)
+            state.subscription.active = false
+            state.subscription.cancelledAt = now
+            state.subscription.endedAt = now
+            state.subscription.refundAmount = r.amount
+            state.subscription.refundDays = r.daysLeft
+            saveAppStateNow()
+            toast("Subscription ended \u{2014} \(Fmt.money(r.amount)) will be refunded to your card")
+        } else {
+            try await subscriptionService.cancelSubscription(period: .monthly, refund: nil)
+            state.subscription.cancelledAt = now
+            toast("Subscription cancelled \u{2014} active until \(Fmt.date(state.subscription.nextBillingDate, "MMM d, yyyy").replacingOccurrences(of: " ", with: "\u{00A0}"))")
+        }
     }
 
     func resumeSubscription() async throws {

@@ -11,12 +11,15 @@ struct ManageChecklistView: View {
     /// Client Oct 28: "Restore original" asks first (one section / the entire checklist).
     @State private var restoring: String?
     @State private var confirmRestoreAll = false
+    /// Client Oct 28 (2nd email): "Restore selected checklists" picker, then one confirm naming the picked sections.
+    @State private var pickingRestore = false
+    @State private var confirmPicked: [AppStore.RestorableSection] = []
 
     var body: some View {
         Screen(title: "Manage checklist", actions: [store.homeAction()], errors: errors) {
             HintText(text: "Add and edit checklist sections and items yourself — changes apply to new inspections.")
                 .padding(.top, 2).padding(.bottom, 12)
-            restoreAllCard
+            restoreTopCard
             DashedBox {
                 SmallField(text: $newName, placeholder: "New section name (e.g. Solar Panels)", kind: .sectionName, fieldID: "section", errors: errors, required: true)
                 SingleChipGroup(options: ChecklistCatalog.customGroups, value: $newGroup, required: true)
@@ -45,16 +48,41 @@ struct ManageChecklistView: View {
         } message: { _ in
             Text(ChecklistRestoreText.section)
         }
-        .alert("Restore the entire checklist to the original?", isPresented: $confirmRestoreAll) {
-            Button("Restore entire checklist", role: .destructive) { store.restoreEntireChecklist() }
+        .alert("Restore all checklists to the original?", isPresented: $confirmRestoreAll) {
+            Button("Restore all checklists", role: .destructive) { store.restoreEntireChecklist() }
             Button("Cancel", role: .cancel) {}
         } message: {
             Text(ChecklistRestoreText.all(edited: store.editedSectionCount, custom: store.customSectionCount))
         }
+        .alert(ChecklistRestoreText.pickedTitle(confirmPicked),
+               isPresented: Binding(get: { !confirmPicked.isEmpty }, set: { if !$0 { confirmPicked = [] } })) {
+            Button(confirmPicked.count == 1 ? "Restore checklist" : "Restore \(confirmPicked.count) checklists", role: .destructive) {
+                store.restoreSections(confirmPicked.map(\.name)); confirmPicked = []
+            }
+            Button("Cancel", role: .cancel) { confirmPicked = [] }
+        } message: {
+            Text(ChecklistRestoreText.picked(confirmPicked))
+        }
+        .sheet(isPresented: $pickingRestore) {
+            RestorePickerSheet(sections: store.restorableSections) { picked in
+                pickingRestore = false
+                // Let the sheet finish closing before the alert presents.
+                Task { try? await Task.sleep(nanoseconds: 450_000_000); confirmPicked = picked }
+            }
+            .padFormSheet()
+        }
         .onAppear {
             #if DEBUG
-            // -confirmRestore SECTION|all: open the restore confirmation (review screenshots).
-            if let r = DebugLaunch.value("-confirmRestore") { if r == "all" { confirmRestoreAll = true } else { restoring = r } }
+            // -confirmRestore SECTION|all|picked|"A,B": open the restore confirmation (review screenshots);
+            // -pickRestore: open the Restore selected checklists picker.
+            if let r = DebugLaunch.value("-confirmRestore") {
+                let all = store.restorableSections
+                if r == "all" { confirmRestoreAll = true }
+                else if r == "picked" { confirmPicked = all }
+                else if r.contains(",") { let n = r.split(separator: ",").map(String.init); confirmPicked = all.filter { n.contains($0.name) } }
+                else { restoring = r }
+            }
+            if DebugLaunch.has("-pickRestore") { pickingRestore = true }
             #endif
             if let g = DebugFlags.adminGroup { open = [g]; DebugFlags.adminGroup = nil }
             if DebugFlags.validate {
@@ -66,25 +94,40 @@ struct ManageChecklistView: View {
         }
     }
 
-    /// "Restore entire checklist to original" (client Oct 28): what the company changed, and the button.
-    @ViewBuilder private var restoreAllCard: some View {
-        let edited = store.editedSectionCount, custom = store.customSectionCount
+    /// Client Oct 28 (2nd email): the Restore block at the top of Manage checklist, in the client's words — "Restore all
+    /// checklists" (the whole checklist) and "Restore selected checklists" (each section is one checklist). Both are
+    /// disabled when nothing differs from the VIMS original.
+    @ViewBuilder private var restoreTopCard: some View {
+        let edited = store.editedSectionCount, added = store.customSectionCount, any = store.hasChecklistEdits
         VStack(alignment: .leading, spacing: 10) {
-            Text(store.hasChecklistEdits ? "Your checklist has changes" : "Your checklist is the VIMS original")
-                .font(VFont.ui(14, .bold)).foregroundStyle(VC.ink)
-            Text(store.hasChecklistEdits
-                 ? ChecklistRestoreText.summary(edited: edited, custom: custom) + " Sections you changed are tagged Edited below."
-                 : "Edit a section or add your own; you can restore the original at any time.")
+            Text("Restore checklists").font(VFont.ui(14, .bold)).foregroundStyle(VC.ink)
+                .accessibilityAddTraits(.isHeader)
+            Text(any ? ChecklistRestoreText.topSummary(edited: edited, added: added)
+                     : "Your checklist matches the VIMS original, so there is nothing to restore.")
                 .font(VFont.ui(12.5)).foregroundStyle(VC.ink3).lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
-            if store.hasChecklistEdits {
-                Button { confirmRestoreAll = true } label: { Text("Restore entire checklist to original") }
-                    .buttonStyle(VButtonStyle(kind: .ghost, minHeight: 46))
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 10) { restoreAllButton; restoreSelectedButton }
+                VStack(spacing: 10) { restoreAllButton; restoreSelectedButton }
             }
+            .disabled(!any)
+            .opacity(any ? 1 : 0.5)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .vCard()
         .padding(.bottom, 12)
+    }
+
+    private var restoreAllButton: some View {
+        Button { confirmRestoreAll = true } label: { Text("Restore all checklists").lineLimit(1) }
+            .buttonStyle(VButtonStyle(kind: .ghost, minHeight: 46))
+            .accessibilityHint(store.hasChecklistEdits ? "Restores every section to the VIMS original" : "Nothing to restore")
+    }
+
+    private var restoreSelectedButton: some View {
+        Button { pickingRestore = true } label: { Text("Restore selected checklists").lineLimit(1) }
+            .buttonStyle(VButtonStyle(kind: .ghost, minHeight: 46))
+            .accessibilityHint(store.hasChecklistEdits ? "Choose edited or added sections to restore" : "Nothing to restore")
     }
 
     private func icon(_ g: String) -> String {
@@ -126,7 +169,7 @@ struct ManageChecklistView: View {
                     Button { store.push(.editSection(n)) } label: {
                         HStack(spacing: 12) {
                             Text(store.catalog.title(n)).font(VFont.ui(14, .medium)).foregroundStyle(VC.ink).frame(maxWidth: .infinity, alignment: .leading)
-                            if store.isCustomSection(n) { Pill(kind: .prog, text: "Custom", dot: false) }
+                            if store.isCustomSection(n) { Pill(kind: .prog, text: "Added", dot: false) }
                             else if store.isEditedSection(n) { Pill(kind: .queued, text: "Edited", dot: false) }
                             Text(store.catalog.isPhotosOnly(n) ? "photos only" : "\(count) items").font(VFont.mono(10.5, .semibold)).foregroundStyle(VC.ink2)
                             Chevron()
@@ -180,6 +223,129 @@ enum ChecklistRestoreText {
         if custom > 0 { parts.append("\(custom) custom section\(custom == 1 ? "" : "s") you added") }
         let t = parts.isEmpty ? "no changes" : parts.joined(separator: " and ")
         return sentence ? t.prefix(1).uppercased() + t.dropFirst() + "." : t
+    }
+
+    /// The top Restore block: "2 edited and 1 added checklist. Restore all of them, or pick …".
+    static func topSummary(edited: Int, added: Int) -> String {
+        var parts: [String] = []
+        if edited > 0 { parts.append("\(edited) edited") }
+        if added > 0 { parts.append("\(added) added") }
+        let n = edited + added
+        return parts.joined(separator: " and ") + " checklist\(n == 1 ? "" : "s"). "
+            + (n == 1 ? "Restore it to the VIMS original" : "Restore all of them, or pick the ones to restore")
+            + (added > 0 ? "; added sections are removed." : ".") + " Inspections already started keep their saved checklist."
+    }
+
+    /// "Restore 3 checklists?" · "Restore \u{201C}Roof\u{201D}?"
+    static func pickedTitle(_ picked: [AppStore.RestorableSection]) -> String {
+        picked.count == 1 ? "Restore \u{201C}\(picked[0].title)\u{201D}?" : "Restore \(picked.count) checklists?"
+    }
+
+    /// Names every picked section: edited ones go back to the VIMS original, added ones are removed.
+    static func picked(_ picked: [AppStore.RestorableSection]) -> String {
+        let edited = picked.filter { !$0.added }.map(\.title), added = picked.filter(\.added).map(\.title)
+        var t = ""
+        if !edited.isEmpty { t += list(edited) + (edited.count == 1 ? " goes" : " go") + " back to the VIMS original. " }
+        if !added.isEmpty { t += list(added) + (added.count == 1 ? " was added by your company and is removed. " : " were added by your company and are removed. ") }
+        return t + "Inspections already started keep their saved checklist."
+    }
+
+    /// \u{201C}A\u{201D}, \u{201C}B\u{201D} and \u{201C}C\u{201D}
+    static func list(_ names: [String]) -> String {
+        let q = names.map { "\u{201C}\($0)\u{201D}" }
+        return q.count < 3 ? q.joined(separator: " and ") : q.dropLast().joined(separator: ", ") + " and " + q[q.count - 1]
+    }
+}
+
+/// Client Oct 28 (2nd email) — "Restore selected checklists": only the Edited / Added sections, each with a checkmark
+/// toggle (44 pt+ rows) and Select all; Restore hands the pick to Manage checklist for one confirm.
+struct RestorePickerSheet: View {
+    let sections: [AppStore.RestorableSection]
+    let onRestore: ([AppStore.RestorableSection]) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var picked: Set<String> = []
+
+    var body: some View {
+        let allOn = !sections.isEmpty && picked.count == sections.count
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("Each section is one checklist. Only sections you edited or added are listed. Added sections are removed when restored.")
+                        .font(VFont.ui(13)).foregroundStyle(VC.ink3).lineSpacing(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.bottom, 12)
+                    VStack(spacing: 0) {
+                        row(title: "Select all", detail: nil, tag: nil, on: allOn, bold: true) {
+                            picked = allOn ? [] : Set(sections.map(\.name))
+                        }
+                        .accessibilityValue(allOn ? "All selected" : "\(picked.count) of \(sections.count) selected")
+                        ForEach(sections) { s in
+                            row(title: s.title, detail: s.group.isEmpty ? nil : s.group, tag: s.added ? "Added" : "Edited",
+                                on: picked.contains(s.name), bold: false) {
+                                if picked.contains(s.name) { picked.remove(s.name) } else { picked.insert(s.name) }
+                            }
+                        }
+                    }
+                    .background(VC.paper)
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(VC.line, lineWidth: 1))
+                }
+                .padding(16)
+            }
+            .background(VC.paper2)
+            .safeAreaInset(edge: .bottom) {
+                Button {
+                    onRestore(sections.filter { picked.contains($0.name) })
+                } label: { Text(picked.isEmpty ? "Restore selected" : "Restore \(picked.count) selected") }
+                    .buttonStyle(VButtonStyle(kind: .primary, minHeight: 50))
+                    .disabled(picked.isEmpty)
+                    .opacity(picked.isEmpty ? 0.5 : 1)
+                    .padding(.horizontal, 16).padding(.top, 10).padding(.bottom, 8)
+                    .background(VC.paper.ignoresSafeArea(edges: .bottom))
+                    .overlay(alignment: .top) { Rectangle().fill(VC.line).frame(height: 1) }
+            }
+            .navigationTitle("Restore selected checklists")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.foregroundStyle(VC.brand) }
+            }
+            .toolbarBackground(VC.paper, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+        }
+        .presentationDetents([.large])
+        .onAppear {
+            #if DEBUG
+            // -pickRestore with -pickAll: every listed section starts ticked (review screenshots).
+            if DebugLaunch.has("-pickAll") { picked = Set(sections.map(\.name)) }
+            #endif
+        }
+    }
+
+    private func row(title: String, detail: String?, tag: String?, on: Bool, bold: Bool, toggle: @escaping () -> Void) -> some View {
+        Button(action: toggle) {
+            HStack(spacing: 12) {
+                Image(systemName: on ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 22, weight: .regular))
+                    .foregroundStyle(on ? VC.brand : VC.ink3)
+                    .frame(width: 26)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title).font(VFont.ui(14, bold ? .bold : .medium)).foregroundStyle(VC.ink)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if let detail { Text(detail).font(VFont.ui(12)).foregroundStyle(VC.ink3) }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                if let tag { Pill(kind: tag == "Added" ? .prog : .queued, text: tag, dot: false) }
+            }
+            .padding(.horizontal, 15).padding(.vertical, 10)
+            .frame(minHeight: 52)
+            .contentShape(Rectangle())
+            .overlay(alignment: .bottom) { Rectangle().fill(VC.line2).frame(height: 1) }
+        }
+        .buttonStyle(PressableStyle())
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(on ? [.isSelected] : [])
+        .accessibilityLabel(tag.map { "\(title), \($0)" } ?? title)
     }
 }
 
@@ -499,6 +665,13 @@ struct PlansAdminView: View {
             Text("Additional inspector").font(VFont.ui(14.5, .bold)).foregroundStyle(VC.ink)
             Text("Each inspector after the first. Billed on the company\u{2019}s period (monthly or yearly).")
                 .font(VFont.ui(12)).foregroundStyle(VC.ink3).fixedSize(horizontal: false, vertical: true)
+            // Client Oct 28 (shared v1.11.1): a rate on every plan, not a plan, so it intentionally has no Delete.
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Image(systemName: "lock.fill").font(.system(size: 10.5, weight: .semibold)).foregroundStyle(VC.ink3)
+                    .accessibilityHidden(true)
+                Text("Applies to every plan, so it can\u{2019}t be deleted.")
+                    .font(VFont.ui(12, .semibold)).foregroundStyle(VC.ink2).fixedSize(horizontal: false, vertical: true)
+            }
             priceRow(id: "extra", label: "Monthly $", unit: "/mo each", text: text("extra", pricing.extraMonthly), a11y: "Additional inspector monthly rate")
             priceRow(id: "extraYearly", label: "Yearly $", unit: "/yr each", text: text("extraYearly", pricing.extraYearly), a11y: "Additional inspector yearly rate")
             Button("Save rates") { saveExtra() }
@@ -863,7 +1036,9 @@ struct SubscribeView: View {
                     .padding(.bottom, 14)
             } else if !sub.active {
                 Banner(symbol: "free-trial-days", tint: VC.brandDeep, background: VC.brand.opacity(0.08), border: Color(hex: 0xC9DEE6), textColor: VC.brandDeep,
-                       text: md(sub.trialEnded
+                       text: md(sub.subscriptionEnded
+                                ? "**Your yearly subscription ended on \(sub.endedAt.map { Fmt.date($0, "MMM d, yyyy") } ?? "").** Subscribe again to start new inspections — your existing inspections and reports stay available."
+                                : sub.trialEnded
                                 ? "**Your free trial has ended.** Subscribe to start new inspections — your existing inspections and reports stay available."
                                 : "**Free trial — \(sub.trialDaysLeft) days left.** Set up your subscription now so access continues automatically when the trial ends."))
                     .padding(.bottom, 14)
@@ -1109,6 +1284,8 @@ struct BillingView: View {
         let plan = sub.plan(sub.selectedPlan)
         let seats = store.seats()
         let periodEnd = Fmt.date(sub.nextBillingDate, "MMM d, yyyy").replacingOccurrences(of: " ", with: "\u{00A0}")  // keep the date on one line
+        let endedOn = sub.endedAt.map { Fmt.date($0, "MMM d, yyyy").replacingOccurrences(of: " ", with: "\u{00A0}") } ?? ""
+        let yearly = sub.period == .yearly && plan?.isPerReport != true
         Screen(title: "Subscription", actions: [store.homeAction()]) {
             if store.isSubscriptionExempt && !sub.active {
                 // Client Oct 28: master admins have no trial or plan to show.
@@ -1130,6 +1307,7 @@ struct BillingView: View {
                 row("Status") {
                     if sub.cancelled { Pill(kind: .queued, text: "Cancelled · active until \(periodEnd)") }
                     else if sub.active { Pill(kind: .done, text: "Active · auto-pay") }
+                    else if sub.subscriptionEnded { Pill(kind: .queued, text: "Cancelled · ended \(endedOn)") }
                     else if sub.trialEnded { Pill(kind: .queued, text: "Trial ended") }
                     else { Pill(kind: .queued, text: "Trial · \(sub.trialDaysLeft)d left") }
                 }
@@ -1141,9 +1319,17 @@ struct BillingView: View {
                     row("Inspectors") { Text("\(seats) (\(max(0, seats - 1)) × \(Fmt.money(sub.extraRate(sub.period)))\(sub.period.unit))").font(VFont.ui(14, .bold)).foregroundStyle(VC.ink) }
                 }
                 row(plan?.perReport == true ? "Billing" : sub.period.totalLabel) { Text(sub.totalLabel(seats: seats)).font(VFont.ui(14, .bold)).foregroundStyle(VC.ink) }
-                row("Payment") { Text(sub.active ? (sub.cardOnFile?.display ?? sub.paymentLabel ?? "Square") : "Not set up").font(VFont.ui(14, .bold)).foregroundStyle(VC.ink) }
-                row(sub.cancelled ? "Active until" : sub.active ? "Next billing" : sub.trialEnded ? "Trial" : "Trial ends", last: true) {
-                    Text(sub.active ? periodEnd : sub.trialEnded ? "Ended" : "in \(sub.trialDaysLeft) days").font(VFont.ui(14, .bold)).foregroundStyle(VC.ink)
+                row("Payment") { Text(sub.active || sub.subscriptionEnded ? (sub.cardOnFile?.display ?? sub.paymentLabel ?? "Square") : "Not set up").font(VFont.ui(14, .bold)).foregroundStyle(VC.ink) }
+                if sub.subscriptionEnded {
+                    // EULA 4.1 / 12.4: a cancelled yearly plan ends on the cancellation date, with a pro-rated refund.
+                    row("Access ended") { Text(endedOn).font(VFont.ui(14, .bold)).foregroundStyle(VC.ink) }
+                    row("Pro-rated refund", last: true) {
+                        Text(Fmt.money(sub.refundAmount ?? 0)).font(VFont.ui(14, .bold)).foregroundStyle(VC.ink)
+                    }
+                } else {
+                    row(sub.cancelled ? "Active until" : sub.active ? "Next billing" : sub.trialEnded ? "Trial" : "Trial ends", last: true) {
+                        Text(sub.active ? periodEnd : sub.trialEnded ? "Ended" : "in \(sub.trialDaysLeft) days").font(VFont.ui(14, .bold)).foregroundStyle(VC.ink)
+                    }
                 }
             }
             .background(VC.paper)
@@ -1156,7 +1342,17 @@ struct BillingView: View {
                 .buttonStyle(VButtonStyle(kind: sub.active ? .ghost : .primary))
                 .padding(.top, 10)
 
-            // EULA 12.3 — cancel at the end of the billing period. Owner/admin only; not shown during the trial.
+            if sub.subscriptionEnded {
+                Text(endedNote(sub, endedOn: endedOn))
+                    .font(VFont.ui(13)).foregroundStyle(VC.ink2).lineSpacing(3)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .vCard()
+                    .padding(.top, 14)
+            }
+
+            // EULA 2026-10-28, 4.1 / 12.3 / 12.4 — monthly: cancel at the end of the billing period; yearly: access ends on
+            // the cancellation date with a pro-rated refund. Owner/admin only; not shown during the trial.
             if sub.active && store.isAdmin {
                 if sub.cancelled {
                     Text("Your subscription is cancelled and stays active until \(Text(periodEnd).font(VFont.ui(13, .bold)).foregroundStyle(VC.ink)). Download anything you need within 30 days after it ends.")
@@ -1171,10 +1367,24 @@ struct BillingView: View {
                         .padding(.top, 10)
                 } else if confirmCancel {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Cancel your subscription?").font(VFont.ui(13, .bold)).foregroundStyle(VC.ink)
-                        Text("It stays active until the end of the current billing period (\(Text(periodEnd).font(VFont.ui(13, .bold)))), then stops renewing. There are no refunds or prorated charges. Download anything you need within 30 days after it ends.")
-                            .font(VFont.ui(13)).foregroundStyle(VC.ink2).lineSpacing(3)
-                            .fixedSize(horizontal: false, vertical: true)
+                        if yearly {
+                            let r = sub.proratedRefund(seats: seats)
+                            let today = Fmt.date(Date(), "MMM d, yyyy").replacingOccurrences(of: " ", with: "\u{00A0}")
+                            Text("Cancel your yearly subscription?").font(VFont.ui(13, .bold)).foregroundStyle(VC.ink)
+                            Text("Yearly plans end on the cancellation date, so your access ends today (\(Text(today).font(VFont.ui(13, .bold)))) and you won\u{2019}t be able to start new inspections. A pro-rated refund of \(Text(Fmt.money(r.amount)).font(VFont.ui(13, .bold)).foregroundStyle(VC.ink)) for the \(r.daysLeft) unused day\(r.daysLeft == 1 ? "" : "s") will be refunded to your card\(sub.cardOnFile.map { " (\($0.brand) ending in \($0.last4))" } ?? ""). Your existing inspections and reports stay available. Download anything you need within 30 days.")
+                                .font(VFont.ui(13)).foregroundStyle(VC.ink2).lineSpacing(3)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Text("\(Fmt.money(r.paid)) paid \u{00D7} \(r.daysLeft) days remaining \u{00F7} \(r.daysInPeriod) days in the period = \(Fmt.money(r.amount))")
+                                .font(VFont.ui(12)).foregroundStyle(VC.ink3)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .padding(.top, 8)
+                                .accessibilityLabel("Refund: \(Fmt.money(r.paid)) paid, times \(r.daysLeft) days remaining, divided by \(r.daysInPeriod) days in the period, equals \(Fmt.money(r.amount))")
+                        } else {
+                            Text("Cancel your subscription?").font(VFont.ui(13, .bold)).foregroundStyle(VC.ink)
+                            Text("Monthly plans stay active until the next billing date (\(Text(periodEnd).font(VFont.ui(13, .bold)))), then stop renewing. There is no refund for the rest of the month. Download anything you need within 30 days after it ends.")
+                                .font(VFont.ui(13)).foregroundStyle(VC.ink2).lineSpacing(3)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(EdgeInsets(top: 15, leading: 16, bottom: 15, trailing: 16))
@@ -1195,6 +1405,17 @@ struct BillingView: View {
             }
             }
         }
+        #if DEBUG
+        .onAppear { if DebugLaunch.has("-confirmCancel") { confirmCancel = true } }
+        #endif
+    }
+
+    /// After a yearly cancellation (EULA 4.1 / 12.4).
+    private func endedNote(_ sub: SubscriptionState, endedOn: String) -> AttributedString {
+        let refund = Fmt.money(sub.refundAmount ?? 0)
+        let days = sub.refundDays.map { " for the \($0) unused day\($0 == 1 ? "" : "s")" } ?? ""
+        let card = sub.cardOnFile.map { " (\($0.brand) ending in \($0.last4))" } ?? ""
+        return md("Your yearly subscription was cancelled and access ended on **\(endedOn)**. A pro-rated refund of **\(refund)**\(days) will be refunded to your card\(card). Subscribe again to start new inspections; your existing inspections and reports stay available. Download anything you need within 30 days.")
     }
 
     private var keepButton: some View {

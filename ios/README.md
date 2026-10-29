@@ -130,6 +130,7 @@ SwiftUI views ──► AppStore (@Observable, @MainActor)  ──► Repository
   License Agreement ("Revised <revised>") — title, revised date, intro, numbered headings in brand-deep, all 14
   sections, footer.
 - **Cancel subscription** (Plan & billing, active subscription, owner/admin only; the trial shows no button):
+  (since 0.23.0 monthly only; a yearly plan ends on cancellation with a pro-rated refund, see the 0.23.0 notes)
   red "Cancel subscription" → inline confirm card (active until the next billing date, no refunds or prorated
   charges, download within 30 days) with Keep subscription / **Yes, cancel** → status "Cancelled · active until
   <date>", explanatory card and **Undo cancellation**. Stored as `SubscriptionState.cancelledAt`.
@@ -822,3 +823,35 @@ Screenshots: `screenshots/oct12-*.png` — `ipad-01…18` 13" (landscape 01–13
   an owner), a non-owner company admin (no Plans & pricing; route blocked), a master-admin price edit showing up for another
   company, both restores and their effect on existing inspections, Subscribe Monthly / Yearly with 2 inspectors → $660.00/yr.
   Screenshots `screenshots/oct28-*.png`.
+
+### iOS 0.23.0 (24) — client Oct 28, 2nd round (shared v1.11.1, EULA 2026-10-28)
+
+- **Version**: `MARKETING_VERSION` 0.23.0, `CURRENT_PROJECT_VERSION` 24 in every configuration (was 0.1.0 / 1). Bundle
+  identifier unchanged (`com.vims.app`).
+- **Restore block at the top of Manage checklist** (under the intro hint, above Add section; company admins and master
+  admins alike): "Restore checklists" card with **Restore all checklists** (the existing whole-checklist restore and
+  confirm, retitled "Restore all checklists to the original?") and **Restore selected checklists** (each section is one
+  checklist). Both are disabled with "Your checklist matches the VIMS original, so there is nothing to restore." when
+  nothing is edited. The picker sheet (`RestorePickerSheet`) lists only Edited / Added sections with those tags (custom
+  sections are now tagged **Added** in the list too), a checkmark toggle per row (52 pt rows) and Select all; "Restore N
+  selected" opens one confirm naming the sections ("Restore 2 checklists?" — "“Roof” goes back to the VIMS original.
+  “Solar Panels” was added by your company and is removed. …"). `AppStore.restoreSections(_:)` reuses the per-section
+  restore (started inspections keep their checklist via `savedSections`; added sections are removed) and shows one toast.
+  The per-section Restore original stays.
+- **Plans & pricing**: the Additional inspector card says "Applies to every plan, so it can’t be deleted." (no Delete).
+- **EULA 2026-10-28** (Revised October 28, 2026): bundled from shared/legal/eula.json through the SharedLegal group; the
+  version change shows the "Updated license agreement" gate once to every signed-in user, then not again. 3.5 and the
+  section 13 "Notices to Us:" address paragraph render as ordinary paragraphs.
+- **Cancellation per EULA 4.1 / 12.3 / 12.4**: monthly — unchanged, active until the next billing date, then stops
+  renewing (no refund). Yearly — the confirm says access ends today and shows the pro-rated refund (price paid × days
+  remaining ÷ days in the period, rounded to cents, e.g. $660.00 × 200 ÷ 365 = $361.64) that "will be refunded to your
+  card"; Yes, cancel sets `active = false` with `SubscriptionState.endedAt / refundAmount / refundDays` (optional, older
+  data decodes), and Plan & billing shows "Cancelled · ended <date>", Access ended, Pro-rated refund and an explanatory
+  card. New inspections are then gated like an ended trial ("Your subscription has ended" / Home "Subscription ended");
+  master admins stay exempt. `paidAmount` is recorded on Start / Update subscription (nil on older data → current total).
+  Billing periods now roll forward from `startedAt` (`billingPeriodBounds`), so "Next billing" is never in the past.
+  TODO(backend): Square cancel + Square refund (`SubscriptionService.cancelSubscription(period:refund:)`).
+- DEBUG: `-pickRestore [-pickAll]`, `-confirmRestore picked|"A,B"`, `-subPeriod monthly|yearly` and
+  `-subStartedDaysAgo N` (with `-activeSub`, prints CANCELTEST), `-confirmCancel` (with `-screen billing`).
+- Verified on iPhone 17 (iOS 26.5) with real taps through the VIMSUITests plan runner. Screenshots
+  `screenshots/oct28c-*.png`.

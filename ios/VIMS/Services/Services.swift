@@ -126,8 +126,9 @@ protocol SubscriptionService {
     /// the card-on-file reference to remember (never the card number or CVC).
     /// `period` = Monthly / Yearly (client Oct 28); extra inspectors are billed on the same period.
     func startSubscription(planID: String, period: BillingPeriod, seats: Int, payment: SubscriptionPayment) async throws -> (label: String, card: CardOnFile)
-    /// Stops renewal at the end of the current billing period (EULA 12.3: no refunds or prorated charges).
-    func cancelSubscription() async throws
+    /// EULA 4.1 / 12.3 / 12.4 (2026-10-28): monthly stops renewing at the end of the current billing period (no refund);
+    /// yearly ends now and `refund` (pro-rated, unused days) goes back to the card on file.
+    func cancelSubscription(period: BillingPeriod, refund: Double?) async throws
     /// Undoes a pending cancellation before the period ends; auto-pay continues.
     func resumeSubscription() async throws
 }
@@ -156,7 +157,12 @@ final class LocalSubscriptionService: SubscriptionService {
 
     // TODO(backend): Square Subscriptions API — CancelSubscription (sets canceled_date to the end of the
     // paid period) and, for undo, delete the pending CANCEL action (DeleteSubscriptionAction) / ResumeSubscription.
-    func cancelSubscription() async throws { try await Task.sleep(nanoseconds: 300_000_000) }
+    func cancelSubscription(period: BillingPeriod, refund: Double?) async throws {
+        // TODO(backend): Square subscription cancel — monthly: cancel at period end; yearly: cancel now.
+        // TODO(backend): Square refund — yearly cancel: Refunds API (RefundPayment) for `refund` against the period's
+        // payment, to the card on file; the server computes the amount (price paid × days remaining ÷ days in period).
+        try await Task.sleep(nanoseconds: 300_000_000)
+    }
     func resumeSubscription() async throws { try await Task.sleep(nanoseconds: 300_000_000) }
 }
 

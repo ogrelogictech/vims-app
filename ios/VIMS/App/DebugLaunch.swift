@@ -40,12 +40,17 @@ enum DebugFlags {
 ///   -period monthly|yearly     with -screen subscribe: preselect the billing period
 ///   -plan ID                   with -screen subscribe: preselect a plan
 ///   -customSection "NAME|Group"  add a custom checklist section (as Manage checklist → Add section)
-///   -confirmRestore NAME|all   with -screen manage: open the restore confirmation
+///   -confirmRestore NAME|all|picked|"A,B"  with -screen manage: open the restore confirmation (picked = every
+///                              Edited / Added section, or the named ones, as Restore selected checklists confirms)
 ///   -teamAccount EMAIL         add a second local account (Sam Rivera / inspect2026) to the demo company
 ///   -eulaVersion V             pretend shared/legal/eula.json has version V (re-acceptance gate test)
 ///   -eulaGate                  show the EULA gate even with -screen / -skipLogin
 ///   -profilePhotoSample        set the signed-in user's profile photo from an inspection photo
 ///   -activeSub                 mark the signed-in company's subscription active (Square · Visa ····4242)
+///   -subPeriod monthly|yearly  with -activeSub: the billing period (prints CANCELTEST: paid, days left, refund)
+///   -subStartedDaysAgo N       with -activeSub: the subscription started N days ago (pro-rated refund checks)
+///   -confirmCancel             with -screen billing: open the Cancel subscription confirmation
+///   -pickRestore [-pickAll]    with -screen manage: open Restore selected checklists (all ticked)
 ///   -eulaStatus                print each local account's accepted EULA version to the console
 ///   -mailSelfTest              print the report email draft (to/CC/BCC/subject/attachment) + state-document drafts
 ///   -state XX                  set the chosen inspection's property state (OK summary disclosure, OR cover notice)
@@ -393,6 +398,17 @@ enum DebugLaunch {
             store.state.subscription.cardOnFile = CardOnFile(brand: "Visa", last4: "4242", expMonth: 8, expYear: 2028)
             store.state.subscription.startedAt = Calendar.current.date(byAdding: .day, value: -2, to: Date())
             store.state.subscription.cancelledAt = nil
+            store.state.subscription.endedAt = nil
+            store.state.subscription.refundAmount = nil
+            store.state.subscription.refundDays = nil
+            // -subPeriod monthly|yearly, -subStartedDaysAgo N: the period and start date (yearly cancel / refund checks).
+            if let p = value("-subPeriod") { store.state.subscription.billingPeriod = p }
+            if let d = value("-subStartedDaysAgo"), let n = Int(d) {
+                store.state.subscription.startedAt = Calendar.current.date(byAdding: .day, value: -n, to: Date())
+            }
+            store.state.subscription.paidAmount = store.state.subscription.total(seats: store.seats())
+            let sub = store.state.subscription, r = sub.proratedRefund(seats: store.seats())
+            print("CANCELTEST period=\(sub.period.rawValue) paid=\(r.paid) daysLeft=\(r.daysLeft) daysInPeriod=\(r.daysInPeriod) refund=\(r.amount) next=\(Fmt.date(sub.nextBillingDate, "MMM d, yyyy"))")
         }
         // -companyName NAME: rename the signed-in company, as Company profile → Company name → Save does.
         if let n = value("-companyName"), store.session != nil { store.state.company.name = n }

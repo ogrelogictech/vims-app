@@ -565,11 +565,24 @@ struct SubscriptionState: Codable, Hashable {
     var extraInspectorYearly: Double?
     /// v1.11: the company's billing period ("monthly" | "yearly"). nil on older saved data = monthly.
     var billingPeriod: String?
+    /// v0.23 (EULA 2026-10-28, 4.1 / 12.3 / 12.4): a cancelled YEARLY plan ends on the cancellation date (`active` goes
+    /// false) with a pro-rated refund for the unused days. A cancelled monthly plan keeps `active` and runs to
+    /// `nextBillingDate` as before. All optional, so older saved data still decodes.
+    var endedAt: Date?
+    var refundAmount: Double?
+    var refundDays: Int?
+    /// What the current period was charged (Start / Update subscription). nil on older data → today's total.
+    var paidAmount: Double?
 
+    /// Monthly cancellation pending: still active until `nextBillingDate`.
     var cancelled: Bool { active && cancelledAt != nil }
 
-    /// The free trial is over and there is no subscription: no new inspections (Subscribe prompt).
-    var trialEnded: Bool { !active && trialDaysLeft == 0 }
+    /// A yearly subscription that was cancelled: access ended on `endedAt` (no new inspections until subscribing again).
+    var subscriptionEnded: Bool { !active && endedAt != nil }
+
+    /// No active subscription and no free trial left (the trial is over, or a yearly cancel ended the subscription):
+    /// no new inspections (Subscribe prompt).
+    var trialEnded: Bool { !active && (trialDaysLeft == 0 || endedAt != nil) }
 
     func plan(_ id: String) -> PlanDef? { plans.first { $0.id == id } }
 
@@ -621,9 +634,31 @@ struct SubscriptionState: Codable, Hashable {
     func total(seats: Int) -> Double { total(plan: plan(selectedPlan), period: period, seats: seats) }
     func totalLabel(seats: Int) -> String { totalLabel(plan: plan(selectedPlan), period: period, seats: seats) }
 
-    var nextBillingDate: Date {
-        let start = startedAt ?? Date()
-        return Calendar.current.date(byAdding: period == .yearly ? .year : .month, value: 1, to: start) ?? start
+    /// The billing period that contains `date`; periods roll forward from `startedAt` (auto-renew).
+    func billingPeriodBounds(containing date: Date) -> (start: Date, end: Date) {
+        let start = startedAt ?? date
+        let cal = Calendar.current, unit: Calendar.Component = period == .yearly ? .year : .month
+        var n = 0
+        while n < 1200, let end = cal.date(byAdding: unit, value: n + 1, to: start) {
+            if end > date { return (cal.date(byAdding: unit, value: n, to: start) ?? start, end) }
+            n += 1
+        }
+        return (start, cal.date(byAdding: unit, value: 1, to: start) ?? start)
+    }
+
+    /// The next renewal (for a pending monthly cancellation: the end of the period it was cancelled in).
+    var nextBillingDate: Date { billingPeriodBounds(containing: cancelledAt ?? Date()).end }
+
+    /// EULA 4.1 / 12.4 — cancelling a yearly plan: price paid × days remaining ÷ days in the period, rounded to cents.
+    func proratedRefund(on date: Date = Date(), seats: Int) -> (amount: Double, daysLeft: Int, daysInPeriod: Int, paid: Double) {
+        let cal = Calendar.current
+        let b = billingPeriodBounds(containing: date)
+        let day = { (a: Date, z: Date) in cal.dateComponents([.day], from: cal.startOfDay(for: a), to: cal.startOfDay(for: z)).day ?? 0 }
+        let inPeriod = max(1, day(b.start, b.end))
+        let left = min(inPeriod, max(0, day(date, b.end)))
+        let paid = paidAmount ?? total(seats: seats)
+        let amount = (paid * Double(left) / Double(inPeriod) * 100).rounded(.toNearestOrAwayFromZero) / 100
+        return (amount, left, inPeriod, paid)
     }
 }
 

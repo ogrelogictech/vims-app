@@ -42,7 +42,7 @@ struct HomeView: View {
             } else if !store.subscription.active {
                 Button { store.push(.subscribe) } label: {
                     HStack {
-                        Text(md(store.subscription.trialEnded ? "**Free trial ended**" : "**Free trial** · \(store.subscription.trialDaysLeft) days left")).font(VFont.ui(13.5))
+                        Text(md(store.subscription.trialEnded ? "**\(TrialEndedText.badge(store))**" : "**Free trial** · \(store.subscription.trialDaysLeft) days left")).font(VFont.ui(13.5))
                         Spacer()
                         HStack(spacing: 3) {
                             Text("Subscribe").font(VFont.ui(13.5, .semibold))
@@ -256,7 +256,7 @@ struct TrialSplashView: View {
                     .accessibilityHidden(true)
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     if ended {
-                        Text("Free trial ended").font(VFont.ui(13, .bold))
+                        Text(TrialEndedText.badge(store)).font(VFont.ui(13, .bold))
                     } else {
                         Text("\(d)").font(VFont.display(22, .heavy))
                         Text("day\(s) left").font(VFont.ui(13, .bold))
@@ -267,7 +267,7 @@ struct TrialSplashView: View {
                 .background(soon ? VC.c1bg : VC.c2bg)
                 .clipShape(Capsule())
                 .padding(.bottom, 12)
-                Text(ended ? "Your free trial has ended" : soon ? "Only \(d) day\(s) left in your free look" : "Your free look is counting down")
+                Text(ended ? TrialEndedText.title(store) : soon ? "Only \(d) day\(s) left in your free look" : "Your free look is counting down")
                     .font(VFont.display(19, .bold)).foregroundStyle(VC.ink)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
@@ -303,8 +303,18 @@ struct TrialSplashView: View {
 /// Wording for the trial-ended prompt and splash (one free trial per device, `DeviceTrial`).
 @MainActor
 enum TrialEndedText {
+    /// "Free trial ended" · "Subscription ended" (a cancelled yearly plan, EULA 4.1 / 12.3).
+    static func badge(_ store: AppStore) -> String {
+        store.subscription.subscriptionEnded ? "Subscription ended" : "Free trial ended"
+    }
+    static func title(_ store: AppStore) -> String {
+        store.subscription.subscriptionEnded ? "Your subscription has ended" : "Your free trial has ended"
+    }
     static func lead(_ store: AppStore) -> String {
         let sub = store.subscription
+        if sub.subscriptionEnded, let d = sub.endedAt {
+            return "Your yearly subscription was cancelled and ended on \(Fmt.date(d, "MMM d, yyyy"))."
+        }
         return sub.deviceTrialUsed == true ? "This device has already used its \(sub.trialDays)-day free trial."
                                            : "Your \(sub.trialDays)-day free trial is over."
     }
