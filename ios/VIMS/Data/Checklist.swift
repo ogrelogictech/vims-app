@@ -5,6 +5,10 @@ import Foundation
 struct ChecklistCatalog {
     let config: ChecklistConfig
     let overrides: ChecklistOverrides
+    /// The inspection's wizard room counts (`Inspection.counts`) when this catalog is for one inspection
+    /// (`AppStore.catalog(for:)`, the report): v1.12 `optionsFromCount` items list "1"…n from them. nil = company checklist
+    /// (Manage checklist), which shows the static options.
+    var counts: [String: Int]? = nil
 
     static let customGroups = ["Exterior", "Interior", "Utility", "Testing"]
 
@@ -21,12 +25,42 @@ struct ChecklistCatalog {
     }
 
     /// An admin-edited section plus the items the shared JSON added after the edit was saved (`baseItems`), each placed
-    /// after the JSON item it follows. Overrides saved before data v1.10 have no `baseItems` and are used as saved.
+    /// after the JSON item it follows. Overrides saved before data v1.10 have no `baseItems` and are used as saved
+    /// (apart from the v1.12 renames / flags below).
     private func withNewJSONItems(_ o: SectionDef) -> SectionDef {
-        guard let known = o.baseItems.map(Set.init), let json = config.sections.first(where: { $0.name == o.name }) else { return o }
+        guard let json = config.sections.first(where: { $0.name == o.name }) else { return o }
         var out = o
-        out.items = Self.adding(json.items, to: o.items, known: known)
-        if let jh = json.itemsHigh, !jh.isEmpty { out.itemsHigh = Self.adding(jh, to: o.itemsHigh ?? [], known: known) }
+        let jsonAll = json.items + (json.itemsHigh ?? [])
+        out.items = Self.syncingJSONChanges(o.items, json: jsonAll)
+        if let mh = o.itemsHigh { out.itemsHigh = Self.syncingJSONChanges(mh, json: jsonAll) }
+        guard var known = o.baseItems.map(Set.init) else { return out }
+        // A JSON item renamed since the edit (v1.12 `renamedFrom`) is the same item: not new, and still deleted if the
+        // admin had deleted it under its old label.
+        for it in jsonAll { if let old = it.previousEditKey, known.contains(old) { known.insert(it.editKey) } }
+        out.items = Self.adding(json.items, to: out.items, known: known)
+        if let jh = json.itemsHigh, !jh.isEmpty { out.itemsHigh = Self.adding(jh, to: out.itemsHigh ?? [], known: known) }
+        return out
+    }
+
+    /// Data v1.12 on a company edit saved earlier: an item still under a label the JSON has since renamed (`renamedFrom`,
+    /// e.g. Outside Utilities "Compressor size (sq ft)" → "Compressor size (home sq ft)") takes the new label and keeps
+    /// the admin's other changes (its answers move with it, `SectionAnswers.migratingRenamed`); and an item matching a
+    /// JSON item that gained `optionsFromCount` / `defaultFromRoomNumber` (Bathroom No. / Bedroom No.) picks those up.
+    static func syncingJSONChanges(_ mine: [ItemDef], json: [ItemDef]) -> [ItemDef] {
+        var out = mine
+        for j in json where j.header == nil {
+            if let old = j.renamedFrom, let q = j.q, !out.contains(where: { $0.editKey == j.editKey }),
+               let i = out.firstIndex(where: { $0.header == nil && $0.q == old }) {
+                out[i].q = q
+                out[i].renamedFrom = old
+            }
+            if j.optionsFromCount != nil || j.defaultFromRoomNumber != nil {
+                for i in out.indices where out[i].header == nil && out[i].q == j.q && out[i].kind == .single && out[i].optionsFromCount == nil {
+                    out[i].optionsFromCount = j.optionsFromCount
+                    out[i].defaultFromRoomNumber = out[i].defaultFromRoomNumber ?? j.defaultFromRoomNumber
+                }
+            }
+        }
         return out
     }
 
@@ -101,9 +135,37 @@ struct ChecklistCatalog {
     /// State/insurance form sections ignore depth and always use `items` (`_formNotes`).
     func items(_ name: String, depth: Depth) -> (items: [ItemDef], usingHigh: Bool) {
         guard let s = section(name) else { return ([], false) }
-        if s.isForm { return (s.items, false) }
-        if depth == .high, let hi = s.itemsHigh, !hi.isEmpty { return (hi, true) }
-        return (s.items, false)
+        if s.isForm { return (resolvingCounts(s.items), false) }
+        if depth == .high, let hi = s.itemsHigh, !hi.isEmpty { return (resolvingCounts(hi), true) }
+        return (resolvingCounts(s.items), false)
+    }
+
+    /// Data v1.12 `optionsFromCount`: "1"…n from this inspection's room count (minimum 1), so the Bathroom No. options
+    /// follow the Bathrooms count (also after it's changed in Inspection info). No count (company checklist, or an
+    /// inspection without that key) → the item's static options.
+    private func resolvingCounts(_ items: [ItemDef]) -> [ItemDef] {
+        guard let counts, items.contains(where: { $0.optionsFromCount != nil }) else { return items }
+        return items.map { it in
+            guard let key = it.optionsFromCount, it.kind == .single, let n = counts[key] else { return it }
+            var r = it
+            r.options = (1...max(1, n)).map(String.init)
+            return r
+        }
+    }
+
+    /// Data v1.12 `defaultFromRoomNumber`: the answers a numbered room section ("Bathroom 2") starts with — its Bathroom
+    /// No. item pre-answered "2" — keyed like `SectionAnswers.choices`. Empty for a section without a number.
+    func roomNumberDefaults(_ name: String, depth: Depth) -> [String: [String]] {
+        let base = Self.baseName(name)
+        guard base != name, let n = Int(name.dropFirst(base.count).trimmingCharacters(in: .whitespaces)) else { return [:] }
+        let list = items(name, depth: isForm(name) ? .standard : depth).items
+        guard list.contains(where: { $0.defaultFromRoomNumber == true }) else { return [:] }
+        var out: [String: [String]] = [:]
+        for k in ItemKeys.keyed(list) where k.item.defaultFromRoomNumber == true && k.item.kind == .single
+            && (k.item.options ?? []).contains(String(n)) {
+            out[k.id] = [String(n)]
+        }
+        return out
     }
 
     func photoCategories(_ name: String, depth: Depth) -> [String] {

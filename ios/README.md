@@ -855,3 +855,35 @@ Screenshots: `screenshots/oct12-*.png` — `ipad-01…18` 13" (landscape 01–13
   `-subStartedDaysAgo N` (with `-activeSub`, prints CANCELTEST), `-confirmCancel` (with `-screen billing`).
 - Verified on iPhone 17 (iOS 26.5) with real taps through the VIMSUITests plan runner. Screenshots
   `screenshots/oct28c-*.png`.
+
+### iOS 0.24.0 (25) — client Oct 29 (shared v1.12.0)
+
+- **Version**: `MARKETING_VERSION` 0.24.0, `CURRENT_PROJECT_VERSION` 25 in every configuration. Bundle identifier
+  unchanged (`com.vims.app`).
+- **Checklist data v1.12.0** (bundled straight from shared/data through the SharedData group): Exterior Walls (High
+  Detail) "Water Pressure rating" Good / Low / High; Outside Utilities "Compressor size (home sq ft)"; Garage + Attic
+  "Receptacles" gain "Non GFCI"; Garage, Attic and Kitchen gain "GFCI receptacles (count)" and "Standard receptacles
+  (count)" (whole numbers). They reach existing inspections the way new items always do (inspections read the live
+  checklist; a company edit saved with `baseItems` gets the new JSON items merged in) and print in the report.
+- **`renamedFrom`**: answers are keyed by header path + question, so `SectionAnswers.migratingRenamed` (part of
+  `migratingLegacy`, used by the section screen and the report) moves an answer saved under "…›Compressor size (sq ft)"
+  onto the renamed item when the new key is empty. A company edit (or an inspection's kept `savedSections`) that still
+  has the old label is renamed in `ChecklistCatalog.syncingJSONChanges`, keeping the admin's other changes; the new
+  label counts as known, so it isn't added twice and stays deleted if the admin had deleted it.
+- **`optionsFromCount` / `defaultFromRoomNumber`** (Bathroom No. / Bedroom No., High Detail): `ChecklistCatalog` carries
+  the inspection's room counts (`catalog(for:)`, report), and `items(_:depth:)` lists "1"…n (minimum 1; static options
+  when the count key is missing). Changing the count in Inspection info changes the options at once. A saved answer
+  outside the range stays shown as a chip. On a numbered room section's first open (`AppStore.prefilled`) the item is
+  pre-answered with the room's number ("Bathroom 2" → "2"), still changeable; sections opened before keep their answers.
+- **Progress**: sections only become Done on Save, so the pre-answer can never complete one. It also doesn't make a
+  section (or the inspection on Home) "In progress": `hasEnteredContent` ignores answers equal to the room-number
+  pre-answer, the same way the preselected Overall condition never counted. Any other answer, comment or photo does.
+- **Photo zoom**: the camera is `UIImagePickerController` (system pinch zoom, unchanged). The markup viewer now zooms:
+  two-finger pinch (1–5×, about the fingers) and two-finger pan, double-tap 2.5× / reset, "Reset zoom" pill; one finger
+  still draws and stamps (`MarkupTouchSurface` — a second finger cancels the stroke in progress). Marks scale with the
+  photo and are saved at the same place and width as before.
+- **Icons**: "save-return-svg" is now a plain right arrow in shared/icons/icons.json (read at runtime, no app change);
+  the Pictures page "Save & continue to summary/report" uses it too (was the check icon).
+- DEBUG: `-roomCounts "bathrooms=2,bedrooms=3"`, `-addRooms "Garage,Attic,Kitchen"`, `-legacyCompressor V`,
+  `-oct29Fill`, `-oct29Status` (OCT29TEST lines), `-oldCompressorEdit`, `-scrollToItem Q`, `-markupZoom Z`.
+- Verified on iPhone 17 Pro (iOS 26.5). Screenshots `screenshots/oct29-*.png`.

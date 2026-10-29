@@ -25,6 +25,10 @@ enum DebugFlags {
     static var openShare = false
     /// -scrubTo F: the PDF preview scrolls to fraction F (0…1) and holds the page scroller's dragged look.
     static var scrubTo: CGFloat?
+    /// -markupZoom Z: the markup viewer opens zoomed to Z (review screenshots of the photo zoom).
+    static var markupZoom: CGFloat?
+    /// -scrollToItem Q: the section screen scrolls to the first checklist item with question Q.
+    static var scrollToItem: String?
 }
 
 #if DEBUG
@@ -164,6 +168,93 @@ enum DebugLaunch {
         print("MAILTEST platform bccOn=\(store.platform.reportBccOn) bccEmail=\(store.platform.reportBccEmail)")
         if MFMailComposeViewController.canSendMail() {
             let vc = MFMailComposeViewController(); d.configure(vc); print("MAILTEST composer configured")
+        }
+    }
+
+    /// Client Oct 29 (data v1.12) checks on the chosen inspection:
+    ///   -roomCounts "bathrooms=2,bedrooms=3"  set the wizard room counts and rebuild the section list
+    ///   -addRooms "Garage,Attic,Kitchen"       add those interior rooms
+    ///   -legacyCompressor V                    Outside Utilities answer saved under the old "Compressor size (sq ft)" key
+    ///   -oct29Fill                             answer the new items (Water Pressure High, receptacle counts, Non GFCI) and
+    ///                                          mark those sections done, so they print in the report
+    ///   -oct29Status                           print OCT29TEST lines (options / pre-answers / migration / progress / report)
+    @MainActor
+    static func seedOct29(_ store: AppStore, _ id: UUID) {
+        guard var insp = store.inspection(id) else { return }
+        var rebuild = false
+        if let rc = value("-roomCounts") {
+            for pair in rc.split(separator: ",") {
+                let kv = pair.split(separator: "=").map(String.init)
+                if kv.count == 2, let n = Int(kv[1]) { insp.counts[kv[0]] = n }
+            }
+            rebuild = true
+        }
+        if let r = value("-addRooms") {
+            for n in r.split(separator: ",").map(String.init) where !insp.rooms.contains(n) { insp.rooms.append(n) }
+            rebuild = true
+        }
+        if rebuild { store.buildChecklist(from: insp) }
+        let cat = { store.catalog(for: id) }
+        if let v = value("-legacyCompressor"), let i = store.inspection(id) {
+            let keyed = ItemKeys.keyed(cat().items("Outside Utilities", depth: .high).items)
+            if let k = keyed.first(where: { $0.item.renamedFrom != nil }), let old = k.item.renamedFrom, let q = k.item.q,
+               let r = k.id.range(of: "›" + q, options: .backwards) {
+                let oldKey = k.id.replacingCharacters(in: r, with: "›" + old)
+                var a = i.answers["Outside Utilities"] ?? store.defaultAnswers("Outside Utilities")
+                a.text[k.id] = nil
+                a.text[oldKey] = v
+                store.update(id, markDirty: false) { $0.answers["Outside Utilities"] = a; $0.status["Outside Utilities"] = .done }
+                print("OCT29TEST seeded legacy key=\(oldKey) value=\(v)")
+            }
+        }
+        if has("-oct29Fill"), let i = store.inspection(id) {
+            let fills: [String: [String: String]] = [
+                "Exterior Walls": ["Water Pressure rating": "High"],
+                "Garage": ["Receptacles": "Non GFCI", "GFCI receptacles (count)": "2", "Standard receptacles (count)": "6"],
+                "Attic": ["Receptacles": "Non GFCI", "GFCI receptacles (count)": "1", "Standard receptacles (count)": "3"],
+                "Kitchen": ["GFCI receptacles (count)": "5", "Standard receptacles (count)": "4"]
+            ]
+            for (sec, vals) in fills where i.leafSections.contains(sec) {
+                var a = i.answers[sec] ?? store.defaultAnswers(sec)
+                for k in ItemKeys.keyed(cat().items(sec, depth: i.depth).items) {
+                    guard let q = k.item.q, let v = vals[q], !k.id.contains("#") else { continue }
+                    if k.item.kind == .num { a.text[k.id] = v } else { a.choices[k.id] = [v] }
+                }
+                store.update(id, markDirty: false) { $0.answers[sec] = a; $0.status[sec] = .done }
+            }
+        }
+        guard has("-oct29Status"), let i = store.inspection(id) else { return }
+        print("OCT29TEST insp=\(i.addressLine1) depth=\(i.depth.rawValue) counts=\(i.counts.sorted { $0.key < $1.key }) leaves=\(i.leafSections.filter { $0.hasPrefix("Bath") || $0.hasPrefix("Bed") || ["Garage", "Attic", "Kitchen"].contains($0) })")
+        for sec in i.leafSections where sec.hasPrefix("Bathroom") || sec.hasPrefix("Bedroom") {
+            let first = cat().items(sec, depth: i.depth).items.first
+            print("OCT29TEST \(sec) item=\(first?.q ?? "-") options=\(first?.options ?? []) preAnswer=\(store.roomNumberDefaults(i, sec)) status=\(i.status[sec].map { "\($0)" } ?? "nil")")
+        }
+        // The pre-answer alone doesn't make a section In progress; a real answer does.
+        if let sec = i.leafSections.first(where: { $0.hasPrefix("Bathroom ") }) {
+            let pre = store.prefilled(store.answers(id, sec), id, sec)
+            var touched = pre; touched.comments = "x"
+            print("OCT29TEST progress \(sec) prefilled=\(pre.choices) entered=\(store.hasEnteredContent(i, sec, pre)) withComment=\(store.hasEnteredContent(i, sec, touched))")
+        }
+        if let a = i.answers["Outside Utilities"] {
+            let keyed = ItemKeys.keyed(cat().items("Outside Utilities", depth: .high).items)
+            let m = a.migratingLegacy(keyed)
+            print("OCT29TEST compressor migrated=\(m.text.filter { $0.key.contains("Compressor size") })")
+        }
+        for (sec, qs) in [("Exterior Walls", ["Water Pressure rating"]), ("Outside Utilities", ["Compressor size (home sq ft)"]),
+                          ("Garage", ["Receptacles", "GFCI receptacles (count)", "Standard receptacles (count)"]),
+                          ("Attic", ["Receptacles", "GFCI receptacles (count)", "Standard receptacles (count)"]),
+                          ("Kitchen", ["GFCI receptacles (count)", "Standard receptacles (count)"])] {
+            let items = cat().items(sec, depth: .high).items
+            print("OCT29TEST \(sec): " + qs.map { q in "\(q)=\(items.first { $0.q == q }.map { $0.options ?? ["num integer=\($0.integer ?? false)"] } ?? ["MISSING"])" }.joined(separator: " | "))
+        }
+        let data = ReportData.make(i, config: store.config, overrides: store.catalog(for: i).overrides, company: store.company,
+                                   repo: store.files, logo: nil)
+        for s in data.sections where ["Exterior Walls", "Outside Utilities", "Garage", "Attic", "Kitchen"].contains(s.name) || s.name.hasPrefix("Bathroom") || s.name.hasPrefix("Bedroom") {
+            let lines = s.rows.compactMap { r -> String? in
+                if case .line(let q, let v) = r.kind, q.contains("Water Pressure") || q.contains("Compressor size") || q.contains("eceptacles") || q.hasSuffix(" No.") { return "\(q)=\(v)" }
+                return nil
+            }
+            print("OCT29TEST report \(s.name): \(lines)")
         }
     }
 
@@ -473,6 +564,20 @@ enum DebugLaunch {
             let items = store.catalog.items(n, depth: .standard).items.compactMap(\.q)
             print("CHECKLISTTEST override=\(n) legacy=\(has("-legacyOverride")) items=\(items.count) last3=\(items.suffix(3))")
         }
+        // -oldCompressorEdit: a company edit of Outside Utilities saved before data v1.12, with the old
+        // "Compressor size (sq ft)" label (and baseItems naming it) — the catalog renames it; prints OCT29TEST.
+        if has("-oldCompressorEdit"), store.session != nil, var d = store.config.sections.first(where: { $0.name == "Outside Utilities" }) {
+            let rename = { (list: [ItemDef]) in list.map { it -> ItemDef in
+                var r = it
+                if let old = it.renamedFrom { r.q = old; r.renamedFrom = nil }
+                return r
+            } }
+            d.items = rename(d.items); d.itemsHigh = d.itemsHigh.map(rename)
+            d.baseItems = (d.items + (d.itemsHigh ?? [])).map(\.editKey)
+            store.state.overrides.sections[d.name] = d
+            let qs = store.catalog.items(d.name, depth: .high).items.compactMap(\.q).filter { $0.hasPrefix("Compressor size") }
+            print("OCT29TEST companyEdit compressorItems=\(qs)")
+        }
         if has("-deviceTrialStatus") {
             let f = ISO8601DateFormatter()
             print("DEVICETRIAL firstTrialStart=\(DeviceTrial.date(.firstTrialStart).map(f.string) ?? "none") demoTrialStart=\(DeviceTrial.date(.demoTrialStart).map(f.string) ?? "none")")
@@ -494,6 +599,8 @@ enum DebugLaunch {
         if has("-openPreview") { DebugFlags.openPreview = true }
         if has("-openShare") { DebugFlags.openShare = true }
         if let f = value("-scrubTo").flatMap(Double.init) { DebugFlags.scrubTo = CGFloat(f) }
+        if let z = value("-markupZoom").flatMap(Double.init) { DebugFlags.markupZoom = CGFloat(z) }
+        if let q = value("-scrollToItem") { DebugFlags.scrollToItem = q }
         if let g = value("-group") { DebugFlags.adminGroup = g }
         // Screens that don't need an inspection.
         let general: [String: [Route]] = [
@@ -534,6 +641,7 @@ enum DebugLaunch {
         if let mode = value("-iaq") { seedAirQuality(store, id, mode: mode) }
         if has("-sampleFindings") { seedOct16Findings(store, id) }
         if let mode = value("-oct17") { seedOct17(store, id, mode: mode) }
+        seedOct29(store, id)
         let depth = store.inspection(id)?.depth ?? .standard
         let section = value("-section") ?? (ridge.leafSections.contains("Roof") ? (depth == .high ? "Outside Utilities" : "Roof") : (ridge.leafSections.first ?? "Roof"))
 

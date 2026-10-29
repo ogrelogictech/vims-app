@@ -112,11 +112,16 @@ final class AppStore {
 
     /// The checklist an inspection uses: the company's checklist, with the section definitions the inspection kept when
     /// an admin restored the checklist to the VIMS original (`Inspection.savedSections`, client Oct 28) taking priority.
+    /// Data v1.12: carries the inspection's room counts, so `optionsFromCount` items (Bathroom No. / Bedroom No.) list
+    /// "1"…n for it.
     func catalog(for insp: Inspection?) -> ChecklistCatalog {
-        guard let saved = insp?.savedSections, !saved.isEmpty else { return catalog }
+        guard let insp else { return catalog }
+        guard let saved = insp.savedSections, !saved.isEmpty else {
+            return ChecklistCatalog(config: config, overrides: state.overrides, counts: insp.counts)
+        }
         var o = state.overrides
         o.sections.merge(saved) { _, kept in kept }
-        return ChecklistCatalog(config: config, overrides: o)
+        return ChecklistCatalog(config: config, overrides: o, counts: insp.counts)
     }
     func catalog(for id: UUID) -> ChecklistCatalog { catalog(for: inspection(id)) }
     var company: CompanyProfile { state.company }
@@ -514,15 +519,34 @@ final class AppStore {
 
     /// v1.9 `prefill`: on a form section's first open, its prefill items start with the inspection / company values
     /// (Wind Mitigation owner name, address, city, ZIP, phone, email, license type, initials). Only empty answers.
+    /// Data v1.12 `defaultFromRoomNumber`: on a numbered room section's first open (e.g. "Bathroom 2" on High Detail), its
+    /// Bathroom No. / Bedroom No. starts answered with the room's number; the inspector can pick another. Sections opened
+    /// before keep their answers as saved.
     func prefilled(_ a: SectionAnswers, _ id: UUID, _ section: String) -> SectionAnswers {
         guard let insp = inspection(id), insp.answers[section] == nil else { return a }
         var out = a
-        for k in ItemKeys.keyed(catalog(for: insp).items(section, depth: .standard).items) {
+        let cat = catalog(for: insp)
+        for k in ItemKeys.keyed(cat.items(section, depth: .standard).items) {
             guard let key = k.item.prefill, (out.text[k.id] ?? "").isEmpty else { continue }
             let v = insp.prefillValue(key, inspector: inspectorName).trimmingCharacters(in: .whitespaces)
             if !v.isEmpty { out.text[k.id] = v }
         }
+        if insp.depth != .fast {
+            for (k, v) in cat.roomNumberDefaults(section, depth: insp.depth) where out.choices[k]?.isEmpty ?? true { out.choices[k] = v }
+        }
         return out
+    }
+
+    /// The room-number pre-answers of a section (`ChecklistCatalog.roomNumberDefaults`) for this inspection's depth.
+    func roomNumberDefaults(_ insp: Inspection, _ section: String) -> [String: [String]] {
+        guard insp.depth != .fast, ChecklistCatalog.baseName(section) != section else { return [:] }
+        return catalog(for: insp).roomNumberDefaults(section, depth: insp.depth)
+    }
+
+    /// Something the inspector entered in a section, not counting the room-number pre-answer (or the preselected
+    /// Overall condition): what moves a section / inspection to In progress.
+    func hasEnteredContent(_ insp: Inspection, _ section: String, _ a: SectionAnswers) -> Bool {
+        a.hasContent && a.hasContent(ignoring: roomNumberDefaults(insp, section))
     }
 
     /// Photos-only sections (Pictures) open straight on their photo screen.
@@ -545,7 +569,7 @@ final class AppStore {
     func setAnswers(_ id: UUID, _ section: String, _ a: SectionAnswers) {
         update(id) { insp in
             insp.answers[section] = a
-            if insp.status[section] == nil || insp.status[section] == .todo, a.hasContent { insp.status[section] = .prog }
+            if insp.status[section] == nil || insp.status[section] == .todo, hasEnteredContent(insp, section, a) { insp.status[section] = .prog }
         }
     }
 
@@ -566,7 +590,7 @@ final class AppStore {
     func homeStatus(_ insp: Inspection) -> HomeStatus {
         // "Queued" = report waiting to sync — only with sync on (data v1.10 `features.sync`; Phase 1 doesn't sync).
         if insp.report != nil { return syncEnabled && insp.needsSync ? .queued : .done }
-        if insp.status.values.contains(where: { $0 != .todo }) || insp.answers.values.contains(where: \.hasContent) { return .prog }
+        if insp.status.values.contains(where: { $0 != .todo }) || insp.answers.contains(where: { hasEnteredContent(insp, $0.key, $0.value) }) { return .prog }
         return .scheduled
     }
 

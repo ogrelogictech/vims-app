@@ -114,7 +114,7 @@ struct ReportData {
 
     static func make(_ insp: Inspection, config cfg: ChecklistConfig, overrides: ChecklistOverrides,
                      company: CompanyProfile, repo: FileStore, logo: UIImage?) -> ReportData {
-        let cat = ChecklistCatalog(config: cfg, overrides: overrides)
+        let cat = ChecklistCatalog(config: cfg, overrides: overrides, counts: insp.counts)
         let colorDef = cfg.covers.colors.first { $0.name == insp.cover.color } ?? cfg.covers.colors[0]
 
         func v(_ label: String) -> String {

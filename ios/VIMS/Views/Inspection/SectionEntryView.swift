@@ -41,6 +41,10 @@ struct SectionEntryView: View {
                     loaded = true
                 }
                 if DebugFlags.openDrawer { DebugFlags.openDrawer = false; drawerOpen = true }
+                if let q = DebugFlags.scrollToItem, let k = keyedItems(insp).first(where: { $0.item.q == q }) {
+                    DebugFlags.scrollToItem = nil
+                    Task { try? await Task.sleep(nanoseconds: 700_000_000); errors.scrollTarget = k.id }
+                }
             }
             .onChange(of: answers) { _, new in
                 if loaded { store.setAnswers(inspectionID, section, new) }
@@ -379,7 +383,7 @@ struct ItemCard: View {
                 .padding(.bottom, 11)
             switch item.kind {
             case .single, .multi:
-                ChipGroup(options: item.options ?? [],
+                ChipGroup(options: chipOptions,
                           selection: Binding(get: { answers.choices[key] ?? [] }, set: { new in
                               let old = answers.choices[key] ?? []
                               answers.choices[key] = new.isEmpty ? nil : new
@@ -420,6 +424,15 @@ struct ItemCard: View {
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(VC.line, lineWidth: 1))
         .padding(.bottom, 11)
+    }
+
+    /// The item's options. Data v1.12 `optionsFromCount` (Bathroom No. "1"…n): a saved answer outside the current range
+    /// (picked from the old static list, or before the room count was lowered) stays shown, so it can be seen and changed.
+    private var chipOptions: [String] {
+        let opts = item.options ?? []
+        guard item.optionsFromCount != nil else { return opts }
+        let extra = (answers.choices[key] ?? []).filter { !opts.contains($0) }
+        return extra.isEmpty ? opts : (opts + extra).sorted { $0.localizedStandardCompare($1) == .orderedAscending }
     }
 
     private func textBinding(_ kp: WritableKeyPath<SectionAnswers, [String: String]>) -> Binding<String> {

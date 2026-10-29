@@ -200,6 +200,16 @@ struct ItemDef: Codable, Hashable {
     /// places (default 2). docs/validation-rules.md "Team QA Oct 22".
     var integer: Bool? = nil
     var decimals: Int? = nil
+    /// v1.12 `optionsFromCount` ("bathrooms" / "bedrooms"): a single-choice item whose options are "1"…n, n = the
+    /// inspection's room count for that key (minimum 1); `options` is only the fallback when the inspection has no such
+    /// count. Resolved per inspection in `ChecklistCatalog.items` (client Oct 29).
+    var optionsFromCount: String? = nil
+    /// v1.12 `defaultFromRoomNumber`: in a numbered room section ("Bathroom 2") the item starts answered with that
+    /// room's number ("2"); still changeable. See `AppStore.prefilled` / `roomNumberDefaults`.
+    var defaultFromRoomNumber: Bool? = nil
+    /// v1.12 `renamedFrom`: the item's previous question. Answers saved under the old label move onto this item
+    /// (`SectionAnswers.migratingRenamed`) and a company edit that still has the old label is renamed with it.
+    var renamedFrom: String? = nil
 
     /// Decimal places a `num` answer may have while typing: 0 for `integer`, else `decimals`, else 2.
     var numDecimals: Int { integer == true ? 0 : max(0, decimals ?? 2) }
@@ -207,6 +217,8 @@ struct ItemDef: Codable, Hashable {
     var isHeader: Bool { header != nil }
     /// Identity of an item across JSON versions and admin edits: its header or question.
     var editKey: String { header.map { "#" + $0 } ?? (q ?? "") }
+    /// The `editKey` this item had before a v1.12 `renamedFrom` rename (nil when it was never renamed).
+    var previousEditKey: String? { header == nil ? renamedFrom : nil }
     var kind: ItemKind {
         if header != nil { return .header }
         switch type ?? "single" {

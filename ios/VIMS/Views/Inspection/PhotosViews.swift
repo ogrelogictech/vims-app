@@ -57,8 +57,9 @@ struct PhotosView: View {
                     }
                 }
                 if photosOnly {
+                    // Client Oct 29: same plain arrow as "Save & next section" (shared icon save-return-svg).
                     Button { store.finishPictures(inspectionID, section) } label: {
-                        IconLabel("Save & continue to \(insp.hasSummary ? "summary" : "report")", icon: "link-my-account")
+                        IconLabel("Save & continue to \(insp.hasSummary ? "summary" : "report")", icon: "save-return-svg")
                     }
                     .buttonStyle(.vPrimary)
                     .padding(.top, 6)
@@ -337,6 +338,13 @@ struct PhotoMarkupView: View {
     @State private var custom = ""
     @State private var showFinding = false
     @State private var displayWidth: CGFloat = 0
+    /// Client Oct 29: pinch (two fingers) zooms the photo about the fingers, two fingers pan it, double-tap zooms in /
+    /// resets; one finger still draws and stamps. `zoom` 1…5 about the photo area's center, then `pan`.
+    @State private var zoom: CGFloat = 1
+    @State private var pan: CGSize = .zero
+    /// When the last single-tap mark (dot / stamp) was added — a double-tap removes the marks its own taps made.
+    @State private var tapMarks: [Date] = []
+    private let maxZoom: CGFloat = 5
 
     private let pens: [(Color, UIColor, String)] = [
         (Color(hex: 0xE5483B), UIColor(hex: 0xE5483B), "Red"),
@@ -362,11 +370,14 @@ struct PhotoMarkupView: View {
             .padding(.horizontal, 14).padding(.top, 14).padding(.bottom, 10)
 
             GeometryReader { geo in
-                let rect = imageRect(in: geo.size)
+                let base = imageRect(in: geo.size)
+                let rect = zoomed(base, in: geo.size)
                 ZStack(alignment: .topLeading) {
                     if let image {
-                        Image(uiImage: image).resizable().scaledToFit()
-                            .frame(width: geo.size.width, height: geo.size.height)
+                        // Drawn at the zoomed size from the full-resolution photo, so it stays sharp when zoomed.
+                        Image(uiImage: image).resizable()
+                            .frame(width: rect.width, height: rect.height)
+                            .position(x: rect.midX, y: rect.midY)
                             .accessibilityLabel("Inspection photo, \(category)")
                     }
                     Canvas { ctx, _ in
@@ -374,29 +385,41 @@ struct PhotoMarkupView: View {
                     }
                     .allowsHitTesting(false)
                 }
+                .frame(width: geo.size.width, height: geo.size.height)
                 .contentShape(Rectangle())
-                .onAppear { displayWidth = rect.width }
-                .onChange(of: rect.width) { _, w in displayWidth = w }
-                .gesture(DragGesture(minimumDistance: 0)
-                    .onChanged { v in
-                        guard rect.width > 0 else { return }
-                        let p = CGPoint(x: (v.location.x - rect.minX) / rect.width, y: (v.location.y - rect.minY) / rect.height)
-                        if let stamp {
-                            if current == nil {
-                                current = MarkStroke(color: pens[penIndex].0, uiColor: pens[penIndex].1, points: [p], stamp: stamp)
-                            } else { current?.points = [p] }
-                        } else if current == nil {
-                            current = MarkStroke(color: pens[penIndex].0, uiColor: pens[penIndex].1, points: [p], stamp: nil)
-                        } else {
-                            current?.points.append(p)
-                        }
-                    }
-                    .onEnded { _ in
-                        if let c = current { strokes.append(c) }
+                .onAppear {
+                    displayWidth = base.width
+                    if let z = DebugFlags.markupZoom { DebugFlags.markupZoom = nil; zoom = min(max(z, 1), maxZoom) }
+                }
+                .onChange(of: base.width) { _, w in displayWidth = w; clampPan(base: base, size: geo.size) }
+                // One finger draws / stamps; two fingers pinch-zoom and pan; double-tap zooms in or resets.
+                .overlay(MarkupTouchSurface(
+                    onDraw: { phase, loc in drawTouch(phase, at: loc, rect: rect) },
+                    onPinch: { factor, loc in pinch(by: factor, at: loc, base: base, size: geo.size) },
+                    onPan: { d in
                         current = nil
-                    })
+                        pan.width += d.width; pan.height += d.height
+                        clampPan(base: base, size: geo.size)
+                    },
+                    onDoubleTap: { loc in doubleTap(at: loc, base: base, size: geo.size) }))
+                .overlay(alignment: .topTrailing) {
+                    if zoom > 1.01 {
+                        Button { zoom = 1; pan = .zero } label: {
+                            Text("Reset zoom · \(String(format: "%.1f", zoom))×").font(VFont.ui(12, .semibold)).foregroundStyle(.white)
+                                .padding(.horizontal, 12).frame(minHeight: 32)
+                                .background(Color(hex: 0x0C1119, alpha: 0.7))
+                                .clipShape(Capsule())
+                                .frame(minHeight: 44)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.trailing, 10)
+                        .accessibilityLabel("Reset zoom")
+                    }
+                }
             }
             .clipped()
+            .accessibilityHint("Pinch with two fingers or double-tap to zoom. Draw with one finger.")
 
             VStack(alignment: .leading, spacing: 12) {
                 // Client Oct 16: no "Comment" label — the quick-comment dropdown takes the full row.
@@ -465,6 +488,78 @@ struct PhotoMarkupView: View {
         }
     }
 
+    // MARK: zoom
+
+    /// The photo's rect on screen at the current zoom / pan (`base` = the fitted, unzoomed rect).
+    private func zoomed(_ base: CGRect, in size: CGSize) -> CGRect {
+        guard zoom != 1 || pan != .zero else { return base }
+        let c = CGPoint(x: size.width / 2, y: size.height / 2)
+        return CGRect(x: c.x + (base.minX - c.x) * zoom + pan.width, y: c.y + (base.minY - c.y) * zoom + pan.height,
+                      width: base.width * zoom, height: base.height * zoom)
+    }
+
+    /// Keeps the zoomed photo covering the area it can (no panning it off-screen); centered on an axis it doesn't fill.
+    private func clampPan(base: CGRect, size: CGSize) {
+        let mx = max(0, base.width * zoom / 2 - size.width / 2), my = max(0, base.height * zoom / 2 - size.height / 2)
+        pan = CGSize(width: min(max(pan.width, -mx), mx), height: min(max(pan.height, -my), my))
+    }
+
+    /// Zooms by `factor` keeping the photo point under `anchor` (the fingers) where it is.
+    private func pinch(by factor: CGFloat, at anchor: CGPoint, base: CGRect, size: CGSize) {
+        current = nil
+        let z0 = zoom, z1 = min(max(zoom * factor, 1), maxZoom)
+        guard z1 != z0 else { return }
+        let dx = anchor.x - size.width / 2, dy = anchor.y - size.height / 2
+        pan = CGSize(width: dx - (dx - pan.width) * z1 / z0, height: dy - (dy - pan.height) * z1 / z0)
+        zoom = z1
+        clampPan(base: base, size: size)
+    }
+
+    /// Double-tap: 2.5× about the tapped point, or back to the whole photo when zoomed. The dots / stamps its two taps
+    /// placed are taken back off.
+    private func doubleTap(at p: CGPoint, base: CGRect, size: CGSize) {
+        current = nil
+        let now = Date()
+        while let t = tapMarks.last, now.timeIntervalSince(t) < 0.7, !strokes.isEmpty, strokes.last?.points.count == 1 {
+            strokes.removeLast(); tapMarks.removeLast()
+        }
+        // Not animated: the marks (Canvas) and the photo must move together.
+        if zoom > 1.01 {
+            zoom = 1; pan = .zero
+        } else {
+            let z1: CGFloat = 2.5
+            let dx = p.x - size.width / 2, dy = p.y - size.height / 2
+            pan = CGSize(width: dx - dx * z1, height: dy - dy * z1)
+            zoom = z1
+            clampPan(base: base, size: size)
+        }
+    }
+
+    private func drawTouch(_ phase: MarkupTouchSurface.Phase, at loc: CGPoint, rect: CGRect) {
+        switch phase {
+        case .began, .moved:
+            guard rect.width > 0 else { return }
+            let p = CGPoint(x: (loc.x - rect.minX) / rect.width, y: (loc.y - rect.minY) / rect.height)
+            if let stamp {
+                if current == nil {
+                    current = MarkStroke(color: pens[penIndex].0, uiColor: pens[penIndex].1, points: [p], stamp: stamp)
+                } else { current?.points = [p] }
+            } else if current == nil {
+                current = MarkStroke(color: pens[penIndex].0, uiColor: pens[penIndex].1, points: [p], stamp: nil)
+            } else {
+                current?.points.append(p)
+            }
+        case .ended:
+            if let c = current {
+                strokes.append(c)
+                if c.points.count == 1 { tapMarks.append(Date()) }
+            }
+            current = nil
+        case .cancelled:
+            current = nil       // a second finger landed (pinch / pan): that touch wasn't a mark
+        }
+    }
+
     // MARK: drawing
 
     private func imageRect(in size: CGSize) -> CGRect {
@@ -477,7 +572,7 @@ struct PhotoMarkupView: View {
     private func draw(_ s: MarkStroke, in ctx: inout GraphicsContext, rect: CGRect) {
         let pts = s.points.map { CGPoint(x: rect.minX + $0.x * rect.width, y: rect.minY + $0.y * rect.height) }
         if let stamp = s.stamp, let p = pts.first {
-            ctx.draw(Text(stamp).font(.system(size: stampSize, weight: .bold)).foregroundColor(s.color), at: p, anchor: .center)
+            ctx.draw(Text(stamp).font(.system(size: stampSize * zoom, weight: .bold)).foregroundColor(s.color), at: p, anchor: .center)
             return
         }
         var path = Path()
@@ -486,7 +581,8 @@ struct PhotoMarkupView: View {
             if pts.count == 1 { path.addLine(to: CGPoint(x: f.x + 0.1, y: f.y + 0.1)) }
             for p in pts.dropFirst() { path.addLine(to: p) }
         }
-        ctx.stroke(path, with: .color(s.color), style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round))
+        // Marks scale with the photo (the saved photo gets them at the unzoomed size, `save()`).
+        ctx.stroke(path, with: .color(s.color), style: StrokeStyle(lineWidth: lineWidth * zoom, lineCap: .round, lineJoin: .round))
     }
 
     private func combinedComment() -> String? {
@@ -560,5 +656,95 @@ struct PhotoMarkupView: View {
         .buttonStyle(ChipPressStyle())
         .accessibilityLabel(label)
         .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+}
+
+// MARK: - Markup touch surface (one finger draws, two fingers zoom / pan, double-tap zooms)
+
+/// UIKit touch handling over the markup photo: SwiftUI can't tell a one-finger stroke from the first finger of a pinch,
+/// so single touches are tracked directly (a stroke starts on touch-down, like before) and a pinch / two-finger pan /
+/// double-tap recognizer cancels it (`Phase.cancelled`) when it takes over.
+struct MarkupTouchSurface: UIViewRepresentable {
+    enum Phase { case began, moved, ended, cancelled }
+
+    var onDraw: (Phase, CGPoint) -> Void
+    /// Incremental scale factor since the last call, about the fingers' midpoint.
+    var onPinch: (CGFloat, CGPoint) -> Void
+    /// Incremental two-finger translation.
+    var onPan: (CGSize) -> Void
+    var onDoubleTap: (CGPoint) -> Void
+
+    func makeUIView(context: Context) -> SurfaceView { SurfaceView() }
+
+    func updateUIView(_ v: SurfaceView, context: Context) {
+        v.onDraw = onDraw; v.onPinch = onPinch; v.onPan = onPan; v.onDoubleTap = onDoubleTap
+    }
+
+    final class SurfaceView: UIView, UIGestureRecognizerDelegate {
+        var onDraw: ((Phase, CGPoint) -> Void)?
+        var onPinch: ((CGFloat, CGPoint) -> Void)?
+        var onPan: ((CGSize) -> Void)?
+        var onDoubleTap: ((CGPoint) -> Void)?
+        private weak var drawing: UITouch?
+
+        override init(frame: CGRect) {
+            super.init(frame: frame)
+            backgroundColor = .clear
+            isMultipleTouchEnabled = true
+            let pinch = UIPinchGestureRecognizer(target: self, action: #selector(pinched(_:)))
+            let pan = UIPanGestureRecognizer(target: self, action: #selector(panned(_:)))
+            pan.minimumNumberOfTouches = 2
+            pan.maximumNumberOfTouches = 2
+            let dbl = UITapGestureRecognizer(target: self, action: #selector(doubleTapped(_:)))
+            dbl.numberOfTapsRequired = 2
+            dbl.delaysTouchesEnded = false     // single taps (dots / stamps) land at once
+            for g in [pinch, pan, dbl] as [UIGestureRecognizer] { g.delegate = self; addGestureRecognizer(g) }
+        }
+        required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+        func gestureRecognizer(_ g: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
+            !(g is UITapGestureRecognizer) && !(other is UITapGestureRecognizer)
+        }
+
+        // One finger: a stroke. A second finger cancels it (the pinch / pan takes over).
+        override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+            if (event?.allTouches?.count ?? touches.count) > 1 {
+                if drawing != nil { drawing = nil; onDraw?(.cancelled, .zero) }
+                return
+            }
+            guard drawing == nil, let t = touches.first else { return }
+            drawing = t
+            onDraw?(.began, t.location(in: self))
+        }
+        override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+            guard let t = drawing, touches.contains(t) else { return }
+            onDraw?(.moved, t.location(in: self))
+        }
+        override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+            guard let t = drawing, touches.contains(t) else { return }
+            drawing = nil
+            onDraw?(.ended, t.location(in: self))
+        }
+        override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+            guard let t = drawing, touches.contains(t) else { return }
+            drawing = nil
+            onDraw?(.cancelled, .zero)
+        }
+
+        @objc private func pinched(_ g: UIPinchGestureRecognizer) {
+            guard g.state == .began || g.state == .changed, g.numberOfTouches >= 2 else { return }
+            onPinch?(g.scale, g.location(in: self))
+            g.scale = 1
+        }
+        @objc private func panned(_ g: UIPanGestureRecognizer) {
+            guard g.state == .began || g.state == .changed else { return }
+            let t = g.translation(in: self)
+            g.setTranslation(.zero, in: self)
+            onPan?(CGSize(width: t.x, height: t.y))
+        }
+        @objc private func doubleTapped(_ g: UITapGestureRecognizer) {
+            if drawing != nil { drawing = nil; onDraw?(.cancelled, .zero) }
+            onDoubleTap?(g.location(in: self))
+        }
     }
 }

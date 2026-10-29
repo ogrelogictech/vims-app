@@ -58,6 +58,16 @@ struct SectionAnswers: Codable, Hashable {
         detail.values.contains { !$0.isEmpty } || !present.isEmpty || !comments.isEmpty
     }
 
+    /// `hasContent` not counting answers that only repeat what the section started with (data v1.12
+    /// `defaultFromRoomNumber`: Bathroom 2's "Bathroom No." = "2"), so opening a room section doesn't by itself mark it
+    /// (or its inspection) In progress. Like the preselected Overall condition, which `hasContent` never counted.
+    func hasContent(ignoring defaults: [String: [String]]) -> Bool {
+        guard !defaults.isEmpty else { return hasContent }
+        var a = self
+        for (k, v) in defaults where a.choices[k] == v { a.choices[k] = nil }
+        return a.hasContent
+    }
+
     // MARK: Indoor Air Quality readings (data v1.7 `airReading`)
     // Level measured -> text[key] (optional, non-negative number); rating "1"…"6" -> choices[key] (single).
 
@@ -102,7 +112,27 @@ struct SectionAnswers: Codable, Hashable {
 
     /// Answers saved before the item list changed, moved onto the current items (view and report alike).
     func migratingLegacy(_ keyed: [KeyedItem]) -> SectionAnswers {
-        migratingLegacyAirRatings(keyed).migratingSplitDateTime(keyed)
+        migratingRenamed(keyed).migratingLegacyAirRatings(keyed).migratingSplitDateTime(keyed)
+    }
+
+    /// Data v1.12 `renamedFrom` (Outside Utilities "Compressor size (sq ft)" → "Compressor size (home sq ft)"): answers are
+    /// keyed by header path + question, so an answer saved under the old label moves onto the renamed item (choices,
+    /// value, detail and the Fast Entry "Items reviewed" chip) when the new key has none. Nothing else changes.
+    func migratingRenamed(_ keyed: [KeyedItem]) -> SectionAnswers {
+        guard keyed.contains(where: { $0.item.renamedFrom != nil }) else { return self }
+        var out = self
+        for k in keyed {
+            guard let old = k.item.renamedFrom, let q = k.item.q, old != q,
+                  let r = k.id.range(of: "›" + q, options: .backwards) else { continue }
+            let oldKey = k.id.replacingCharacters(in: r, with: "›" + old)
+            if out.choices[k.id]?.isEmpty ?? true, let v = out.choices[oldKey] { out.choices[k.id] = v; out.choices[oldKey] = nil }
+            if out.text[k.id]?.isEmpty ?? true, let v = out.text[oldKey] { out.text[k.id] = v; out.text[oldKey] = nil }
+            if out.detail[k.id]?.isEmpty ?? true, let v = out.detail[oldKey] { out.detail[k.id] = v; out.detail[oldKey] = nil }
+            if let i = out.present.firstIndex(of: old) {
+                if out.present.contains(q) { out.present.remove(at: i) } else { out.present[i] = q }
+            }
+        }
+        return out
     }
 
     /// Data v1.9.1 (team QA Oct 22): Meth Test (High Detail) "Test date and time" (free text) + "AM/PM" became a
