@@ -5038,7 +5038,7 @@ SEC['Wind Mitigation'].itemsHigh=[
     var done=leafSecs().filter(function(n){return STATUS[n]==='done' && (!isNotesSec(n) || noteLines(n).length);}); // blank Planned Maintenance is left out of the report
     done.sort(function(a,b){ return secNum(a)-secNum(b) || a.localeCompare(b); });
     if(!done.length){ host.innerHTML='<div class="binforow"><span style="color:var(--ink-3)">No sections completed yet</span></div>'; return; }
-    var h=''; done.forEach(function(n){ var num=('0'+secNum(n)).slice(-2); h+='<div class="binforow"><span><b style="font-family:var(--fm);color:var(--brand-deep);margin-right:8px">'+num+'</b>'+n+'</span><span class="pill done"><span class="d"></span>Included</span></div>'; });
+    var h=''; done.forEach(function(n){ var num=secNum(n)>=99?'&mdash;':('0'+secNum(n)).slice(-2); h+='<div class="binforow"><span><b style="font-family:var(--fm);color:var(--brand-deep);margin-right:8px">'+num+'</b>'+n+'</span><span class="pill done"><span class="d"></span>Included</span></div>'; });
     host.innerHTML=h;
   };
   window.togglePw=function(id,btn){ var i=document.getElementById(id); if(!i) return; var show=i.type==='password'; i.type=show?'text':'password'; btn.classList.toggle('on',show); btn.setAttribute('aria-label',show?'Hide password':'Show password'); };
