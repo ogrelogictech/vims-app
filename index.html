@@ -78,6 +78,16 @@
 
   .li{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:14px 15px;margin-bottom:11px}
   .li .q{font-size:14.5px;font-weight:600;color:var(--ink);margin-bottom:11px}
+  /* countChoice (client Oct 30, shared v1.13.0): None alone on row 1; each count option = button left + "# of receptacles" box right */
+  .ccgrid{display:flex;flex-direction:column;gap:9px}
+  .ccrow{display:flex;align-items:center;gap:10px;min-width:0}
+  .ccrow .ccopt{flex:0 0 116px;justify-content:center;min-height:44px;margin:0}
+  .ccrow .cccount{flex:1 1 auto;min-width:0;max-width:220px;min-height:44px;padding:9px 12px;font-size:16px;border:1.5px solid #7d8a99;border-radius:11px;background:var(--paper);color:var(--ink)}
+  .ccrow .cccount::placeholder{color:#6b7887}
+  .ccrow .cccount:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px rgba(47,94,201,.25)}
+  .ccopt:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+  .opt.ro{padding:6px 12px}
+  .ed-note{font-size:12px;color:var(--ink-3);margin:2px 0 0;line-height:1.45}
   .subq{margin-top:10px;font-size:12px;color:var(--ink-3)}
   /* highlighted sub-section name within a section (e.g. Electricity, Natural Gas) */
   .lihead{display:flex;align-items:center;gap:9px;margin:20px 0 11px;padding:9px 13px;background:var(--hdr);color:#fff;border-radius:11px;font-family:var(--fd);font-weight:700;font-size:14px;box-shadow:0 6px 16px -10px rgba(47,94,201,.8)}
@@ -329,7 +339,8 @@
   .banner svg{width:19px;height:19px;color:var(--signal-deep);flex:none;margin-top:1px}
   .banner div{font-size:12.5px;color:#7a5a10;line-height:1.45}.banner b{color:#5e440a}
 
-  .toast{position:absolute;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;padding:12px 18px;border-radius:12px;font-size:13.5px;font-weight:500;opacity:0;transition:.25s;z-index:80;box-shadow:0 12px 30px -10px #000;display:flex;align-items:center;gap:9px;white-space:nowrap}
+  .toast{position:absolute;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;padding:12px 18px;border-radius:12px;font-size:13.5px;font-weight:500;opacity:0;transition:.25s;z-index:80;box-shadow:0 12px 30px -10px #000;display:flex;align-items:center;gap:9px;width:max-content;max-width:calc(100% - 32px);line-height:1.35} /* long toasts wrap instead of running off the screen */
+  .toast svg{flex:none}
   .toast svg{width:17px;height:17px;color:#7ce0af}.toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
 
   .success{text-align:center;padding:40px 10px 20px}
@@ -660,7 +671,7 @@
       <p class="lbl">Master admin &middot; VIMS owner only</p>
       <p style="font-size:12px;color:var(--ink-3);margin:-4px 2px 10px">Platform settings for VIMS master admins (the VIMS owner). Company admins don&rsquo;t see this section.</p>
       <button class="row" onclick="go('s-plans')"><div class="lead"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div><div class="mid"><b>Plans &amp; pricing</b><span>VIMS plans &amp; prices &middot; monthly and yearly</span></div><div class="end"><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></span></div></button>
-      <button class="row" onclick="go('s-reportbcc')"><div class="lead"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 6-10 7L2 6"/><path d="M16 17h6M19 14v6"/></svg></div><div class="mid"><b>Report quality copy (BCC)</b><span id="set-bccline">Blind copy of every emailed report</span></div><div class="end"><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></span></div></button>
+      <button class="row" onclick="go('s-reportbcc')"><div class="lead"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 6-10 7L2 6"/><path d="M16 17h6M19 14v6"/></svg></div><div class="mid"><b>Report quality copy</b><span id="set-bccline">Copy of every emailed report, sent by the VIMS server</span></div><div class="end"><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></span></div></button>
       <button class="row" onclick="go('s-feedbackadmin')"><div class="lead"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 6-10 7L2 6"/></svg></div><div class="mid"><b>Feedback &amp; support</b><span>Change the feedback contact email</span></div><div class="end"><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></span></div></button>
 
       <p class="lbl">Help &amp; feedback</p>
@@ -741,9 +752,9 @@
     <section class="screen" id="s-eula" data-title="License agreement"><div id="eulabody"></div></section>
 
     <section class="screen" id="s-reportbcc" data-title="Report quality copy">
-      <p style="font-size:13px;color:var(--ink-3);margin:2px 0 14px"><b>Master admin (VIMS owner only)</b> &mdash; every inspection report emailed from the app is also sent as a <b>blind carbon copy (BCC)</b> to this address, so report quality can be reviewed. Clients and agents don&rsquo;t see this address. Disclosed in the VIMS EULA.</p>
-      <div class="counter" style="margin-bottom:14px"><b>BCC every emailed report</b><div class="chips" data-single data-req style="margin:0" id="bcconoff"><button class="chip on" data-bcc="1">On</button><button class="chip" data-bcc="0">Off</button></div></div>
-      <div class="field"><label>BCC address</label><input class="txt" id="bccinput" type="email" placeholder="you@company.com"></div>
+      <p style="font-size:13px;color:var(--ink-3);margin:2px 0 14px"><b>Master admin (VIMS owner only)</b> &mdash; when an inspector emails a report from the app, the <b>VIMS server sends a separate copy</b> to this address so report quality can be reviewed. It is never added to the inspector&rsquo;s email, so the inspector, clients and agents don&rsquo;t see this address. Disclosed in the VIMS EULA.</p>
+      <div class="counter" style="margin-bottom:14px"><b>Copy every emailed report</b><div class="chips" data-single data-req style="margin:0" id="bcconoff"><button class="chip on" data-bcc="1">On</button><button class="chip" data-bcc="0">Off</button></div></div>
+      <div class="field"><label for="bccinput">Quality copy address</label><input class="txt" id="bccinput" type="email" placeholder="you@company.com"></div>
       <button class="btn primary" onclick="saveReportBcc()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Save</button>
     </section>
 
@@ -1475,8 +1486,7 @@ SEC['Landscaping'].itemsHigh=[
   {q:'Trees',t:'single',o:['None','Good Health','Roots may cause concern']},
   {q:'Trees in contact with structure',t:'single',o:['Yes','No']},
   {h:'Electrical'},
-  {q:'Receptacles',t:'single',o:['None','GFCI']},
-  {q:'GFCI',t:'single',o:['Yes','No']},
+  {q:'Receptacles',t:'countChoice',o:['None','GFCI','Standard'],co:['GFCI','Standard'],ex:['None'],ph:'# of receptacles'},
   {q:'Functional',t:'single',o:['Yes','No']},
   {q:'Grounded',t:'single',o:['Yes','No']},
   {q:'Cover Plate(s)',t:'single',o:['Yes','No']},
@@ -1542,8 +1552,7 @@ SEC['Condo'].itemsHigh=[
   {q:'Trees',t:'single',o:['None','Good Health','Roots may cause concern']},
   {q:'Trees in contact with structure',t:'single',o:['Yes','No']},
   {h:'Electrical'},
-  {q:'Receptacles',t:'single',o:['None','GFCI']},
-  {q:'GFCI',t:'single',o:['Yes','No']},
+  {q:'Receptacles',t:'countChoice',o:['None','GFCI','Standard'],co:['GFCI','Standard'],ex:['None'],ph:'# of receptacles'},
   {q:'Functional',t:'single',o:['Yes','No']},
   {q:'Grounded',t:'single',o:['Yes','No']},
   {q:'Cover Plate(s)',t:'single',o:['Yes','No']},
@@ -1619,7 +1628,7 @@ SEC['Pool House & Pool'].itemsHigh=[
   {q:'Separate Meter',t:'single',o:['Yes','No']},
   {q:'Wiring Condition',t:'single',o:['Good','Exposed Wire','Dry/Cracking','Burnt']},
   {q:'Wiring Type',t:'single',o:['Romex','Aluminum','In Conduit','Open','Exposed']},
-  {q:'GFCI',t:'single',o:['Yes','No']},
+  {q:'Receptacles',t:'countChoice',o:['None','GFCI','Standard'],co:['GFCI','Standard'],ex:['None'],ph:'# of receptacles'},
   {q:'Functional',t:'single',o:['Yes','No']},
   {q:'Grounded',t:'single',o:['Yes','No']},
   {q:'Cover Plate(s)',t:'single',o:['Yes','No']},
@@ -1653,8 +1662,7 @@ SEC['Additional Living Space'].itemsHigh=[
   {q:'Meter',t:'single',o:['Yes','No']},
   {q:'Panel features',t:'multi',o:['Shut Off','Conductors clean','Sub-panel']},
   {q:'Wiring Condition',t:'single',o:['Good','Exposed Wire','Dry/Cracking','Burnt']},
-  {q:'Receptacles (outside)',t:'single',o:['None','GFCI']},
-  {q:'GFCI',t:'single',o:['Yes','No']},
+  {q:'Receptacles (outside)',t:'countChoice',o:['None','GFCI','Standard'],co:['GFCI','Standard'],ex:['None'],ph:'# of receptacles'},
   {q:'Functional',t:'single',o:['Yes','No']},
   {q:'Covered',t:'single',o:['Yes','No']},
   {q:'Grounded',t:'single',o:['Yes','No']},
@@ -1686,7 +1694,7 @@ SEC['Additional Living Space'].itemsHigh=[
   {q:'Inside walls condition',t:'single',o:['Good','Poor']},
   {q:'Inside walls Any Damage',t:'single',o:['Yes','No']},
   {q:'Wiring Type',t:'single',o:['None','Open','In Conduit','Aluminum','Romex']},
-  {q:'Electrical Receptacles GFCI',t:'single',o:['Yes','No']},
+  {q:'Electrical Receptacles',t:'countChoice',o:['None','GFCI','Standard'],co:['GFCI','Standard'],ex:['None'],ph:'# of receptacles'},
   {q:'Electrical Receptacles Functional',t:'single',o:['Yes','No']},
   {q:'Electrical Receptacles Grounded',t:'single',o:['Yes','No']},
   {q:'Cover Plate(s)',t:'single',o:['Yes','No']},
@@ -1722,8 +1730,7 @@ SEC['Outbuilding – Shed'].itemsHigh=[
   {q:'Meter',t:'single',o:['Yes','No']},
   {q:'Panel features',t:'multi',o:['Shut Off','Conductors clean','Sub-panel']},
   {q:'Wiring Condition',t:'single',o:['Good','Exposed Wire','Dry/Cracking','Burnt']},
-  {q:'Receptacles (outside)',t:'single',o:['None','GFCI']},
-  {q:'GFCI',t:'single',o:['Yes','No']},
+  {q:'Receptacles (outside)',t:'countChoice',o:['None','GFCI','Standard'],co:['GFCI','Standard'],ex:['None'],ph:'# of receptacles'},
   {q:'Functional',t:'single',o:['Yes','No']},
   {q:'Covered',t:'single',o:['Yes','No']},
   {q:'Grounded',t:'single',o:['Yes','No']},
@@ -1755,8 +1762,7 @@ SEC['Outbuilding – Shed'].itemsHigh=[
   {q:'Inside walls condition',t:'single',o:['Good','Poor']},
   {q:'Inside walls Any Damage',t:'single',o:['Yes','No']},
   {q:'Wiring Type',t:'single',o:['None','Open','In Conduit','Aluminum','Romex']},
-  {q:'Electrical Receptacles',t:'single',o:['None','GFCI']},
-  {q:'Electrical Receptacles GFCI',t:'single',o:['Yes','No']},
+  {q:'Electrical Receptacles',t:'countChoice',o:['None','GFCI','Standard'],co:['GFCI','Standard'],ex:['None'],ph:'# of receptacles'},
   {q:'Electrical Receptacles Functional',t:'single',o:['Yes','No']},
   {q:'Electrical Receptacles Grounded',t:'single',o:['Yes','No']},
   {q:'Cover Plate(s)',t:'single',o:['Yes','No']},
@@ -1816,8 +1822,7 @@ SEC['Outbuilding – Car Port'].itemsHigh=[
   {q:'Lighting',t:'single',o:['None','Good','Poor']},
   {q:'Exposed Wiring',t:'single',o:['Yes','No']},
   {q:'Lighting Any Damage',t:'single',o:['Yes','No']},
-  {q:'Electrical Receptacles',t:'single',o:['None','GFCI']},
-  {q:'GFCI',t:'single',o:['Yes','No']},
+  {q:'Electrical Receptacles',t:'countChoice',o:['None','GFCI','Standard'],co:['GFCI','Standard'],ex:['None'],ph:'# of receptacles'},
   {q:'Functional',t:'single',o:['Yes','No']},
   {q:'Grounded',t:'single',o:['Yes','No']},
   {q:'Cover Plate(s)',t:'single',o:['Yes','No']},
@@ -2033,8 +2038,7 @@ SEC['Exterior Walls'].itemsHigh=[
   {q:'Exposed Wiring',t:'single',o:['Yes','No']},
   {q:'Lighting Any Damage',t:'single',o:['Yes','No']},
   {q:'Lighting locations',t:'multi',o:['Front','R Side','L Side','Back','Garage','Basement','In Back Yard','Front Porch']},
-  {q:'Receptacles',t:'single',o:['None','GFCI']},
-  {q:'GFCI',t:'single',o:['Yes','No']},
+  {q:'Receptacles',t:'countChoice',o:['None','GFCI','Standard'],co:['GFCI','Standard'],ex:['None'],ph:'# of receptacles'},
   {q:'Functional',t:'single',o:['Yes','No']},
   {q:'Grounded',t:'single',o:['Yes','No']},
   {q:'Cover Plate(s)',t:'single',o:['Yes','No']},
@@ -2075,8 +2079,7 @@ SEC['Mobile Home Undercarriage'].itemsHigh=[
   {q:'In place',t:'single',o:['Yes','No']},
   {q:'Broken / Leaking',t:'single',o:['Yes','No']},
   {h:'Electrical'},
-  {q:'Receptacles',t:'single',o:['None','GFCI']},
-  {q:'GFCI',t:'single',o:['Yes','No']},
+  {q:'Receptacles',t:'countChoice',o:['None','GFCI','Standard'],co:['GFCI','Standard'],ex:['None'],ph:'# of receptacles'},
   {q:'Functional',t:'single',o:['Yes','No']},
   {q:'Grounded',t:'single',o:['Yes','No']},
   {q:'Cover plate(s)',t:'single',o:['Yes','No']},
@@ -2145,8 +2148,7 @@ SEC['Deck'].itemsHigh=[
   {q:'Under deck drainage',t:'single',o:['Yes','No','None']},
   {q:'Any sign of pests',t:'single',o:['Yes','No']},
   {h:'Electrical'},
-  {q:'Receptacles',t:'single',o:['None','GFCI']},
-  {q:'GFCI',t:'single',o:['Yes','No']},
+  {q:'Receptacles',t:'countChoice',o:['None','GFCI','Standard'],co:['GFCI','Standard'],ex:['None'],ph:'# of receptacles'},
   {q:'Functional',t:'single',o:['Yes','No']},
   {q:'Grounded',t:'single',o:['Yes','No']},
   {q:'Cover plate(s)',t:'single',o:['Yes','No']},
@@ -2189,8 +2191,7 @@ SEC['Patio'].itemsHigh=[
   {q:'Ground surface',t:'single',o:['Dirt','Gravel','Bark','Concrete']},
   {q:'Any sign of pests',t:'single',o:['Yes','No']},
   {h:'Electrical'},
-  {q:'Receptacles',t:'single',o:['None','GFCI']},
-  {q:'GFCI',t:'single',o:['Yes','No']},
+  {q:'Receptacles',t:'countChoice',o:['None','GFCI','Standard'],co:['GFCI','Standard'],ex:['None'],ph:'# of receptacles'},
   {q:'Functional',t:'single',o:['Yes','No']},
   {q:'Grounded',t:'single',o:['Yes','No']},
   {q:'Cover plate(s)',t:'single',o:['Yes','No']},
@@ -2251,8 +2252,7 @@ SEC['Balcony'].itemsHigh=[
   {q:'Flashing any damage',t:'single',o:['Yes','No']},
   {q:'Any sign of pests',t:'single',o:['Yes','No']},
   {h:'Electrical'},
-  {q:'Receptacles',t:'single',o:['None','GFCI']},
-  {q:'GFCI',t:'single',o:['Yes','No']},
+  {q:'Receptacles',t:'countChoice',o:['None','GFCI','Standard'],co:['GFCI','Standard'],ex:['None'],ph:'# of receptacles'},
   {q:'Functional',t:'single',o:['Yes','No']},
   {q:'Grounded',t:'single',o:['Yes','No']},
   {q:'Cover plate(s)',t:'single',o:['Yes','No']},
@@ -2349,10 +2349,7 @@ SEC['Garage'].itemsHigh=[
   {q:'Any damage',t:'single',o:['Yes','No']},
   {q:'Wiring type',t:'single',o:['Open','Plastic Conduit','Metal Conduit','Romex']},
   {h:'Electrical'},
-  {q:'Receptacles',t:'single',o:['None','GFCI','Non GFCI']},
-  {q:'GFCI receptacles (count)',t:'num',int:1,ph:'e.g. 4'},
-  {q:'Standard receptacles (count)',t:'num',int:1,ph:'e.g. 6'},
-  {q:'GFCI',t:'single',o:['Yes','No']},
+  {q:'Receptacles',t:'countChoice',o:['None','GFCI','Standard'],co:['GFCI','Standard'],ex:['None'],ph:'# of receptacles'},
   {q:'Functional',t:'single',o:['Yes','No']},
   {q:'Grounded',t:'single',o:['Yes','No']},
   {q:'Cover plates',t:'single',o:['Yes','No']},
@@ -2371,8 +2368,8 @@ SEC['Garage'].itemsHigh=[
   {q:'Comments',t:'text',ph:'notes'}
 ];
 SEC['Garage'].picsHigh=['Front','Roof','Garage Inside #1','Garage Inside #2','Concerns'];
-// Detached Garage shares Garage's lists but keeps the pre-Oct 29 receptacle lines (client Oct 29 changed Garage + Attic only; shared v1.12.0)
-SEC['Detached Garage']=Object.assign({},SEC['Garage'],{itemsHigh:SEC['Garage'].itemsHigh.filter(function(it){ return !/^(GFCI|Standard) receptacles \(count\)$/.test(it.q||''); }).map(function(it){ return it.q==='Receptacles'?{q:'Receptacles',t:'single',o:['None','GFCI']}:it; })});
+// Detached Garage shares Garage's lists, incl. the combined Receptacles countChoice item (client Oct 30; shared v1.13.0)
+SEC['Detached Garage']=Object.assign({},SEC['Garage'],{itemsHigh:SEC['Garage'].itemsHigh.slice()});
 
 SEC['Attic'].itemsHigh=[
   {q:'Attic',t:'single',o:['None','No Access']},
@@ -2414,10 +2411,7 @@ SEC['Attic'].itemsHigh=[
   {q:'Wiring',t:'multi',o:['Knob & Tube','Aluminum','Romex','Plastic','Conduit']},
   {q:'Wiring connections',t:'single',o:['Exposed','In Box']},
   {h:'Electrical'},
-  {q:'Receptacles',t:'single',o:['None','GFCI','Non GFCI']},
-  {q:'GFCI receptacles (count)',t:'num',int:1,ph:'e.g. 4'},
-  {q:'Standard receptacles (count)',t:'num',int:1,ph:'e.g. 6'},
-  {q:'GFCI',t:'single',o:['Yes','No']},
+  {q:'Receptacles',t:'countChoice',o:['None','GFCI','Standard'],co:['GFCI','Standard'],ex:['None'],ph:'# of receptacles'},
   {q:'Functional',t:'single',o:['Yes','No']},
   {q:'Grounded',t:'single',o:['Yes','No']},
   {q:'Cover plate(s)',t:'single',o:['Yes','No']},
@@ -2611,7 +2605,7 @@ SEC['Bathroom'].itemsHigh=[
   {q:'Exposed Wiring',t:'single',o:['Yes','No']},
   {q:'Any Damage',t:'single',o:['Yes','No']},
   {h:'Electrical Receptacles'},
-  {q:'GFCI',t:'single',o:['Yes','No']},
+  {q:'Receptacles',t:'countChoice',o:['None','GFCI','Standard'],co:['GFCI','Standard'],ex:['None'],ph:'# of receptacles'},
   {q:'Functional',t:'single',o:['Yes','No']},
   {q:'Grounded',t:'single',o:['Yes','No']},
   {q:'Cover Plate(s)',t:'single',o:['Yes','No']},
@@ -2694,7 +2688,7 @@ SEC['Bedroom'].itemsHigh=[
   {q:'Exposed Wiring',t:'single',o:['Yes','No']},
   {q:'Any Damage',t:'single',o:['Yes','No']},
   {h:'Electrical Receptacles'},
-  {q:'GFCI',t:'single',o:['Yes','No']},
+  {q:'Receptacles',t:'countChoice',o:['None','GFCI','Standard'],co:['GFCI','Standard'],ex:['None'],ph:'# of receptacles'},
   {q:'Functional',t:'single',o:['Yes','No']},
   {q:'Grounded',t:'single',o:['Yes','No']},
   {q:'Cover Plate(s)',t:'single',o:['Yes','No']},
@@ -2775,7 +2769,7 @@ SEC['Hallway'].itemsHigh=[
   {q:'Exposed Wiring',t:'single',o:['Yes','No']},
   {q:'Any Damage',t:'single',o:['Yes','No']},
   {h:'Electrical Receptacles'},
-  {q:'GFCI',t:'single',o:['Yes','No']},
+  {q:'Receptacles',t:'countChoice',o:['None','GFCI','Standard'],co:['GFCI','Standard'],ex:['None'],ph:'# of receptacles'},
   {q:'Functional',t:'single',o:['Yes','No']},
   {q:'Grounded',t:'single',o:['Yes','No']},
   {q:'Cover Plate(s)',t:'single',o:['Yes','No']},
@@ -2861,7 +2855,7 @@ SEC['Living Room'].itemsHigh=[
   {q:'Exposed Wiring',t:'single',o:['Yes','No']},
   {q:'Any Damage',t:'single',o:['Yes','No']},
   {h:'Electrical Receptacles'},
-  {q:'GFCI',t:'single',o:['Yes','No']},
+  {q:'Receptacles',t:'countChoice',o:['None','GFCI','Standard'],co:['GFCI','Standard'],ex:['None'],ph:'# of receptacles'},
   {q:'Functional',t:'single',o:['Yes','No']},
   {q:'Grounded',t:'single',o:['Yes','No']},
   {q:'Cover Plate(s)',t:'single',o:['Yes','No']},
@@ -2948,7 +2942,7 @@ SEC['Reception'].itemsHigh=[
   {q:'Exposed Wiring',t:'single',o:['Yes','No']},
   {q:'Any Damage',t:'single',o:['Yes','No']},
   {h:'Electrical Receptacles'},
-  {q:'GFCI',t:'single',o:['Yes','No']},
+  {q:'Receptacles',t:'countChoice',o:['None','GFCI','Standard'],co:['GFCI','Standard'],ex:['None'],ph:'# of receptacles'},
   {q:'Functional',t:'single',o:['Yes','No']},
   {q:'Grounded',t:'single',o:['Yes','No']},
   {q:'Cover Plate(s)',t:'single',o:['Yes','No']},
@@ -3034,7 +3028,7 @@ SEC['Den / Home Office'].itemsHigh=[
   {q:'Exposed Wiring',t:'single',o:['Yes','No']},
   {q:'Any Damage',t:'single',o:['Yes','No']},
   {h:'Electrical Receptacles'},
-  {q:'GFCI',t:'single',o:['Yes','No']},
+  {q:'Receptacles',t:'countChoice',o:['None','GFCI','Standard'],co:['GFCI','Standard'],ex:['None'],ph:'# of receptacles'},
   {q:'Functional',t:'single',o:['Yes','No']},
   {q:'Grounded',t:'single',o:['Yes','No']},
   {q:'Cover Plate(s)',t:'single',o:['Yes','No']},
@@ -3124,7 +3118,7 @@ SEC['Family Room'].itemsHigh=[
   {q:'Exposed Wiring',t:'single',o:['Yes','No']},
   {q:'Any Damage',t:'single',o:['Yes','No']},
   {h:'Electrical Receptacles'},
-  {q:'GFCI',t:'single',o:['Yes','No']},
+  {q:'Receptacles',t:'countChoice',o:['None','GFCI','Standard'],co:['GFCI','Standard'],ex:['None'],ph:'# of receptacles'},
   {q:'Functional',t:'single',o:['Yes','No']},
   {q:'Grounded',t:'single',o:['Yes','No']},
   {q:'Cover Plate(s)',t:'single',o:['Yes','No']},
@@ -3318,9 +3312,7 @@ SEC['Kitchen'].itemsHigh=[
   {q:'Exposed wiring',t:'single',o:['Yes','No']},
   {q:'Any damage',t:'single',o:['Yes','No']},
   {h:'Electrical'},
-  {q:'GFCI receptacles (count)',t:'num',int:1,ph:'e.g. 4'},
-  {q:'Standard receptacles (count)',t:'num',int:1,ph:'e.g. 6'},
-  {q:'Receptacles GFCI',t:'single',o:['Yes','No']},
+  {q:'Receptacles',t:'countChoice',o:['None','GFCI','Standard'],co:['GFCI','Standard'],ex:['None'],ph:'# of receptacles'},
   {q:'Receptacles functional',t:'single',o:['Yes','No']},
   {q:'Receptacles grounded',t:'single',o:['Yes','No']},
   {q:'Cover plate(s)',t:'single',o:['Yes','No']},
@@ -3387,7 +3379,7 @@ SEC['Dining Room'].itemsHigh=[
   {q:'Exposed wiring',t:'single',o:['Yes','No']},
   {q:'Any damage',t:'single',o:['Yes','No']},
   {h:'Electrical'},
-  {q:'Receptacles GFCI',t:'single',o:['Yes','No']},
+  {q:'Receptacles',t:'countChoice',o:['None','GFCI','Standard'],co:['GFCI','Standard'],ex:['None'],ph:'# of receptacles'},
   {q:'Receptacles functional',t:'single',o:['Yes','No']},
   {q:'Receptacles grounded',t:'single',o:['Yes','No']},
   {q:'Cover plate(s)',t:'single',o:['Yes','No']},
@@ -3403,7 +3395,7 @@ SEC['Dining Room'].itemsHigh=[
   {q:'Doors',t:'single',o:['Glass','Metal']},
   {q:'Mantel condition',t:'single',o:['Good','Damaged','N/A']},
   {h:'Electrical (Fireplace)'},
-  {q:'Receptacles GFCI',t:'single',o:['Yes','No']},
+  {q:'Receptacles',t:'countChoice',o:['None','GFCI','Standard'],co:['GFCI','Standard'],ex:['None'],ph:'# of receptacles'},
   {q:'Receptacles functional',t:'single',o:['Yes','No']},
   {q:'Receptacles grounded',t:'single',o:['Yes','No']},
   {q:'Cover plate(s)',t:'single',o:['Yes','No']},
@@ -3474,7 +3466,7 @@ SEC['Laundry Room'].itemsHigh=[
   {q:'Exposed wiring',t:'single',o:['Yes','No']},
   {q:'Any damage',t:'single',o:['Yes','No']},
   {h:'Electrical'},
-  {q:'Receptacles GFCI',t:'single',o:['Yes','No']},
+  {q:'Receptacles',t:'countChoice',o:['None','GFCI','Standard'],co:['GFCI','Standard'],ex:['None'],ph:'# of receptacles'},
   {q:'Receptacles functional',t:'single',o:['Yes','No']},
   {q:'Receptacles grounded',t:'single',o:['Yes','No']},
   {q:'Cover plate(s)',t:'single',o:['Yes','No']},
@@ -3594,7 +3586,7 @@ SEC['Storage Room'].itemsHigh=[
   {q:'Exposed wiring',t:'single',o:['Yes','No']},
   {q:'Any damage',t:'single',o:['Yes','No']},
   {h:'Electrical'},
-  {q:'Receptacles GFCI',t:'single',o:['Yes','No']},
+  {q:'Receptacles',t:'countChoice',o:['None','GFCI','Standard'],co:['GFCI','Standard'],ex:['None'],ph:'# of receptacles'},
   {q:'Receptacles functional',t:'single',o:['Yes','No']},
   {q:'Receptacles grounded',t:'single',o:['Yes','No']},
   {q:'Cover plate(s)',t:'single',o:['Yes','No']},
@@ -4434,6 +4426,7 @@ SEC['Wind Mitigation'].itemsHigh=[
         if(it.h){ h+='<div class="lihead">'+ico('list')+it.h+'</div>'; return; }
         if(it.t==='num'||it.t==='text'||it.t==='date'||it.t==='time'){ var itype=it.t==='date'?'date':it.t==='time'?'time':'text'; var extra=it.t==='num'?(it.int?'inputmode="numeric" pattern="[0-9]*" oninput="this.value=this.value.replace(/[^0-9]/g,\'\')" ':'inputmode="decimal" '):''; var ph=(it.t==='date'||it.t==='time')?'':'placeholder="'+(it.ph||'Enter a value')+'" '; h+='<div class="li"><div class="q">'+it.q+'</div><input class="txt" type="'+itype+'" '+extra+ph+'></div>'; return; }
         if(it.t==='air'){ h+='<div class="li air" data-q="'+String(it.q).replace(/"/g,'&quot;')+'"><div class="q">'+it.q+'</div><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><input class="txt" style="flex:0 0 150px;min-height:42px" inputmode="decimal" placeholder="Level ('+it.unit+')" aria-label="Level measured, '+it.unit+'"><div class="chips" data-single style="margin:0">'; it.o.forEach(function(op){ h+='<button class="chip">'+op+'</button>'; }); h+='</div></div><div style="font-size:11.5px;color:var(--ink-3);margin-top:7px;line-height:1.45">'+it.ref+'<br>Corrective action if needed — '+it.act+'</div></div>'; return; }
+        if(it.t==='countChoice'){ h+=ccHtml(it,name); return; }
         h+='<div class="li" data-q="'+String(it.q).replace(/"/g,'&quot;')+'"><div class="q">'+it.q+'</div><div class="chips"'+(it.t==='single'?' data-single':'')+'>';
         // Bathroom No. / Bedroom No. (client Oct 29): options 1..n from the wizard room count (min 1; static list without a count);
         // in 'Bathroom 2' the room's own number is pre-selected (still changeable). Progress is set on Save, so this alone never completes a section.
@@ -4456,6 +4449,57 @@ SEC['Wind Mitigation'].itemsHigh=[
     h+='<button class="btn primary" style="margin-top:10px" onclick="saveNext()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>Save &amp; next section</button>';
     document.getElementById('sectionbody').innerHTML=h;
   }
+  // ---------- countChoice (client Oct 30, shared v1.13.0 itemTypes.countChoice) ----------
+  // Buttons o; co = options with a whole-number count box (0-999, optional); ex = exclusive options (None).
+  // None clears every other choice + count; GFCI / Standard toggle and combine; deselecting clears its count; a count > 0 selects its option.
+  // Answer = {selected:[...], counts:{opt:n}}; answered = at least one option selected. Kept per section so the report preview can print it.
+  var CCANS={}, ccSeq=0;
+  function ccEsc(t){ return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
+  function ccKey(sec,q){ return sec+'|'+q; }
+  function ccText(a){ // report line: "GFCI (4), Standard (6)" · "GFCI" · "None"
+    if(!a||!a.selected||!a.selected.length) return '';
+    return a.selected.map(function(o){ var n=a.counts&&a.counts[o]; return (typeof n==='number')?o+' ('+n+')':o; }).join(', ');
+  }
+  window.ccText=ccText;
+  // report preview sample (Landscaping · Electrical): pass the inspector's Receptacles answer, e.g. rcp=GFCI:4,Standard:6 / GFCI / None
+  function ccParam(){ var x=CCANS[ccKey('Landscaping','Receptacles')]; if(!x||!x.selected.length) return ''; return '&rcp='+encodeURIComponent(x.selected.map(function(o){ var n=x.counts[o]; return typeof n==='number'?o+':'+n:o; }).join(',')); }
+  function ccHtml(it,sec){
+    var a=CCANS[ccKey(sec,it.q)]||{selected:[],counts:{}}, id='ccq'+(++ccSeq), ex=it.ex||[], co=it.co||[];
+    var h='<div class="li cc" data-cc data-q="'+ccEsc(it.q)+'"'+(a.selected.length?' data-answered':'')+'><div class="q" id="'+id+'">'+it.q+'</div><div class="ccgrid" role="group" aria-labelledby="'+id+'">';
+    it.o.forEach(function(op){
+      var on=a.selected.indexOf(op)>=0;
+      h+='<div class="ccrow"><button type="button" class="chip ccopt'+(on?' on':'')+'" data-opt="'+ccEsc(op)+'"'+(ex.indexOf(op)>=0?' data-ex':'')+' aria-pressed="'+on+'">'+op+'</button>';
+      if(co.indexOf(op)>=0){ var n=a.counts[op]; h+='<input class="txt cccount" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="3" autocomplete="off" data-for="'+ccEsc(op)+'" placeholder="'+ccEsc(it.ph||'#')+'" aria-label="Number of '+ccEsc(op)+' '+ccEsc(String(it.q).replace(/\s*\(.*\)\s*$/,'').replace(/^Electrical\s+/i,'').toLowerCase())+'" value="'+(typeof n==='number'?n:'')+'" oninput="ccCount(this)">'; }
+      h+='</div>';
+    });
+    return h+'</div></div>';
+  }
+  function ccSave(li){
+    var sel2=[], counts={};
+    li.querySelectorAll('.ccopt').forEach(function(b){ var on=b.classList.contains('on'); b.setAttribute('aria-pressed',on?'true':'false'); if(on) sel2.push(b.getAttribute('data-opt')); });
+    li.querySelectorAll('.cccount').forEach(function(i){ if(i.value!=='') counts[i.getAttribute('data-for')]=parseInt(i.value,10); });
+    if(sel2.length) li.setAttribute('data-answered',''); else li.removeAttribute('data-answered');
+    CCANS[ccKey(curSection,li.getAttribute('data-q'))]={selected:sel2,counts:counts};
+  }
+  function ccBox(li,op){ return [].filter.call(li.querySelectorAll('.cccount'),function(i){ return i.getAttribute('data-for')===op; })[0]; }
+  window.ccTap=function(b){
+    var li=b.closest('.li[data-cc]'), on=!b.classList.contains('on');
+    if(b.hasAttribute('data-ex')){
+      if(on){ li.querySelectorAll('.ccopt').forEach(function(x){ if(x!==b) x.classList.remove('on'); }); li.querySelectorAll('.cccount').forEach(function(i){ i.value=''; }); }
+    } else {
+      if(on) li.querySelectorAll('.ccopt[data-ex]').forEach(function(x){ x.classList.remove('on'); });
+      else { var box=ccBox(li,b.getAttribute('data-opt')); if(box) box.value=''; }
+    }
+    b.classList.toggle('on',on); ccSave(li);
+  };
+  window.ccCount=function(inp){
+    var v=inp.value.replace(/[^0-9]/g,'').slice(0,3); if(v.length>1) v=String(parseInt(v,10)); inp.value=v; // whole numbers 0-999
+    var li=inp.closest('.li[data-cc]');
+    if(v!==''){ li.querySelectorAll('.ccopt[data-ex]').forEach(function(x){ x.classList.remove('on'); });
+      if(parseInt(v,10)>0){ var op=inp.getAttribute('data-for'); li.querySelectorAll('.ccopt').forEach(function(x){ if(x.getAttribute('data-opt')===op) x.classList.add('on'); }); } }
+    ccSave(li);
+  };
+
   window.saveSection=function(){ STATUS[curSection]='done'; toast('Section saved'); setTimeout(function(){ renderOverview(); go('s-sections'); },550); };
   window.saveNext=function(){ STATUS[curSection]='done'; var leafs=leafSecs(); var i=leafs.indexOf(curSection); var next=(i>=0&&i<leafs.length-1)?leafs[i+1]:null; if(next){ toast('Saved — next: '+next); setTimeout(function(){ openSection(next); document.getElementById('body').scrollTop=0; },500); } else { toast('Saved — last section'); setTimeout(function(){ renderOverview(); go('s-summary'); },500); } };
 
@@ -4719,6 +4763,11 @@ SEC['Wind Mitigation'].itemsHigh=[
       b[2].onclick=function(){ s.items.splice(idx,1); renderEditSec(); };
       eh.appendChild(inp); eh.appendChild(eb); card.appendChild(eh);
       var opts=document.createElement('div');
+      if(it.t==='countChoice'){ // client Oct 30: the combined Receptacles item can be renamed, moved or removed; its options are fixed (read-only here)
+        (it.o||[]).forEach(function(op){ var chip=document.createElement('span'); chip.className='opt ro'; chip.textContent=op+((it.co||[]).indexOf(op)>=0?' + count':''); opts.appendChild(chip); });
+        var nt=document.createElement('p'); nt.className='ed-note'; nt.textContent='Options are fixed for this item: None, or GFCI and/or Standard, each with an optional number of receptacles.';
+        card.appendChild(opts); card.appendChild(nt); host.appendChild(card); return;
+      }
       (it.o||[]).forEach(function(op,oi){ var chip=document.createElement('span'); chip.className='opt'; chip.innerHTML=op+' '; var x=document.createElement('button'); x.textContent='×'; x.onclick=function(){ it.o.splice(oi,1); renderEditSec(); }; chip.appendChild(x); opts.appendChild(chip); });
       card.appendChild(opts);
       var add=document.createElement('div'); add.className='opt-add';
@@ -4776,7 +4825,7 @@ SEC['Wind Mitigation'].itemsHigh=[
 
   // chips / seg delegation
   document.addEventListener('click',function(e){
-    var c=e.target.closest('.chip'); if(c){ var grp=c.parentElement; if(grp.hasAttribute('data-manual')) return;
+    var c=e.target.closest('.chip'); if(c){ if(c.classList.contains('ccopt')){ ccTap(c); return; } var grp=c.parentElement; if(grp.hasAttribute('data-manual')) return;
       if(grp.hasAttribute('data-single')){
         if(c.classList.contains('on') && !grp.hasAttribute('data-req')){ c.classList.remove('on'); }   // tap again to deselect
         else { grp.querySelectorAll('.chip').forEach(function(x){x.classList.remove('on');}); c.classList.add('on'); }
@@ -4931,7 +4980,7 @@ SEC['Wind Mitigation'].itemsHigh=[
   };
   window.renderReportContents=function(){
     var rt=reportType(), rp=document.getElementById('reportpages'); if(rp) rp.innerHTML=REPORT_PAGES[rt];
-    var pl=document.getElementById('previewlink'); if(pl) pl.href='report.html?type='+rt+(sel.inspLicense?'&lic='+encodeURIComponent(sel.inspLicense):'')+(sel.state?'&state='+sel.state:'')+'&cover='+encodeURIComponent([cover.color,cover.category,cover.option,cover.style].join('|'));
+    var pl=document.getElementById('previewlink'); if(pl) pl.href='report.html?type='+rt+(sel.inspLicense?'&lic='+encodeURIComponent(sel.inspLicense):'')+(sel.state?'&state='+sel.state:'')+'&cover='+encodeURIComponent([cover.color,cover.category,cover.option,cover.style].join('|'))+ccParam();
     var host=document.getElementById('reportcontents'); if(!host) return;
     var done=leafSecs().filter(function(n){return STATUS[n]==='done';});
     done.sort(function(a,b){ return secNum(a)-secNum(b) || a.localeCompare(b); });
@@ -4951,7 +5000,8 @@ SEC['Wind Mitigation'].itemsHigh=[
 
   // help & feedback contact (admin-editable)
   var FEEDBACK_EMAIL='support@vimsinspect.com';
-  // owner admin: blind copy of every emailed report goes here (report quality review; disclosed in the EULA)
+  // owner admin: a quality copy of every emailed report goes here (report quality review; disclosed in the EULA).
+  // Client Oct 30 (shared v1.13.0): sent separately by the VIMS server, never as a Bcc on the inspector's email compose.
   var REPORT_BCC={on:true,email:'quality@vimsinspect.com'};
   function updateBccUI(){
     var l=document.getElementById('set-bccline'); if(l) l.textContent=REPORT_BCC.on&&REPORT_BCC.email?('On · '+REPORT_BCC.email):'Off';
@@ -4961,11 +5011,11 @@ SEC['Wind Mitigation'].itemsHigh=[
   window.saveReportBcc=function(){
     var on=!!document.querySelector('#bcconoff .chip.on[data-bcc="1"]');
     var v=(document.getElementById('bccinput').value||'').replace(/\s+/g,'');
-    if(on && !/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(v)){ toast('Enter a valid BCC email'); return; }
-    REPORT_BCC={on:on,email:v}; updateBccUI(); toast(on?'Reports will be blind-copied to '+v:'Report BCC turned off');
+    if(on && !/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(v)){ toast('Enter a valid email address'); return; }
+    REPORT_BCC={on:on,email:v}; updateBccUI(); toast(on?'Quality copies will be sent to '+v:'Report quality copy turned off');
   };
   var INSPECTOR_EMAIL='jeremy@visionpropertyinspections.com';
-  window.emailReport=function(){ toast('Report queued to email the client'+(sel.sendToAgent===false?'':' & agent')+' · CC you ('+INSPECTOR_EMAIL+')'+(REPORT_BCC.on&&REPORT_BCC.email?' · BCC '+REPORT_BCC.email:'')); };
+  window.emailReport=function(){ toast('Report queued to email the client'+(sel.sendToAgent===false?'':' & agent')+' · CC you ('+INSPECTOR_EMAIL+')'); }; // no BCC on the inspector's email (client Oct 30): the quality copy is sent by the server
   function updateFeedbackUI(){
     var e=document.getElementById('feedbackemail'); if(e) e.textContent=FEEDBACK_EMAIL;
     var a=document.getElementById('feedbacklink'); if(a) a.href='mailto:'+FEEDBACK_EMAIL+'?subject=VIMS%20app%20feedback';
