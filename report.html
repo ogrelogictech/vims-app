@@ -330,12 +330,30 @@
     if(it.h){ if(open){h+='</table>';} h+='<div class="subband">'+it.h+'</div><table class="lines">'; open=true; return; }
     var flag=it[2]; var dot = flag? '<span class="flagdot" style="background:var(--c'+flag+')"></span>' : '';
     h+='<tr><td class="k">'+it[0]+'</td><td class="v">'+it[1]+dot+'</td></tr>'; }); if(open) h+='</table>'; return h; }
+  // 3b. SECTION DATA PAGE (Landscaping — High Detail sample). Receptacles = countChoice (client Oct 30, shared v1.13.0):
+  // prints the selected options with their count, e.g. "GFCI (4), Standard (6)", "GFCI" (no count) or "None".
+  // The app's preview link passes the inspector's answer as rcp=GFCI:4,Standard:6 (sample answer otherwise).
+  function ccText(parts){ return parts.map(function(p){ var m=/^(.+?):(\d{1,3})$/.exec(p); return m?m[1]+' ('+parseInt(m[2],10)+')':p; }).join(', '); }
+  var RCP=ccText((Q.get('rcp')||'GFCI:4,Standard:6').split(',').filter(Boolean)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  var land=[
+    {h:'Walk Ways'},
+    ['Walk Ways','Poured Concrete'],['Condition','Some Cracks'],['Sections Missing','No'],['Any Displacement','No'],
+    ['Bushes','Trimmed'],['Bushes in contact with structure','No'],['Trees','Good Health'],['Trees in contact with structure','Yes',1],
+    {h:'Electrical'},
+    ['Receptacles',RCP],['Functional','No',1],['Grounded','Yes'],['Cover Plate(s)','Yes'],['Hot','No'],['Any Damage','Yes',1],
+    {h:'Sprinkler System'},
+    ['Present','Yes'],['Coverage','Front Yard, Back Yard']
+  ];
+  pages.push('<div class="page">'+rhead()+'<div class="sectitle"><span class="num">2</span><b>Landscaping</b></div>'+linesHtml(land)
+    +'<div class="oc"><span>Overall condition</span><b>Needs Attention</b></div>'
+    +'<div class="blocklbl">Comments</div><div class="note">No power at the back yard receptacles; wiring is damaged at the housing. Tree branches touch the roof on the north side.</div>'
+    +pfoot(4)+'</div>');
   var cut=ou.findIndex(function(it){ return it.h==='Natural Gas'; });
-  pages.push('<div class="page">'+rhead()+'<div class="sectitle"><span class="num">11</span><b>Utilities &ndash; Outside</b></div>'+linesHtml(ou.slice(0,cut))+pfoot(4)+'</div>');
+  pages.push('<div class="page">'+rhead()+'<div class="sectitle"><span class="num">11</span><b>Utilities &ndash; Outside</b></div>'+linesHtml(ou.slice(0,cut))+pfoot(5)+'</div>');
   pages.push('<div class="page">'+rhead()+'<div class="sectitle"><span class="num">11</span><b>Utilities &ndash; Outside (continued)</b></div>'+linesHtml(ou.slice(cut))
     +'<div class="oc"><span>Overall condition</span><b>Good</b></div>'
     +'<div class="blocklbl">Comments</div><div class="note">A/C compressor operates normally. Recommend trimming vegetation back from the condenser unit for airflow.</div>'
-    +pfoot(5)+'</div>');
+    +pfoot(6)+'</div>');
 
   // 5. PHOTO PAGE
   var photos=[['Compressor',0,0],['Coolant Lines',1,0],['Service Mast & Meter',2,0],['Gas Meter',3,0],['Sewer Access',4,0],['Concern — corroded meter bracket',5,1]];
@@ -345,7 +363,7 @@
     var cf = p[2]? '<span class="cf" style="background:var(--c1)">Cat 1</span>' : '';
     ph+='<div class="pcard"><div class="pimg">'+flag+'<img src="'+photo(p[1],p[0])+'" alt=""></div><div class="pcap"><span>'+p[0]+'</span>'+cf+'</div></div>';
   });
-  ph+='</div>'+pfoot(6)+'</div>';
+  ph+='</div>'+pfoot(7)+'</div>';
   pages.push(ph);
 
   // 5b. INDOOR AIR QUALITY — client's report format (Oct 12 2026)
@@ -353,7 +371,7 @@
     +'<div class="aqhead"><div class="lg">1 & 2 Good&nbsp;&nbsp; 3 Mild&nbsp;&nbsp; 4 Moderate&nbsp;&nbsp; 5 Severe&nbsp;&nbsp; 6 Serious</div><div></div><div class="c">Level Measured</div><div class="c">Air Quality Rating</div></div>'
     +'<div class="aqrow"><div class="top"><div class="p">HCHO – Formaldehyde</div><div class="lv">0.03 mg/m³</div><div class="rt">2</div></div><div class="sub"><div>Formaldehyde 0.94 to 1.25 mg/m³</div><div class="ac">Corrective action if needed — Ventilation or deodorant absorption.</div></div></div><div class="aqrow"><div class="top"><div class="p">TVOC – Total Volatile Organic Compounds</div><div class="lv">0.21 mg/m³</div><div class="rt">2</div></div><div class="sub"><div>Total Volatile Organic Compounds such as carcinogenic particles from building materials. 0.3 to 0.5 mg</div><div class="ac">Corrective action if needed — Removal and ventilation or seal and bake.</div></div></div><div class="aqrow"><div class="top"><div class="p">PM2.5 – Fine Particulates</div><div class="lv">8 µg/m³</div><div class="rt">1</div></div><div class="sub"><div>Fine Particulates. National Standard is 12 µg/m³</div><div class="ac">Corrective action if needed — Air filters & ventilation (seasonal).</div></div></div><div class="aqrow"><div class="top"><div class="p">PM10 – Inhalable Coarse Particulates</div><div class="lv">22 µg/m³</div><div class="rt">2</div></div><div class="sub"><div>Inhalable coarse Particulates. National Standard is 150 µg/m³</div><div class="ac">Corrective action if needed — Air filters & ventilation (seasonal).</div></div></div><div class="aqrow"><div class="top"><div class="p">CO2 – Carbon Dioxide</div><div class="lv">610 ppm</div><div class="rt">3</div></div><div class="sub"><div>Carbon Dioxide 250 - 400</div><div class="ac">Corrective action if needed — Ventilation and find, correct source.</div></div></div><div class="aqrow"><div class="top"><div class="p">Ozone</div><div class="lv">0.02 ppm</div><div class="rt">1</div></div><div class="sub"><div>Normal/Good 0-0.054 PPM</div><div class="ac">Corrective action if needed — Air filters & ventilation (seasonal).</div></div></div><div class="aqrow"><div class="top"><div class="p">CO – Carbon Monoxide</div><div class="lv">0 ppm</div><div class="rt">1</div></div><div class="sub"><div>Carbon Monoxide Normal/Good 0-5 PPM</div><div class="ac">Corrective action if needed — Above 30 ppm leave the house immediately.</div></div></div>'
     +'<div class="oc"><span>Overall condition</span><b>Good</b></div>'
-    +pfoot(7)+'</div>');
+    +pfoot(8)+'</div>');
 
   // 6. SUMMARY
   var FIND={
@@ -370,7 +388,7 @@
     items.forEach(function(f,i){ sm+='<div class="sfind"><span class="n">'+(i+1)+'</span><span><b style="color:var(--ink)">'+f[1]+'</b> — '+f[0]+'</span></div>'; });
     sm+='</div>';
   });
-  sm+=pfoot(8)+'</div>';
+  sm+=pfoot(9)+'</div>';
   pages.push(sm);
 
   // 7. INVOICE
@@ -385,7 +403,7 @@
     +'</tbody></table>'
     +'<div class="inv-tot"><div class="box"><div class="row"><span>Subtotal</span><span>$685.00</span></div><div class="row"><span>Discount</span><span>&minus;$0.00</span></div><div class="row grand"><span>Total due</span><span>$685.00</span></div></div></div>'
     +'<div class="note" style="margin-top:20px">Thank you for choosing Vision Property Inspections. Payment accepted by card, check, or Square.</div>'
-    +pfoot(9)+'</div>');
+    +pfoot(10)+'</div>');
   }
 
   if(TYPE==='texas') buildTexas();
