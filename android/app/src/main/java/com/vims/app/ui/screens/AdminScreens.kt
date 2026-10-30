@@ -260,7 +260,7 @@ fun EditSectionScreen(vm: AppViewModel, nav: NavHostController, name: String) {
             val label = (d.item.header ?: d.item.q).orEmpty().trim().ifEmpty { "This item" }
             com.vims.app.ui.components.ConfirmDialog(
                 if (d.item.isHeader) "Delete this header?" else "Delete this item?",
-                "“$label”${if (d.item.isChoice) " and its options" else ""} will no longer be on new inspections. Inspections already started keep it.",
+                "“$label”${if (d.item.isChoice || d.item.isCountChoice) " and its options" else ""} will no longer be on new inspections. Inspections already started keep it.",
                 "Delete", onConfirm = { draft.removeAll { it.id == id }; deleteId = null }, onDismiss = { deleteId = null }, danger = true,
             )
         }
@@ -352,7 +352,18 @@ private fun EdItem(it: ItemDef, index: Int, count: Int, showErrors: Boolean, onC
             EdBtn(VIcons.trash, "Delete item", true, onDelete)
         }
         if (!it.isHeader) {
-            if (it.isChoice) {
+            if (it.isCountChoice) {
+                // Data v1.13 countChoice (client Oct 30, combined Receptacles): rename / reorder / remove like any item; its
+                // options and count fields are fixed by VIMS (read-only here) so answers and the report stay consistent.
+                ChipFlow(Modifier.padding(top = 10.dp)) {
+                    it.options.orEmpty().forEach { o ->
+                        Text(if (it.hasCount(o)) "$o + count" else o, style = T.ui(12.5.sp, color = V.ink2),
+                            modifier = Modifier.clip(RoundedCornerShape(16.dp)).background(V.paper3).padding(horizontal = 12.dp, vertical = 8.dp))
+                    }
+                }
+                Text("Choice with counts · ${it.countPlaceholder ?: "count"} beside ${it.countOptions.orEmpty().joinToString(" and ")} · options are set by VIMS",
+                    style = T.mono(11.sp, color = V.ink3), modifier = Modifier.padding(top = 8.dp))
+            } else if (it.isChoice) {
                 ChipFlow(Modifier.padding(top = 10.dp)) {
                     it.options.orEmpty().forEachIndexed { oi, o ->
                         Row(Modifier.clip(RoundedCornerShape(16.dp)).background(V.paper3).padding(start = 12.dp, end = 2.dp), verticalAlignment = Alignment.CenterVertically) {

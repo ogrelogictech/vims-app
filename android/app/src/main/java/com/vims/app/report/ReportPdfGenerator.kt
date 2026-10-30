@@ -604,6 +604,8 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
             "date" -> if (input.isBlank()) "" else Fmt.date(input)
             "time" -> if (input.isBlank()) "" else Fmt.time(input)
             "num", "text" -> input
+            // Data v1.13 countChoice (client Oct 30): "GFCI (4), Standard (6)", "GFCI" (no count) or "None".
+            ItemDef.TYPE_COUNT_CHOICE -> com.vims.app.data.CountChoice.text(a, key)
             // airReading outside a section with an `airQuality` table: "<level> <unit> · Rating <n>"
             ItemDef.TYPE_AIR_READING -> listOfNotNull(a.airLevel(key).ifBlank { null }?.let { l -> listOf(l, it.unit.orEmpty()).filter { x -> x.isNotBlank() }.joinToString(" ") },
                 a.airRating(key)?.let { r -> "Rating $r" }).joinToString(" · ")
@@ -1237,7 +1239,7 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
             val (k, it) = byQ[q] ?: return ""
             if (!visible(q)) return ""
             val raw = a.inputs[k!!].orEmpty().trim()
-            return when (it.type) { "date" -> if (raw.isBlank()) "" else Fmt.slash(raw); "single", "multi" -> a.values[k].orEmpty().joinToString(", "); else -> raw }
+            return when (it.type) { "date" -> if (raw.isBlank()) "" else Fmt.slash(raw); "single", "multi" -> a.values[k].orEmpty().joinToString(", "); ItemDef.TYPE_COUNT_CHOICE -> com.vims.app.data.CountChoice.text(a, k); else -> raw }
         }
         /** Chip answers of a single / multi item (empty when hidden). */
         fun sel(q: String): List<String> { val (k, _) = byQ[q] ?: return emptyList(); return if (visible(q)) a.values[k!!].orEmpty() else emptyList() }

@@ -221,7 +221,7 @@ private fun HomeMenu(vm: AppViewModel, nav: NavHostController, close: () -> Unit
             if (session?.platformOwner == true) {
                 Text("MASTER ADMIN", style = T.mono(10.5.sp, color = V.ink3, letterSpacing = 0.12.em), modifier = Modifier.padding(start = 12.dp, top = 16.dp, bottom = 6.dp))
                 MenuRow(VIcons.dollar, "Plans & pricing") { go(PlansR) }
-                MenuRow(VIcons.mailPlus, "Report quality copy (BCC)") { go(com.vims.app.ui.ReportBccR) }
+                MenuRow(VIcons.mailPlus, "Report quality copy") { go(com.vims.app.ui.ReportBccR) }
                 MenuRow(VIcons.mail, "Feedback & support") { go(com.vims.app.ui.FeedbackAdminR) }
             }
         }

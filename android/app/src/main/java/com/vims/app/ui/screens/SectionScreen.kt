@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -37,6 +38,7 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.vims.app.data.AirQualityDef
 import com.vims.app.data.ChecklistEngine
+import com.vims.app.data.CountChoice
 import com.vims.app.data.ItemDef
 import com.vims.app.data.SectionAnswers
 import com.vims.app.data.sectionTitle
@@ -54,6 +56,7 @@ import com.vims.app.ui.components.PickerField
 import com.vims.app.ui.components.Seg
 import com.vims.app.ui.components.SingleChips
 import com.vims.app.ui.components.VBtn
+import com.vims.app.ui.components.VChip
 import com.vims.app.ui.components.VInput
 import com.vims.app.ui.components.VScreen
 import com.vims.app.ui.components.vCard
@@ -218,6 +221,7 @@ fun SectionScreen(vm: AppViewModel, nav: NavHostController, inspId: String, name
 @Composable
 private fun ItemCard(key: String, it: ItemDef, a: SectionAnswers, detail: Boolean, ctx: android.content.Context, actionPrefix: String, counts: Map<String, Int>, edit: ((SectionAnswers) -> SectionAnswers) -> Unit, onConcern: (String) -> Unit) {
     if (it.isAirReading) { AirReadingCard(key, it, a, actionPrefix, edit); return }
+    if (it.isCountChoice) { CountChoiceCard(key, it, a, edit); return }
     val q = it.q.orEmpty()
     val input = a.inputs[key].orEmpty()
     val setInput: (String) -> Unit = { v -> edit { s -> s.copy(inputs = s.inputs + (key to v)) } }
@@ -278,6 +282,31 @@ private fun AirReadingCard(key: String, it: ItemDef, a: SectionAnswers, actionPr
         if (ref.isNotEmpty() || act.isNotEmpty()) {
             Text(listOfNotNull(ref.ifEmpty { null }, act.ifEmpty { null }?.let { x -> actionPrefix + x }).joinToString("\n"),
                 style = T.ui(11.5.sp, color = V.ink3, lineHeight = 16.sp), modifier = Modifier.padding(top = 9.dp))
+        }
+    }
+}
+
+/**
+ * Data v1.13 `countChoice` (client Oct 30 mockups, combined Receptacles): the options without a count (None) on the first row;
+ * each count option on its own row — its button on the left, its "# of receptacles" box on the right (number pad, whole numbers
+ * 0–999, optional, "Whole numbers only" like `integer` fields). None clears the others and every count; GFCI and Standard
+ * toggle and combine; deselecting one clears its count; typing a count above 0 selects its option ([CountChoice]).
+ */
+@Composable
+private fun CountChoiceCard(key: String, it: ItemDef, a: SectionAnswers, edit: ((SectionAnswers) -> SectionAnswers) -> Unit) {
+    val sel = a.countSelected(key)
+    val counts = a.counts(key)
+    val opts = it.options.orEmpty()
+    val plain = opts.filter { o -> !it.hasCount(o) }
+    LiCard(it.q.orEmpty()) {
+        if (plain.isNotEmpty()) MultiChips(plain, sel, { o -> edit { s -> CountChoice.tap(s, key, it, o) } })
+        opts.filter { o -> it.hasCount(o) }.forEach { o ->
+            Row(Modifier.padding(top = 8.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                VChip(o, o in sel, { edit { s -> CountChoice.tap(s, key, it, o) } }, Modifier.widthIn(min = 112.dp))
+                VInput(counts[o]?.toString().orEmpty(), { v -> edit { s -> CountChoice.setCount(s, key, it, o, v) } }, Modifier.weight(1f),
+                    placeholder = it.countPlaceholder ?: "#", keyboard = KeyboardType.Number, imeAction = ImeAction.Done,
+                    wholeNumberMax = ItemDef.COUNT_MAX, contentDescription = CountChoice.fieldDescription(it, o))
+            }
         }
     }
 }

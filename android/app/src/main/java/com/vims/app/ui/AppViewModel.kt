@@ -128,10 +128,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** VIMS plans and prices (platform-level, data v1.11): the shipped defaults or a master admin's edits. */
     fun pricing(p: com.vims.app.data.PlatformSettings = platform.value): com.vims.app.data.Pricing = p.pricing(config.subscription)
 
-    /** Owner-only: Report quality copy (BCC). The address is validated by the screen. */
+    /** Owner-only: Report quality copy (sent by the VIMS server, client Oct 30). The address is validated by the screen. */
     fun saveReportBcc(on: Boolean, email: String) {
         repo.updatePlatform { it.copy(reportBccOn = on, reportBccEmail = email.trim()) }
-        toast(if (on) "Reports will be blind-copied to ${email.trim()}" else "Report BCC turned off")
+        toast(if (on) "Quality copies will be sent to ${email.trim()}" else "Report quality copy turned off")
     }
 
     val engine: StateFlow<ChecklistEngine> = repo.edits.map { ChecklistEngine(config, it) }
@@ -970,7 +970,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
     /**
      * Debug-only (form QA): answers from filesDir/debug-answers.txt (copied in with `adb shell run-as`), one per line:
-     * `Section::Question=value` — single / multi values joined with " + ", other types as text (dates ISO). `Section::!done`
+     * `Section::Question=value` — single / multi values joined with " + " (countChoice "GFCI:4 + Standard:6"), other types as text (dates ISO). `Section::!done`
      * marks the section done. The file is deleted after it is applied.
      */
     fun debugApplyAnswers(id: String) {
@@ -982,6 +982,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             val q = rest.substringBefore("=").trim(); val v = rest.substringAfter("=", "").trim()
             val def = sectionDef(id, sec) ?: return@forEach
             val (key, item) = ChecklistEngine.keyed(ChecklistEngine.itemsFor(def, bundle(id)?.inspection?.selections?.depth ?: "standard")).firstOrNull { it.first != null && it.second.q == q } ?: return@forEach
+            // countChoice (data v1.13): "GFCI:4 + Standard:6" / "GFCI" / "None" — applied through the same tap / count rules as the UI.
+            if (item.isCountChoice) {
+                editSection(id, sec) { a0 -> v.split(" + ").map { it.trim() }.filter { it.isNotEmpty() }.fold(a0) { a, part ->
+                    val o = part.substringBefore(":").trim(); val n = part.substringAfter(":", "").trim()
+                    val t = if (o in a.countSelected(key!!)) a else com.vims.app.data.CountChoice.tap(a, key, item, o)
+                    if (n.isEmpty()) t else com.vims.app.data.CountChoice.setCount(t, key, item, o, n)
+                } }
+                return@forEach
+            }
             editSection(id, sec) { a -> if (item.isChoice) a.copy(values = a.values + (key!! to v.split(" + ").map { it.trim() }.filter { it.isNotEmpty() })) else a.copy(inputs = a.inputs + (key!! to v)) }
         }
         f.delete()

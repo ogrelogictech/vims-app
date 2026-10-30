@@ -36,7 +36,8 @@ class AppContainer(private val app: Application) {
     /** VIMS default inspection agreement (shared/legal/inspection-agreement.json), loaded here off the main thread like the EULA. */
     val agreementResult: Result<com.vims.app.data.InspectionAgreement> = com.vims.app.data.InspectionAgreement.load(app)
     val db: VimsDatabase = VimsDatabase.open(app)
-    private val roomRepo = RoomRepository(app.filesDir, db.dao(), com.vims.app.data.PlatformOwners(config.support.platformOwners), config.sections)
+    private val roomRepo = RoomRepository(app.filesDir, db.dao(), com.vims.app.data.PlatformOwners(config.support.platformOwners), config.sections,
+        ChecklistLoader.loadLegacy(app))
     val repo: VimsRepository = roomRepo
     /** One free trial per device (client Oct 25): app-level record outside every account / company. */
     val deviceTrial = com.vims.app.services.DeviceTrial(app)

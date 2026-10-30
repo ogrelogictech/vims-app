@@ -144,12 +144,20 @@ class ChecklistEngine(val config: ChecklistConfig, val edits: ChecklistEdits) {
          *    became "Test date" (date) + "Test time" (time) — answers are moved over by [upgradeAnswers].
          * Nothing else in the snapshot changes; an answer typed earlier still shows and prints as typed.
          */
-        fun upgradePickers(defs: Map<String, SectionDef>, current: List<SectionDef>, noMerge: Set<String> = emptySet()): Map<String, SectionDef> {
+        fun upgradePickers(defs: Map<String, SectionDef>, current: List<SectionDef>, noMerge: Set<String> = emptySet(),
+                           legacy: Map<String, SectionDef> = emptyMap()): Map<String, SectionDef> {
             if (defs.isEmpty()) return defs
             val byName = current.associateBy { it.name }
             var changed = false
             val out = defs.mapValues { (name, d) ->
-                val cur = byName[name] ?: return@mapValues d
+                val live = byName[name] ?: return@mapValues d
+                // Data v1.13 (client Oct 30): a saved list from before the combined Receptacles item (it still has the items a
+                // countChoice `replaces`) is brought up to date against the frozen v1.12.0 list of that section instead — exactly
+                // what v0.24.0 showed (Oct 29 count fields, "Non GFCI"), so nothing typed then is hidden. It never gets the new item.
+                val old = legacy[name]
+                val cur = if (old == null) live else live.copy(
+                    items = old.items.takeIf { it.isNotEmpty() && hasReplacedItems(d.items, live.items) } ?: live.items,
+                    itemsHigh = old.itemsHigh?.takeIf { d.itemsHigh != null && live.itemsHigh != null && hasReplacedItems(d.itemsHigh, live.itemsHigh) } ?: live.itemsHigh)
                 val now = (cur.items + cur.itemsHigh.orEmpty()).filter { it.q != null }.groupBy { it.q!! }.mapValues { it.value.first() }
                 // Data v1.12 (client Oct 29): renamed items (`renamedFrom`) take their new label, items gain the
                 // `optionsFromCount` / `defaultFromRoomNumber` flags, and single / multi items whose options only grew
@@ -191,9 +199,16 @@ class ChecklistEngine(val config: ChecklistConfig, val edits: ChecklistEdits) {
          * already there (so "Shower pan filled for testing" / "Shower pan leaking" land before Comments, as in the data).
          * Nothing is removed or reordered. Returns [saved] unchanged unless every saved line still exists in [current]
          * (an additive data change) — a restructured section keeps its saved checklist.
+         *
+         * Data v1.13 `replaces` (client Oct 30, combined Receptacles): an item that replaces older items is never added to a
+         * saved list that still has any of the replaced labels as a non-countChoice line (the old "Receptacles" single choice,
+         * "GFCI" Yes/No, the Oct 29 count fields) — and then nothing else is merged into that list either, so an inspection
+         * started before keeps its saved checklist and answers exactly (no duplicate receptacle questions). The replaced
+         * labels are matched by label + type, never by label alone: the new item is often labelled "Receptacles" too.
          */
         fun mergeAdded(saved: List<ItemDef>, current: List<ItemDef>): List<ItemDef> {
             if (saved.isEmpty() || current.isEmpty()) return saved
+            if (hasReplacedItems(saved, current)) return saved
             val sk = lineKeys(saved)
             val ck = lineKeys(current)
             val curSet = ck.toSet()
@@ -210,6 +225,46 @@ class ChecklistEngine(val config: ChecklistConfig, val edits: ChecklistEdits) {
                 out.add(pos, current[i]); outKeys.add(pos, k)
             }
             return out
+        }
+
+        /**
+         * Data v1.13: [list] still has an item that one of [current]'s countChoice items `replaces` (same label, not itself a
+         * countChoice) — a checklist from before the combined Receptacles item.
+         */
+        fun hasReplacedItems(list: List<ItemDef>, current: List<ItemDef>): Boolean {
+            val replaced = current.filter { it.isCountChoice }.flatMap { it.replaces.orEmpty() }.toSet()
+            if (replaced.isEmpty()) return false
+            return list.any { !it.isHeader && !it.isCountChoice && it.q != null && it.q in replaced }
+        }
+
+        /**
+         * Data v1.13 `replaces` (client Oct 30) for a company's checklist copy ([SectionOverride] list): every countChoice item of
+         * [current] whose replaced items are still in [list] — under the same sub-header, detected by label AND type (an old line
+         * labelled like the new one, e.g. the "Receptacles" single choice, is not a countChoice) — takes the place of the first
+         * of them; the others are removed. Everything else the company changed (order, renames, removals, added items) is kept.
+         * A list that already has the new item under that header (a countChoice with its label or its `replaces`, so also after the
+         * company renamed it) is left as it is.
+         */
+        fun replaceItems(list: List<ItemDef>, current: List<ItemDef>): List<ItemDef> {
+            val news = current.filter { it.isCountChoice && !it.replaces.isNullOrEmpty() }
+            if (news.isEmpty() || list.isEmpty()) return list
+            fun headers(l: List<ItemDef>): List<String> { var h = ""; return l.map { if (it.isHeader) { h = it.header.orEmpty() }; h } }
+            val curHeaders = headers(current)
+            val out: MutableList<ItemDef?> = list.toMutableList()
+            val outHeaders = headers(list)
+            var changed = false
+            current.forEachIndexed { ci, item ->
+                if (!item.isCountChoice || item.replaces.isNullOrEmpty()) return@forEachIndexed
+                val h = curHeaders[ci]
+                // Already upgraded (also after the company renamed the new item): a countChoice of that label or with the same `replaces`.
+                if (out.indices.any { j -> out[j]?.let { x -> x.isCountChoice && (x.q == item.q || x.replaces == item.replaces) } == true && outHeaders[j] == h }) return@forEachIndexed
+                val idx = out.indices.filter { j -> out[j]?.let { x -> !x.isHeader && !x.isCountChoice && x.q in item.replaces } == true && outHeaders[j] == h }
+                if (idx.isEmpty()) return@forEachIndexed
+                out[idx.first()] = item
+                idx.drop(1).forEach { out[it] = null }
+                changed = true
+            }
+            return if (changed) out.filterNotNull() else list
         }
 
         /**
@@ -249,7 +304,8 @@ class ChecklistEngine(val config: ChecklistConfig, val edits: ChecklistEdits) {
         /**
          * Data v1.12: a company's Manage checklist overrides were saved with the labels of their day. Renamed items take the new
          * label (an override keeps its own options) and gain the room-count flags, so new inspections built from the edited
-         * section keep both the company's list and working answer keys. Runs in memory on load; written with the next edit.
+         * section keep both the company's list and working answer keys; data v1.13 replaced items are swapped ([replaceItems]).
+         * Runs in memory on load; written with the next edit.
          */
         fun upgradeEdits(e: ChecklistEdits, current: List<SectionDef>): ChecklistEdits {
             if (e.overrides.isEmpty()) return e
@@ -258,7 +314,10 @@ class ChecklistEngine(val config: ChecklistConfig, val edits: ChecklistEdits) {
             val o = e.overrides.mapValues { (name, ov) ->
                 val cur = byName[name] ?: return@mapValues ov
                 val all = cur.items + cur.itemsHigh.orEmpty()
-                val n = ov.copy(items = ov.items?.let { carry(it, all, options = false) }, itemsHigh = ov.itemsHigh?.let { carry(it, all, options = false) })
+                // Data v1.13 `replaces` (client Oct 30): the old receptacle lines of a company's copy become the combined
+                // Receptacles item in the same place (each tier against the same tier of the VIMS data).
+                val n = ov.copy(items = ov.items?.let { replaceItems(carry(it, all, options = false), cur.items) },
+                    itemsHigh = ov.itemsHigh?.let { replaceItems(carry(it, all, options = false), cur.itemsHigh ?: cur.items) })
                 if (n != ov) changed = true
                 n
             }

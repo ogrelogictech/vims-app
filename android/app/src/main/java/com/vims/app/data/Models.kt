@@ -183,12 +183,15 @@ data class CardOnFile(val brand: String, val last4: String, val expMonth: Int, v
 
 /**
  * VIMS platform-level settings — owned by the platform owner, shared by every company on this install and NOT per
- * company. TODO(backend): served by the Laravel API; the server always adds the report BCC when sending.
+ * company. TODO(backend): served by the Laravel API; the server sends the report-quality copy when a report is emailed.
  */
 @Serializable
 data class PlatformSettings(
     val feedbackEmail: String = "",
-    /** "Report quality copy (BCC)": blind-copy every emailed report (disclosed in the VIMS EULA). */
+    /**
+     * "Report quality copy": every emailed report also goes to [reportBccEmail] (disclosed in the VIMS EULA). Client Oct 30: sent
+     * separately by the VIMS server, never as a Bcc on the device's email compose. Field names kept so stored settings load.
+     */
     val reportBccOn: Boolean = false,
     val reportBccEmail: String = "",
     /** Data v1.11: VIMS plans as edited by a master admin in Plans & pricing; null = the shipped `subscription.plans`. */
@@ -199,7 +202,7 @@ data class PlatformSettings(
 ) {
     fun pricing(def: SubscriptionDef): Pricing = Pricing(plans ?: def.plans, extraInspectorMonthly ?: def.extraInspectorMonthly, extraInspectorYearly ?: def.extraInspectorYearly)
 
-    /** The BCC address to add to a report email, or null when the setting is off. */
+    /** The report-quality address the server should copy (TODO(backend)), or null when the setting is off. Not put on the device compose. */
     val activeBcc: String? get() = reportBccEmail.trim().takeIf { reportBccOn && it.isNotEmpty() }
 
     /**
@@ -427,6 +430,10 @@ data class SectionAnswers(
      * `airReading` (data v1.7, Indoor Air Quality) uses both maps under its one key: the 1–6 rating in [values]
      * (a single chip, like `single`) and the optional "Level measured" number in [inputs] (plain decimal text, unit not
      * stored). Read them through [airRating] / [airLevel]; no schema change was needed.
+     * `countChoice` (data v1.13, client Oct 30 receptacles) likewise uses both maps under its one key: the selected options in
+     * [values] (like `multi`, in button order — `{selected}`) and the counts in [inputs] as a small JSON object
+     * (`{"GFCI":4,"Standard":6}` — `{counts}`, only options with a count typed). Read them through [countSelected] / [counts];
+     * see [CountChoice]. No Room schema change: both maps were already stored in the section's answers JSON.
      */
     val inputs: Map<String, String> = emptyMap(),
     /** Fast Entry "Items reviewed" chips (labelled "Items present" before data v1.5). */
@@ -445,6 +452,83 @@ data class SectionAnswers(
 
     /** `airReading` "Level measured" (decimal text without the unit), or "" when not measured or not a valid number (e.g. "."). */
     fun airLevel(key: String): String = inputs[key].orEmpty().trim().takeIf { (com.vims.app.util.Num.parse(it) ?: -1.0) >= 0.0 }.orEmpty()
+
+    /** `countChoice` selected options (answered = at least one). */
+    fun countSelected(key: String): List<String> = values[key].orEmpty()
+    /** `countChoice` counts per option (whole numbers 0–999); empty when none typed or not readable. */
+    fun counts(key: String): Map<String, Int> = CountChoice.decode(inputs[key])
+}
+
+/**
+ * Data v1.13 `itemTypes.countChoice` (client Oct 30): option buttons where some options carry a whole-number count — the
+ * combined Receptacles item None / GFCI + count / Standard + count. Rules (same as the prototype's ccTap / ccCount):
+ *  - an `exclusive` option (None) clears every other choice and every count when tapped on;
+ *  - other options toggle and combine (GFCI and Standard together); tapping one on clears the exclusive ones; deselecting one
+ *    clears its count;
+ *  - typing a count clears the exclusive options, and a count above 0 selects its option; counts are optional, 0–999.
+ * Stored as described on [SectionAnswers] (selected in `values[key]`, counts JSON in `inputs[key]`).
+ */
+object CountChoice {
+    private val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true; isLenient = true }
+
+    fun decode(raw: String?): Map<String, Int> {
+        val t = raw?.trim().orEmpty()
+        if (!t.startsWith("{")) return emptyMap()
+        return try {
+            json.parseToJsonElement(t).let { it as? kotlinx.serialization.json.JsonObject }.orEmpty().mapNotNull { (k, v) ->
+                (v as? kotlinx.serialization.json.JsonPrimitive)?.content?.trim()?.toIntOrNull()?.takeIf { it in 0..ItemDef.COUNT_MAX.toInt() }?.let { k to it }
+            }.toMap()
+        } catch (_: Exception) { emptyMap() }
+    }
+
+    fun encode(counts: Map<String, Int>): String =
+        if (counts.isEmpty()) "" else kotlinx.serialization.json.JsonObject(counts.mapValues { kotlinx.serialization.json.JsonPrimitive(it.value) }).toString()
+
+    /** [sel] in the item's button order (anything not offered any more stays, at the end). */
+    private fun ordered(item: ItemDef, sel: Collection<String>): List<String> {
+        val opts = item.options.orEmpty()
+        return opts.filter { it in sel } + sel.filter { it !in opts }.distinct()
+    }
+
+    private fun write(a: SectionAnswers, key: String, sel: List<String>, counts: Map<String, Int>): SectionAnswers {
+        val enc = encode(counts)
+        return a.copy(values = a.values + (key to sel), inputs = if (enc.isEmpty()) a.inputs - key else a.inputs + (key to enc))
+    }
+
+    /** Taps [option] on / off. */
+    fun tap(a: SectionAnswers, key: String, item: ItemDef, option: String): SectionAnswers {
+        val sel = a.countSelected(key)
+        val counts = a.counts(key)
+        return when {
+            option in sel -> write(a, key, sel - option, counts - option)
+            item.isExclusive(option) -> write(a, key, listOf(option), emptyMap())
+            else -> write(a, key, ordered(item, sel.filterNot { item.isExclusive(it) } + option), counts)
+        }
+    }
+
+    /** The count field of [option] changed to [text] (digits only, already filtered; "" clears it). */
+    fun setCount(a: SectionAnswers, key: String, item: ItemDef, option: String, text: String): SectionAnswers {
+        val n = text.trim().toIntOrNull()?.coerceIn(0, ItemDef.COUNT_MAX.toInt())
+        var sel = a.countSelected(key)
+        val counts = a.counts(key).let { if (n == null) it - option else it + (option to n) }
+        if (n != null) {
+            sel = sel.filterNot { item.isExclusive(it) }
+            if (n > 0 && option !in sel) sel = ordered(item, sel + option)
+        }
+        return write(a, key, sel, counts)
+    }
+
+    /** Report / preview text: "GFCI (4), Standard (6)", "GFCI" (no count), "None"; "" when nothing is selected. */
+    fun text(a: SectionAnswers, key: String): String {
+        val counts = a.counts(key)
+        return a.countSelected(key).joinToString(", ") { o -> counts[o]?.let { n -> "$o ($n)" } ?: o }
+    }
+
+    /** "Number of GFCI receptacles" for the count field of [option] on "Receptacles" / "Receptacles (outside)" / "Electrical Receptacles". */
+    fun fieldDescription(item: ItemDef, option: String): String {
+        val noun = item.q.orEmpty().replace(Regex("\\s*\\(.*\\)\\s*$"), "").replace(Regex("^Electrical\\s+", RegexOption.IGNORE_CASE), "").trim().lowercase(java.util.Locale.US)
+        return "Number of $option${if (noun.isEmpty()) "" else " $noun"}"
+    }
 }
 
 @Serializable

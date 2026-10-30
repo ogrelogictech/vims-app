@@ -1,0 +1,3 @@
+VIMS Android v0.25.0 — Report email intent extras (adb logcat -s VIMS-Share), Oct 30 2026.
+Platform setting at the time: reportBccOn=true, reportBccEmail=quality@vimsinspect.com (Report quality copy ON).
+10-30 02:59:20.455 28435 28435 D VIMS-Share: ACTION_SEND extras=[android.intent.extra.CC, android.intent.extra.EMAIL, android.intent.extra.STREAM, android.intent.extra.SUBJECT, android.intent.extra.TEXT] to=[tysen.gough@example.com, cyndi.farrais@example.com] cc=[jeremy@visionpropertyinspections.com] bcc=null subject=Inspection report — 1428 Ridgeline Dr

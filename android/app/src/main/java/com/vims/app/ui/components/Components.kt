@@ -401,6 +401,8 @@ fun VInput(
     autoCorrect: Boolean? = null,
     /** Whole-number field with this max: a "." and what follows are rejected, with a "Whole numbers only" hint ([com.vims.app.util.WholeNumberInput]). */
     wholeNumberMax: Double? = null,
+    /** Spoken label for a field without a visible label (countChoice count boxes: "Number of GFCI receptacles"). */
+    contentDescription: String? = null,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val noAutofill = LocalNoAutofill.current
@@ -426,7 +428,8 @@ fun VInput(
             ),
             visualTransformation = visual, cursorBrush = SolidColor(V.brand),
             modifier = Modifier.fillMaxWidth().keepsKeyboard().onFocusChanged { field.focus(it.isFocused, value); whole?.reset(value) }
-                .then(if (noAutofill) Modifier.semantics { contentDataType = ContentDataType.None } else Modifier),
+                .then(if (noAutofill) Modifier.semantics { contentDataType = ContentDataType.None } else Modifier)
+                .then(if (contentDescription != null) Modifier.semantics { this.contentDescription = contentDescription } else Modifier),
             decorationBox = { inner ->
                 Row(
                     Modifier.fillMaxWidth().heightIn(min = minHeight).clip(shape).background(V.paper)

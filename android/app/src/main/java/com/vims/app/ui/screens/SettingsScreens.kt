@@ -168,7 +168,7 @@ fun SettingsScreen(vm: AppViewModel, nav: NavHostController) {
             Text("VIMS platform settings — they apply to every company.", style = T.ui(12.sp, color = V.ink3), modifier = Modifier.padding(start = 2.dp, bottom = 10.dp))
             NavRow(VIcons.dollar, "Plans & pricing", "VIMS plans · monthly & yearly prices") { nav.navigate(PlansR) }
             val p = vm.platform.collectAsState().value
-            NavRow(VIcons.mailPlus, "Report quality copy (BCC)", p.activeBcc?.let { "On · $it" } ?: "Off") { nav.navigate(ReportBccR) }
+            NavRow(VIcons.mailPlus, "Report quality copy", p.activeBcc?.let { "On · $it · sent by the VIMS server" } ?: "Off") { nav.navigate(ReportBccR) }
             NavRow(VIcons.mail, "Feedback & support", "Change the feedback contact email") { nav.navigate(FeedbackAdminR) }
         }
 
@@ -426,8 +426,10 @@ fun OwnerOnly(vm: AppViewModel, nav: NavHostController, title: String) {
 }
 
 /**
- * VIMS platform-owner setting "Report quality copy (BCC)": every report emailed from the app is also blind-copied to this
- * address for report-quality review (disclosed in the VIMS EULA). Stored app-level, not per company.
+ * VIMS platform-owner setting "Report quality copy": every report emailed from the app also goes to this address for
+ * report-quality review (disclosed in the VIMS EULA). Stored app-level, not per company. Client Oct 30 (shared v1.13.0): the
+ * copy is sent separately by the VIMS server — never added to the inspector's email compose (no Bcc line in their mail app).
+ * TODO(backend): the server send (see shareReport).
  */
 @Composable
 fun ReportBccScreen(vm: AppViewModel, nav: NavHostController) {
@@ -438,13 +440,13 @@ fun ReportBccScreen(vm: AppViewModel, nav: NavHostController) {
     val form = rememberForm()
     val err = form.check("email", email) { if (on || email.isNotBlank()) Checks.email(email) else null }
     VScreen("Report quality copy", companyName(vm), net(vm), backAction(nav), listOf(homeAction(nav))) {
-        Hint("Master admin — every inspection report emailed from the app is also sent as a **blind carbon copy (BCC)** to this address, so report quality can be reviewed. Clients and agents don’t see this address. Disclosed in the VIMS EULA.",
+        Hint("**Master admin (VIMS owner only)** — when an inspector emails a report from the app, the **VIMS server sends a separate copy** to this address so report quality can be reviewed. It is never added to the inspector’s email, so the inspector, clients and agents don’t see this address. Disclosed in the VIMS EULA.",
             Modifier.padding(top = 2.dp, bottom = 14.dp))
         Row(Modifier.padding(bottom = 14.dp).fillMaxWidth().vCard(12.dp).padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("BCC every emailed report", style = T.ui(14.5.sp, FontWeight.Bold), modifier = Modifier.weight(1f))
+            Text("Copy every emailed report", style = T.ui(14.5.sp, FontWeight.Bold), modifier = Modifier.weight(1f))
             SingleChips(listOf("On", "Off"), if (on) "On" else "Off", { v -> if (v != null) on = v == "On" }, required = true, modifier = Modifier.width(140.dp))
         }
-        VField("BCC address", email, { email = it }, Modifier.formField(form, "email"), placeholder = "you@company.com", keyboard = KeyboardType.Email, error = err, required = on)
+        VField("Quality copy address", email, { email = it }, Modifier.formField(form, "email"), placeholder = "you@company.com", keyboard = KeyboardType.Email, error = err, required = on)
         VBtn("Save", { if (form.submit()) vm.saveReportBcc(on, email) }, icon = VIcons.check)
     }
 }

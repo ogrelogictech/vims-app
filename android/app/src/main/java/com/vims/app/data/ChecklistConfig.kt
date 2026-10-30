@@ -189,7 +189,7 @@ data class AirQualityDef(
 
 /**
  * One checklist line. Either a sub-section header band (`header`) or a question (`q` + `type`).
- * Types: single · multi · num · text · date · time · airReading (v1.7); an unknown type is shown as a text input.
+ * Types: single · multi · num · text · date · time · airReading (v1.7) · countChoice (v1.13); an unknown type is shown as a text input.
  * `airReading` also carries [code], [unit], [reference] and [action] for the Indoor Air Quality report table;
  * its answer is stored as described on [SectionAnswers] (rating in `values`, level in `inputs`).
  */
@@ -231,15 +231,37 @@ data class ItemDef(
     val optionsFromCount: String? = null,
     /** Data v1.12 `itemTypes.defaultFromRoomNumber`: in "Bathroom 2" the item starts answered "2" (still changeable). */
     val defaultFromRoomNumber: Boolean? = null,
+    /**
+     * Data v1.13 `itemTypes.countChoice` (client Oct 30, receptacles): the [options] that show a whole-number count field beside
+     * their button ("GFCI", "Standard"), the options that clear every other choice and count ("None"), and the count fields'
+     * placeholder ("# of receptacles"). Answer encoding: see [SectionAnswers.countSelected] / [SectionAnswers.counts].
+     */
+    val countOptions: List<String>? = null,
+    val exclusive: List<String>? = null,
+    val countPlaceholder: String? = null,
+    /**
+     * Data v1.13 `itemTypes.replaces` (on a countChoice item): labels of the old items in the same section and sub-header this
+     * item replaces ("Receptacles" single + "GFCI" Yes/No, the Oct 29 count fields). A company override that still has them gets
+     * them swapped for this item ([ChecklistEngine.upgradeEdits]); a started inspection whose saved checklist still has any of
+     * them keeps its checklist unchanged ([ChecklistEngine.mergeAdded]).
+     */
+    val replaces: List<String>? = null,
 ) {
     val isHeader: Boolean get() = header != null
     /** Decimal places a `num` item accepts while typing: 0 for `integer`, else `decimals` (default 2). */
     val numDecimals: Int get() = if (integer == true) 0 else (decimals ?: 2).coerceIn(0, 6)
     val isChoice: Boolean get() = type == "single" || type == "multi"
     val isAirReading: Boolean get() = type == TYPE_AIR_READING
+    val isCountChoice: Boolean get() = type == TYPE_COUNT_CHOICE
+    /** countChoice: options with a count field / exclusive options (both limited to [options]). */
+    fun hasCount(option: String): Boolean = countOptions.orEmpty().contains(option)
+    fun isExclusive(option: String): Boolean = exclusive.orEmpty().contains(option)
 
     companion object {
         const val TYPE_AIR_READING = "airReading"
+        const val TYPE_COUNT_CHOICE = "countChoice"
+        /** countChoice counts: whole numbers 0 – 999 (shared data v1.13 `itemTypes.countChoice`). */
+        const val COUNT_MAX = 999.0
     }
 }
 
@@ -491,6 +513,20 @@ data class SampleFinding(val cat: Int, val txt: String, val sec: String)
 
 object ChecklistLoader {
     const val ASSET_PATH = "data/vims-checklists.json"
+    /** Frozen v1.12.0 lists of the sections v1.13.0 changed for the combined Receptacles item (see the file's `_about`). */
+    const val LEGACY_RECEPTACLES_PATH = "legacy/checklists-v1.12.0-receptacles.json"
+
+    @Serializable
+    private data class LegacyFile(val version: String = "", val sections: List<SectionDef> = emptyList())
+
+    /**
+     * v1.12.0 definitions by section name, for [ChecklistEngine.upgradePickers] on inspections started before the v1.13.0
+     * combined Receptacles item. Empty (nothing frozen) if the asset can't be read.
+     */
+    fun loadLegacy(context: Context): Map<String, SectionDef> = try {
+        context.assets.open(LEGACY_RECEPTACLES_PATH).bufferedReader().use { json.decodeFromString(LegacyFile.serializer(), it.readText()) }
+            .sections.associateBy { it.name }
+    } catch (e: Exception) { android.util.Log.w("VIMS-Checklist", "legacy lists not loaded", e); emptyMap() }
 
     val json = Json {
         ignoreUnknownKeys = true

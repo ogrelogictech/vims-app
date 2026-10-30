@@ -82,6 +82,8 @@ class RoomRepository(
     filesDir: File, private val dao: VimsDao, private val owners: PlatformOwners = PlatformOwners(emptyList()),
     /** Current checklist sections, for [ChecklistEngine.upgradePickers] on stored snapshots. */
     private val currentSections: List<SectionDef> = emptyList(),
+    /** Frozen v1.12.0 lists of the sections changed by v1.13.0 ([ChecklistLoader.loadLegacy]). */
+    private val legacySections: Map<String, SectionDef> = emptyMap(),
 ) : VimsRepository {
     override val root: File = File(filesDir, "vims").apply { mkdirs() }
     private val json = ChecklistLoader.json
@@ -156,7 +158,7 @@ class RoomRepository(
             var insp = try { json.decodeFromString(Inspection.serializer(), e.json) } catch (_: Exception) { return@mapNotNull null }
             // Client Oct 17: covers saved with the old "Solid" category become style Solid + No picture (written back below).
             if (insp.cover.isLegacySolid) { insp = insp.copy(cover = insp.cover.normalized()); migrated += insp }
-            val defs = ChecklistEngine.upgradePickers(dec(defsSer, e.defsJson, emptyMap()), currentSections, noMerge)
+            val defs = ChecklistEngine.upgradePickers(dec(defsSer, e.defsJson, emptyMap()), currentSections, noMerge, legacySections)
             InspectionBundle(
                 inspection = insp,
                 // Data v1.9.1: answers of a split item (Meth "Test date and time") move to its new items, in memory; they are

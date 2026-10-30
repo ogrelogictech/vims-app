@@ -308,14 +308,15 @@ fun shareReport(ctx: Context, vm: AppViewModel, b: InspectionBundle, file: File)
         putExtra(Intent.EXTRA_EMAIL, reportTo(s).toTypedArray())
         // support.ccInspector (data v1.3): the signed-in inspector gets a CC (archive copy).
         reportCc(vm)?.let { putExtra(Intent.EXTRA_CC, arrayOf(it)) }
-        // Platform "Report quality copy": blind-copy the report. Some share targets ignore EXTRA_BCC —
-        // TODO(backend): the server-side send always adds the BCC so it can't be removed.
-        vm.platform.value.activeBcc?.let { putExtra(Intent.EXTRA_BCC, arrayOf(it)) }
+        // Client Oct 30 (shared v1.13.0): NO Bcc on this compose — the phone's mail app shows the Bcc line to the inspector.
+        // The platform "Report quality copy" (vm.platform.value.activeBcc) is sent separately by the VIMS server.
+        // TODO(backend): when the report is emailed, POST it to the VIMS API so the server mails the quality copy to
+        // PlatformSettings.activeBcc; until that endpoint exists no quality copy is sent.
         putExtra(Intent.EXTRA_SUBJECT, "Inspection report — ${s.street}")
         putExtra(Intent.EXTRA_TEXT, body)
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
-    if (com.vims.app.BuildConfig.DEBUG) android.util.Log.d("VIMS-Share", "ACTION_SEND to=${send.getStringArrayExtra(Intent.EXTRA_EMAIL)?.toList()} cc=${send.getStringArrayExtra(Intent.EXTRA_CC)?.toList()} bcc=${send.getStringArrayExtra(Intent.EXTRA_BCC)?.toList()} subject=${send.getStringExtra(Intent.EXTRA_SUBJECT)}")
+    if (com.vims.app.BuildConfig.DEBUG) android.util.Log.d("VIMS-Share", "ACTION_SEND extras=${send.extras?.keySet()?.sorted()} to=${send.getStringArrayExtra(Intent.EXTRA_EMAIL)?.toList()} cc=${send.getStringArrayExtra(Intent.EXTRA_CC)?.toList()} bcc=${send.getStringArrayExtra(Intent.EXTRA_BCC)?.toList()} subject=${send.getStringExtra(Intent.EXTRA_SUBJECT)}")
     try { ctx.startActivity(Intent.createChooser(send, "Send report")) } catch (_: Exception) { vm.toast("No app available to send the report") }
 }
 
@@ -344,9 +345,9 @@ fun GeneratedScreen(vm: AppViewModel, nav: NavHostController, inspId: String) {
                 val f = vm.reportFile(inspId)
                 if (f != null) shareReport(ctx, vm, b, f) else vm.generateReport(inspId, markDone = true) { shareReport(ctx, vm, b, it) }
             }, icon = VIcons.mail)
-            // CC = the inspector's own address (shown); the BCC address is a platform setting clients/agents never see.
+            // CC = the inspector's own address (shown). The report-quality copy is sent by the VIMS server (client Oct 30), so it
+            // is not on the compose and not mentioned here.
             val cc = reportCc(vm)
-            val bcc = vm.platform.collectAsState().value.activeBcc != null
             val note = listOfNotNull(
                 when {
                     !s.sendToAgent -> "Goes to the client only — sending to the real estate agent is off for this inspection."
@@ -354,8 +355,7 @@ fun GeneratedScreen(vm: AppViewModel, nav: NavHostController, inspId: String) {
                     else -> null
                 },
                 cc?.let { "A copy goes to you ($it)." },
-                if (bcc) "A quality-review copy is blind-copied per the VIMS terms." else null,
-                if (cc != null || bcc) "Some email apps may drop copies." else null,
+                if (cc != null) "Some email apps may drop copies." else null,
             ).joinToString(" ")
             if (note.isNotEmpty()) Text(note, style = T.ui(11.5.sp, color = V.ink3, lineHeight = 15.sp), textAlign = TextAlign.Center, modifier = Modifier.padding(top = 8.dp))
             VBtn("Preview PDF", { nav.navigate(PdfR(inspId)) }, Modifier.padding(top = 10.dp), BtnKind.Ghost, VIcons.preview)

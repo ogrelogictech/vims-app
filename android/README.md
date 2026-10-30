@@ -750,3 +750,30 @@ Shared v1.9 (client item 13):
 - Verified by installing over v0.23.0 with existing data (renamed answer 2400 kept, Low + High, Garage/Kitchen counts merged,
   company override renamed, Bathroom 1's own answer kept). Screenshots `screenshots/oct29-*.png`. Test APK
   `../../VIMS-Android-test-v0.24.0-2026-10-29.apk` (debug-signed like v0.23.0, installs over it).
+
+## Client Oct 30 + shared v1.13.0 (v0.25.0)
+
+- **`countChoice`** (combined Receptacles, 28 items in 25 High Detail sections): None on the first row; GFCI and Standard each
+  on their own row, button left, "# of receptacles" box right (number pad, whole numbers 0–999, optional, "Whole numbers only"
+  like `integer` fields; TalkBack "Number of GFCI receptacles"). Rules in `CountChoice` (Models.kt), same as the prototype: None
+  clears the others and every count; GFCI / Standard toggle and combine; deselecting one clears its count; typing a count clears
+  None and a count above 0 selects its option. **Stored like `airReading`, no Room schema change:** `values[key]` = selected
+  options (button order), `inputs[key]` = counts as a JSON object (`{"GFCI":4,"Standard":6}`). Answered = at least one selected;
+  `visibleIf {includes}` reads `values` so it matches selected options. Report: "GFCI (4), Standard (6)", "GFCI" or "None".
+- **`replaces`, started inspections:** a saved list that still has any replaced label as a non-countChoice line (old "Receptacles"
+  single, "GFCI" Yes/No, Oct 29 count fields — matched by label + type, since the new item is often also "Receptacles") never gets
+  the new item (`ChecklistEngine.hasReplacedItems` guard in `mergeAdded`). Such a list is brought up to date against the frozen
+  v1.12.0 list of that section (`assets/legacy/checklists-v1.12.0-receptacles.json`, `ChecklistLoader.loadLegacy`) instead of
+  v1.13.0, so it shows exactly what v0.24.0 showed — including the Oct 29 counts / "Non GFCI" that v0.24.0 merged in memory into
+  snapshots taken before v1.12 — and every answer typed then stays visible and printed. New inspections get the new item.
+- **`replaces`, company overrides** (`ChecklistEngine.replaceItems`, in `upgradeEdits` on load): the old lines under the same
+  sub-header are swapped for the new item at the first one's position; the company's other edits (renames, order, removals) are
+  kept. Manage checklist shows the item's options read-only ("GFCI + count"); rename / move / delete work like any item; Restore
+  original works as before.
+- **Report quality copy (client Oct 30):** no `EXTRA_BCC` on the report email any more (the phone's mail app showed the Bcc line
+  to the inspector); the state-document email never had one. The master-admin setting (On/Off + address) stays; its text says the
+  VIMS server sends a separate copy. `TODO(backend)` in `shareReport`: until the server send exists no quality copy is sent.
+- Verified by installing over v0.24.0 with an in-progress High Detail inspection holding old receptacle answers (Attic snapshot
+  from before v1.12 with "Non GFCI" + counts 2 / 7, Garage GFCI + 4 / 6, Kitchen 5 / 3, Landscaping, Bathroom 1): all kept, no
+  duplicate item; a new inspection shows the combined item. Screenshots `screenshots/oct30-*`. Test APK
+  `../../VIMS-Android-test-v0.25.0-2026-10-30.apk` (debug-signed like v0.24.0, installs over it).
