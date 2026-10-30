@@ -1,6 +1,6 @@
 {
  "_about": "VIMS shared checklist + configuration data. Single source of truth for the native iOS (SwiftUI) and Android (Kotlin/Compose) apps. Extracted from the client-approved prototype (index.html, approved Sep 15, 2026). Edit here, not in app code.",
- "version": "1.13.0",
+ "version": "1.14.0",
  "generated": "2026-10-30",
  "depths": [
   {
@@ -112,6 +112,12 @@
     "Sewer Scope",
     "Asbestos",
     "Wind Mitigation"
+   ]
+  },
+  {
+   "group": "Planned Maintenance",
+   "sections": [
+    "Planned Maintenance Recommendations"
    ]
   },
   {
@@ -31728,6 +31734,67 @@
      ]
     }
    ]
+  },
+  {
+   "name": "Planned Maintenance Recommendations",
+   "number": 99,
+   "icon": "file",
+   "notes": true,
+   "photoCategories": [],
+   "items": [
+    {
+     "q": "Recommendation 1",
+     "type": "text",
+     "maxLength": 300,
+     "placeholder": "e.g. Replace the furnace filter every 1–3 months"
+    },
+    {
+     "q": "Recommendation 2",
+     "type": "text",
+     "maxLength": 300,
+     "placeholder": "e.g. Flush the water heater once a year"
+    },
+    {
+     "q": "Recommendation 3",
+     "type": "text",
+     "maxLength": 300
+    },
+    {
+     "q": "Recommendation 4",
+     "type": "text",
+     "maxLength": 300
+    },
+    {
+     "q": "Recommendation 5",
+     "type": "text",
+     "maxLength": 300
+    },
+    {
+     "q": "Recommendation 6",
+     "type": "text",
+     "maxLength": 300
+    },
+    {
+     "q": "Recommendation 7",
+     "type": "text",
+     "maxLength": 300
+    },
+    {
+     "q": "Recommendation 8",
+     "type": "text",
+     "maxLength": 300
+    },
+    {
+     "q": "Recommendation 9",
+     "type": "text",
+     "maxLength": 300
+    },
+    {
+     "q": "Recommendation 10",
+     "type": "text",
+     "maxLength": 300
+    }
+   ]
   }
  ],
  "checklistBuilder": {
@@ -31897,6 +31964,13 @@
     "optional": "testOptions"
    },
    {
+    "heading": "Planned Maintenance",
+    "icon": "file",
+    "always": [
+     "Planned Maintenance Recommendations"
+    ]
+   },
+   {
     "heading": "Summary",
     "link": "summary",
     "icon": "list"
@@ -31905,7 +31979,8 @@
   "_notes": "'?' = included when selected in wizard step 3 rooms; '×n' = repeated per count. Admin-added custom sections are appended to the end of their group (Exterior, Interior, Utility, Testing).",
   "_formNotes": "Sections with 'form' (texas | fourPoint) are client-supplied state/insurance forms: ignore checklist depth (always show 'items'), no Overall condition row, badge = formLabels[form]. 'photosOnly' sections have no items: opening one goes straight to the photo screen, whose primary button is 'Save & continue to summary' (or '… to report' when the layout has no Summary). Layouts without a Summary entry (4 Point) hide 'Review summary'.",
   "_testsOnlyAbout": "Client Oct 25 (areas locked for Tests Only): the checklist is Inspection Info + the tests selected in wizard step 4 + Summary. No exterior / interior / utility sections.",
-  "_restoreAbout": "Client Oct 28: Manage checklist (company admins) gets 'Restore original' per section and 'Restore entire checklist to original'. Restoring removes the company's edits (renamed/added/removed items and sections) and returns to the VIMS default from this file. Confirm first; inspections already started keep their saved checklist. Client Oct 28 (2nd email): the Restore block sits at the TOP of Manage checklist with two buttons in the client's words: 'Restore all checklists' (whole checklist) and 'Restore selected checklists' (each section is one checklist; a picker lists only Edited / Added sections with checkboxes, then one confirm naming them; an Added section is removed). Both disabled when nothing is edited."
+  "_restoreAbout": "Client Oct 28: Manage checklist (company admins) gets 'Restore original' per section and 'Restore entire checklist to original'. Restoring removes the company's edits (renamed/added/removed items and sections) and returns to the VIMS default from this file. Confirm first; inspections already started keep their saved checklist. Client Oct 28 (2nd email): the Restore block sits at the TOP of Manage checklist with two buttons in the client's words: 'Restore all checklists' (whole checklist) and 'Restore selected checklists' (each section is one checklist; a picker lists only Edited / Added sections with checkboxes, then one confirm naming them; an Added section is removed). Both disabled when nothing is edited.",
+  "_notesSectionAbout": "Client Oct 30: 'Planned Maintenance Recommendations' = 10 blank lines where the inspector writes maintenance reminders (e.g. replace the furnace filter, flush the water heater yearly). Sections with notes:true: ignore checklist depth (High Detail / Standard / Fast all show the same 'items' as editable text lines, like form sections), no Overall condition row, no photo categories or photo button, no Concerns/flag. Each line is free text up to maxLength characters, the field grows to show the whole entry. Every line is optional: the section never blocks completion and does not count toward progress until something is written; Save marks it Done as usual. Position: in standardLayout it is its own heading right after the last checklist group (after Testing) and right before Summary, so it is the last section before the Summary. Only in standardLayout (not Texas, 4 Point, Phase 1/2 or Tests Only). Existing not-yet-reported inspections on a standard layout get the section too (it is blank, so nothing else changes). Report: printed after the last checklist section and before the Summary, titled 'Planned Maintenance Recommendations', as a numbered list of only the lines that were filled (renumbered 1, 2, 3 … with no gaps); if every line is blank the section is left out of the report. Company checklist editor treats it like any section (rename / add / remove lines; Restore original works)."
  },
  "wizard": {
   "steps": [
