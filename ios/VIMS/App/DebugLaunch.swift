@@ -29,6 +29,8 @@ enum DebugFlags {
     static var markupZoom: CGFloat?
     /// -scrollToItem Q: the section screen scrolls to the first checklist item with question Q.
     static var scrollToItem: String?
+    /// -openGroup HEADING: the Sections screen opens with only that group expanded (e.g. "Planned Maintenance").
+    static var openGroup: String?
 }
 
 #if DEBUG
@@ -64,6 +66,11 @@ enum DebugFlags {
 ///                              Standard 6, Garage GFCI 2, Kitchen None, Bathroom 1 Standard) and mark those sections done
 ///   -oldReceptacleEdit NAME    a company edit of NAME saved with the v1.12 receptacle items (the catalog swaps them)
 ///   -oct30Status               print OCT30TEST lines (items, kept checklists, answers, report lines)
+///   -oct30bFill                data v1.14: write Planned Maintenance Recommendations lines 1, 2 and 5 on the chosen
+///                              inspection (2–4 and 6–10 blank → the report prints 1, 2, 3); -oct30bLong adds a 300-character line 7
+///   -oct30bStatus              print OCT30BTEST lines (every inspection: headings in order, the new section, statuses,
+///                              progress, kept checklists, report notes list)
+///   -openGroup HEADING         with -screen sections: only that group expanded (e.g. "Planned Maintenance")
 ///   -state XX                  set the chosen inspection's property state (OK summary disclosure, OR cover notice)
 ///   -cover "C|Cat|Opt|Style"   set the chosen inspection's report cover (e.g. "Blue|Holidays|4th of July|Shaded")
 ///   -wizState TX[,UT]          pick those states in order when the wizard opens (prints STATETEST lines)
@@ -263,6 +270,45 @@ enum DebugLaunch {
                 return nil
             }
             print("OCT29TEST report \(s.name): \(lines)")
+        }
+    }
+
+    /// Client Oct 30, 2nd round (data v1.14, Planned Maintenance Recommendations) — see -oct30bFill / -oct30bStatus.
+    @MainActor
+    static func seedOct30b(_ store: AppStore, _ id: UUID) {
+        let pm = "Planned Maintenance Recommendations"
+        if has("-oct30bFill"), let i = store.inspection(id), i.leafSections.contains(pm) {
+            var a = i.answers[pm] ?? store.defaultAnswers(pm)
+            let keyed = ItemKeys.keyed(store.catalog(for: i).items(pm, depth: i.depth).items).filter { !$0.item.isHeader }
+            let fills = [0: "Replace the furnace filter every 1–3 months.",
+                         1: "Flush the water heater once a year to clear sediment.",
+                         4: "Clean the gutters and downspouts each fall and spring; keep downspout extensions directing water at least 6 feet from the foundation."]
+            for (n, t) in fills where keyed.indices.contains(n) { a.text[keyed[n].id] = t }
+            if has("-oct30bLong"), keyed.indices.contains(6) {
+                let long = String(repeating: "Test the smoke and carbon monoxide alarms monthly and replace the batteries each year. ", count: 4)
+                a.text[keyed[6].id] = String(long.prefix(keyed[6].item.maxLength ?? 300))
+            }
+            let answers = a
+            store.update(id, markDirty: false) { $0.answers[pm] = answers; $0.status[pm] = .done }
+            print("OCT30BTEST filled \(answers.text.keys.sorted())")
+        }
+        guard has("-oct30bStatus") else { return }
+        for i in store.inspections {
+            let c = store.catalog(for: i)
+            let all = i.leafSections, counted = store.progressSections(i)
+            let done = counted.filter { i.status[$0] == .done }.count
+            let pct = counted.isEmpty ? 0 : Int((Double(done) / Double(counted.count) * 100).rounded())
+            print("OCT30BTEST insp=\(i.addressLine1) type=\(i.inspType) depth=\(i.depth.rawValue) version=\(i.checklistVersion ?? "nil") reported=\(i.report != nil) kept=\((i.savedSections ?? [:]).keys.sorted())")
+            print("OCT30BTEST   headings=\(i.groups.map(\.heading))")
+            print("OCT30BTEST   sections=\(all.count) counted=\(counted.count) done=\(done) progress=\(pct)% answers=\(i.answers.count) photos=\(i.photos.values.reduce(0) { $0 + $1.values.reduce(0) { $0 + $1.count } }) findings=\(i.findings.count)")
+            if all.contains(pm) {
+                let items = c.items(pm, depth: i.depth).items
+                print("OCT30BTEST   \(pm) status=\(i.status[pm].map { "\($0)" } ?? "nil") label=\(store.statusLabel(i, pm)) items=\(items.count) sameAtEveryDepth=\(Depth.allCases.allSatisfy { c.items(pm, depth: $0).items == items }) maxLength=\(Set(items.compactMap(\.maxLength))) photoCats=\(c.photoCategories(pm, depth: i.depth)) overall=\(store.defaultAnswers(pm, catalog: c).overall ?? "none")")
+            } else {
+                print("OCT30BTEST   \(pm) not in this inspection")
+            }
+            let data = ReportData.make(i, config: store.config, overrides: c.overrides, company: store.company, repo: store.files, logo: nil)
+            print("OCT30BTEST   report sections=\(data.sections.count) last=\(data.sections.last?.name ?? "-") notes=\(data.notesLists.map { "\($0.title): \($0.lines.enumerated().map { "\($0.offset + 1). \($0.element.prefix(40))" })" })")
         }
     }
 
@@ -701,6 +747,7 @@ enum DebugLaunch {
         if let z = value("-markupZoom").flatMap(Double.init) { DebugFlags.markupZoom = CGFloat(z) }
         if let q = value("-scrollToItem") { DebugFlags.scrollToItem = q }
         if let g = value("-group") { DebugFlags.adminGroup = g }
+        if let g = value("-openGroup") { DebugFlags.openGroup = g }
         // Screens that don't need an inspection.
         let general: [String: [Route]] = [
             "signup": [.signup], "forgot": [.forgot], "join": [.join], "wizard": [.wizard(editing: nil)],
@@ -742,6 +789,7 @@ enum DebugLaunch {
         if let mode = value("-oct17") { seedOct17(store, id, mode: mode) }
         seedOct29(store, id)
         id = seedOct30(store, id)
+        seedOct30b(store, id)
         let depth = store.inspection(id)?.depth ?? .standard
         let section = value("-section") ?? (ridge.leafSections.contains("Roof") ? (depth == .high ? "Outside Utilities" : "Roof") : (ridge.leafSections.first ?? "Roof"))
 

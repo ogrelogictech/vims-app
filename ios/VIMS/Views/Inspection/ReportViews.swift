@@ -121,7 +121,10 @@ struct ReportView: View {
     var body: some View {
         if let insp = store.inspection(inspectionID) {
             let cat = store.catalog(for: inspectionID)
-            let done = cat.sortedForReport(insp.leafSections.filter { insp.status[$0] == .done })
+            // v1.14 notes sections (Planned Maintenance) are included when a line is filled (Done or not), never when blank.
+            let done = cat.sortedForReport(insp.leafSections.filter {
+                cat.isNotes($0) ? !cat.notesLines($0, insp.answers[$0]).isEmpty : insp.status[$0] == .done
+            })
             Screen(title: "Generate report", subtitle: insp.addressLine1,
                    actions: [HeaderAction(symbol: "hdr-sections", label: "Sections") { store.popToSections(inspectionID) }, store.homeAction()]) {
                 // iPad landscape: cover on the left, contents and the generate buttons on the right.
@@ -168,7 +171,7 @@ struct ReportView: View {
             }
             ForEach(Array(done.enumerated()), id: \.element) { i, n in
                 HStack {
-                    Text(String(format: "%02d", cat.number(n))).font(VFont.mono(14, .semibold)).foregroundStyle(VC.brandDeep)
+                    Text(ChecklistCatalog.numberLabel(cat.number(n))).font(VFont.mono(14, .semibold)).foregroundStyle(VC.brandDeep)
                         .frame(width: 30, alignment: .leading)
                     Text(cat.title(n)).font(VFont.ui(14)).foregroundStyle(VC.ink)
                     Spacer()

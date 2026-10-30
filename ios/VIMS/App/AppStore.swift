@@ -285,11 +285,12 @@ final class AppStore {
         }
         // Data v1.13 (client Oct 30): inspections created before 0.25.0 keep the receptacle items they were started with.
         // Teammates' inspections on this device too, before anyone can edit the company checklist in this build.
-        for i in inspections.indices where keepStartedChecklist(&inspections[i]) {
+        // Data v1.14 (client Oct 30, 2nd): not-yet-reported standard inspections get the Planned Maintenance heading.
+        for i in inspections.indices where upgradeStarted(&inspections[i]) {
             repo.saveInspection(inspections[i], userID: u.id, companyID: c.id)
         }
         for member in c.profile.inspectors where member.id != u.id && repo.user(id: member.id)?.companyID == c.id {
-            for var insp in repo.inspections(userID: member.id) where keepStartedChecklist(&insp) {
+            for var insp in repo.inspections(userID: member.id) where upgradeStarted(&insp) {
                 repo.saveInspection(insp, userID: member.id, companyID: c.id)
             }
         }
@@ -467,6 +468,45 @@ final class AppStore {
         return true
     }
 
+    /// What an inspection saved by an earlier build gets on load (both run; true when either changed it):
+    /// `keepStartedChecklist` (v1.13) and `addingNotesHeadings` (v1.14).
+    func upgradeStarted(_ insp: inout Inspection) -> Bool {
+        let kept = keepStartedChecklist(&insp)
+        let added = addingNotesHeadings(&insp)
+        return kept || added
+    }
+
+    /// Data v1.14 (client Oct 30, 2nd round): a standard-layout heading whose sections are all `notes` sections (Planned
+    /// Maintenance → "Planned Maintenance Recommendations") is added to a not-yet-reported standard inspection created
+    /// before it existed, in its layout place (right before Summary). The section starts Not started and blank; a blank
+    /// notes section never counts toward progress (`progressSections`), so a finished inspection stays at 100%. Nothing
+    /// else changes: groups, statuses, answers, photos, findings and `savedSections` are left as they are. Phase / Texas /
+    /// 4 Point / Tests Only inspections (their own layout) and reported ones are skipped. Returns true when it changed.
+    @discardableResult
+    func addingNotesHeadings(_ insp: inout Inspection) -> Bool {
+        let builder = config.checklistBuilder
+        guard insp.report == nil, !insp.groups.isEmpty, builder.phaseTypes[insp.inspType] == nil else { return false }
+        let cat = catalog(for: insp)
+        var changed = false
+        for (li, e) in builder.standardLayout.enumerated() where e.link == nil && e.sub == nil {
+            let secs = (e.sections ?? []) + (e.always ?? [])
+            guard !secs.isEmpty, e.optional == nil, e.order == nil, secs.allSatisfy({ cat.isNotes($0) }) else { continue }
+            let have = Set(insp.leafSections)
+            let missing = secs.filter { !have.contains($0) }
+            guard !missing.isEmpty else { continue }
+            if let gi = insp.groups.firstIndex(where: { $0.heading == e.heading && $0.link == nil }) {
+                insp.groups[gi].sections += missing
+            } else {
+                let later = Set(builder.standardLayout[(li + 1)...].map(\.heading))
+                let at = insp.groups.firstIndex { later.contains($0.heading) } ?? insp.groups.count
+                insp.groups.insert(ChecklistGroup(heading: e.heading, icon: e.icon, link: nil, sections: missing, sub: nil), at: at)
+            }
+            for n in missing where insp.status[n] == nil { insp.status[n] = .todo }
+            changed = true
+        }
+        return changed
+    }
+
     /// Wizard "Build checklist": creates (or updates) the inspection and its section list.
     @discardableResult
     func buildChecklist(from draft: Inspection) -> UUID {
@@ -539,7 +579,7 @@ final class AppStore {
     }
 
     func defaultAnswers(_ section: String, catalog cat: ChecklistCatalog) -> SectionAnswers {
-        SectionAnswers(overall: cat.isForm(section) ? nil : config.overallConditionDefault)
+        SectionAnswers(overall: cat.isForm(section) || cat.isNotes(section) ? nil : config.overallConditionDefault)
     }
 
     func answers(_ id: UUID, _ section: String) -> SectionAnswers {
@@ -579,6 +619,26 @@ final class AppStore {
     /// Overall condition): what moves a section / inspection to In progress.
     func hasEnteredContent(_ insp: Inspection, _ section: String, _ a: SectionAnswers) -> Bool {
         a.hasContent && a.hasContent(ignoring: roomNumberDefaults(insp, section))
+    }
+
+    /// Data v1.14 `notes` section (Planned Maintenance Recommendations) with nothing written in it: optional, so it is
+    /// left out of the progress count and shows "Optional" until something is written.
+    func isBlankNotes(_ insp: Inspection, _ section: String, catalog cat: ChecklistCatalog? = nil) -> Bool {
+        guard (cat ?? catalog(for: insp)).isNotes(section) else { return false }
+        return !(insp.answers[section].map { hasEnteredContent(insp, section, $0) } ?? false)
+    }
+
+    /// The status pill text: "Optional" for a blank notes section that isn't Done, else Done / In progress / Not started.
+    func statusLabel(_ insp: Inspection, _ section: String) -> String {
+        let st = insp.status[section] ?? .todo
+        return st != .done && isBlankNotes(insp, section) ? "Optional" : st.label
+    }
+
+    /// The sections the progress bar and the group counts use: every section, except a notes section with nothing
+    /// written in it (client Oct 30: it never blocks completion and counts only once something is written).
+    func progressSections(_ insp: Inspection, _ sections: [String]? = nil) -> [String] {
+        let cat = catalog(for: insp)
+        return (sections ?? insp.leafSections).filter { !isBlankNotes(insp, $0, catalog: cat) }
     }
 
     /// Photos-only sections (Pictures) open straight on their photo screen.

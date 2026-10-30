@@ -172,9 +172,15 @@ struct SectionDef: Codable, Hashable {
     /// tiers) when the edit was saved. Items the JSON gains later (e.g. v1.9.2's Phase 2 shower pan items) are then added
     /// to the edited section instead of being hidden by it; items the admin deleted stay deleted. nil on older overrides.
     var baseItems: [String]? = nil
+    /// v1.14 `notes` (client Oct 30, "Planned Maintenance Recommendations"): every item is an optional free-text line; the
+    /// section ignores the checklist depth (always `items`), has no Overall condition, photos or Concerns / flag, never
+    /// blocks completion, counts toward progress only once something is written, and prints only its filled lines as a
+    /// numbered list before the Summary (`_notesSectionAbout`).
+    var notes: Bool? = nil
 
     var isForm: Bool { form != nil || formReport != nil }
     var isPhotosOnly: Bool { photosOnly == true }
+    var isNotes: Bool { notes == true }
 }
 
 struct ItemDef: Codable, Hashable {
@@ -220,6 +226,8 @@ struct ItemDef: Codable, Hashable {
     /// A company checklist copy still holding them gets this item in their place (`ChecklistCatalog.swappingReplaced`);
     /// a started inspection's saved checklist keeps them and never gets this item added (`ChecklistCatalog.adding`).
     var replaces: [String]? = nil
+    /// v1.14 `maxLength` (text items, e.g. the Planned Maintenance lines: 300): the most characters the answer may have.
+    var maxLength: Int? = nil
 
     /// Decimal places a `num` answer may have while typing: 0 for `integer`, else `decimals`, else 2.
     var numDecimals: Int { integer == true ? 0 : max(0, decimals ?? 2) }

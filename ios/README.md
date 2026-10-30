@@ -928,3 +928,45 @@ Screenshots: `screenshots/oct12-*.png` — `ipad-01…18` 13" (landscape 01–13
   Receptacles GFCI + GFCI Yes, Bathroom 1 GFCI No, Kitchen counts 5 / 4 + Receptacles GFCI Yes, Garage Non GFCI + 2 / 6)
   upgraded in place: every old item and answer intact, no duplicate keys, report lines unchanged; a new inspection shows
   the combined item. Screenshots `screenshots/oct30-*.png`.
+
+### iOS 0.26.0 (27) — client Oct 30, 2nd round (shared v1.14.0)
+
+- **Version**: `MARKETING_VERSION` 0.26.0, `CURRENT_PROJECT_VERSION` 27 in every configuration. Bundle identifier
+  unchanged (`com.vims.app`).
+- **Planned Maintenance Recommendations** (data v1.14 `notes: true`, `_notesSectionAbout`): `SectionDef.notes` /
+  `isNotes`, `ItemDef.maxLength`. `ChecklistCatalog.items` ignores the depth for notes sections (High Detail, Standard
+  and Fast all show the same 10 lines), `photoCategories` is empty, `defaultAnswers` has no Overall condition.
+  `SectionEntryView.notesContent`: one `NotesLineCard` per line (label, the JSON placeholder, a text field that grows to
+  show the whole entry, capped at the item's `maxLength` 300 while typing, a count from 260 characters, Return closes
+  the keyboard). No Overall condition, photo buttons, Concerns / Flag a finding or Comments box (only the lines print).
+  Nothing is validated: Save / Save & next work when every line is blank. Answers are `SectionAnswers.text[key]` like
+  any text item (no new stored fields).
+- **Progress**: `AppStore.progressSections` leaves out a notes section with nothing written (`isBlankNotes`), so it
+  never blocks 100% and counts only once something is written; its pill reads "Optional" (group count "Optional"
+  instead of 0/0) until it is Done or written in.
+- **Layout**: the new standardLayout heading "Planned Maintenance" sits right before Summary (only the standard
+  layout; Phase 1/2, Texas, 4 Point and Tests Only have their own). New inspections get it from `buildGroups`.
+  Existing not-yet-reported standard inspections get it on sign-in (`AppStore.addingNotesHeadings`, via
+  `upgradeStarted` with the v1.13 `keepStartedChecklist`, the user's and teammates' inspections on the device): the
+  heading is inserted before the next layout heading present (Summary) and the section starts Not started. Groups,
+  statuses, answers, photos, findings, `savedSections` and `checklistVersion` are otherwise untouched; reported
+  inspections are skipped.
+- **Report**: `ReportData.notesLists` — after the last checklist section's pages (and their photo pages), right before
+  the Summary of Findings: "Planned Maintenance Recommendations" with only the filled lines as a numbered list
+  (renumbered 1, 2, 3 …, whole entry wrapped). Printed when any line is filled (whatever the section status), left out
+  when every line is blank. Generate report → Report contents lists it the same way.
+- **Section numbers 99+** (no checklist number: Planned Maintenance, Phase 2 sections, added sections) show "—"
+  instead of "99" in the PDF section bands and Report contents (`ChecklistCatalog.numberLabel`), like Android and the
+  prototype.
+- **Manage checklist**: the "Planned Maintenance" group (file icon) lists the section like any other. Edit section
+  shows each line as "Text line · optional · up to 300 characters" (type fixed), "Add line" adds "Recommendation 11"
+  (next free number, 300 characters); rename / move / delete, Save, the Edited pill and Restore original work as for
+  any section (started inspections keep their saved checklist on restore, as before).
+- DEBUG: `-oct30bFill` (lines 1, 2 and 5; `-oct30bLong` adds a 300-character line 7), `-oct30bStatus` (OCT30BTEST
+  lines), `-openGroup HEADING` (Sections screen with only that group open).
+- Verified on iPhone 17 Pro Max (iOS 26.5): a 0.25.0 (26) build seeded with an in-progress High Detail inspection
+  (receptacle answers, 10 photos, 6 findings, a kept Kitchen checklist from a company edit + restore), a finished but
+  not-reported one (all 34 sections Done) and two reported ones, then 0.26.0 installed over it. Stored records compared
+  before / after: the two unreported ones changed only by the added heading and its Not started status; answers,
+  photos, findings, savedSections, checklistVersion and report identical; the reported ones unchanged; the finished one
+  stays 100%; OCT30TEST receptacle lines identical. Screenshots `screenshots/oct30b-*.png`.

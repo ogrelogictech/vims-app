@@ -13,7 +13,8 @@ struct SectionsOverviewView: View {
 
     var body: some View {
         if let insp = store.inspection(inspectionID) {
-            let leafs = insp.leafSections
+            // A blank Planned Maintenance (v1.14 `notes`) section is optional: not counted until something is written.
+            let leafs = store.progressSections(insp)
             let done = leafs.filter { insp.status[$0] == .done }.count
             let pct = leafs.isEmpty ? 0 : Int((Double(done) / Double(leafs.count) * 100).rounded())
             Screen(title: "Sections", subtitle: insp.addressLine1, actions: [store.homeAction()]) {
@@ -39,6 +40,9 @@ struct SectionsOverviewView: View {
                 if !didInit {
                     didInit = true
                     if let first = insp.groups.first(where: { $0.link == nil }) { open = [first.heading] }
+                    #if DEBUG
+                    if let g = DebugFlags.openGroup { DebugFlags.openGroup = nil; open = [g] }
+                    #endif
                 }
             }
         } else {
@@ -130,10 +134,13 @@ struct GroupAccordion: View {
                 .buttonStyle(PressableStyle())
             } else {
                 let leafs = group.leafSections
-                let done = leafs.filter { insp.status[$0] == .done }.count
+                let counted = store.progressSections(insp, leafs)
+                let done = counted.filter { insp.status[$0] == .done }.count
                 Button(action: toggle) {
                     header(trailing: AnyView(HStack(spacing: 8) {
-                        Text("\(done)/\(leafs.count)").font(VFont.mono(11)).foregroundStyle(VC.ink3)
+                        // Only blank optional notes sections (Planned Maintenance): "Optional" instead of "0/0".
+                        Text(counted.isEmpty && !leafs.isEmpty ? "Optional" : "\(done)/\(counted.count)")
+                            .font(VFont.mono(11)).foregroundStyle(VC.ink3)
                         ProtoIcon("chevron-down", size: 18).foregroundStyle(VC.ink3)
                             .rotationEffect(.degrees(isOpen ? 180 : 0))
                     }))
@@ -182,7 +189,7 @@ struct GroupAccordion: View {
             HStack(spacing: 12) {
                 StatusDot(status: st, size: 9)
                 Text(store.catalog(for: insp).title(n)).font(VFont.ui(14, .medium)).foregroundStyle(VC.ink).frame(maxWidth: .infinity, alignment: .leading)
-                Pill(kind: st.pillKind, text: st.label)
+                Pill(kind: st.pillKind, text: store.statusLabel(insp, n))
             }
             .padding(.leading, 18).padding(.trailing, 15).padding(.vertical, 12)
             .frame(minHeight: 44)
@@ -331,7 +338,7 @@ struct SectionsDrawer: View {
                 StatusDot(status: st, size: 8)
                 Text(store.catalog(for: insp).title(n)).font(VFont.ui(13.5, on ? .semibold : .regular)).foregroundStyle(on ? VC.brandDeep : VC.ink2)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                Pill(kind: st.pillKind, text: st.label)
+                Pill(kind: st.pillKind, text: store.statusLabel(insp, n))
             }
             .padding(.leading, 16).padding(.trailing, 13).padding(.vertical, 10)
             .frame(minHeight: 44)

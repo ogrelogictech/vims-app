@@ -33,6 +33,15 @@ struct ReportSection {
     let photos: [ReportPhoto]
 }
 
+/// A v1.14 `notes` section in the report (client Oct 30, "Planned Maintenance Recommendations"): only the filled lines, in
+/// checklist order, printed as a numbered list 1, 2, 3 … after the last checklist section and before the Summary.
+struct ReportNotesList {
+    let number: Int
+    let name: String
+    let title: String
+    let lines: [String]
+}
+
 /// Indoor Air Quality readings in the client's report format (data v1.7 `airReading` items + the section's
 /// `airQuality` block; report.html page 7 `.aqhead` / `.aqrow`). Every reading prints, blank when not taken.
 struct AirQualityTable {
@@ -85,6 +94,8 @@ struct ReportData {
     var concerns: String
     var hazards: String
     var sections: [ReportSection]
+    /// Data v1.14 notes sections with at least one filled line (standard layout; left out when every line is blank).
+    var notesLists: [ReportNotesList] = []
     var findings: [Finding]
     var categories: [FindingCategoryDef]
     var reviewURL: String
@@ -162,8 +173,9 @@ struct ReportData {
             ("Power is on", v("Power is on")), ("Gas is on", v("Gas is on")), ("Water is on", v("Water is on"))
         ]
 
-        // Sections: completed ones, in master-checklist number order.
-        let done = insp.leafSections.filter { insp.status[$0] == .done }
+        // Sections: completed ones, in master-checklist number order. v1.14 notes sections (Planned Maintenance) print
+        // apart, before the Summary, when a line is filled (whatever their status: they never block completion).
+        let done = insp.leafSections.filter { insp.status[$0] == .done && !cat.isNotes($0) }
         let ordered = cat.sortedForReport(done)
         var sections: [ReportSection] = []
         for name in ordered {
@@ -265,6 +277,11 @@ struct ReportData {
             categories: cfg.findings.categories,
             reviewURL: company.reviewURL
         )
+
+        data.notesLists = cat.sortedForReport(insp.leafSections.filter { cat.isNotes($0) }).compactMap { name in
+            let lines = cat.notesLines(name, insp.answers[name])
+            return lines.isEmpty ? nil : ReportNotesList(number: cat.number(name), name: name, title: cat.title(name), lines: lines)
+        }
 
         data.sectionTitles = Dictionary(uniqueKeysWithValues: Set(insp.leafSections + insp.findings.map(\.section)).map { ($0, cat.title($0)) })
 
@@ -407,6 +424,8 @@ enum ReportRenderer {
                         }
                     }
                     for s in data.sections where !s.photos.isEmpty && s.form == nil { w.photos(s) }
+                    // v1.14: Planned Maintenance Recommendations — after the last checklist section, right before the Summary.
+                    for n in data.notesLists { w.notesList(n) }
                     w.summary()
                 case .texas:
                     w.trecInfoPage()
@@ -872,7 +891,7 @@ enum ReportRenderer {
             ensure(44)
             let r = CGRect(x: m, y: y, width: contentW, height: 28)
             fill(r, brand, radius: 7)
-            let num = String(format: "%02d", number)
+            let num = ChecklistCatalog.numberLabel(number)     // "—" for 99+ (no checklist number)
             let nw = (num as NSString).size(withAttributes: [.font: VFont.uDisplay(11, .heavy)]).width + 12
             fill(CGRect(x: m + 10, y: y + 6, width: nw, height: 16), UIColor.white.withAlphaComponent(0.2), radius: 5)
             text(num, VFont.uDisplay(11, .heavy), .white, x: m + 10, y: y + 7, w: nw, align: .center)
@@ -928,6 +947,24 @@ enum ReportRenderer {
             if !s.findings.isEmpty {
                 blockLabel("Findings")
                 for f in s.findings { findingLine(f, number: nil) }
+            }
+        }
+
+        /// Data v1.14 `notes` section (client Oct 30): its title band, then only the filled lines as a numbered list (1, 2,
+        /// 3 … renumbered, no gaps), each wrapping to show the whole entry.
+        func notesList(_ n: ReportNotesList) {
+            newContentPage()
+            sectionTitle(n.number, n.title)
+            let f = VFont.uUI(9.6), nf = VFont.uUI(9.6, .bold)
+            let numW: CGFloat = 22, gap: CGFloat = 8
+            let tw = contentW - numW - gap - 8
+            for (i, line) in n.lines.enumerated() {
+                let h = measure(line, f, w: tw) + 12
+                ensure(h)
+                text("\(i + 1).", nf, brandDeep, x: m + 4, y: y + 6, w: numW, align: .right)
+                text(line, f, ink, x: m + 4 + numW + gap, y: y + 6, w: tw)
+                hline(y + h - 0.6, x: m, w: contentW, line2)
+                y += h
             }
         }
 

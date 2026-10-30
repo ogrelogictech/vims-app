@@ -18,9 +18,10 @@ struct SectionEntryView: View {
     var body: some View {
         if let insp = store.inspection(inspectionID) {
             ZStack {
+                // v1.14 notes sections (Planned Maintenance) have no photos: no Photos header button.
+                let notes = store.catalog(for: inspectionID).isNotes(section)
                 Screen(title: store.catalog(for: inspectionID).title(section), subtitle: insp.addressLine1,
-                       actions: [
-                        HeaderAction(symbol: "hdr-photos", label: "Photos") { store.push(.photos(inspectionID, section)) },
+                       actions: (notes ? [] : [HeaderAction(symbol: "hdr-photos", label: "Photos") { store.push(.photos(inspectionID, section)) }]) + [
                         HeaderAction(symbol: "hdr-sections", label: "Sections") { withAnimation(.easeOut(duration: 0.24)) { drawerOpen = true } },
                         store.homeAction()
                        ], errors: errors) {
@@ -68,6 +69,46 @@ struct SectionEntryView: View {
 
     @ViewBuilder
     private func content(_ insp: Inspection) -> some View {
+        if store.catalog(for: inspectionID).isNotes(section) {
+            notesContent(insp)
+        } else {
+            checklistContent(insp)
+        }
+    }
+
+    /// Data v1.14 `notes` section (client Oct 30, "Planned Maintenance Recommendations"): the same lines at every checklist
+    /// depth, each an optional free-text field that grows to show the whole entry (up to the item's `maxLength`, 300). No
+    /// Overall condition, photos, Concerns / flag or Comments box (only the lines print). Save works when blank.
+    @ViewBuilder
+    private func notesContent(_ insp: Inspection) -> some View {
+        let keyed = ItemKeys.keyed(store.catalog(for: inspectionID).items(section, depth: .standard).items)
+        ModeTile(depth: .high, customLabel: "Optional",
+                 customHint: "Write any maintenance reminders for the client, one per line. Only filled lines print in the report. Same on every checklist depth.")
+        LazyVStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(keyed.enumerated()), id: \.element.id) { idx, k in
+                if let h = k.item.header {
+                    HeaderBand(text: h, first: idx == 0)
+                } else {
+                    NotesLineCard(item: k.item, number: keyed[..<idx].filter { !$0.item.isHeader }.count + 1,
+                                  text: Binding(get: { answers.text[k.id] ?? "" },
+                                                set: { answers.text[k.id] = $0.isEmpty ? nil : $0 }))
+                }
+            }
+        }
+        if keyed.isEmpty {
+            Text("This section has no lines yet. Add some in Settings → Manage checklist.")
+                .font(VFont.ui(13)).foregroundStyle(VC.ink3).padding(.vertical, 8)
+        }
+        Button { save() } label: { IconLabel("Save", icon: "link-my-account") }
+            .buttonStyle(.vGhost)
+            .padding(.top, 12)
+        Button { saveNext() } label: { IconLabel("Save & next section", icon: "save-return-svg") }
+            .buttonStyle(.vPrimary)
+            .padding(.top, 10)
+    }
+
+    @ViewBuilder
+    private func checklistContent(_ insp: Inspection) -> some View {
         let isForm = store.catalog(for: inspectionID).isForm(section)
         // State/insurance forms ignore the checklist depth (always `items`, no detail box, no Fast Entry chips).
         let depth: Depth = isForm ? .standard : insp.depth
@@ -160,9 +201,10 @@ struct SectionEntryView: View {
             .padding(.top, 10)
     }
 
-    /// The answer-keyed items shown for this inspection's depth (forms ignore depth).
+    /// The answer-keyed items shown for this inspection's depth (forms and notes sections ignore depth).
     private func keyedItems(_ insp: Inspection) -> [KeyedItem] {
-        let depth: Depth = store.catalog(for: inspectionID).isForm(section) ? .standard : insp.depth
+        let cat = store.catalog(for: inspectionID)
+        let depth: Depth = cat.isForm(section) || cat.isNotes(section) ? .standard : insp.depth
         return ItemKeys.keyed(store.catalog(for: inspectionID).items(section, depth: depth).items)
     }
 
@@ -172,6 +214,8 @@ struct SectionEntryView: View {
     /// `airReading` levels: same filter, optional, 0 – 99,999 (a CO reading is often 0 ppm).
     private func valid() -> Bool {
         guard let insp = store.inspection(inspectionID) else { return true }
+        // Notes lines are optional free text (length capped while typing): nothing to validate, Save works when blank.
+        if store.catalog(for: inspectionID).isNotes(section) { return true }
         let isForm = store.catalog(for: inspectionID).isForm(section)
         let depth: Depth = isForm ? .standard : insp.depth
         guard depth != .fast else { return true }
@@ -423,7 +467,8 @@ struct ItemCard: View {
                         .padding(.top, 9)
                 }
             case .text:
-                VTextField(text: textBinding(\.text), placeholder: item.placeholder ?? "Enter a value", bottom: 0, kind: .plain(max: 500))
+                VTextField(text: textBinding(\.text), placeholder: item.placeholder ?? "Enter a value", bottom: 0,
+                           kind: .plain(max: item.maxLength ?? 500))
             case .date:
                 OptionalDateField(value: textBinding(\.text), components: .date, label: item.q ?? "Date")
             case .time:
@@ -452,6 +497,59 @@ struct ItemCard: View {
     private func textBinding(_ kp: WritableKeyPath<SectionAnswers, [String: String]>) -> Binding<String> {
         Binding(get: { answers[keyPath: kp][key] ?? "" },
                 set: { answers[keyPath: kp][key] = $0.isEmpty ? nil : $0 })
+    }
+}
+
+/// One line of a v1.14 `notes` section (Planned Maintenance Recommendations): the item's label, then a free-text field that
+/// grows with the entry so the whole text is always visible (no inner scrolling), capped at the item's `maxLength` (300)
+/// while typing, with the JSON placeholder ("e.g. Replace the furnace filter every 1–3 months") when empty. A line break
+/// typed with Return closes the keyboard (a pasted one becomes a space), so each line prints as one numbered entry. A
+/// character count shows near the limit.
+struct NotesLineCard: View {
+    let item: ItemDef
+    let number: Int
+    @Binding var text: String
+    @FocusState private var focused: Bool
+
+    static let defaultMax = 300
+    private var maxLength: Int { item.maxLength ?? Self.defaultMax }
+    private var label: String { item.q ?? "Line \(number)" }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(label)
+                .font(VFont.ui(13, .semibold)).foregroundStyle(VC.ink2)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityHidden(true)
+            FieldBox(focused: focused) {
+                FilteredField(text: Binding(get: { text }, set: { v in
+                                  // Return ends the line (closes the keyboard) instead of starting a second one.
+                                  var t = v
+                                  if t.contains("\n") {
+                                      focused = false
+                                      if t.hasSuffix("\n") { t.removeLast() }
+                                      t = t.replacingOccurrences(of: "\n", with: " ")
+                                  }
+                                  text = t
+                              }),
+                              kind: .plain(max: maxLength),
+                              prompt: Text(item.placeholder ?? "Optional").foregroundStyle(VC.placeholder), axis: .vertical)
+                    .lineLimit(1...)
+                    .lineSpacing(3)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .focused($focused)
+                    .submitLabel(.done)
+                    .accessibilityLabel(label)
+                    .accessibilityHint("Optional. Up to \(maxLength) characters.")
+            }
+            if text.count >= maxLength - 40 {
+                Text("\(text.count) / \(maxLength)")
+                    .font(VFont.mono(11)).foregroundStyle(text.count >= maxLength ? VC.c1 : VC.ink3)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .accessibilityLabel("\(text.count) of \(maxLength) characters")
+            }
+        }
+        .padding(.bottom, 13)
     }
 }
 

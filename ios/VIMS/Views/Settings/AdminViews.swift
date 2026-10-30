@@ -137,6 +137,7 @@ struct ManageChecklistView: View {
         case "Interior": return "sofa"
         case "Phase Inspections": return "layers"
         case "State & Insurance Forms": return "file"
+        case "Planned Maintenance": return "file"
         default: return "tree"
         }
     }
@@ -382,11 +383,12 @@ struct EditSectionView: View {
                     EditItemCard(edit: $e, errors: errors,
                                  canUp: e.id != items.first?.id, canDown: e.id != items.last?.id,
                                  move: { move(e.id, by: $0) },
-                                 delete: { items.removeAll { $0.id == e.id } })
+                                 delete: { items.removeAll { $0.id == e.id } },
+                                 notesLine: def.isNotes)
                 }
                 Button {
-                    items.append(EditItem(item: .question("New item", options: ["Yes", "No", "N/A"])))
-                } label: { IconLabel("Add item", icon: "hdr-add") }
+                    items.append(EditItem(item: def.isNotes ? newNotesLine() : .question("New item", options: ["Yes", "No", "N/A"])))
+                } label: { IconLabel(def.isNotes ? "Add line" : "Add item", icon: "hdr-add") }
                     .buttonStyle(.vGhost)
                 Button { save() } label: { IconLabel("Save & done", icon: "link-my-account") }
                     .buttonStyle(.vPrimary).padding(.top, 10)
@@ -426,6 +428,18 @@ struct EditSectionView: View {
             items = (def?.items ?? []).map { EditItem(item: $0) }
             if DebugFlags.validate, !items.isEmpty { DebugFlags.validate = false; items[0].item.q = ""; save() }
         }
+    }
+
+    /// Data v1.14 notes section (Planned Maintenance): a new line is an optional text line like the shipped ones
+    /// ("Recommendation 11", up to 300 characters, the next free number).
+    private func newNotesLine() -> ItemDef {
+        let taken = Set(items.compactMap { $0.item.q?.lowercased() })
+        let base = items.first { !$0.item.isHeader }?.item.q.map { $0.replacingOccurrences(of: #"\s*\d+$"#, with: "", options: .regularExpression) }
+        let stem = (base?.isEmpty == false ? base! : "Recommendation")
+        var n = items.filter { !$0.item.isHeader }.count + 1
+        while taken.contains("\(stem) \(n)".lowercased()) { n += 1 }
+        let max = items.compactMap(\.item.maxLength).max() ?? NotesLineCard.defaultMax
+        return ItemDef(q: "\(stem) \(n)", type: "text", options: nil, header: nil, placeholder: nil, maxLength: max)
     }
 
     private func commitTier() {
@@ -470,6 +484,8 @@ struct EditItemCard: View {
     let canDown: Bool
     let move: (Int) -> Void
     let delete: () -> Void
+    /// Data v1.14 notes section (Planned Maintenance): every line is a free-text line; its type is fixed here.
+    var notesLine = false
     @State private var newOption = ""
     @State private var focused = false
     @State private var confirmDelete = false
@@ -514,6 +530,12 @@ struct EditItemCard: View {
             if let e = errors["q-\(edit.id)"] { FieldError(text: e) }
             if edit.item.kind == .countChoice {
                 countChoiceSummary
+            } else if notesLine, !edit.item.isHeader {
+                Text("Text line · optional · up to \(edit.item.maxLength ?? NotesLineCard.defaultMax) characters")
+                    .font(VFont.ui(12, .semibold)).foregroundStyle(VC.ink2)
+                    .padding(.horizontal, 10).padding(.vertical, 5)
+                    .background(VC.paper3).clipShape(Capsule())
+                    .fixedSize(horizontal: false, vertical: true)
             } else if !edit.item.isHeader {
                 Menu {
                     ForEach(types, id: \.0) { t in

@@ -177,6 +177,10 @@ struct ChecklistCatalog {
 
     func number(_ name: String) -> Int { section(name)?.number ?? 99 }
 
+    /// How a section number is shown (report contents, PDF section bands): "07"; 99 and up mean "no checklist number"
+    /// (Phase 2 sections, Planned Maintenance Recommendations, added sections) and show "—" (matches Android / prototype).
+    static func numberLabel(_ n: Int) -> String { n >= 99 ? "—" : String(format: "%02d", n) }
+
     /// The name shown for a section (data v1.8 `title`, e.g. key "Septic" → "Septic System", "Termite" → "Wood Destroying
     /// Organism Inspection"), keeping a numbered instance's suffix ("Bathroom 2"). The key (`name`) is what inspections,
     /// answers, photos and findings store; only lists, headers, the wizard and the report show this.
@@ -201,6 +205,21 @@ struct ChecklistCatalog {
     }
 
     func isForm(_ name: String) -> Bool { section(name)?.isForm ?? false }
+    /// Data v1.14 `notes` section (Planned Maintenance Recommendations): optional free-text lines, same at every depth.
+    func isNotes(_ name: String) -> Bool {
+        (section(name)?.isNotes ?? false) || (config.sections.first { $0.name == Self.baseName(name) }?.isNotes ?? false)
+    }
+
+    /// The filled lines of a notes section, in checklist order, trimmed (blank lines left out): what the report prints as
+    /// its numbered list (renumbered 1, 2, 3 … with no gaps).
+    func notesLines(_ name: String, _ a: SectionAnswers?) -> [String] {
+        guard let a else { return [] }
+        return ItemKeys.keyed(items(name, depth: .standard).items).compactMap { k in
+            guard !k.item.isHeader else { return nil }
+            let t = (a.text[k.id] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            return t.isEmpty ? nil : t
+        }
+    }
     func isPhotosOnly(_ name: String) -> Bool { section(name)?.isPhotosOnly ?? false }
 
     /// Badge text for a form section (`formLabels[form]`).
@@ -225,10 +244,10 @@ struct ChecklistCatalog {
     }
 
     /// Items for a depth per `depthRules`: High uses itemsHigh when present, otherwise Standard.
-    /// State/insurance form sections ignore depth and always use `items` (`_formNotes`).
+    /// State/insurance form sections ignore depth and always use `items` (`_formNotes`); so do v1.14 `notes` sections.
     func items(_ name: String, depth: Depth) -> (items: [ItemDef], usingHigh: Bool) {
         guard let s = section(name) else { return ([], false) }
-        if s.isForm { return (resolvingCounts(s.items), false) }
+        if s.isForm || s.isNotes || isNotes(name) { return (resolvingCounts(s.items), false) }
         if depth == .high, let hi = s.itemsHigh, !hi.isEmpty { return (resolvingCounts(hi), true) }
         return (resolvingCounts(s.items), false)
     }
@@ -263,6 +282,7 @@ struct ChecklistCatalog {
 
     func photoCategories(_ name: String, depth: Depth) -> [String] {
         guard let s = section(name) else { return ["Overview", "Concerns"] }
+        if s.isNotes || isNotes(name) { return [] }     // v1.14 notes sections have no photos
         if s.isForm { return s.photoCategories.isEmpty ? ["Overview", "Concerns"] : s.photoCategories }
         if depth == .high, let hi = s.photoCategoriesHigh, !hi.isEmpty { return hi }
         return s.photoCategories.isEmpty ? ["Overview", "Concerns"] : s.photoCategories
