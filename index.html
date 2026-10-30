@@ -63,6 +63,12 @@
   textarea.txt{min-height:84px;resize:vertical;line-height:1.5}
   input.txt:focus,textarea.txt:focus{outline:2px solid var(--brand);outline-offset:1px;border-color:var(--brand)}
   input.txt::placeholder{color:#a7b4c2}
+  /* Planned Maintenance Recommendations (client Oct 30 (2)): one-line text fields that grow to show the whole entry */
+  textarea.txt.nltxt{min-height:48px;resize:none;overflow:hidden;line-height:1.45;display:block}
+  textarea.txt.nltxt::placeholder{color:#6b7886}
+  .li.nl .q{display:block;margin-bottom:9px}
+  .nlcount{font-size:12px;color:var(--ink-3);text-align:right;margin-top:5px}
+  .nlcount:empty{margin:0}
   .pwwrap{position:relative}
   .pwwrap input.txt{padding-right:48px}
   .pweye{position:absolute;top:50%;right:6px;transform:translateY(-50%);width:38px;height:38px;border:0;background:none;color:var(--ink-3);cursor:pointer;display:grid;place-items:center;border-radius:9px}
@@ -4183,6 +4189,14 @@ SEC['Wind Mitigation'].itemsHigh=[
   // master-checklist section numbers (drives report order — feedback item 13)
   var NUM={'Inspection Info':1,'Landscaping':2,'Condo':3,'Pool House & Pool':3,'Additional Living Space':4,'Outbuilding – Shed':5,'Outbuilding – Car Port':6,'Mobile Home Undercarriage':7,'Roof':8,'Exterior Walls':10,'Outside Utilities':11,'Deck':12,'Patio':12,'Balcony':13,'Garage':14,'Detached Garage':14,'Attic':15,'Bathroom':16,'Bedroom':17,'Hallway':18,'Living Room':19,'Reception':20,'Den / Home Office':21,'Family Room':22,'Kitchen':23,'Dining Room':24,'Laundry Room':25,'Storage Room':26,'Utility Room':26,'Electrical':27,'HVAC Mechanical':28,'Heating Oil Tank':29,'Boiler':30,'Water Heater':31,'Plumbing':32,'Foundation / Crawl Space':33,'Radon':34,'Meth Test':35,'Thermal Audit':36,'Termite':37,'Lead':38,'Indoor Air Quality':39,'Septic':40,'Wind Mitigation':41,'Chimney':42,'Sewer Scope':40,'Asbestos':37,'Summary':43};
   NUM['Propane Tank']=30;
+  // ---------- Planned Maintenance Recommendations (client Oct 30 (2), shared v1.14.0 checklistBuilder._notesSectionAbout) ----------
+  // notes:true = 10 optional free-text lines (max 300 chars), same at every depth, no Overall condition / photos / Concerns.
+  // Own heading in the standard layout only, right before Summary. Report: numbered list of the filled lines, left out when all blank.
+  SEC['Planned Maintenance Recommendations']={icon:'file',notes:true,pics:[],items:(function(){ var a=[]; for(var i=1;i<=10;i++){ var it={q:'Recommendation '+i,t:'text',max:300}; if(i===1) it.ph='e.g. Replace the furnace filter every 1–3 months'; if(i===2) it.ph='e.g. Flush the water heater once a year'; a.push(it); } return a; })()};
+  NUM['Planned Maintenance Recommendations']=99;
+  var NOTEANS={}; // section name -> {item label: text}
+  function isNotesSec(n){ var s=SEC[baseName(n)]; return !!(s&&s.notes); }
+  function noteLines(n){ var s=SEC[baseName(n)]||{items:[]}, a=NOTEANS[n]||{}; return (s.items||[]).filter(function(it){return it.q;}).map(function(it){ return String(a[it.q]||'').trim(); }).filter(Boolean); }
   // ---------- state & insurance forms (client-supplied templates) ----------
   // Texas: TREC Property Inspection Report form REI 7-6 (8/9/21). Every item is marked I / NI / NP / D + comments.
   var TREC_STATUS=['I · Inspected','NI · Not Inspected','NP · Not Present','D · Deficient'];
@@ -4225,6 +4239,7 @@ SEC['Wind Mitigation'].itemsHigh=[
     ['Interior',['Garage','Attic','Bathroom','Bedroom','Hallway','Living Room','Den / Home Office','Family Room','Reception','Kitchen','Dining Room','Laundry Room','Storage Room','Additional Living Space']],
     ['Utility',['Utility Room','HVAC Mechanical','Electrical','Water Heater','Boiler','Heating Oil Tank','Propane Tank','Plumbing','Foundation / Crawl Space']],
     ['Testing',['Radon','Meth Test','Thermal Audit','Termite','Lead','Indoor Air Quality','Septic','Sewer Scope','Asbestos','Wind Mitigation']],
+    ['Planned Maintenance',['Planned Maintenance Recommendations']],
     ['State & Insurance Forms',TEXAS_SECS.concat(['Texas — Pictures']).concat(FOURPT_SECS).concat(['4-Point — Pictures'])],
     ['Phase Inspections',['Phase 1 — Foundation','Phase 2 — Exterior','Phase 2 — Framing & Interior','Phase 2 — Floor System','Phase 2 — Plumbing','Phase 2 — Electrical','Phase 2 — HVAC']]
   ];
@@ -4272,6 +4287,7 @@ SEC['Wind Mitigation'].itemsHigh=[
       {h:'Property Exterior',icon:'tree',secs:ext},
       {h:'Property Interior',icon:'sofa',secs:interior,sub:{h:'Utility & Function',secs:util}},
       {h:'Testing',icon:'flask',secs:tests},
+      {h:'Planned Maintenance',icon:'file',secs:['Planned Maintenance Recommendations']}, // client Oct 30 (2): last section before the Summary, standard layout only
       {h:'Summary',icon:'list',link:'s-summary'}
     ];
   }
@@ -4324,7 +4340,7 @@ SEC['Wind Mitigation'].itemsHigh=[
     else { lic.innerHTML=HSVG.back; li.setAttribute('data-mode','back'); li.setAttribute('aria-label','Back'); }
     var acts;
     if(isHome){ acts=[['add','New inspection']]; }
-    else if(id==='s-section'){ acts=[['photos','Photos'],['sections','Sections'],['home','Home']]; }
+    else if(id==='s-section'){ acts=isNotesSec(curSection)?[['sections','Sections'],['home','Home']]:[['photos','Photos'],['sections','Sections'],['home','Home']]; }
     else if(id==='s-sections'){ acts=[['home','Home']]; }
     else if(INSP.indexOf(id)>=0){ acts=[['sections','Sections'],['home','Home']]; }
     else { acts=[['home','Home']]; }
@@ -4338,7 +4354,8 @@ SEC['Wind Mitigation'].itemsHigh=[
 
   // ---------- progress ----------
   function updateProgress(){
-    var leafs=leafSecs(); var done=0; leafs.forEach(function(n){ if(STATUS[n]==='done') done++; });
+    var leafs=leafSecs().filter(function(n){ return !isNotesSec(n) || STATUS[n]==='done' || noteLines(n).length; }); // optional notes lines never hold back progress
+    var done=0; leafs.forEach(function(n){ if(STATUS[n]==='done') done++; });
     var total=leafs.length, pct=total?Math.round(done/total*100):0;
     var pb=document.getElementById('progbar'); if(pb){pb.style.width=pct+'%';}
     var set=function(id,v){var e=document.getElementById(id); if(e)e.textContent=v;};
@@ -4404,9 +4421,11 @@ SEC['Wind Mitigation'].itemsHigh=[
     renderSectionBody(name);
     renderDrawer();
     go('s-section');
+    if(isNotesSec(name)) document.querySelectorAll('#sectionbody .nltxt').forEach(nlGrow); // size the lines once visible
   };
   function renderSectionBody(name){
     var s=SEC[baseName(name)]||{items:[]};
+    if(s.notes){ renderNotesBody(name,s); return; }
     var depth=sel.depth||'standard';
     var depthName = depth==='high'?'High Detail':depth==='free'?'Fast Entry':'Standard';
     var depthCls  = depth==='high'?'hi':depth==='free'?'fe':'std';
@@ -4449,6 +4468,39 @@ SEC['Wind Mitigation'].itemsHigh=[
     h+='<button class="btn primary" style="margin-top:10px" onclick="saveNext()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>Save &amp; next section</button>';
     document.getElementById('sectionbody').innerHTML=h;
   }
+  // ---------- notes section: Planned Maintenance Recommendations (client Oct 30 (2), shared v1.14.0) ----------
+  // Same lines at every depth (High Detail / Standard / Fast). Each line: free text, max 300 chars, grows to show the whole entry.
+  // All optional: no Overall condition, no photos, no Concerns; Save marks it Done even when blank.
+  function renderNotesBody(name,s){
+    var a=NOTEANS[name]||{}, items=(s.items||[]).filter(function(it){return it.q;});
+    var leafs=leafSecs(), i=leafs.indexOf(name), last=!(i>=0&&i<leafs.length-1);
+    var h='<div class="modetile"><span class="modebadge hi">Planned maintenance</span><span class="modehint">Write up to '+items.length+' maintenance reminders for your client. Every line is optional. Filled lines print as a numbered list before the Summary. Same on every checklist depth.</span></div>';
+    items.forEach(function(it,k){
+      var id='nl'+k, v=String(a[it.q]||''), mx=it.max||300;
+      h+='<div class="li nl"><label class="q" for="'+id+'">'+ccEsc(it.q)+'</label><textarea class="txt nltxt" id="'+id+'" rows="1" maxlength="'+mx+'" data-q="'+ccEsc(it.q)+'" aria-describedby="'+id+'c"'+(it.ph?' placeholder="'+ccEsc(it.ph)+'"':'')+' oninput="nlInput(this)" onkeydown="nlKey(event,this)">'+ccEsc(v).replace(/>/g,'&gt;')+'</textarea><div class="nlcount" id="'+id+'c" aria-live="polite">'+(v.length?v.length+' / '+mx:'')+'</div></div>';
+    });
+    h+='<div class="btnrow"><button class="btn ghost" onclick="saveSection()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Save</button></div>';
+    h+='<button class="btn primary" style="margin-top:10px" onclick="saveNext()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>'+(last?'Save &amp; continue to summary':'Save &amp; next section')+'</button>';
+    document.getElementById('sectionbody').innerHTML=h;
+    document.querySelectorAll('#sectionbody .nltxt').forEach(nlGrow);
+  }
+  function nlGrow(t){ if(!t.offsetParent) return; t.style.height='auto'; t.style.height=(t.scrollHeight+2)+'px'; }
+  window.nlInput=function(t){
+    var mx=parseInt(t.getAttribute('maxlength'),10)||300;
+    var v=t.value.replace(/[\r\n]+/g,' '); if(v.length>mx) v=v.slice(0,mx); if(v!==t.value) t.value=v; // one line per recommendation
+    var m=NOTEANS[curSection]||(NOTEANS[curSection]={}); m[t.getAttribute('data-q')]=v;
+    var c=document.getElementById(t.id+'c'); if(c) c.textContent=v.length?v.length+' / '+mx:'';
+    nlGrow(t);
+  };
+  window.nlKey=function(e,t){ if(e.key==='Enter'){ e.preventDefault(); var all=[].slice.call(document.querySelectorAll('#sectionbody .nltxt')), n=all[all.indexOf(t)+1]; if(n) n.focus(); else t.blur(); } };
+  // report preview: the inspector's filled lines (pm=["…","…"]); pm=[] = all blank (page left out); no pm = never opened (sample lines)
+  function pmParam(){
+    var n='Planned Maintenance Recommendations'; if(leafSecs().indexOf(n)<0) return '';
+    var lines=noteLines(n); if(!lines.length && STATUS[n]!=='done') return '';
+    return '&pm='+encodeURIComponent(JSON.stringify(lines));
+  }
+  window.addEventListener('resize',function(){ document.querySelectorAll('#sectionbody .nltxt').forEach(nlGrow); });
+
   // ---------- countChoice (client Oct 30, shared v1.13.0 itemTypes.countChoice) ----------
   // Buttons o; co = options with a whole-number count box (0-999, optional); ex = exclusive options (None).
   // None clears every other choice + count; GFCI / Standard toggle and combine; deselecting clears its count; a count > 0 selects its option.
@@ -4631,7 +4683,7 @@ SEC['Wind Mitigation'].itemsHigh=[
       var names=g[1].concat(CUSTOM[GKEY[g[0]]]||[]);
       var grp=document.createElement('div'); grp.className='grp'+(gi===0?' open':'');
       var gh=document.createElement('button'); gh.className='gh'; gh.type='button';
-      gh.innerHTML='<span class="gi">'+ico(g[0]==='Testing'?'flask':g[0]==='Utility'?'bolt':g[0]==='Interior'?'sofa':'tree')+'</span><b>'+g[0]+'</b><span class="cnt">'+names.length+'</span><span class="caret">'+wrapSvg('<path d="m6 9 6 6 6-6"/>')+'</span>';
+      gh.innerHTML='<span class="gi">'+ico(g[0]==='Testing'?'flask':g[0]==='Utility'?'bolt':g[0]==='Interior'?'sofa':g[0]==='Planned Maintenance'?'file':'tree')+'</span><b>'+g[0]+'</b><span class="cnt">'+names.length+'</span><span class="caret">'+wrapSvg('<path d="m6 9 6 6 6-6"/>')+'</span>';
       gh.onclick=function(){ grp.classList.toggle('open'); };
       var gb=document.createElement('div'); gb.className='gbody';
       names.forEach(function(n){
@@ -4763,6 +4815,7 @@ SEC['Wind Mitigation'].itemsHigh=[
       b[2].onclick=function(){ s.items.splice(idx,1); renderEditSec(); };
       eh.appendChild(inp); eh.appendChild(eb); card.appendChild(eh);
       var opts=document.createElement('div');
+      if(s.notes){ var nn=document.createElement('p'); nn.className='ed-note'; nn.textContent='Free-text line, up to '+(it.max||300)+' characters. Optional; only filled lines print in the report.'; card.appendChild(nn); host.appendChild(card); return; }
       if(it.t==='countChoice'){ // client Oct 30: the combined Receptacles item can be renamed, moved or removed; its options are fixed (read-only here)
         (it.o||[]).forEach(function(op){ var chip=document.createElement('span'); chip.className='opt ro'; chip.textContent=op+((it.co||[]).indexOf(op)>=0?' + count':''); opts.appendChild(chip); });
         var nt=document.createElement('p'); nt.className='ed-note'; nt.textContent='Options are fixed for this item: None, or GFCI and/or Standard, each with an optional number of receptacles.';
@@ -4778,7 +4831,7 @@ SEC['Wind Mitigation'].itemsHigh=[
       host.appendChild(card);
     });
     var addItem=document.createElement('button'); addItem.className='btn ghost'; addItem.innerHTML=wrapSvg('<path d="M12 5v14M5 12h14"/>')+'Add item';
-    addItem.onclick=function(){ s.items.push({q:'New item',t:'single',o:['Yes','No','N/A']}); renderEditSec(); };
+    addItem.onclick=function(){ s.items.push(s.notes?{q:'Recommendation '+(s.items.length+1),t:'text',max:300}:{q:'New item',t:'single',o:['Yes','No','N/A']}); renderEditSec(); };
     host.appendChild(addItem);
     var save=document.createElement('button'); save.className='btn primary'; save.style.marginTop='10px'; save.innerHTML=wrapSvg('<path d="M20 6 9 17l-5-5"/>')+'Save &amp; done';
     save.onclick=function(){ refreshChecklist(); toast('Checklist updated'); back(); };
@@ -4974,15 +5027,15 @@ SEC['Wind Mitigation'].itemsHigh=[
   window.coverPick=function(k,v){ cover[k]=v; if(k==='category'){ cover.option=(COVER_CATS[v]||[])[0]||''; } renderCoverPicker(); var pl=document.getElementById('previewlink'); if(pl) pl.href=pl.href.replace(/([?&])cover=[^&]*/,'$1cover='+encodeURIComponent([cover.color,cover.category,cover.option,cover.style].join('|'))); };
   function reportType(){ return sel.inspType==='Texas'?'texas':sel.inspType==='4 Point Inspection'?'4point':'standard'; }
   var REPORT_PAGES={
-    standard:'Cover · Property information · Beginning notes · Checklist sections with their photos · Summary',
+    standard:'Cover · Property information · Beginning notes · Checklist sections with their photos · Planned maintenance recommendations (when written) · Summary',
     texas:'Cover · Inspector &amp; property information (TREC REI 7-6) · Checklist (I / NI / NP / D) · Pictures · Summary',
     '4point':'Cover · 4-Point checklist (Electrical, HVAC, Plumbing, Roof) · Pictures'
   };
   window.renderReportContents=function(){
     var rt=reportType(), rp=document.getElementById('reportpages'); if(rp) rp.innerHTML=REPORT_PAGES[rt];
-    var pl=document.getElementById('previewlink'); if(pl) pl.href='report.html?type='+rt+(sel.inspLicense?'&lic='+encodeURIComponent(sel.inspLicense):'')+(sel.state?'&state='+sel.state:'')+'&cover='+encodeURIComponent([cover.color,cover.category,cover.option,cover.style].join('|'))+ccParam();
+    var pl=document.getElementById('previewlink'); if(pl) pl.href='report.html?type='+rt+(sel.inspLicense?'&lic='+encodeURIComponent(sel.inspLicense):'')+(sel.state?'&state='+sel.state:'')+'&cover='+encodeURIComponent([cover.color,cover.category,cover.option,cover.style].join('|'))+ccParam()+pmParam();
     var host=document.getElementById('reportcontents'); if(!host) return;
-    var done=leafSecs().filter(function(n){return STATUS[n]==='done';});
+    var done=leafSecs().filter(function(n){return STATUS[n]==='done' && (!isNotesSec(n) || noteLines(n).length);}); // blank Planned Maintenance is left out of the report
     done.sort(function(a,b){ return secNum(a)-secNum(b) || a.localeCompare(b); });
     if(!done.length){ host.innerHTML='<div class="binforow"><span style="color:var(--ink-3)">No sections completed yet</span></div>'; return; }
     var h=''; done.forEach(function(n){ var num=('0'+secNum(n)).slice(-2); h+='<div class="binforow"><span><b style="font-family:var(--fm);color:var(--brand-deep);margin-right:8px">'+num+'</b>'+n+'</span><span class="pill done"><span class="d"></span>Included</span></div>'; });
