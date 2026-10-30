@@ -84,6 +84,8 @@ class RoomRepository(
     private val currentSections: List<SectionDef> = emptyList(),
     /** Frozen v1.12.0 lists of the sections changed by v1.13.0 ([ChecklistLoader.loadLegacy]). */
     private val legacySections: Map<String, SectionDef> = emptyMap(),
+    /** Shared checklist data, for [ChecklistEngine.addNotesGroups] (data v1.14 Planned Maintenance) on stored inspections. */
+    private val config: ChecklistConfig? = null,
 ) : VimsRepository {
     override val root: File = File(filesDir, "vims").apply { mkdirs() }
     private val json = ChecklistLoader.json
@@ -150,15 +152,28 @@ class RoomRepository(
         val answers = dao.answersFor(user.id).groupBy { it.inspectionId }
         val photos = dao.photosFor(user.id).groupBy { it.inspectionId }
         val findings = dao.findingsFor(user.id).groupBy { it.inspectionId }
-        val migrated = mutableListOf<Inspection>()
+        val migrated = linkedMapOf<String, Inspection>()
+        val migratedDefs = linkedMapOf<String, Map<String, SectionDef>>()
         // Sections the company admin edited (Manage checklist), added, or edited and later restored (client Oct 28) never get
         // data-added items merged in (admin edits apply to new inspections only; started inspections keep their checklist).
-        val noMerge = dec(ChecklistEdits.serializer(), co.editsJson, ChecklistEdits()).let { ed -> ed.overrides.keys + ed.custom.map { it.def.name } + ed.restored }
+        val storedEdits = dec(ChecklistEdits.serializer(), co.editsJson, ChecklistEdits())
+        val noMerge = storedEdits.let { ed -> ed.overrides.keys + ed.custom.map { it.def.name } + ed.restored }
+        // Data v1.12: overrides saved under a renamed item's old label take the new label (in memory; written with the next edit).
+        val edits = ChecklistEngine.upgradeEdits(storedEdits, currentSections)
+        val notesEngine = config?.let { ChecklistEngine(it, edits) }
         val bundles = ins.mapNotNull { e ->
             var insp = try { json.decodeFromString(Inspection.serializer(), e.json) } catch (_: Exception) { return@mapNotNull null }
             // Client Oct 17: covers saved with the old "Solid" category become style Solid + No picture (written back below).
-            if (insp.cover.isLegacySolid) { insp = insp.copy(cover = insp.cover.normalized()); migrated += insp }
-            val defs = ChecklistEngine.upgradePickers(dec(defsSer, e.defsJson, emptyMap()), currentSections, noMerge, legacySections)
+            if (insp.cover.isLegacySolid) { insp = insp.copy(cover = insp.cover.normalized()); migrated[insp.id] = insp }
+            var stored = dec(defsSer, e.defsJson, emptyMap())
+            // Data v1.14 (client Oct 30): a not-yet-reported standard-layout inspection gets the blank "Planned Maintenance"
+            // group before Summary and its section's definition in the STORED snapshot (written back below, so it stays after
+            // the report is generated). Nothing else in the stored layout / snapshot / answers changes; the in-memory upgrades
+            // below (incl. the v0.25.0 legacy receptacle lists) run on the stored snapshot exactly as before.
+            if (config != null && notesEngine != null) ChecklistEngine.addNotesGroups(insp, stored, config, notesEngine::def)?.let { (i, d) ->
+                insp = i; stored = d; migrated[i.id] = i; migratedDefs[i.id] = d
+            }
+            val defs = ChecklistEngine.upgradePickers(stored, currentSections, noMerge, legacySections)
             InspectionBundle(
                 inspection = insp,
                 // Data v1.9.1: answers of a split item (Meth "Test date and time") move to its new items, in memory; they are
@@ -171,12 +186,13 @@ class RoomRepository(
         }.associateBy { it.id }
         _company.value = dec(CompanyProfile.serializer(), co.profileJson, CompanyProfile()).copy(agreementText = co.agreementText, agreementEditedAt = co.agreementEditedAt)
         _account.value = acct
-        // Data v1.12: overrides saved under a renamed item's old label take the new label (in memory; written with the next edit).
-        _edits.value = ChecklistEngine.upgradeEdits(dec(ChecklistEdits.serializer(), co.editsJson, ChecklistEdits()), currentSections)
+        _edits.value = edits
         _settings.value = dec(AppSettings.serializer(), user.settingsJson, AppSettings()).let { st ->
             if (!st.defaultCover.isLegacySolid) st else st.copy(defaultCover = st.defaultCover.normalized()).also { dao.updateUserSettings(user.id, enc(AppSettings.serializer(), it)) }
         }
-        migrated.forEach { i -> dao.updateInspectionJson(i.id, user.id, enc(Inspection.serializer(), i), System.currentTimeMillis()) }
+        migrated.values.forEach { i -> dao.updateInspectionJson(i.id, user.id, enc(Inspection.serializer(), i), System.currentTimeMillis()) }
+        migratedDefs.forEach { (id, d) -> dao.updateDefs(id, user.id, enc(defsSer, d)) }
+        if (migratedDefs.isNotEmpty()) android.util.Log.i("VIMS-Checklist", "Planned Maintenance added to ${migratedDefs.size} inspection(s)")
         _inspections.value = bundles
         _userPhoto.value = user.photoFile
         _memberPhotos.value = dao.usersInCompany(co.id).mapNotNull { u -> u.photoFile?.let { u.email.lowercase() to it } }.toMap()

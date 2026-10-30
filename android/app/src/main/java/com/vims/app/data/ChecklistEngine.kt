@@ -183,6 +183,40 @@ class ChecklistEngine(val config: ChecklistConfig, val edits: ChecklistEdits) {
             return if (changed) out else defs
         }
 
+        /**
+         * Data v1.14 (client Oct 30): a section group of the standard layout made only of `notes` sections ("Planned Maintenance"
+         * → "Planned Maintenance Recommendations") is added to an inspection built before it, so every not-yet-reported
+         * standard-layout inspection gets the blank section in its layout position (right before Summary). Only the layout and
+         * the checklist snapshot change: the new group is inserted, its sections' definitions ([def], with the company's edits)
+         * join [defs]; every other group, saved definition and answer stays exactly as stored. Not for reported inspections
+         * ([InspStatus.DONE]), phase / form layouts (`phaseTypes`: Texas, 4 Point, Phase 1/2, Tests Only), or an inspection
+         * that already has the heading or any of its sections. Returns null when nothing changes.
+         */
+        fun addNotesGroups(insp: Inspection, defs: Map<String, SectionDef>, config: ChecklistConfig, def: (String) -> SectionDef?): Pair<Inspection, Map<String, SectionDef>>? {
+            if (insp.status == InspStatus.DONE || insp.groups.isEmpty()) return null
+            val cb = config.checklistBuilder
+            if (cb.phaseTypes.containsKey(insp.selections.inspType)) return null
+            val layout = cb.standardLayout
+            var groups = insp.groups
+            var out = defs
+            layout.forEachIndexed { li, g ->
+                if (g.link != null || g.sub != null || g.optional != null || g.order != null) return@forEachIndexed
+                val names = g.sections.orEmpty() + g.always.orEmpty() + g.then.orEmpty()
+                if (names.isEmpty() || names.any { config.section(it)?.notes != true }) return@forEachIndexed
+                val have = groups.flatMap { it.leaves }.toSet()
+                if (groups.any { it.heading == g.heading } || names.any { it in have }) return@forEachIndexed
+                val secs = names.filter { def(it) != null }
+                if (secs.isEmpty()) return@forEachIndexed
+                // Before the first later layout group the inspection has (Summary), else at the end.
+                val at = layout.drop(li + 1).firstNotNullOfOrNull { n ->
+                    groups.indexOfFirst { x -> if (n.link != null) x.link == n.link else x.heading == n.heading }.takeIf { it >= 0 }
+                } ?: groups.size
+                groups = groups.toMutableList().apply { add(at, BuiltGroup(g.heading, g.icon, null, secs)) }
+                secs.forEach { n -> if (n !in out) def(n)?.let { out = out + (n to it) } }
+            }
+            return if (groups === insp.groups) null else insp.copy(groups = groups) to out
+        }
+
         /** Identity of each line for [mergeAdded]: "H:header" / "Q:header|question" (+ "#n" when a question repeats under a header). */
         private fun lineKeys(items: List<ItemDef>): List<String> {
             var header = ""
@@ -471,16 +505,17 @@ class ChecklistEngine(val config: ChecklistConfig, val edits: ChecklistEdits) {
 
         /** Items to render for a section at a depth (Fast Entry renders its own "Items reviewed" chips). */
         fun itemsFor(def: SectionDef, depth: String): List<ItemDef> =
-            if (def.form == null && depth == "high" && def.itemsHigh != null) def.itemsHigh else def.items
+            if (def.form == null && !def.notes && depth == "high" && def.itemsHigh != null) def.itemsHigh else def.items
 
-        /** State forms ignore the inspection's checklist depth. */
-        fun effectiveDepth(def: SectionDef?, depth: String): String = if (def?.form != null) "standard" else depth
+        /** State forms and data v1.14 `notes` sections ignore the inspection's checklist depth. */
+        fun effectiveDepth(def: SectionDef?, depth: String): String = if (def?.form != null || def?.notes == true) "standard" else depth
 
         /** High Detail without a High Detail list → Standard items + an optional "Detail / measurement" input. */
-        fun showDetailInput(def: SectionDef, depth: String): Boolean = def.form == null && depth == "high" && def.itemsHigh == null
+        fun showDetailInput(def: SectionDef, depth: String): Boolean = def.form == null && !def.notes && depth == "high" && def.itemsHigh == null
 
         fun photoCategories(def: SectionDef?, depth: String): List<String> {
             if (def == null) return listOf("Overview", "Concerns")
+            if (def.notes) return emptyList() // data v1.14: notes sections have no photos
             val cats = if (def.form == null && depth == "high" && !def.photoCategoriesHigh.isNullOrEmpty()) def.photoCategoriesHigh else def.photoCategories
             return cats.ifEmpty { listOf("Overview", "Concerns") }
         }

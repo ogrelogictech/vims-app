@@ -581,6 +581,22 @@ data class InspectionBundle(
 ) {
     val id: String get() = inspection.id
     fun status(section: String): String = answers[section]?.status ?: SecStatus.TODO
+
+    /** Data v1.14 `notes` section (Planned Maintenance Recommendations). */
+    fun isNotes(section: String): Boolean = defs[baseName(section)]?.notes == true
+
+    /** The written lines of a `notes` section, trimmed, in checklist order (blank lines left out; the report renumbers them). */
+    fun notesLines(section: String): List<String> {
+        val a = answers[section] ?: return emptyList()
+        val d = defs[baseName(section)] ?: return emptyList()
+        return ChecklistEngine.keyed(d.items).mapNotNull { (k, _) -> k?.let { a.inputs[it]?.trim()?.takeIf { v -> v.isNotEmpty() } } }
+    }
+
+    /**
+     * Sections that count toward progress (done / left / %): every section except a `notes` section with nothing written, so the
+     * optional Planned Maintenance section never holds an inspection below 100% or "left" above 0.
+     */
+    val progressSections: List<String> get() = inspection.leafSections.filter { !isNotes(it) || notesLines(it).isNotEmpty() }
 }
 
 /** "Bathroom 2" → "Bathroom" (numbered room instances share the base section's checklist). */

@@ -74,7 +74,8 @@ import com.vims.app.ui.theme.T
 import com.vims.app.ui.theme.V
 import com.vims.app.ui.theme.VIcons
 
-fun statusWord(st: String) = when (st) { SecStatus.DONE -> "Done"; SecStatus.PROG -> "In progress"; else -> "Not started" }
+/** [optional] = a data v1.14 notes section (Planned Maintenance): not started reads "Optional". */
+fun statusWord(st: String, optional: Boolean = false) = when (st) { SecStatus.DONE -> "Done"; SecStatus.PROG -> "In progress"; else -> if (optional) "Optional" else "Not started" }
 /** Checklist sections: Done = green, In progress = blue, Not started = gray (same everywhere). */
 fun statusDot(st: String) = when (st) { SecStatus.DONE -> V.pass; SecStatus.PROG -> V.brand; else -> V.paper3 }
 fun statusTextColor(st: String) = when (st) { SecStatus.DONE -> V.doneText; SecStatus.PROG -> V.brandDeep; else -> V.ink3 }
@@ -90,7 +91,8 @@ fun NavHostController.openLink(link: String, inspId: String) = when (link) {
 fun SectionsScreen(vm: AppViewModel, nav: NavHostController, inspId: String) {
     val all by vm.inspections.collectAsState()
     val b = all[inspId] ?: run { MissingInspection(vm, nav); return }
-    val leaves = b.inspection.leafSections
+    // Data v1.14: a blank Planned Maintenance (notes) section doesn't count toward progress until a line is written.
+    val leaves = b.progressSections
     val done = leaves.count { b.status(it) == SecStatus.DONE }
     val pct = if (leaves.isEmpty()) 0 else Math.round(done * 100f / leaves.size)
     val open = rememberSaveable(saver = openSaver()) { mutableStateMapOf<String, Boolean>().apply { b.inspection.groups.firstOrNull { it.link == null }?.let { put(it.heading, true) } } }
@@ -141,17 +143,19 @@ private fun GroupCard(g: BuiltGroup, b: InspectionBundle, open: Boolean, onToggl
             if (g.link != null) {
                 Icon(VIcons.caretRight, null, tint = V.ink3, modifier = Modifier.size(18.dp))
             } else {
-                val leaves = g.leaves
-                Text("${leaves.count { b.status(it) == SecStatus.DONE }}/${leaves.size}", style = T.mono(11.sp, color = V.ink3))
+                val counted = b.progressSections.toSet()
+                val leaves = g.leaves.filter { it in counted }
+                // A group of blank optional notes sections (Planned Maintenance) reads "Optional" instead of "0/0".
+                Text(if (leaves.isEmpty() && g.leaves.isNotEmpty()) "Optional" else "${leaves.count { b.status(it) == SecStatus.DONE }}/${leaves.size}", style = T.mono(11.sp, color = V.ink3))
                 Icon(VIcons.chevDown, null, tint = V.ink3, modifier = Modifier.padding(start = 8.dp).size(18.dp).rotate(if (open) 180f else 0f))
             }
         }
         if (g.link == null && open) {
             Box(Modifier.fillMaxWidth().height(1.dp).background(V.line2))
-            g.sections.forEachIndexed { i, s -> SecRow(s, b.status(s), last = i == g.sections.lastIndex && g.sub == null) { onSection(s) } }
+            g.sections.forEachIndexed { i, s -> SecRow(s, b.status(s), last = i == g.sections.lastIndex && g.sub == null, optional = b.isNotes(s)) { onSection(s) } }
             g.sub?.let { sub ->
                 SubHead(sub.heading)
-                sub.sections.forEachIndexed { i, s -> SecRow(s, b.status(s), last = i == sub.sections.lastIndex) { onSection(s) } }
+                sub.sections.forEachIndexed { i, s -> SecRow(s, b.status(s), last = i == sub.sections.lastIndex, optional = b.isNotes(s)) { onSection(s) } }
             }
         }
     }
@@ -167,7 +171,7 @@ fun SubHead(text: String) {
 }
 
 @Composable
-private fun SecRow(name: String, st: String, last: Boolean, onClick: () -> Unit) {
+private fun SecRow(name: String, st: String, last: Boolean, optional: Boolean = false, onClick: () -> Unit) {
     Column {
         Row(
             Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(role = Role.Button, onClick = onClick).padding(start = 18.dp, end = 15.dp, top = 12.dp, bottom = 12.dp),
@@ -175,7 +179,7 @@ private fun SecRow(name: String, st: String, last: Boolean, onClick: () -> Unit)
         ) {
             Dot(st)
             Text(sectionTitle(name), style = T.ui(14.sp, FontWeight.Medium), modifier = Modifier.weight(1f))
-            Text(statusWord(st), style = T.mono(10.5.sp, FontWeight.SemiBold, statusTextColor(st)))
+            Text(statusWord(st, optional), style = T.mono(10.5.sp, FontWeight.SemiBold, statusTextColor(st)))
         }
         if (!last) Box(Modifier.fillMaxWidth().height(1.dp).background(V.line2))
     }
@@ -226,8 +230,8 @@ fun BoxScope.SectionsDrawer(visible: Boolean, b: InspectionBundle?, current: Str
                             Icon(if (g.link != null) VIcons.caretRight else VIcons.chevDown, null, tint = V.ink3, modifier = Modifier.size(16.dp).rotate(if (isOpen) 180f else 0f))
                         }
                         if (g.link == null && isOpen) {
-                            (g.sections).forEach { s -> DrawerRow(s, b.status(s), s == current) { onSection(s) } }
-                            g.sub?.let { sub -> SubHead(sub.heading); sub.sections.forEach { s -> DrawerRow(s, b.status(s), s == current) { onSection(s) } } }
+                            (g.sections).forEach { s -> DrawerRow(s, b.status(s), s == current, b.isNotes(s)) { onSection(s) } }
+                            g.sub?.let { sub -> SubHead(sub.heading); sub.sections.forEach { s -> DrawerRow(s, b.status(s), s == current, b.isNotes(s)) { onSection(s) } } }
                         }
                     }
                 }
@@ -237,7 +241,7 @@ fun BoxScope.SectionsDrawer(visible: Boolean, b: InspectionBundle?, current: Str
 }
 
 @Composable
-private fun DrawerRow(name: String, st: String, on: Boolean, onClick: () -> Unit) {
+private fun DrawerRow(name: String, st: String, on: Boolean, optional: Boolean = false, onClick: () -> Unit) {
     Column {
         Box(Modifier.fillMaxWidth().height(1.dp).background(V.line2))
         Row(
@@ -247,7 +251,7 @@ private fun DrawerRow(name: String, st: String, on: Boolean, onClick: () -> Unit
         ) {
             Dot(st, 8)
             Text(sectionTitle(name), style = T.ui(13.5.sp, if (on) FontWeight.SemiBold else FontWeight.Normal, if (on) V.brandDeep else V.ink2), modifier = Modifier.weight(1f))
-            Text(statusWord(st), style = T.mono(9.5.sp, FontWeight.SemiBold, statusTextColor(st)))
+            Text(statusWord(st, optional), style = T.mono(9.5.sp, FontWeight.SemiBold, statusTextColor(st)))
         }
     }
 }

@@ -118,9 +118,11 @@ fun estimatePages(b: InspectionBundle, layout: String = ChecklistConfig.LAYOUT_S
     val pics = maxOf(1, (b.photos.size + 5) / 6)
     if (layout == ChecklistConfig.LAYOUT_TEXAS) return 3 + forms + pics
     if (layout == ChecklistConfig.LAYOUT_FOUR_POINT) return 4 + pics
-    val done = b.inspection.leafSections.filter { b.status(it) == SecStatus.DONE }
+    val done = b.inspection.leafSections.filter { b.status(it) == SecStatus.DONE && !b.isNotes(it) }
     val photoPages = done.sumOf { s -> val n = b.photos.count { it.section == s }; (n + 5) / 6 }
-    return 4 + done.size + photoPages
+    // Data v1.14: Planned Maintenance Recommendations adds a page when a line is written.
+    val notes = b.inspection.leafSections.count { b.isNotes(it) && b.notesLines(it).isNotEmpty() }
+    return 4 + done.size + photoPages + notes
 }
 
 @Composable
@@ -159,8 +161,11 @@ fun ReportScreen(vm: AppViewModel, nav: NavHostController, inspId: String) {
         Text("Completed sections populate the report in the order they're numbered on your master checklist.", style = T.ui(12.sp, color = V.ink3, lineHeight = 16.sp), modifier = Modifier.padding(start = 2.dp, end = 2.dp, bottom = 10.dp))
         // State forms print every system of the form; standard reports include completed sections.
         val formLayout = vm.config.reportLayout(s.inspType) != ChecklistConfig.LAYOUT_STANDARD
-        val done = b.inspection.leafSections.filter { formLayout && b.defs[com.vims.app.data.baseName(it)]?.photosOnly != true || b.status(it) == SecStatus.DONE }
-            .sortedWith(compareBy({ ChecklistEngine.number(b.defs, it) }, { it }))
+        // Data v1.14: a notes section (Planned Maintenance Recommendations) is listed after the checklist sections, only when a
+        // line is written (it prints whether or not it was saved Done; a blank one is left out of the report).
+        val done = b.inspection.leafSections.filter { !b.isNotes(it) && (formLayout && b.defs[com.vims.app.data.baseName(it)]?.photosOnly != true || b.status(it) == SecStatus.DONE) }
+            .sortedWith(compareBy({ ChecklistEngine.number(b.defs, it) }, { it })) +
+            (if (formLayout) emptyList() else b.inspection.leafSections.filter { b.isNotes(it) && b.notesLines(it).isNotEmpty() })
         Column(Modifier.padding(bottom = 12.dp).fillMaxWidth().vCard().padding(vertical = 6.dp)) {
             if (done.isEmpty()) BinfoRow({ Text("No sections completed yet", style = T.ui(14.sp, color = V.ink3)) }, {}, last = true)
             done.forEachIndexed { i, n ->
@@ -181,7 +186,7 @@ fun ReportScreen(vm: AppViewModel, nav: NavHostController, inspId: String) {
 fun reportPagesText(layout: String) = when (layout) {
     ChecklistConfig.LAYOUT_TEXAS -> "Cover · Inspector & property information (TREC REI 7-6) · Checklist (I / NI / NP / D) · Pictures · Summary"
     ChecklistConfig.LAYOUT_FOUR_POINT -> "Cover · 4-Point checklist (Electrical, HVAC, Plumbing, Roof) · Pictures"
-    else -> "Cover · Property information · Beginning notes · Checklist sections with their photos · Summary"
+    else -> "Cover · Property information · Beginning notes · Checklist sections with their photos · Planned maintenance recommendations (when written) · Summary"
 }
 
 @Composable

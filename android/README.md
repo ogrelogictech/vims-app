@@ -777,3 +777,34 @@ Shared v1.9 (client item 13):
   from before v1.12 with "Non GFCI" + counts 2 / 7, Garage GFCI + 4 / 6, Kitchen 5 / 3, Landscaping, Bathroom 1): all kept, no
   duplicate item; a new inspection shows the combined item. Screenshots `screenshots/oct30-*`. Test APK
   `../../VIMS-Android-test-v0.25.0-2026-10-30.apk` (debug-signed like v0.24.0, installs over it).
+
+## Client Oct 30 (2) + shared v1.14.0 (v0.26.0)
+
+- **Planned Maintenance Recommendations** (shared v1.14.0, `checklistBuilder._notesSectionAbout`): section flag **`notes: true`**
+  (`SectionDef.notes`) and item **`maxLength`** (`ItemDef.maxLength`, 300). A notes section ignores checklist depth
+  (`ChecklistEngine.itemsFor` / `effectiveDepth` / `showDetailInput`: High Detail, Standard and Fast all show `items`), shows each
+  line as a text field that grows to show the whole entry (`NotesLineCard` in SectionScreen.kt: placeholder from the data, else
+  "Optional"; typing stops at `maxLength`, a "n / 300 characters" counter appears from 260; a typed line break becomes a space),
+  and has **no** Overall condition, Comments box, photo button / header camera or Concerns. Save marks it Done with no Overall
+  condition (blank is fine). Answers stored like `text` items (`inputs[key]`), no Room schema change.
+- **Progress:** `InspectionBundle.progressSections` leaves out a notes section until a line is written, so done / left / % and
+  the group count ignore it while blank (group reads "Optional", row reads "Optional"). A finished inspection stays 100%.
+- **Layout:** standardLayout heading "Planned Maintenance" (icon file) right before Summary, only in the standard layout.
+  **Existing inspections** (`ChecklistEngine.addNotesGroups`, run in `RoomRepository.activate`): every not-reported
+  (`status != done`) inspection whose type is not in `phaseTypes` and which lacks the heading / section gets the group inserted
+  before the next layout group it has (Summary), and the section's definition (with company edits) added to its STORED snapshot;
+  both written back once (log `VIMS-Checklist: Planned Maintenance added to N inspection(s)`). Nothing else in the stored
+  layout, snapshot or answers changes; the in-memory upgrades (`upgradePickers` with the v1.12.0 legacy receptacle lists) then
+  run on that stored snapshot exactly as in v0.25.0. Reported inspections are never touched.
+- **Report:** `plannedMaintenance()` — own page after the last checklist section (and its photos), before the Summary, titled
+  with the section name; only written lines, numbered 1, 2, 3 … with no gaps; left out when every line is blank. Printed when a
+  line is written whether or not the section was saved Done. Generate report lists it last under Report contents when written.
+  Excluded from Texas / 4-Point form pages.
+- **Manage checklist:** group "Planned Maintenance"; the section edits like any other (rename / move / delete lines, "Add line"
+  adds "Recommendation N" text up to 300 characters, Edited tag, Restore original); no Standard / High Detail tier picker.
+- **Verified** (emulator, Android 15): v0.24.0 fresh → in-progress High Detail inspection with old Garage receptacle answers
+  (Non GFCI, counts 4 / 6) + a fully done unreported inspection (34/34) → v0.25.0 → v0.26.0. After upgrade: every stored answer
+  byte-identical, layouts gain only the new group before Summary, snapshots gain only the new definition (others differ only by
+  the serialized `"notes":false` default), the reported inspection unchanged, 34/34 still 100%, Garage still shows / prints the
+  old receptacle items and answers. Screenshots `screenshots/oct30b-*`. Test APK `../../VIMS-Android-test-v0.26.0-2026-10-30.apk`
+  (debug key, same certificate as v0.25.0, installs over it).

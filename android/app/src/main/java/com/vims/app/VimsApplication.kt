@@ -37,7 +37,7 @@ class AppContainer(private val app: Application) {
     val agreementResult: Result<com.vims.app.data.InspectionAgreement> = com.vims.app.data.InspectionAgreement.load(app)
     val db: VimsDatabase = VimsDatabase.open(app)
     private val roomRepo = RoomRepository(app.filesDir, db.dao(), com.vims.app.data.PlatformOwners(config.support.platformOwners), config.sections,
-        ChecklistLoader.loadLegacy(app))
+        ChecklistLoader.loadLegacy(app), config)
     val repo: VimsRepository = roomRepo
     /** One free trial per device (client Oct 25): app-level record outside every account / company. */
     val deviceTrial = com.vims.app.services.DeviceTrial(app)

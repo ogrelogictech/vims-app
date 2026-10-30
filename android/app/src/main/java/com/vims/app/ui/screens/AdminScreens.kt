@@ -79,7 +79,7 @@ import com.vims.app.util.rememberForm
 import kotlinx.coroutines.launch
 
 private fun groupIcon(g: String): ImageVector = when (g) {
-    "Testing" -> VIcons.flask; "Utility" -> VIcons.bolt; "State & Insurance Forms" -> VIcons.file; "Interior" -> VIcons.sofa; "Phase Inspections" -> VIcons.layers; else -> VIcons.tree
+    "Testing" -> VIcons.flask; "Utility" -> VIcons.bolt; "State & Insurance Forms" -> VIcons.file; "Planned Maintenance" -> VIcons.file; "Interior" -> VIcons.sofa; "Phase Inspections" -> VIcons.layers; else -> VIcons.tree
 }
 
 @Composable
@@ -293,7 +293,10 @@ fun EditSectionScreen(vm: AppViewModel, nav: NavHostController, name: String) {
             }
             item(key = "tier") {
                 Column {
-                    if (def?.form == null) {
+                    if (def?.notes == true) {
+                        // Data v1.14 notes section (Planned Maintenance Recommendations): one list of optional text lines, every depth.
+                        Text("Optional text lines — the same lines show at every checklist depth. Only lines the inspector fills in print, numbered, before the Summary.", style = T.ui(12.sp, color = V.ink3, lineHeight = 17.sp))
+                    } else if (def?.form == null) {
                         FieldLabel("Checklist tier")
                         SingleChips(listOf("Standard", "High Detail"), if (high) "High Detail" else "Standard", { v -> if (v != null) high = v == "High Detail" }, required = true)
                     } else {
@@ -316,7 +319,13 @@ fun EditSectionScreen(vm: AppViewModel, nav: NavHostController, name: String) {
             }
             item(key = "actions") {
                 Column {
-                    VBtn("Add item", { draft.add(DraftItem(seq++, ItemDef(q = "New item", type = "single", options = listOf("Yes", "No", "N/A")))) }, kind = BtnKind.Ghost, icon = VIcons.plus)
+                    if (def?.notes == true) VBtn("Add line", {
+                        // A new optional text line like the VIMS ones ("Recommendation 11", up to 300 characters).
+                        val used = draft.mapNotNull { it.item.q }.toSet()
+                        val label = generateSequence(draft.count { !it.item.isHeader } + 1) { it + 1 }.map { "Recommendation $it" }.first { it !in used }
+                        draft.add(DraftItem(seq++, ItemDef(q = label, type = "text", maxLength = com.vims.app.util.Limits.NOTES_LINE)))
+                    }, kind = BtnKind.Ghost, icon = VIcons.plus)
+                    else VBtn("Add item", { draft.add(DraftItem(seq++, ItemDef(q = "New item", type = "single", options = listOf("Yes", "No", "N/A")))) }, kind = BtnKind.Ghost, icon = VIcons.plus)
                     VBtn("Save & done", {
                         // Every question / header needs text; scroll to the first empty one.
                         val bad = draft.indexOfFirst { d -> (d.item.header ?: d.item.q).orEmpty().isBlank() }
@@ -386,7 +395,9 @@ private fun EdItem(it: ItemDef, index: Int, count: Int, showErrors: Boolean, onC
                 }
                 com.vims.app.ui.components.FieldError(optErr)
             } else {
-                Text(if (it.isAirReading) "Air reading · level${it.unit?.let { u -> " ($u)" }.orEmpty()} + 1–6 rating" else "${when (it.type) { "num" -> "Number"; "date" -> "Date"; "time" -> "Time"; else -> "Text" }} input", style = T.mono(11.sp, color = V.ink3), modifier = Modifier.padding(top = 8.dp))
+                Text(if (it.isAirReading) "Air reading · level${it.unit?.let { u -> " ($u)" }.orEmpty()} + 1–6 rating"
+                    else if (it.type == "text" && it.maxLength != null) "Text line · up to ${it.maxLength} characters"
+                    else "${when (it.type) { "num" -> "Number"; "date" -> "Date"; "time" -> "Time"; else -> "Text" }} input", style = T.mono(11.sp, color = V.ink3), modifier = Modifier.padding(top = 8.dp))
             }
         }
     }

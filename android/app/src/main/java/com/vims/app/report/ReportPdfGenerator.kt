@@ -281,13 +281,15 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
             else -> {
                 propertyInfo()
                 beginningNotes()
-                val sections = b.inspection.leafSections.filter { b.status(it) == SecStatus.DONE }
+                val sections = b.inspection.leafSections.filter { b.status(it) == SecStatus.DONE && !b.isNotes(it) }
                     .sortedWith(compareBy<String>({ ChecklistEngine.number(b.defs, it) }, { it }))
                 // Data v1.9 formReports: Wind Mitigation prints as the OIR-B1-1802 form, Termite as the WDI report; photos follow.
                 sections.forEach { s ->
                     when (b.defs[baseName(s)]?.formReport) { "oir-b1-1802" -> oirForm(s); "wdi" -> wdiReport(s); else -> sectionPages(s) }
                     photoPages(s)
                 }
+                // Data v1.14 (client Oct 30): after the last checklist section, before the Summary.
+                b.inspection.leafSections.filter { b.isNotes(it) }.forEach { plannedMaintenance(it) }
                 summary()
             }
         }
@@ -821,6 +823,36 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
         }
     }
 
+    /**
+     * Data v1.14 `notes` section ("Planned Maintenance Recommendations", client Oct 30): its own page titled with the section's
+     * name, the written lines only as a numbered list renumbered 1, 2, 3 … (blank lines leave no gap). Left out entirely when
+     * every line is blank. Long lines wrap; a line never splits across pages and the title repeats "(cont.)" after a break.
+     */
+    private fun plannedMaintenance(section: String) {
+        val lines = b.notesLines(section)
+        if (lines.isEmpty()) return
+        val name = sectionTitle(section)
+        fun head(cont: Boolean) {
+            val tl = layout(if (cont) "$name (cont.)" else name, tp(archivo800, 20f), CW)
+            cv.drawLayout(tl, PADX, y); y += tl.height + 14f
+            cv.drawRect(PADX, y, PADX + CW, y + 2f, fill(BRAND)); y += 2f
+        }
+        startPage()
+        head(false)
+        val numP = tp(plex700, 13f, BRAND_DEEP)
+        val textP = tp(plex400, 13f, INK)
+        val numW = numP.measureText("${lines.size}.") + 14f
+        lines.forEachIndexed { i, line ->
+            val l = layout(line, textP, CW - 12f - numW, spacing = 1.15f)
+            val h = l.height + 22f
+            if (y + h > BOTTOM) { startPage(); head(true) }
+            cv.drawText("${i + 1}.", PADX + 6f, y + 11f - textP.fontMetrics.ascent, numP)
+            cv.drawLayout(l, PADX + 6f + numW, y + 11f)
+            y += h
+            cv.drawRect(PADX, y - 1f, PADX + CW, y, fill(LINE2))
+        }
+    }
+
     private fun summary() {
         startPage()
         title("Summary of Findings", if (layoutKind == ChecklistConfig.LAYOUT_TEXAS) "Findings grouped by category" else "Findings grouped by category, in the order they appear in the report")
@@ -897,7 +929,7 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
     // ================================================================== state & insurance forms
 
     /** Checklist sections of a form inspection (everything except the picture page), in checklist order. */
-    private fun formSections(): List<String> = b.inspection.leafSections.filter { b.defs[baseName(it)]?.photosOnly != true }
+    private fun formSections(): List<String> = b.inspection.leafSections.filter { b.defs[baseName(it)]?.photosOnly != true && !b.isNotes(it) }
         .sortedWith(compareBy<String>({ ChecklistEngine.number(b.defs, it) }, { it }))
 
     private fun pageOfTotal() = if (totalPages > 0) "Page $pageNo of $totalPages" else "Page $pageNo"

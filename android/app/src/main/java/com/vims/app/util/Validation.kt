@@ -157,6 +157,8 @@ object Num {
 /** Number limits (docs/validation-rules.md "Number limits"): every numeric field and − / + stepper. */
 object Limits {
     const val SEATS_MAX = 50
+    /** Data v1.14 notes line (Planned Maintenance Recommendations) when the item has no `maxLength`. */
+    const val NOTES_LINE = 300
     /** Wizard counts (bedrooms, bathrooms, hallways, unit mix, …) and checklist room counts ("Number of kitchens"). */
     const val COUNT_MAX = 20
     const val SQFT_MAX = 100_000.0

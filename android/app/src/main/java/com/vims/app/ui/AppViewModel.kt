@@ -382,7 +382,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun saveSection(id: String, section: String) {
-        repo.updateAnswers(id, section) { it.copy(status = SecStatus.DONE, overall = it.overall ?: config.overallConditionDefault) }
+        // Data v1.14 `notes` sections (Planned Maintenance) have no Overall condition: Save only marks them Done (blank is fine).
+        val notes = sectionDef(id, section)?.notes == true
+        repo.updateAnswers(id, section) { it.copy(status = SecStatus.DONE, overall = if (notes) it.overall else it.overall ?: config.overallConditionDefault) }
         touch(id)
         requestAutoSync()
     }

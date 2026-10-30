@@ -151,6 +151,13 @@ data class SectionDef(
      * snapshots taken from v1.9 data carry it; older inspections keep the normal checklist page.
      */
     val formReport: String? = null,
+    /**
+     * Data v1.14 `notes` (client Oct 30, "Planned Maintenance Recommendations"): optional free-text lines. Ignores checklist depth
+     * (High Detail / Standard / Fast all show [items] as text lines), no Overall condition, no photos, no Concerns / flags. Never
+     * blocks completion and only counts toward progress once a line is written; the report prints the filled lines as a numbered
+     * list after the last checklist section and before the Summary ([InspectionBundle.notesLines]).
+     */
+    val notes: Boolean = false,
 ) {
     /** What the app and the report show for this section. */
     val displayName: String get() = title?.takeIf { it.isNotBlank() } ?: name
@@ -246,6 +253,8 @@ data class ItemDef(
      * them keeps its checklist unchanged ([ChecklistEngine.mergeAdded]).
      */
     val replaces: List<String>? = null,
+    /** Data v1.14: most characters a `text` item accepts (notes lines: 300). Null = the app's usual text limit. */
+    val maxLength: Int? = null,
 ) {
     val isHeader: Boolean get() = header != null
     /** Decimal places a `num` item accepts while typing: 0 for `integer`, else `decimals` (default 2). */

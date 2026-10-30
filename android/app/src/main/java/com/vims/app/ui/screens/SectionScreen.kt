@@ -73,14 +73,16 @@ import com.vims.app.util.Fmt
 fun NavHostController.toSections(inspId: String) { if (!popBackStack<SectionsR>(inclusive = false)) navigate(SectionsR(inspId)) }
 
 @Composable
-fun ModeTile(depth: String, form: String? = null, formLabel: String? = null) {
+fun ModeTile(depth: String, form: String? = null, formLabel: String? = null, notes: Boolean = false) {
     val (label, bg) = when {
+        notes -> "Optional" to V.ink3
         form != null -> (formLabel ?: form) to V.brand
         depth == "high" -> "High Detail checklist" to V.brand
         depth == "fast" -> "Fast Entry checklist" to V.signalDeep
         else -> "Standard checklist" to V.ink3
     }
     val hint = when {
+        notes -> "Write any recommendations. Only filled lines print, numbered, before the Summary. Same on every checklist depth."
         form == "texas" -> "Mark each item I / NI / NP / D and add comments. Same on every checklist depth."
         form != null -> "Complete every line of the form. Same on every checklist depth."
         depth == "fast" -> "Overall condition and notes — no line-by-line. Change depth in Settings."
@@ -151,6 +153,8 @@ fun SectionScreen(vm: AppViewModel, nav: NavHostController, inspId: String, name
     val keyed = ChecklistEngine.visibleKeyed(allKeyed, a)
     val detail = def != null && ChecklistEngine.showDetailInput(def, depth)
     val actionPrefix = (def?.airQuality ?: AirQualityDef()).actionPrefix
+    // Data v1.14 `notes` (Planned Maintenance Recommendations): optional text lines only — no Overall condition, photos or Concerns.
+    val notes = def?.notes == true
     fun edit(f: (SectionAnswers) -> SectionAnswers) = vm.editSection(inspId, name, f)
     // Data v1.9 `prefill`: owner / inspector fields start with the inspection's values on first open.
     androidx.compose.runtime.LaunchedEffect(inspId, name) { vm.prefillSection(inspId, name) }
@@ -160,7 +164,7 @@ fun SectionScreen(vm: AppViewModel, nav: NavHostController, inspId: String, name
 
     VScreen(
         sectionTitle(name), b.inspection.selections.street, net(vm), backAction(nav),
-        listOf(HdrAction(VIcons.camera, "Photos") { nav.navigate(PhotosR(inspId, name)) }, HdrAction(VIcons.list, "Sections") { drawer = true }, homeAction(nav)),
+        listOfNotNull(HdrAction(VIcons.camera, "Photos") { nav.navigate(PhotosR(inspId, name)) }.takeIf { !notes }, HdrAction(VIcons.list, "Sections") { drawer = true }, homeAction(nav)),
         scroll = false,
         overlay = {
             SectionsDrawer(drawer, b, name, onClose = { drawer = false }, onLink = { drawer = false; nav.openLink(it, inspId) }, onSection = { drawer = false; nav.openSection(inspId, it) })
@@ -177,7 +181,7 @@ fun SectionScreen(vm: AppViewModel, nav: NavHostController, inspId: String, name
         },
     ) {
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 34.dp)) {
-            item(key = "mode") { ModeTile(depth, def?.form, def?.form?.let { vm.config.formLabels[it] }) }
+            item(key = "mode") { ModeTile(depth, def?.form, def?.form?.let { vm.config.formLabels[it] }, notes) }
             if (depth == "fast") {
                 val quick = def?.items.orEmpty().filter { it.q != null && it.visibleIf == null }.map { it.q!! }.distinct()
                 if (quick.isNotEmpty()) item(key = "present") {
@@ -189,22 +193,26 @@ fun SectionScreen(vm: AppViewModel, nav: NavHostController, inspId: String, name
             } else {
                 itemsIndexed(keyed, key = { i, p -> p.first ?: "h$i" }) { _, (key, it) ->
                     if (key == null) LiHead(it.header.orEmpty())
+                    else if (notes) NotesLineCard(key, it, a, ::edit)
                     else ItemCard(key, it, a, detail, ctx, actionPrefix, b.inspection.selections.counts, ::edit) { q -> concernItem = q }
                 }
             }
             item(key = "overall") {
                 Column {
-                    if (def?.form == null) {
+                    if (def?.form == null && !notes) {
                         Lbl("Overall condition", first = depth != "fast" && keyed.isEmpty())
                         Seg(vm.config.overallCondition, a.overall ?: vm.config.overallConditionDefault, { v -> edit { it.copy(overall = v.orEmpty()) } })
                     }
-                    Lbl("Comments")
-                    VInput(a.comments, { v -> edit { it.copy(comments = v) } }, placeholder = "Notes for this section…", multiline = true, filter = { Filters.base(it, 4000, multiline = true) })
-                    BtnRow {
+                    // A notes section prints only its numbered lines, so it has no separate Comments box (nothing typed is left unprinted).
+                    if (!notes) {
+                        Lbl("Comments")
+                        VInput(a.comments, { v -> edit { it.copy(comments = v) } }, placeholder = "Notes for this section…", multiline = true, filter = { Filters.base(it, 4000, multiline = true) })
+                    }
+                    val save: () -> Unit = { vm.saveSection(inspId, name); vm.toast("Section saved"); nav.toSections(inspId) }
+                    if (notes) VBtn("Save", save, Modifier.padding(top = 12.dp), BtnKind.Ghost, VIcons.check)
+                    else BtnRow {
                         VBtn("Photos", { nav.navigate(PhotosR(inspId, name)) }, Modifier.weight(1f), BtnKind.Ghost, VIcons.camera)
-                        VBtn("Save", {
-                            vm.saveSection(inspId, name); vm.toast("Section saved"); nav.toSections(inspId)
-                        }, Modifier.weight(1f), BtnKind.Ghost, VIcons.check)
+                        VBtn("Save", save, Modifier.weight(1f), BtnKind.Ghost, VIcons.check)
                     }
                     VBtn("Save & next section", {
                         vm.saveSection(inspId, name)
@@ -308,6 +316,22 @@ private fun CountChoiceCard(key: String, it: ItemDef, a: SectionAnswers, edit: (
                     wholeNumberMax = ItemDef.COUNT_MAX, contentDescription = CountChoice.fieldDescription(it, o))
             }
         }
+    }
+}
+
+/**
+ * Data v1.14 `notes` line (Planned Maintenance Recommendations): optional free text up to the item's `maxLength` (300), on one
+ * paragraph (a typed line break becomes a space). The field grows to show the whole entry; a counter appears near the limit.
+ */
+@Composable
+private fun NotesLineCard(key: String, it: ItemDef, a: SectionAnswers, edit: ((SectionAnswers) -> SectionAnswers) -> Unit) {
+    val max = (it.maxLength ?: Limits.NOTES_LINE).coerceIn(1, 4000)
+    val v = a.inputs[key].orEmpty()
+    LiCard(it.q.orEmpty()) {
+        VInput(v, { t -> edit { s -> s.copy(inputs = s.inputs + (key to t)) } }, placeholder = it.placeholder ?: "Optional",
+            multiline = true, minHeight = 48.dp, filter = { t -> Filters.base(t, max) }, contentDescription = it.q)
+        if (v.length >= max - 40) Text("${v.length} / $max characters", style = T.mono(10.5.sp, color = if (v.length >= max) V.c1 else V.ink3),
+            modifier = Modifier.padding(top = 6.dp).fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.End)
     }
 }
 
