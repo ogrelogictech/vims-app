@@ -389,7 +389,7 @@
   PM=PM.map(function(t){ return String(t==null?'':t).replace(/\s+/g,' ').trim().slice(0,300); }).filter(Boolean).slice(0,10);
   var pg=9; // next page number; shifts when the Planned Maintenance page is left out
   if(PM.length){
-    pages.push('<div class="page">'+rhead()+'<div class="sectitle"><span class="num">99</span><b>Planned Maintenance Recommendations</b></div>'
+    pages.push('<div class="page">'+rhead()+'<div class="sectitle"><span class="num">&mdash;</span><b>Planned Maintenance Recommendations</b></div>'
       +'<ol class="pmlist">'+PM.map(function(t,i){ return '<li><span class="n">'+(i+1)+'.</span><span class="t">'+t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</span></li>'; }).join('')+'</ol>'
       +pfoot(pg++)+'</div>');
   }
