@@ -85,6 +85,7 @@ enum DemoSeed {
 
         func build(_ i: inout Inspection) {
             i.groups = cat.buildGroups(for: i)
+            i.checklistVersion = config.version     // seeded with today's checklist (v1.13 combined Receptacles item)
             for n in i.leafSections where i.status[n] == nil { i.status[n] = .todo }
         }
 

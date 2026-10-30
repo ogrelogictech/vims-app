@@ -114,7 +114,10 @@ struct ReportData {
 
     static func make(_ insp: Inspection, config cfg: ChecklistConfig, overrides: ChecklistOverrides,
                      company: CompanyProfile, repo: FileStore, logo: UIImage?) -> ReportData {
-        let cat = ChecklistCatalog(config: cfg, overrides: overrides, counts: insp.counts)
+        // The inspection's saved checklist (`savedSections`, merged into `overrides` by `AppStore.catalog(for:)`) prints as
+        // saved — v1.13 never swaps its old receptacle items for the combined one.
+        let cat = ChecklistCatalog(config: cfg, overrides: overrides, counts: insp.counts,
+                                   savedNames: Set((insp.savedSections ?? [:]).keys))
         let colorDef = cfg.covers.colors.first { $0.name == insp.cover.color } ?? cfg.covers.colors[0]
 
         func v(_ label: String) -> String {
@@ -182,6 +185,8 @@ struct ReportData {
                     var value = ""
                     switch k.item.kind {
                     case .single, .multi: value = (a.choices[k.id] ?? []).joined(separator: ", ")
+                    // v1.13 countChoice (client Oct 30): "GFCI (4), Standard (6)", "GFCI" (no count) or "None".
+                    case .countChoice: value = CountChoice(a, key: k.id).summary
                     // Same text as the wizard's Date / Time on the cover ("October 12, 2026", "10:15 AM"); an older
                     // free-text answer that can't be read as a date / time prints as typed.
                     case .date:
@@ -356,7 +361,7 @@ struct FormSectionData {
                 title = h; rows = []
                 continue
             }
-            var text = a.text[k.id] ?? ""
+            var text = k.item.kind == .countChoice ? CountChoice(a, key: k.id).summary : (a.text[k.id] ?? "")
             if k.item.kind == .date, let d = Fmt.parse(text, "yyyy-MM-dd") { text = Fmt.date(d, "MM/dd/yyyy") }
             if k.item.kind == .time, let d = Fmt.parse(text, "HH:mm") { text = Fmt.date(d, "h:mm a") }
             if let det = a.detail[k.id], !det.isEmpty { text = text.isEmpty ? det : "\(text) — \(det)" }

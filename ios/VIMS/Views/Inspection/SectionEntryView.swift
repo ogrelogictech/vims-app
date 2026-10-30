@@ -184,7 +184,15 @@ struct SectionEntryView: View {
             default: return nil
             }
         }
-        return errors.validate(fields)
+        // v1.13 countChoice counts: optional whole numbers 0 – 999.
+        let counts: [(id: String, value: String, rule: FieldRule)] = keyed.filter { $0.item.kind == .countChoice }.flatMap { k in
+            let c = CountChoice(answers, key: k.id)
+            return (k.item.countOptions ?? []).map { o in
+                (CountChoiceInput.fieldID(k.id, o), c.counts[o].map(String.init) ?? "",
+                 FieldRule.opt(.number(CountChoiceInput.limits), CountChoice.countLabel(o, placeholder: k.item.countPlaceholder)))
+            }
+        }
+        return errors.validate(fields + counts)
     }
 
     private func save() {
@@ -408,6 +416,12 @@ struct ItemCard: View {
                                 rating: Binding(get: { answers.choices[key]?.first }, set: { answers.choices[key] = $0.map { [$0] } }),
                                 ratingNames: airQuality?.ratings ?? [:], actionPrefix: airQuality?.prefix ?? AirQualityDef().prefix,
                                 errors: errors)
+            case .countChoice:
+                CountChoiceInput(item: item, key: key, answers: $answers, errors: errors)
+                if showDetail {
+                    VTextField(text: textBinding(\.detail), placeholder: "Detail / measurement (optional)", bottom: 0)
+                        .padding(.top, 9)
+                }
             case .text:
                 VTextField(text: textBinding(\.text), placeholder: item.placeholder ?? "Enter a value", bottom: 0, kind: .plain(max: 500))
             case .date:
@@ -438,6 +452,79 @@ struct ItemCard: View {
     private func textBinding(_ kp: WritableKeyPath<SectionAnswers, [String: String]>) -> Binding<String> {
         Binding(get: { answers[keyPath: kp][key] ?? "" },
                 set: { answers[keyPath: kp][key] = $0.isEmpty ? nil : $0 })
+    }
+}
+
+/// Data v1.13 `countChoice` (client Oct 30, Receptacles): None on the first row; each count option (GFCI, Standard) on its
+/// own row, its button on the left and its "# of receptacles" field (number pad, whole numbers 0 – 999, optional) on the
+/// right. None is exclusive (clears the others and their counts); GFCI and Standard toggle and combine; typing a count
+/// above 0 selects its option; deselecting an option clears its count. Stored by `CountChoice`.
+struct CountChoiceInput: View {
+    let item: ItemDef
+    let key: String
+    @Binding var answers: SectionAnswers
+    var errors: FormErrors? = nil
+
+    static let limits = NumberLimits(min: 0, max: Double(CountChoice.maxCount), maxDecimals: 0)
+    static func fieldID(_ key: String, _ option: String) -> String { "\(key)|count:\(option)" }
+
+    private var value: CountChoice { CountChoice(answers, key: key) }
+    private var options: [String] { item.options ?? [] }
+    private var countOptions: [String] { item.countOptions ?? [] }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            ForEach(options, id: \.self) { o in
+                HStack(spacing: 12) {
+                    optionButton(o)
+                    if countOptions.contains(o) {
+                        VTextField(text: countBinding(o), placeholder: item.countPlaceholder ?? "Count", keyboard: .numberPad, bottom: 0,
+                                   kind: .number(Self.limits), fieldID: Self.fieldID(key, o), errors: errors,
+                                   a11yLabel: CountChoice.countLabel(o, placeholder: item.countPlaceholder))
+                            .frame(maxWidth: .infinity)
+                    } else {
+                        Spacer(minLength: 0)
+                    }
+                }
+            }
+        }
+    }
+
+    private func optionButton(_ o: String) -> some View {
+        let on = value.selected.contains(o)
+        return Button {
+            var c = value
+            c.tap(o, item: item)
+            c.store(in: &answers, key: key)
+            if on, errors?[Self.fieldID(key, o)] != nil { errors?.set(Self.fieldID(key, o), nil) }
+        } label: {
+            Text(o)
+                .font(VFont.ui(14.5, .semibold))
+                .foregroundStyle(on ? .white : VC.ink2)
+                .lineLimit(2).minimumScaleFactor(0.8)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 10)
+                .frame(width: 124)
+                .frame(minHeight: 46)
+                .background(on ? VC.brand : VC.paper)
+                .clipShape(Capsule())
+                .overlay(Capsule().stroke(on ? VC.brand : VC.line, lineWidth: 1.5))
+                .contentShape(Capsule())
+        }
+        .buttonStyle(ChipPressStyle())
+        .accessibilityLabel(o)
+        .accessibilityValue(value.counts[o].map { "\($0)" } ?? "")
+        .accessibilityAddTraits(on ? .isSelected : [])
+    }
+
+    private func countBinding(_ o: String) -> Binding<String> {
+        Binding(get: { value.counts[o].map(String.init) ?? "" },
+                set: { t in
+                    var c = value
+                    c.setCount(t, for: o, item: item)
+                    guard c != value else { return }
+                    c.store(in: &answers, key: key)
+                })
     }
 }
 

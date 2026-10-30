@@ -478,7 +478,7 @@ struct EditItemCard: View {
     private var deleteMessage: String {
         let raw = Validator.trimmed(edit.item.header ?? edit.item.q ?? "")
         let name = raw.isEmpty ? (edit.item.isHeader ? "This header" : "This item") : "\u{201C}\(raw)\u{201D}"
-        let hasOptions = !edit.item.isHeader && !(edit.item.options ?? []).isEmpty && [.single, .multi].contains(edit.item.kind)
+        let hasOptions = !edit.item.isHeader && !(edit.item.options ?? []).isEmpty && [.single, .multi, .countChoice].contains(edit.item.kind)
         return "\(name)\(hasOptions ? " and its options" : "") will be removed from new inspections."
     }
 
@@ -512,7 +512,9 @@ struct EditItemCard: View {
                 }
             }
             if let e = errors["q-\(edit.id)"] { FieldError(text: e) }
-            if !edit.item.isHeader {
+            if edit.item.kind == .countChoice {
+                countChoiceSummary
+            } else if !edit.item.isHeader {
                 Menu {
                     ForEach(types, id: \.0) { t in
                         Button(t.1) {
@@ -561,6 +563,30 @@ struct EditItemCard: View {
         .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 13, style: .continuous).stroke(VC.line, lineWidth: 1))
         .padding(.bottom, 11)
+    }
+
+    /// Data v1.13 `countChoice` (client Oct 30, Receptacles): the question can be renamed, moved and deleted like any item;
+    /// its type and buttons are fixed (read-only here), since the report and the count fields depend on them.
+    private var countChoiceSummary: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Buttons + counts")
+                .font(VFont.ui(12, .semibold)).foregroundStyle(VC.ink2)
+                .padding(.horizontal, 10).padding(.vertical, 5)
+                .background(VC.paper3).clipShape(Capsule())
+            FlowLayout(spacing: 6, lineSpacing: 6) {
+                ForEach(edit.item.options ?? [], id: \.self) { op in
+                    let counted = (edit.item.countOptions ?? []).contains(op)
+                    Text(counted ? "\(op) + \(edit.item.countPlaceholder ?? "count")" : op)
+                        .font(VFont.ui(12.5)).foregroundStyle(VC.ink2)
+                        .padding(.horizontal, 12).padding(.vertical, 5)
+                        .background(VC.paper3).clipShape(Capsule())
+                }
+            }
+            Text("These buttons are fixed. You can rename, move or delete the item.")
+                .font(VFont.ui(12)).foregroundStyle(VC.ink3)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityElement(children: .combine)
     }
 
     private func addOption() {

@@ -70,7 +70,7 @@ struct HomeSideMenu: View {
                         label("MASTER ADMIN")
                         group {
                             item("plans-pricing-edit", "Plans & pricing") { go(.plans) }
-                            item("report-bcc", "Report quality copy (BCC)") { go(.reportBcc) }
+                            item("report-bcc", "Report quality copy") { go(.reportBcc) }
                             item("email-to-client", "Feedback & support", last: true) { go(.feedbackAdmin) }
                         }
                     }

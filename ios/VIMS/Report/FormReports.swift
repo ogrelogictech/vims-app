@@ -50,6 +50,9 @@ struct FormReportData {
             case .date:
                 let raw = a.text[k.id] ?? ""
                 texts[q] = Fmt.answerDate(raw).map { Fmt.date($0, "MM/dd/yyyy") } ?? raw
+            case .countChoice:
+                let v = CountChoice(a, key: k.id).summary
+                if !v.isEmpty { texts[q] = v }
             default:
                 var v = (a.text[k.id] ?? "").trimmingCharacters(in: .whitespaces)
                 // Never opened: the prefill values (owner name, address, initials…) still print.

@@ -156,24 +156,26 @@ SwiftUI views ──► AppStore (@Observable, @MainActor)  ──► Repository
   Trial and Cancelled amber.
 - **Inspection date.** The wizard's date picker starts at today; editing an existing inspection allows its saved
   (possibly past) date.
-- **VIMS platform-owner settings** (data v1.2). The feedback email and the **Report quality copy (BCC)**
+- **VIMS platform-owner settings** (data v1.2). The feedback email and the **Report quality copy** (was "(BCC)" before Oct 30)
   (`support.reportBcc` default) are platform-level, not per company: stored once in SwiftData
   (`PlatformRecord` → `PlatformSettings`) and editable only by the platform owner. `Session.isPlatformOwner` is
   true only when the signed-in email is in the shared `support.platformOwners` list (data v1.5; see below —
-  TODO(backend): the server sends this flag/role). Only those accounts see Settings → "Master admin" (was "VIMS owner" before Oct 28; Report quality copy (BCC) with subtitle
-  "On · address" / "Off", and Feedback & support); other companies' admins don't, and the routes show "Not
-  available" if reached. The BCC screen has the intro text, On/Off, the address (email rule; required while On)
-  and Save.
+  TODO(backend): the server sends this flag/role). Only those accounts see Settings → "Master admin" (was "VIMS owner" before Oct 28; Report quality copy with subtitle
+  "On · sent by the VIMS server to address" / "Off", and Feedback & support); other companies' admins don't, and the routes show "Not
+  available" if reached. The Report quality copy screen has the intro text (client Oct 30: the copy is sent separately by the VIMS
+  server, never added to the inspector's email), "Send a quality copy of every emailed report" On/Off, the "Quality copy
+  address" (email rule; required while On) and Save.
 - **Emailing a report** (Report ready → Email to client, `Report/ReportMail.swift`): when Mail is set up,
-  `MFMailComposeViewController` opens with To = client email (+ agent email), a subject/body, the PDF attached
-  and **BCC = the report-quality address when On** (`ReportMailDraft.make` / `configure`). The BCC address is
-  never shown elsewhere in the UI. Without Mail the share sheet opens instead, with a note that a blind copy is
-  added when reports are emailed through VIMS. TODO(backend): the server-side send always adds the BCC so it
-  can't be removed. The simulator has no Mail account, so the composer wiring is checked with the DEBUG
-  `-mailSelfTest` launch argument, which prints the draft (to / bcc / subject / attachment) to the console.
+  `MFMailComposeViewController` opens with To = client email (+ agent email), CC = the inspector, a subject/body and
+  the PDF attached. **No Bcc** (client Oct 30: the phone's mail app showed the inspector a Bcc line to
+  quality@vimsinspect.com): `ReportMailDraft.make` leaves `bcc` empty and `configure` never sets Bcc recipients. The
+  report-quality copy is sent separately by the VIMS server (TODO(backend) in `ReportMailDraft.make`; until that send
+  exists no quality copy goes out). Without Mail the share sheet opens instead (its note no longer mentions a copy).
+  The simulator has no Mail account, so the composer wiring is checked with the DEBUG `-mailSelfTest` launch argument,
+  which prints the draft (to / cc / bcc — always [] — / subject / attachment) and a `qualityCopy=` line to the console.
 - **Home side menu** (`Views/Home/SideMenu.swift`): hamburger opens a left drawer with the user's profile photo, user,
   email and company; Inspections, New inspection, Settings, Company profile, How VIMS works, Help & feedback;
-  master-admin-only Plans & pricing, Report quality copy (BCC), Feedback & support (client Oct 28); company-admin-only
+  master-admin-only Plans & pricing, Report quality copy, Feedback & support (client Oct 28); company-admin-only
   Manage checklist, Inspectors; Sign out. Scrim tap or swipe left closes it.
 - **Adaptive layout.** Every screen scrolls within the safe areas (no fixed heights), SwiftUI handles keyboard
   avoidance, rows stack their status pill under the text at large Dynamic Type sizes, and Dynamic Type is
@@ -369,7 +371,7 @@ payment" button are a confirmed add-on and are not built. The report therefore h
   - **OR:** the `coverNotice` prints on the PDF cover under the ownership notice, in every layout.
   - **OR / LA `docs`:** the state documents (`shared/legal/state/*.pdf`) are listed in step 1 with **View** and **Send to client**. A required checkbox, "Provided to the client with the inspection agreement," blocks **Next**, and the acknowledgment is stored with a timestamp.
   - **Adding a state:** edit `stateRules` in the shared JSON. No code changes are needed.
-- **Emailed reports** go To the client and agent, with **CC to the signed-in inspector** (archive copy) and BCC to the platform report-quality address when that setting is on.
+- **Emailed reports** go To the client and agent, with **CC to the signed-in inspector** (archive copy). No Bcc since client Oct 30: the platform report-quality copy is sent by the VIMS server (TODO(backend)).
 - **EULA** `version` 2026-10-03 adds clause 3.4 (Licensing). Users who accepted an older version see the re-accept gate once.
 
 ## Inspection agreement + send-to-agent (shared data v1.4)
@@ -378,7 +380,7 @@ payment" button are a confirmed add-on and are not built. The report therefore h
 - **Company profile → Inspection agreement:** "VIMS agreement · All 50 states · in use · View" with **Upload your own** (file importer, PDF/Word). After an upload the card shows the file name, "Your agreement · in use · **Use VIMS agreement**" (reverts and deletes the stored file) and **Replace**. Stored per company (`CompanyProfile.agreementFile/agreementName`, `companies/<id>/`).
 - **Viewer** (`Views/Legal/AgreementViews.swift`, route `.agreement(state:)`, title "Inspection agreement"): title, header form lines in a boxed mono block, body paragraphs/bullets, "State Specific required disclosures." and closing. From Company profile it lists all 20 states; from the wizard only the inspection's state, with "Showing <State> only. The full agreement lists 20 states." or "No additional disclosures for <State>." When the company uses its own file, a note says so (VIMS text shown for reference) with **Open your agreement** (Quick Look).
 - **Wizard step 1:** "Inspection agreement: View (shows the selected state's section)" under the State notes, and **Send the report to the real estate agent** under Real estate agent email (on by default; reset to `stateRules[state].agentCopyDefault` when the state changes — off for NH, whose note shows under it). Stored as `Inspection.sendToAgent` (nil on older inspections = on).
-- **Emailed reports:** with send-to-agent off, To = client only (CC inspector and platform BCC unchanged); the Report ready note says "client only".
+- **Emailed reports:** with send-to-agent off, To = client only (CC inspector unchanged; no Bcc); the Report ready note says "client only".
 - DEBUG: `-screen agreement [-agreementState XX] [-agreementScroll disclosures]`, `-ownAgreement NAME` (bundled NAME.pdf through the same upload path), `-useVimsAgreement`, `-agreementStatus`, `-wizScroll sendToAgent|agreementLine`; `-mailSelfTest` also prints the NH/UT recipient check. Screenshots: `screenshots/qa-12x-*.png`.
 
 ## Client round Oct 9 (shared data v1.5)
@@ -887,3 +889,42 @@ Screenshots: `screenshots/oct12-*.png` — `ipad-01…18` 13" (landscape 01–13
 - DEBUG: `-roomCounts "bathrooms=2,bedrooms=3"`, `-addRooms "Garage,Attic,Kitchen"`, `-legacyCompressor V`,
   `-oct29Fill`, `-oct29Status` (OCT29TEST lines), `-oldCompressorEdit`, `-scrollToItem Q`, `-markupZoom Z`.
 - Verified on iPhone 17 Pro (iOS 26.5). Screenshots `screenshots/oct29-*.png`.
+
+### iOS 0.25.0 (26) — client Oct 30 (shared v1.13.0)
+
+- **Version**: `MARKETING_VERSION` 0.25.0, `CURRENT_PROJECT_VERSION` 26 in every configuration. Bundle identifier
+  unchanged (`com.vims.app`).
+- **One combined Receptacles item** (data v1.13 `countChoice`, 28 items in 25 High Detail sections; the separate "GFCI"
+  Yes/No, the old single-choice Receptacles and the Oct 29 count fields are gone from the shared data): `ItemKind
+  .countChoice` with `countOptions`, `exclusive`, `countPlaceholder`, `replaces` on `ItemDef`. `CountChoiceInput`
+  (Views/Inspection/SectionEntryView.swift): None on the first row, then GFCI and Standard each on a row with the button
+  on the left and a "# of receptacles" field on the right (number pad, whole numbers 0 – 999, optional, VoiceOver
+  "Number of GFCI receptacles"). None clears every other choice and count; GFCI and Standard toggle and combine;
+  typing a count above 0 selects its option (any count clears None); deselecting clears the count.
+- **Answer encoding** (`CountChoice`, Data/Models.swift): like an `airReading` — `SectionAnswers.choices[key]` = the
+  selected options (so answered / In progress, `visibleIf {includes}` and the report work like any choice item) and
+  `text[key]` = the counts as a compact JSON object (`{"GFCI":4,"Standard":6}`). No new stored fields. Answered = at
+  least one option selected.
+- **Report**: prints "GFCI (4), Standard (6)", "GFCI" (selected, no count) or "None" (also on form pages if ever used).
+- **`replaces`**: a company checklist edit that still has the old items gets them swapped for the combined item in the
+  place of the first one, under the same sub-header, old items found by label and type (not label alone — many old
+  single-choice items are also called "Receptacles") — `ChecklistCatalog.swappingReplaced`, applied when the company
+  copy is read, so Manage checklist shows and saves the new item. `ChecklistCatalog.adding` (how a company edit /
+  saved checklist gains new JSON items) never adds a combined item to a list that still has any label it replaces.
+- **Started inspections keep their checklist**: iOS inspections read the live checklist, so each inspection created
+  before 0.25.0 (`Inspection.checklistVersion == nil`) is migrated once at sign-in (the user's and teammates' on the
+  device): every section it uses that v1.13 changed is stored in `Inspection.savedSections` as it was started —
+  the company's edit as stored, or the shared section with each combined item put back to its v1.12 items
+  (`LegacyReceptacles.swift`, generated from v1.12; substituting all 28 gives back the v1.12 lists exactly). Saved
+  sections are never swapped (`ChecklistCatalog.savedNames`, also in the report), so old answers stay shown and printed
+  and no duplicate item appears. New inspections (and the demo seed) get `checklistVersion` = data version and the
+  combined item.
+- **Manage checklist**: the combined item can be renamed, moved and deleted like any item; its type and buttons are
+  read-only ("Buttons + counts", "These buttons are fixed."). Restore original works as before.
+- **Report quality copy** (client Oct 30): removed from the device mail compose (no Bcc); setting kept (On/Off + address)
+  with new intro / subtitle text; TODO(backend) server send. `-mailSelfTest` prints `bcc=[]` and `qualityCopy=`.
+- DEBUG: `-oct30New`, `-oct30Fill`, `-oldReceptacleEdit NAME`, `-oct30Status` (OCT30TEST lines), `-createOwnerAccount`.
+- Verified on iPhone 17 (iOS 26.5): a 0.24.0 (25) build with an in-progress High Detail inspection (Landscaping
+  Receptacles GFCI + GFCI Yes, Bathroom 1 GFCI No, Kitchen counts 5 / 4 + Receptacles GFCI Yes, Garage Non GFCI + 2 / 6)
+  upgraded in place: every old item and answer intact, no duplicate keys, report lines unchanged; a new inspection shows
+  the combined item. Screenshots `screenshots/oct30-*.png`.

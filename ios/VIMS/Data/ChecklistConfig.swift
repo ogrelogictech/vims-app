@@ -210,6 +210,16 @@ struct ItemDef: Codable, Hashable {
     /// v1.12 `renamedFrom`: the item's previous question. Answers saved under the old label move onto this item
     /// (`SectionAnswers.migratingRenamed`) and a company edit that still has the old label is renamed with it.
     var renamedFrom: String? = nil
+    /// v1.13 `countChoice` (client Oct 30, Receptacles): `options` are buttons; `countOptions` show a whole-number count
+    /// field beside them (`countPlaceholder`, 0 – 999, optional); `exclusive` options (None) clear every other choice and
+    /// count. Answer: `SectionAnswers.choices[key]` = the selected options, `text[key]` = the counts (see `CountChoice`).
+    var countOptions: [String]? = nil
+    var exclusive: [String]? = nil
+    var countPlaceholder: String? = nil
+    /// v1.13 `replaces` (countChoice only): labels of the old items in the same section and sub-header this item replaces.
+    /// A company checklist copy still holding them gets this item in their place (`ChecklistCatalog.swappingReplaced`);
+    /// a started inspection's saved checklist keeps them and never gets this item added (`ChecklistCatalog.adding`).
+    var replaces: [String]? = nil
 
     /// Decimal places a `num` answer may have while typing: 0 for `integer`, else `decimals`, else 2.
     var numDecimals: Int { integer == true ? 0 : max(0, decimals ?? 2) }
@@ -228,6 +238,7 @@ struct ItemDef: Codable, Hashable {
         case "date": return .date
         case "time": return .time
         case "airReading": return .airReading
+        case "countChoice": return .countChoice
         default: return .single
         }
     }
@@ -256,7 +267,8 @@ struct VisibleIf: Codable, Hashable {
 }
 
 /// `airReading` answer: the optional "Level measured" in `SectionAnswers.text[key]`, the 1–6 rating in `choices[key]`.
-enum ItemKind { case single, multi, num, text, date, time, airReading, header }
+/// `countChoice` answer (v1.13): the selected options in `choices[key]`, the counts in `text[key]` (`CountChoice`).
+enum ItemKind { case single, multi, num, text, date, time, airReading, countChoice, header }
 
 /// Section-level `airQuality` block (v1.7): the report table's legend, column heads and corrective-action prefix.
 struct AirQualityDef: Codable, Hashable {

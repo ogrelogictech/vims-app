@@ -121,7 +121,7 @@ final class AppStore {
         }
         var o = state.overrides
         o.sections.merge(saved) { _, kept in kept }
-        return ChecklistCatalog(config: config, overrides: o, counts: insp.counts)
+        return ChecklistCatalog(config: config, overrides: o, counts: insp.counts, savedNames: Set(saved.keys))
     }
     func catalog(for id: UUID) -> ChecklistCatalog { catalog(for: inspection(id)) }
     var company: CompanyProfile { state.company }
@@ -178,7 +178,8 @@ final class AppStore {
         return e.isEmpty ? nil : e
     }
 
-    /// Email draft for a finished report: To client + agent, CC the inspector, BCC the platform copy when on.
+    /// Email draft for a finished report: To client + agent, CC the inspector. No Bcc (client Oct 30): the master-admin
+    /// report-quality copy is sent separately by the VIMS server, so it never shows in the inspector's email.
     func reportMailDraft(_ insp: Inspection, pdf: URL) -> ReportMailDraft {
         ReportMailDraft.make(insp, company: company, platform: platform, pdf: pdf, ccInspector: reportCcEmail)
     }
@@ -281,6 +282,16 @@ final class AppStore {
         // Client Oct 17: older combined addresses become street / City / State / ZIP code (saved once).
         for i in inspections.indices where inspections[i].splitLegacyAddress(states: config.states ?? []) {
             repo.saveInspection(inspections[i], userID: u.id, companyID: c.id)
+        }
+        // Data v1.13 (client Oct 30): inspections created before 0.25.0 keep the receptacle items they were started with.
+        // Teammates' inspections on this device too, before anyone can edit the company checklist in this build.
+        for i in inspections.indices where keepStartedChecklist(&inspections[i]) {
+            repo.saveInspection(inspections[i], userID: u.id, companyID: c.id)
+        }
+        for member in c.profile.inspectors where member.id != u.id && repo.user(id: member.id)?.companyID == c.id {
+            for var insp in repo.inspections(userID: member.id) where keepStartedChecklist(&insp) {
+                repo.saveInspection(insp, userID: member.id, companyID: c.id)
+            }
         }
         sortInspections()
         repo.currentUserID = u.id
@@ -439,10 +450,31 @@ final class AppStore {
         }
     }
 
+    /// Data v1.13 `replaces` (client Oct 30, the combined Receptacles item): an inspection created before 0.25.0
+    /// (`checklistVersion == nil`) read the live checklist, so each of its sections that v1.13 changed keeps the checklist
+    /// it was started with in `savedSections` (`ChecklistCatalog.legacySnapshot`: the old "GFCI" Yes/No, single-choice
+    /// Receptacles and Oct 29 count fields, with every answer on them). A saved checklist holding a replaced label never
+    /// gets the combined item (`ChecklistCatalog.adding`). Sections it already kept (a restore) stay as they are. Marks the
+    /// inspection with today's data version so this runs once. Returns true when the inspection changed.
+    @discardableResult
+    func keepStartedChecklist(_ insp: inout Inspection) -> Bool {
+        guard insp.checklistVersion == nil else { return false }
+        let cat = catalog(for: insp)
+        for name in Set(insp.leafSections.map(ChecklistCatalog.baseName)).sorted() where insp.savedSections?[name] == nil {
+            if let snap = cat.legacySnapshot(name) { insp.savedSections = (insp.savedSections ?? [:]).merging([name: snap]) { a, _ in a } }
+        }
+        insp.checklistVersion = config.version
+        return true
+    }
+
     /// Wizard "Build checklist": creates (or updates) the inspection and its section list.
     @discardableResult
     func buildChecklist(from draft: Inspection) -> UUID {
         var insp = draft
+        // New inspections use today's checklist (v1.13: the combined Receptacles item); an older one being edited keeps
+        // the checklist it was started with.
+        if inspection(insp.id) == nil, insp.checklistVersion == nil { insp.checklistVersion = config.version }
+        else { keepStartedChecklist(&insp) }
         insp.splitLegacyAddress(states: config.states ?? [])
         insp.groups = catalog(for: insp).buildGroups(for: insp)
         keepSavedCustomSections(&insp)

@@ -543,6 +543,8 @@ struct VTextField: View {
     var focus: FocusChain? = nil
     var returnKey: UIReturnKeyType? = nil
     var onSubmit: (() -> Void)? = nil
+    /// VoiceOver label when the field has no visible label (v1.13 countChoice: "Number of GFCI receptacles").
+    var a11yLabel: String? = nil
     @State private var focused = false
 
     private var shownError: String? { error ?? fieldID.flatMap { errors?[$0] } }
@@ -559,7 +561,7 @@ struct VTextField: View {
                                       font: mono ? VFont.uMono(15, .medium) : VFont.uUI(15),
                                       keyboard: keyboard, contentType: contentType,
                                       caps: kind == .email || kind == .url ? .never : capitalization,
-                                      autocorrect: !noAutocorrect, accessibilityLabel: label ?? placeholder,
+                                      autocorrect: !noAutocorrect, accessibilityLabel: a11yLabel ?? label ?? placeholder,
                                       onFocus: { focused = $0 }, onSubmit: onSubmit, returnKey: returnKey,
                                       focusRequested: focus != nil && focus?.target == (fieldID ?? label),
                                       onFocusTaken: { [focus] in focus?.target = nil })

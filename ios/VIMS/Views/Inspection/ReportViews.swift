@@ -470,12 +470,13 @@ struct ReportReadyView: View {
         }
         return "Mail isn't set up on this device, so the report opens in the share sheet. When reports are emailed through VIMS, "
             + "they go to \(who)"
-            + (me.map { ", a copy goes to you (\($0))," } ?? "")
-            + " and a blind copy is added for report-quality review."
+            + (me.map { " with a copy to you (\($0))" } ?? "")
+            + "."
     }
 
-    /// Mail composer with the report attached, CC to the inspector and the platform BCC; share sheet when
-    /// Mail isn't available. TODO(backend): the server-side send will always add the CC/BCC.
+    /// Mail composer with the report attached and CC to the inspector (no Bcc, client Oct 30); share sheet when Mail
+    /// isn't available. TODO(backend): the VIMS server sends the master-admin report-quality copy separately (see
+    /// `ReportMailDraft.make`), so it never shows in the inspector's email.
     private func emailReport(_ insp: Inspection, _ url: URL) {
         if canSendMail {
             mailDraft = MailDraftItem(draft: store.reportMailDraft(insp, pdf: url))

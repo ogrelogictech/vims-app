@@ -4,8 +4,10 @@ import UIKit
 
 /// Everything needed to email a finished report. To = client (+ agent, unless the inspection's step-1
 /// "Send the report to the real estate agent" is off — v1.4, e.g. New Hampshire); CC = the signed-in inspector's own
-/// email (data v1.3 `support.ccInspector`, an archive copy); BCC = the VIMS platform owner's report-quality
-/// copy (PlatformSettings.activeReportBcc), never shown in the app UI.
+/// email (data v1.3 `support.ccInspector`, an archive copy). No Bcc (client Oct 30, data v1.13): the phone's mail app
+/// shows a Bcc line to the sender, so the master-admin report-quality copy (`PlatformSettings.activeReportBcc`) is not
+/// put on the device compose; the VIMS server sends it separately (TODO(backend) in `make`). `bcc` stays in the draft
+/// (always empty) so `-mailSelfTest` can show it.
 struct ReportMailDraft: Equatable {
     var to: [String]
     var cc: [String] = []
@@ -33,10 +35,13 @@ struct ReportMailDraft: Equatable {
         if !company.reviewURL.isEmpty { body += "\nIf you have a moment, we'd appreciate a review: \(company.reviewURL)\n" }
         body += "\nThank you,\n\(company.inspectorName.isEmpty ? company.name : company.inspectorName)\n\(company.name)"
         if !company.phone.isEmpty { body += "\n\(company.phone)" }
+        // TODO(backend): when a report is emailed, the VIMS server sends the report-quality copy to
+        // `platform.activeReportBcc` itself (POST the inspection id + report to the server's report-mail endpoint).
+        // Never added to this compose (client Oct 30); until the server send exists, no quality copy is sent.
         return ReportMailDraft(
             to: to,
             cc: cc,
-            bcc: platform.activeReportBcc.map { [$0] } ?? [],
+            bcc: [],
             subject: "Inspection report — \(insp.addressLine1)",
             body: body,
             attachmentURL: pdf,
@@ -60,7 +65,7 @@ struct ReportMailDraft: Equatable {
     func configure(_ vc: MFMailComposeViewController) {
         vc.setToRecipients(to)
         if !cc.isEmpty { vc.setCcRecipients(cc) }
-        vc.setBccRecipients(bcc)
+        if !bcc.isEmpty { vc.setBccRecipients(bcc) }     // always empty (client Oct 30): no Bcc line in the compose
         vc.setSubject(subject)
         vc.setMessageBody(body, isHTML: false)
         if let data = try? Data(contentsOf: attachmentURL) {
@@ -94,4 +99,4 @@ struct MailComposeView: UIViewControllerRepresentable {
 }
 
 // Share-sheet fallback when Mail isn't set up: ShareSheet.present (Views/Shell/Adaptive.swift), which gives the
-// iPad popover its anchor. The share sheet can't carry a BCC.
+// iPad popover its anchor.

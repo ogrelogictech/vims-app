@@ -195,6 +195,104 @@ struct SectionAnswers: Codable, Hashable {
     }
 }
 
+// MARK: - Count choice (data v1.13 `countChoice`, client Oct 30 Receptacles)
+
+/// A `countChoice` answer, `{selected: [option, …], counts: {option: n}}` in the shared data. Stored like an `airReading`
+/// (one item, two parts of `SectionAnswers`): `choices[key]` = the selected options (so `visibleIf {includes}`, progress
+/// and "answered" work like any choice item) and `text[key]` = the counts as a compact JSON object
+/// (`{"GFCI":4,"Standard":6}`). No new stored fields, so the saved inspection format is unchanged.
+struct CountChoice: Equatable {
+    var selected: [String] = []
+    var counts: [String: Int] = [:]
+
+    static let maxCount = 999
+
+    init(selected: [String] = [], counts: [String: Int] = [:]) {
+        self.selected = selected; self.counts = counts
+    }
+
+    init(_ a: SectionAnswers, key: String) {
+        selected = a.choices[key] ?? []
+        counts = Self.decode(a.text[key])
+    }
+
+    /// Answered = at least one option selected.
+    var isAnswered: Bool { !selected.isEmpty }
+
+    func store(in a: inout SectionAnswers, key: String) {
+        a.choices[key] = selected.isEmpty ? nil : selected
+        a.text[key] = Self.encode(counts)
+    }
+
+    static func encode(_ counts: [String: Int]) -> String? {
+        guard !counts.isEmpty else { return nil }
+        let clean = counts.mapValues { min(max(0, $0), maxCount) }
+        guard let d = try? JSONSerialization.data(withJSONObject: clean, options: [.sortedKeys]) else { return nil }
+        return String(data: d, encoding: .utf8)
+    }
+
+    static func decode(_ s: String?) -> [String: Int] {
+        guard let s, !s.isEmpty, let d = s.data(using: .utf8),
+              let o = try? JSONSerialization.jsonObject(with: d) as? [String: Any] else { return [:] }
+        var out: [String: Int] = [:]
+        for (k, v) in o {
+            if let n = v as? Int { out[k] = n } else if let t = v as? String, let n = Int(t) { out[k] = n }
+        }
+        return out
+    }
+
+    /// Tapping an option: a selected one is deselected (its count cleared); an exclusive one (None) clears every other
+    /// choice and count; any other option joins the selection and clears the exclusive ones.
+    mutating func tap(_ o: String, item: ItemDef) {
+        let exclusive = item.exclusive ?? []
+        if let i = selected.firstIndex(of: o) {
+            selected.remove(at: i)
+            counts[o] = nil
+        } else if exclusive.contains(o) {
+            selected = [o]
+            counts = [:]
+        } else {
+            selected.removeAll { exclusive.contains($0) }
+            for e in exclusive { counts[e] = nil }
+            selected.append(o)
+        }
+        sort(item)
+    }
+
+    /// Typing a count: empty clears it; any number clears the exclusive options; a number above 0 selects its option.
+    mutating func setCount(_ text: String, for o: String, item: ItemDef) {
+        let t = text.trimmingCharacters(in: .whitespaces)
+        guard !t.isEmpty, let n = Int(t) else { counts[o] = nil; return }
+        counts[o] = min(max(0, n), Self.maxCount)
+        let exclusive = item.exclusive ?? []
+        selected.removeAll { exclusive.contains($0) }
+        for e in exclusive { counts[e] = nil }
+        if n > 0, !selected.contains(o) { selected.append(o) }
+        sort(item)
+    }
+
+    private mutating func sort(_ item: ItemDef) {
+        let order = item.options ?? []
+        selected.sort { (order.firstIndex(of: $0) ?? .max) < (order.firstIndex(of: $1) ?? .max) }
+    }
+
+    /// Report / summary text: "GFCI (4), Standard (6)", "GFCI" (selected, no count), "None". Empty when nothing is
+    /// selected. A count only prints for a selected option and when it is above 0.
+    var summary: String {
+        selected.map { o in
+            if let n = counts[o], n > 0 { return "\(o) (\(n))" }
+            return o
+        }.joined(separator: ", ")
+    }
+
+    /// VoiceOver label of an option's count field: "# of receptacles" → "Number of GFCI receptacles".
+    static func countLabel(_ option: String, placeholder: String?) -> String {
+        let p = (placeholder ?? "").trimmingCharacters(in: .whitespaces)
+        if p.hasPrefix("# of ") { return "Number of \(option) " + p.dropFirst(5) }
+        return "\(option) count"
+    }
+}
+
 // MARK: - Photos & findings
 
 struct PhotoRef: Codable, Hashable, Identifiable {
@@ -336,6 +434,10 @@ struct Inspection: Codable, Hashable, Identifiable {
     /// the checklist to the VIMS original (keyed by section name). They win over the company's current checklist, so an
     /// inspection already created keeps its saved checklist. nil = none saved (uses the company checklist).
     var savedSections: [String: SectionDef]?
+    /// The shared checklist data version the inspection was built with (data v1.13+, iOS 0.25.0). nil = created by an
+    /// earlier build: on first load its sections that v1.13 changed with `replaces` (the combined Receptacles item) keep
+    /// the checklist it was started with in `savedSections` (`AppStore.keepStartedChecklists`).
+    var checklistVersion: String?
     var status: [String: SectionStatus] = [:]
     var answers: [String: SectionAnswers] = [:]
     var photos: [String: [String: [PhotoRef]]] = [:]
@@ -708,16 +810,17 @@ struct AppSettings: Codable, Hashable {
 struct PlatformSettings: Codable, Hashable {
     /// Help & feedback messages go here.
     var feedbackEmail: String
-    /// Blind carbon copy of every emailed report, for report-quality review (disclosed in the VIMS EULA).
+    /// Report-quality copy of every emailed report (disclosed in the VIMS EULA). Client Oct 30: sent separately by the
+    /// VIMS server (TODO(backend)), never as a Bcc on the device's mail compose.
     var reportBccOn: Bool
     var reportBccEmail: String
 
-    /// The address to BCC on an emailed report, or nil when the setting is off.
+    /// The address the VIMS server sends the report-quality copy to, or nil when the setting is off.
     var activeReportBcc: String? {
         let e = reportBccEmail.trimmingCharacters(in: .whitespaces)
         return reportBccOn && !e.isEmpty ? e : nil
     }
-    var bccSummary: String { activeReportBcc.map { "On · \($0)" } ?? "Off" }
+    var bccSummary: String { activeReportBcc.map { "On · sent by the VIMS server to \($0)" } ?? "Off" }
 
     /// Client Oct 28 (data v1.11): the VIMS subscription plans and prices, edited only by a master admin in Plans & pricing
     /// and used on every company's Subscribe screen. nil until a master admin saves a change = the shared JSON's plans.

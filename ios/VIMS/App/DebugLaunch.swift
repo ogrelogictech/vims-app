@@ -38,6 +38,7 @@ enum DebugFlags {
 ///   -resetData                 wipe the SwiftData store + files and reseed the demo account
 ///   -video / -noVideo          force / skip the launch video (skipped by default with -screen)
 ///   -signInAs EMAIL            sign in as that local account
+///   -createOwnerAccount        create a local master-admin account (masteradmin@vimsinspect.com) for -signInAs
 ///   -ownerStatus               print OWNERTEST lines (signed-in master admin flag + owner matching for sample emails)
 ///   -pricingStatus             print PRICINGTEST lines (VIMS plans / yearly prices / company plan, period, total)
 ///   -checklistStatus           print CHECKLISTTEST lines (company edits, each inspection's kept sections + item counts)
@@ -57,6 +58,12 @@ enum DebugFlags {
 ///   -pickRestore [-pickAll]    with -screen manage: open Restore selected checklists (all ticked)
 ///   -eulaStatus                print each local account's accepted EULA version to the console
 ///   -mailSelfTest              print the report email draft (to/CC/BCC/subject/attachment) + state-document drafts
+///                              (client Oct 30: bcc is always empty; the quality copy is sent by the VIMS server)
+///   -oct30New                  data v1.13: create a new High Detail inspection (Garage, Attic, Kitchen) and open it
+///   -oct30Fill                 answer the combined Receptacles item on the chosen inspection (Landscaping GFCI 4 +
+///                              Standard 6, Garage GFCI 2, Kitchen None, Bathroom 1 Standard) and mark those sections done
+///   -oldReceptacleEdit NAME    a company edit of NAME saved with the v1.12 receptacle items (the catalog swaps them)
+///   -oct30Status               print OCT30TEST lines (items, kept checklists, answers, report lines)
 ///   -state XX                  set the chosen inspection's property state (OK summary disclosure, OR cover notice)
 ///   -cover "C|Cat|Opt|Style"   set the chosen inspection's report cover (e.g. "Blue|Holidays|4th of July|Shaded")
 ///   -wizState TX[,UT]          pick those states in order when the wizard opens (prints STATETEST lines)
@@ -166,6 +173,7 @@ enum DebugLaunch {
             print("MAILTEST state=\(code) sendToAgent=\(v.sendsReportToAgent) to=\(dv.to) cc=\(dv.cc) bcc=\(dv.bcc)")
         }
         print("MAILTEST platform bccOn=\(store.platform.reportBccOn) bccEmail=\(store.platform.reportBccEmail)")
+        print("MAILTEST qualityCopy=\(store.platform.activeReportBcc.map { "sent by the VIMS server to \($0) (TODO backend), not on the compose" } ?? "off") composeBcc=\(d.bcc)")
         if MFMailComposeViewController.canSendMail() {
             let vc = MFMailComposeViewController(); d.configure(vc); print("MAILTEST composer configured")
         }
@@ -256,6 +264,86 @@ enum DebugLaunch {
             }
             print("OCT29TEST report \(s.name): \(lines)")
         }
+    }
+
+    /// Client Oct 30 (data v1.13) checks — see -oct30New / -oct30Fill / -oldReceptacleEdit / -oct30Status. Returns the
+    /// inspection to open (the new one with -oct30New).
+    @MainActor
+    static func seedOct30(_ store: AppStore, _ id: UUID) -> UUID {
+        var id = id
+        if has("-oct30New"), let src = store.inspection(id) {
+            var draft = store.newInspectionDraft()
+            draft.inspType = src.inspType.isEmpty ? (store.config.wizard.inspectionTypes.first ?? "") : src.inspType
+            draft.fields["Inspection address"] = "77 Upgrade Test Ln"
+            draft.fields["City"] = "Ogden"; draft.fields["ZIP code"] = "84403"; draft.state = "UT"
+            draft.fields["Client name"] = "New Inspection Check"
+            draft.depth = .high
+            draft.exterior = src.exterior; draft.utilities = src.utilities
+            draft.rooms = src.rooms
+            for r in ["Garage", "Attic", "Kitchen"] where !draft.rooms.contains(r) { draft.rooms.append(r) }
+            id = store.buildChecklist(from: draft)
+            print("OCT30TEST created new inspection version=\(store.inspection(id)?.checklistVersion ?? "nil")")
+        }
+        if let n = value("-oldReceptacleEdit"), store.session != nil, var d = store.config.sections.first(where: { $0.name == n }) {
+            d.items = ChecklistCatalog.restoringLegacy(d.items, section: n)
+            d.itemsHigh = d.itemsHigh.map { ChecklistCatalog.restoringLegacy($0, section: n) }
+            d.baseItems = (d.items + (d.itemsHigh ?? [])).map(\.editKey)
+            store.state.overrides.sections[n] = d
+            let raw = (d.itemsHigh ?? []).compactMap { $0.q }.filter { $0.contains("eceptacle") || $0.contains("GFCI") }
+            let shown = store.catalog.items(n, depth: .high).items.filter { ($0.q ?? "").contains("eceptacle") || ($0.q ?? "").contains("GFCI") }
+            print("OCT30TEST companyEdit \(n) stored=\(raw) newInspections=\(shown.map { "\($0.q ?? ""):\($0.type ?? "single")" })")
+        }
+        let cat = { store.catalog(for: id) }
+        if has("-oct30Fill"), let i = store.inspection(id) {
+            let fills: [String: CountChoice] = [
+                "Landscaping": CountChoice(selected: ["GFCI", "Standard"], counts: ["GFCI": 4, "Standard": 6]),
+                "Garage": CountChoice(selected: ["GFCI"], counts: ["GFCI": 2]),
+                "Kitchen": CountChoice(selected: ["None"]),
+                "Bathroom 1": CountChoice(selected: ["Standard"])
+            ]
+            for (sec, v) in fills where i.leafSections.contains(sec) {
+                var a = i.answers[sec] ?? store.defaultAnswers(sec)
+                guard let k = ItemKeys.keyed(cat().items(sec, depth: i.depth).items).first(where: { $0.item.kind == .countChoice }) else { continue }
+                v.store(in: &a, key: k.id)
+                store.update(id, markDirty: false) { $0.answers[sec] = a; $0.status[sec] = .done }
+            }
+        }
+        guard has("-oct30Status") else { return id }
+        for i in store.inspections {
+            let c = store.catalog(for: i)
+            print("OCT30TEST insp=\(i.addressLine1) version=\(i.checklistVersion ?? "nil") depth=\(i.depth.rawValue) kept=\((i.savedSections ?? [:]).keys.sorted())")
+            for sec in i.leafSections where ["Landscaping", "Exterior Walls", "Garage", "Attic", "Kitchen", "Bathroom 1"].contains(sec) {
+                let items = c.items(sec, depth: .high).items
+                let rec = items.filter { ($0.q ?? "").contains("eceptacle") || ($0.q ?? "").contains("GFCI") }
+                    .map { "\($0.q ?? ""):\($0.type ?? "single")" }
+                let dupes = Dictionary(grouping: ItemKeys.keyed(items).map(\.id), by: { $0 }).filter { $0.value.count > 1 }.keys
+                let a = i.answers[sec] ?? SectionAnswers()
+                let ans = a.choices.filter { $0.key.contains("eceptacle") || $0.key.contains("GFCI") }.map { "\($0.key)=\($0.value)" }.sorted()
+                    + a.text.filter { $0.key.contains("eceptacle") || $0.key.contains("GFCI") }.map { "\($0.key)=\($0.value)" }.sorted()
+                print("OCT30TEST   \(sec) status=\(i.status[sec].map { "\($0)" } ?? "nil") items=\(rec) dupKeys=\(Array(dupes)) answers=\(ans)")
+            }
+            let data = ReportData.make(i, config: store.config, overrides: c.overrides, company: store.company, repo: store.files, logo: nil)
+            for s in data.sections where ["Landscaping", "Garage", "Kitchen", "Bathroom 1", "Attic"].contains(s.name) {
+                let lines = s.rows.compactMap { r -> String? in
+                    if case .line(let q, let v) = r.kind, q.contains("eceptacle") || q.contains("GFCI") { return "\(q)=\(v)" }
+                    return nil
+                }
+                print("OCT30TEST   report \(s.name): \(lines)")
+            }
+        }
+        // Behavior of the countChoice rules (None exclusive, toggles, counts select, deselect clears count).
+        if let item = store.config.sections.first(where: { $0.name == "Landscaping" })?.itemsHigh?.first(where: { $0.kind == .countChoice }) {
+            var v = CountChoice()
+            v.tap("None", item: item); let s1 = v.summary
+            v.setCount("4", for: "GFCI", item: item); let s2 = v.summary
+            v.tap("Standard", item: item); v.setCount("6", for: "Standard", item: item); let s3 = v.summary
+            v.tap("GFCI", item: item); let s4 = "\(v.summary) counts=\(v.counts)"
+            v.setCount("0", for: "GFCI", item: item); let s5 = "\(v.summary) counts=\(v.counts)"
+            v.tap("None", item: item); let s6 = "\(v.summary) counts=\(v.counts)"
+            var a = SectionAnswers(); var w = CountChoice(selected: ["GFCI", "Standard"], counts: ["GFCI": 4, "Standard": 6]); w.store(in: &a, key: "k")
+            print("OCT30TEST rules none=\(s1) | type GFCI 4=\(s2) | +Standard 6=\(s3) | untap GFCI=\(s4) | GFCI 0=\(s5) | None=\(s6) | stored choices=\(a.choices) text=\(a.text)")
+        }
+        return id
     }
 
     /// -iaq: Indoor Air Quality on the chosen inspection (report table / migration checks).
@@ -415,6 +503,17 @@ enum DebugLaunch {
                 c.profile.inspectors.removeAll { $0.email.caseInsensitiveCompare(email) == .orderedSame }
                 c.profile.inspectors.append(Inspector(id: u.id, name: u.name, email: u.email))
                 store.repo.saveCompany(c)
+            }
+        }
+        // -createOwnerAccount: a local master-admin account (masteradmin@vimsinspect.com, its own company, random password)
+        // made the way Create account does; relaunch with -signInAs masteradmin@vimsinspect.com (Report quality copy screen).
+        if has("-createOwnerAccount"), store.repo.user(email: "masteradmin@vimsinspect.com") == nil {
+            Task { @MainActor in
+                do {
+                    try await store.createAccount(name: "VIMS Master Admin", company: "VIMS", email: "masteradmin@vimsinspect.com",
+                                                  password: "Vm" + UUID().uuidString.prefix(12) + "9!")
+                    print("OWNERTEST created masteradmin@vimsinspect.com isPlatformOwner=\(store.isPlatformOwner)")
+                } catch { print("OWNERTEST create failed: \(error)") }
             }
         }
         if let email = value("-signInAs"), let u = store.repo.user(email: PlatformOwner.normalized(email)) { store.loadSession(u) }
@@ -629,7 +728,7 @@ enum DebugLaunch {
         }
         guard let ridge = store.inspections.first(where: { $0.address.hasPrefix(pick) || $0.inspType == pick })
                 ?? store.inspections.first else { return }
-        let id = ridge.id
+        var id = ridge.id
         // -state XX: set the property state on that inspection (summary disclosure / cover notice checks).
         if let st = value("-state") { store.update(id, markDirty: false) { $0.state = st; $0.stateDocsAck = nil } }
         // -cover "Color|Category|Option|Style": the report cover on that inspection (PDF cover checks).
@@ -642,6 +741,7 @@ enum DebugLaunch {
         if has("-sampleFindings") { seedOct16Findings(store, id) }
         if let mode = value("-oct17") { seedOct17(store, id, mode: mode) }
         seedOct29(store, id)
+        id = seedOct30(store, id)
         let depth = store.inspection(id)?.depth ?? .standard
         let section = value("-section") ?? (ridge.leafSections.contains("Roof") ? (depth == .high ? "Outside Utilities" : "Roof") : (ridge.leafSections.first ?? "Roof"))
 

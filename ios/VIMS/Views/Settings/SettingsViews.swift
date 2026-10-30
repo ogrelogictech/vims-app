@@ -88,7 +88,7 @@ struct SettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, 2).padding(.top, -4).padding(.bottom, 10)
                 NavRow(symbol: "plans-pricing-edit", title: "Plans & pricing", subtitle: "VIMS subscription plans & prices") { store.push(.plans) }
-                NavRow(symbol: "report-bcc", title: "Report quality copy (BCC)", subtitle: store.platform.bccSummary) { store.push(.reportBcc) }
+                NavRow(symbol: "report-bcc", title: "Report quality copy", subtitle: store.platform.bccSummary) { store.push(.reportBcc) }
                 NavRow(symbol: "email-to-client", title: "Feedback & support", subtitle: "Change the feedback contact email") { store.push(.feedbackAdmin) }
             }
 
@@ -471,7 +471,7 @@ struct FeedbackAdminView: View {
     }
 }
 
-// MARK: - Report quality copy (BCC) — VIMS platform owner only
+// MARK: - Report quality copy — VIMS platform owner only (sent by the VIMS server, never a Bcc on the device compose)
 
 struct ReportBccView: View {
     @Environment(AppStore.self) private var store
@@ -481,12 +481,12 @@ struct ReportBccView: View {
 
     var body: some View {
         Screen(title: "Report quality copy", actions: [store.homeAction()], errors: errors) {
-            Text(md("**Master admin (VIMS owner only)** — every inspection report emailed from the app is also sent as a **blind carbon copy (BCC)** to this address, so report quality can be reviewed. Clients and agents don’t see this address. Disclosed in the VIMS EULA."))
+            Text(md("**Master admin (VIMS owner only)** — when an inspection report is emailed from the app, the **VIMS server sends a separate copy** to this address so report quality can be reviewed. It is never added to the inspector’s email (no Bcc line), so inspectors, clients and agents don’t see this address. Disclosed in the VIMS EULA."))
                 .font(VFont.ui(13)).foregroundStyle(VC.ink3).lineSpacing(2)
                 .padding(.top, 2).padding(.bottom, 14)
                 .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 8) {
-                Text("BCC every emailed report").font(VFont.ui(14.5, .semibold)).foregroundStyle(VC.ink)
+                Text("Send a quality copy of every emailed report").font(VFont.ui(14.5, .semibold)).foregroundStyle(VC.ink)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 ChipGroup(options: ["On", "Off"], selection: Binding(get: { [on ? "On" : "Off"] }, set: { if let f = $0.first { on = f == "On"; errors.clear() } }),
                           single: true, required: true)
@@ -497,7 +497,7 @@ struct ReportBccView: View {
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(VC.line, lineWidth: 1))
             .padding(.bottom, 14)
-            VTextField(label: "BCC address", text: $email, placeholder: "you@company.com", keyboard: .emailAddress, contentType: .emailAddress,
+            VTextField(label: "Quality copy address", text: $email, placeholder: "you@company.com", keyboard: .emailAddress, contentType: .emailAddress,
                        capitalization: .never, kind: .email, fieldID: "bcc", errors: errors, required: on)
             Button { save() } label: { IconLabel("Save", icon: "link-my-account") }
                 .buttonStyle(.vPrimary)
@@ -510,13 +510,13 @@ struct ReportBccView: View {
     }
 
     private func save() {
-        // The address is required while BCC is on; when off it may be blank but must still be valid if entered.
-        guard errors.validate([("bcc", email, on ? .req(.email, "BCC address") : .opt(.email, "BCC address"))]) else { return }
+        // The address is required while the quality copy is on; when off it may be blank but must still be valid if entered.
+        guard errors.validate([("bcc", email, on ? .req(.email, "Quality copy address") : .opt(.email, "Quality copy address"))]) else { return }
         var p = store.platform
         p.reportBccOn = on
         p.reportBccEmail = Validator.trimmed(email).lowercased()
         store.savePlatform(p)
-        store.toast(on ? "Reports will be blind-copied to \(p.reportBccEmail)" : "Report BCC turned off")
+        store.toast(on ? "The VIMS server will send report copies to \(p.reportBccEmail)" : "Report quality copy turned off")
     }
 }
 

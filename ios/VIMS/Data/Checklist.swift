@@ -9,6 +9,9 @@ struct ChecklistCatalog {
     /// (`AppStore.catalog(for:)`, the report): v1.12 `optionsFromCount` items list "1"…n from them. nil = company checklist
     /// (Manage checklist), which shows the static options.
     var counts: [String: Int]? = nil
+    /// Sections in `overrides` that are an inspection's saved checklist (`Inspection.savedSections`), not the company's
+    /// copy: they are used as saved — never swapped to a v1.13 `replaces` item (`AppStore.catalog(for:)`).
+    var savedNames: Set<String> = []
 
     static let customGroups = ["Exterior", "Interior", "Utility", "Testing"]
 
@@ -20,19 +23,29 @@ struct ChecklistCatalog {
 
     func section(_ name: String) -> SectionDef? {
         let base = Self.baseName(name)
-        if let o = overrides.sections[base] ?? overrides.sections[name] { return withNewJSONItems(o) }
+        if let o = overrides.sections[base] {
+            return withNewJSONItems(o, saved: savedNames.contains(base))
+        }
+        if let o = overrides.sections[name] { return withNewJSONItems(o, saved: savedNames.contains(name)) }
         return config.sections.first { $0.name == base } ?? config.sections.first { $0.name == name }
     }
 
     /// An admin-edited section plus the items the shared JSON added after the edit was saved (`baseItems`), each placed
     /// after the JSON item it follows. Overrides saved before data v1.10 have no `baseItems` and are used as saved
     /// (apart from the v1.12 renames / flags below).
-    private func withNewJSONItems(_ o: SectionDef) -> SectionDef {
+    /// Data v1.13 `replaces`: a company copy (`saved == false`) still holding the old receptacle items gets the combined
+    /// item in their place; an inspection's saved checklist (`saved`) keeps them, and `adding` never adds the combined
+    /// item next to them.
+    private func withNewJSONItems(_ o: SectionDef, saved: Bool = false) -> SectionDef {
         guard let json = config.sections.first(where: { $0.name == o.name }) else { return o }
         var out = o
         let jsonAll = json.items + (json.itemsHigh ?? [])
         out.items = Self.syncingJSONChanges(o.items, json: jsonAll)
         if let mh = o.itemsHigh { out.itemsHigh = Self.syncingJSONChanges(mh, json: jsonAll) }
+        if !saved {
+            out.items = Self.swappingReplaced(out.items, json: json.items)
+            if let mh = out.itemsHigh { out.itemsHigh = Self.swappingReplaced(mh, json: json.itemsHigh ?? []) }
+        }
         guard var known = o.baseItems.map(Set.init) else { return out }
         // A JSON item renamed since the edit (v1.12 `renamedFrom`) is the same item: not new, and still deleted if the
         // admin had deleted it under its old label.
@@ -67,11 +80,91 @@ struct ChecklistCatalog {
     static func adding(_ json: [ItemDef], to mine: [ItemDef], known: Set<String>) -> [ItemDef] {
         var out = mine
         for (i, it) in json.enumerated() where !known.contains(it.editKey) && !out.contains(where: { $0.editKey == it.editKey }) {
+            // v1.13 `replaces`: never added to a list that still has any of the items it replaces (a started
+            // inspection's saved checklist), so in-progress answers are neither hidden nor duplicated.
+            if Self.holdsReplaced(by: it, in: out) { continue }
             var at = i == 0 ? 0 : out.count
             for p in stride(from: i - 1, through: 0, by: -1) {
                 if let j = out.lastIndex(where: { $0.editKey == json[p].editKey }) { at = j + 1; break }
             }
             out.insert(it, at: at)
+        }
+        return out
+    }
+
+    /// The sub-header each item sits under (nil before the first header).
+    static func headers(_ list: [ItemDef]) -> [String?] {
+        var h: String?
+        return list.map { it in
+            if let x = it.header { h = x }
+            return h
+        }
+    }
+
+    /// An old item `c` (a v1.13 countChoice with `replaces`) stands in for: a question item (not the combined type itself,
+    /// so an old single-choice "Receptacles" with the same label is still found) whose label is in `replaces`.
+    static func isReplaced(_ it: ItemDef, by c: ItemDef) -> Bool {
+        it.header == nil && it.kind != .countChoice && (c.replaces ?? []).contains(it.q ?? "")
+    }
+
+    /// True when `list` still has any item `c` replaces (anywhere in the list: a saved checklist that contains a replaced
+    /// label never gets `c`).
+    static func holdsReplaced(by c: ItemDef, in list: [ItemDef]) -> Bool {
+        guard c.kind == .countChoice, !(c.replaces ?? []).isEmpty else { return false }
+        return list.contains { isReplaced($0, by: c) }
+    }
+
+    /// Data v1.13 `replaces` on a company checklist copy: under the combined item's sub-header, its old items (found by
+    /// label and type, not label alone) are removed and the combined item takes the place of the first one. A copy that
+    /// already has the combined item there, or none of the old items, is left as it is.
+    static func swappingReplaced(_ mine: [ItemDef], json: [ItemDef]) -> [ItemDef] {
+        var out = mine
+        let jh = headers(json)
+        for (ji, c) in json.enumerated() where c.kind == .countChoice && !(c.replaces ?? []).isEmpty {
+            let h = jh[ji]
+            let oh = headers(out)
+            if out.indices.contains(where: { oh[$0] == h && out[$0].kind == .countChoice && out[$0].q == c.q }) { continue }
+            let olds = out.indices.filter { oh[$0] == h && isReplaced(out[$0], by: c) }
+            guard let first = olds.first else { continue }
+            out[first] = c
+            for i in olds.dropFirst().reversed() { out.remove(at: i) }
+        }
+        return out
+    }
+
+    /// Data v1.13: the checklist an inspection created before 0.25.0 was started with, for a section whose live checklist
+    /// now has a combined Receptacles item (`replaces`). The company's copy is kept as stored (it still has the old items);
+    /// otherwise the shared JSON section with each combined item put back to the v1.12 items it replaced
+    /// (`LegacyReceptacles`), `baseItems` = today's JSON keys so later JSON additions still reach it. nil = the section
+    /// isn't affected (nothing to keep).
+    func legacySnapshot(_ name: String) -> SectionDef? {
+        let base = Self.baseName(name)
+        guard let json = config.sections.first(where: { $0.name == base }),
+              (json.items + (json.itemsHigh ?? [])).contains(where: { $0.kind == .countChoice && !($0.replaces ?? []).isEmpty })
+        else { return nil }
+        if var o = overrides.sections[base] {
+            o.items = Self.restoringLegacy(o.items, section: base)
+            o.itemsHigh = o.itemsHigh.map { Self.restoringLegacy($0, section: base) }
+            return o
+        }
+        var d = json
+        d.items = Self.restoringLegacy(json.items, section: base)
+        d.itemsHigh = json.itemsHigh.map { Self.restoringLegacy($0, section: base) }
+        d.baseItems = jsonItemKeys(base)
+        return d
+    }
+
+    /// Each combined item with `replaces` back to its v1.12 items (when the list doesn't already hold them).
+    static func restoringLegacy(_ list: [ItemDef], section: String) -> [ItemDef] {
+        var out: [ItemDef] = []
+        let hs = headers(list)
+        for (i, it) in list.enumerated() {
+            if it.kind == .countChoice, !holdsReplaced(by: it, in: list),
+               let old = LegacyReceptacles.oldItems(section: section, header: hs[i], q: it.q ?? "") {
+                out += old
+            } else {
+                out.append(it)
+            }
         }
         return out
     }
@@ -280,6 +373,8 @@ enum ItemVisibility {
         return keyed.filter { k in
             guard let rule = k.item.visibleIf else { return true }
             guard let src = keyed.first(where: { $0.item.q == rule.q && !$0.item.isHeader }) else { return false }
+            // v1.13 countChoice: matches the selected options (its counts live in `text`).
+            if src.item.kind == .countChoice { return rule.matches(a.choices[src.id] ?? []) }
             return rule.matches(a.choices[src.id] ?? (a.text[src.id].map { [$0] } ?? []))
         }
     }
