@@ -1,7 +1,7 @@
 {
  "_about": "VIMS shared checklist + configuration data. Single source of truth for the native iOS (SwiftUI) and Android (Kotlin/Compose) apps. Extracted from the client-approved prototype (index.html, approved Sep 15, 2026). Edit here, not in app code.",
- "version": "1.12.0",
- "generated": "2026-10-29",
+ "version": "1.13.0",
+ "generated": "2026-10-30",
  "depths": [
   {
    "id": "high",
@@ -33,7 +33,9 @@
   "visibleIf": "Optional on any item: show it only when another item in the same section matches. {q, atLeast: n} = that single-choice answer is a number ≥ n; {q, includes: option} = that answer (single or multi) includes the option. Hidden items are not validated and not printed.",
   "optionsFromCount": "Optional on a single-choice item: its options are '1'..n where n = the inspection's room count for that key (wizard roomCounts, e.g. bathrooms = 2 → '1','2'; minimum 1). The static options list is only the fallback for an inspection without that count (e.g. Multi-Unit). Client Oct 29.",
   "defaultFromRoomNumber": "Optional with optionsFromCount: in a numbered room section ('Bathroom 2') the item is pre-answered with that room's own number ('2'); the inspector can still change it. Not pre-answered in a section without a number. Client Oct 29.",
-  "renamedFrom": "Optional: the item's previous label. Apps that key answers by label must carry an existing answer over from this old label so nothing is lost; started inspections keep their saved checklist. Client Oct 29."
+  "renamedFrom": "Optional: the item's previous label. Apps that key answers by label must carry an existing answer over from this old label so nothing is lost; started inspections keep their saved checklist. Client Oct 29.",
+  "countChoice": "Option buttons where some options carry a whole-number count (client Oct 30, receptacles). options = the buttons; countOptions = the options that show a count field beside them (placeholder countPlaceholder, whole numbers 0-999, optional); exclusive = options that clear every other choice and count when tapped (and are cleared when any other option is tapped or a count is typed). Non-exclusive options toggle and can be combined (GFCI and Standard together); deselecting one clears its count; typing a count above 0 selects its option. Answered = at least one option selected. Answer = {selected: [option, ...], counts: {option: n}}. Report prints e.g. 'GFCI (4), Standard (6)' or 'None'; an option selected without a count prints alone ('GFCI'). visibleIf {includes} matches the selected options.",
+  "replaces": "Optional on a countChoice item: labels of the old items (same section, same sub-header) this item replaces (client Oct 30: the separate 'GFCI' Yes/No and the Oct 29 count fields are folded into one Receptacles item). A company checklist copy that still has those old items gets them swapped for this item in the same place (the item takes the position of the first old item found). Started inspections keep their saved checklist unchanged: do not add this item to a saved checklist that still contains any of the replaced labels, so in-progress answers are never lost or duplicated."
  },
  "overallCondition": [
   "Satisfactory",
@@ -634,18 +636,23 @@
     },
     {
      "q": "Receptacles",
-     "type": "single",
+     "type": "countChoice",
      "options": [
       "None",
+      "GFCI",
+      "Standard"
+     ],
+     "countOptions": [
+      "GFCI",
+      "Standard"
+     ],
+     "exclusive": [
+      "None"
+     ],
+     "countPlaceholder": "# of receptacles",
+     "replaces": [
+      "Receptacles",
       "GFCI"
-     ]
-    },
-    {
-     "q": "GFCI",
-     "type": "single",
-     "options": [
-      "Yes",
-      "No"
      ]
     },
     {
@@ -3249,18 +3256,23 @@
     },
     {
      "q": "Receptacles",
-     "type": "single",
+     "type": "countChoice",
      "options": [
       "None",
+      "GFCI",
+      "Standard"
+     ],
+     "countOptions": [
+      "GFCI",
+      "Standard"
+     ],
+     "exclusive": [
+      "None"
+     ],
+     "countPlaceholder": "# of receptacles",
+     "replaces": [
+      "Receptacles",
       "GFCI"
-     ]
-    },
-    {
-     "q": "GFCI",
-     "type": "single",
-     "options": [
-      "Yes",
-      "No"
      ]
     },
     {
@@ -4893,11 +4905,23 @@
      ]
     },
     {
-     "q": "GFCI",
-     "type": "single",
+     "q": "Receptacles",
+     "type": "countChoice",
      "options": [
-      "Yes",
-      "No"
+      "None",
+      "GFCI",
+      "Standard"
+     ],
+     "countOptions": [
+      "GFCI",
+      "Standard"
+     ],
+     "exclusive": [
+      "None"
+     ],
+     "countPlaceholder": "# of receptacles",
+     "replaces": [
+      "GFCI"
      ]
     },
     {
@@ -5351,18 +5375,23 @@
     },
     {
      "q": "Receptacles (outside)",
-     "type": "single",
+     "type": "countChoice",
      "options": [
       "None",
+      "GFCI",
+      "Standard"
+     ],
+     "countOptions": [
+      "GFCI",
+      "Standard"
+     ],
+     "exclusive": [
+      "None"
+     ],
+     "countPlaceholder": "# of receptacles",
+     "replaces": [
+      "Receptacles (outside)",
       "GFCI"
-     ]
-    },
-    {
-     "q": "GFCI",
-     "type": "single",
-     "options": [
-      "Yes",
-      "No"
      ]
     },
     {
@@ -5633,18 +5662,23 @@
     },
     {
      "q": "Electrical Receptacles",
-     "type": "single",
+     "type": "countChoice",
      "options": [
       "None",
-      "GFCI"
-     ]
-    },
-    {
-     "q": "Electrical Receptacles GFCI",
-     "type": "single",
-     "options": [
-      "Yes",
-      "No"
+      "GFCI",
+      "Standard"
+     ],
+     "countOptions": [
+      "GFCI",
+      "Standard"
+     ],
+     "exclusive": [
+      "None"
+     ],
+     "countPlaceholder": "# of receptacles",
+     "replaces": [
+      "Electrical Receptacles",
+      "Electrical Receptacles GFCI"
      ]
     },
     {
@@ -6289,18 +6323,23 @@
     },
     {
      "q": "Electrical Receptacles",
-     "type": "single",
+     "type": "countChoice",
      "options": [
       "None",
+      "GFCI",
+      "Standard"
+     ],
+     "countOptions": [
+      "GFCI",
+      "Standard"
+     ],
+     "exclusive": [
+      "None"
+     ],
+     "countPlaceholder": "# of receptacles",
+     "replaces": [
+      "Electrical Receptacles",
       "GFCI"
-     ]
-    },
-    {
-     "q": "GFCI",
-     "type": "single",
-     "options": [
-      "Yes",
-      "No"
      ]
     },
     {
@@ -7017,18 +7056,23 @@
     },
     {
      "q": "Receptacles",
-     "type": "single",
+     "type": "countChoice",
      "options": [
       "None",
+      "GFCI",
+      "Standard"
+     ],
+     "countOptions": [
+      "GFCI",
+      "Standard"
+     ],
+     "exclusive": [
+      "None"
+     ],
+     "countPlaceholder": "# of receptacles",
+     "replaces": [
+      "Receptacles",
       "GFCI"
-     ]
-    },
-    {
-     "q": "GFCI",
-     "type": "single",
-     "options": [
-      "Yes",
-      "No"
      ]
     },
     {
@@ -7423,18 +7467,23 @@
     },
     {
      "q": "Receptacles",
-     "type": "single",
+     "type": "countChoice",
      "options": [
       "None",
+      "GFCI",
+      "Standard"
+     ],
+     "countOptions": [
+      "GFCI",
+      "Standard"
+     ],
+     "exclusive": [
+      "None"
+     ],
+     "countPlaceholder": "# of receptacles",
+     "replaces": [
+      "Receptacles",
       "GFCI"
-     ]
-    },
-    {
-     "q": "GFCI",
-     "type": "single",
-     "options": [
-      "Yes",
-      "No"
      ]
     },
     {
@@ -7983,18 +8032,23 @@
     },
     {
      "q": "Receptacles",
-     "type": "single",
+     "type": "countChoice",
      "options": [
       "None",
+      "GFCI",
+      "Standard"
+     ],
+     "countOptions": [
+      "GFCI",
+      "Standard"
+     ],
+     "exclusive": [
+      "None"
+     ],
+     "countPlaceholder": "# of receptacles",
+     "replaces": [
+      "Receptacles",
       "GFCI"
-     ]
-    },
-    {
-     "q": "GFCI",
-     "type": "single",
-     "options": [
-      "Yes",
-      "No"
      ]
     },
     {
@@ -8961,18 +9015,23 @@
     },
     {
      "q": "Receptacles",
-     "type": "single",
+     "type": "countChoice",
      "options": [
       "None",
+      "GFCI",
+      "Standard"
+     ],
+     "countOptions": [
+      "GFCI",
+      "Standard"
+     ],
+     "exclusive": [
+      "None"
+     ],
+     "countPlaceholder": "# of receptacles",
+     "replaces": [
+      "Receptacles",
       "GFCI"
-     ]
-    },
-    {
-     "q": "GFCI",
-     "type": "single",
-     "options": [
-      "Yes",
-      "No"
      ]
     },
     {
@@ -9442,18 +9501,23 @@
     },
     {
      "q": "Receptacles",
-     "type": "single",
+     "type": "countChoice",
      "options": [
       "None",
+      "GFCI",
+      "Standard"
+     ],
+     "countOptions": [
+      "GFCI",
+      "Standard"
+     ],
+     "exclusive": [
+      "None"
+     ],
+     "countPlaceholder": "# of receptacles",
+     "replaces": [
+      "Receptacles",
       "GFCI"
-     ]
-    },
-    {
-     "q": "GFCI",
-     "type": "single",
-     "options": [
-      "Yes",
-      "No"
      ]
     },
     {
@@ -10086,18 +10150,23 @@
     },
     {
      "q": "Receptacles",
-     "type": "single",
+     "type": "countChoice",
      "options": [
       "None",
+      "GFCI",
+      "Standard"
+     ],
+     "countOptions": [
+      "GFCI",
+      "Standard"
+     ],
+     "exclusive": [
+      "None"
+     ],
+     "countPlaceholder": "# of receptacles",
+     "replaces": [
+      "Receptacles",
       "GFCI"
-     ]
-    },
-    {
-     "q": "GFCI",
-     "type": "single",
-     "options": [
-      "Yes",
-      "No"
      ]
     },
     {
@@ -11091,31 +11160,25 @@
     },
     {
      "q": "Receptacles",
-     "type": "single",
+     "type": "countChoice",
      "options": [
       "None",
       "GFCI",
-      "Non GFCI"
-     ]
-    },
-    {
-     "q": "GFCI receptacles (count)",
-     "type": "num",
-     "integer": true,
-     "placeholder": "e.g. 4"
-    },
-    {
-     "q": "Standard receptacles (count)",
-     "type": "num",
-     "integer": true,
-     "placeholder": "e.g. 6"
-    },
-    {
-     "q": "GFCI",
-     "type": "single",
-     "options": [
-      "Yes",
-      "No"
+      "Standard"
+     ],
+     "countOptions": [
+      "GFCI",
+      "Standard"
+     ],
+     "exclusive": [
+      "None"
+     ],
+     "countPlaceholder": "# of receptacles",
+     "replaces": [
+      "Receptacles",
+      "GFCI receptacles (count)",
+      "Standard receptacles (count)",
+      "GFCI"
      ]
     },
     {
@@ -11685,31 +11748,25 @@
     },
     {
      "q": "Receptacles",
-     "type": "single",
+     "type": "countChoice",
      "options": [
       "None",
       "GFCI",
-      "Non GFCI"
-     ]
-    },
-    {
-     "q": "GFCI receptacles (count)",
-     "type": "num",
-     "integer": true,
-     "placeholder": "e.g. 4"
-    },
-    {
-     "q": "Standard receptacles (count)",
-     "type": "num",
-     "integer": true,
-     "placeholder": "e.g. 6"
-    },
-    {
-     "q": "GFCI",
-     "type": "single",
-     "options": [
-      "Yes",
-      "No"
+      "Standard"
+     ],
+     "countOptions": [
+      "GFCI",
+      "Standard"
+     ],
+     "exclusive": [
+      "None"
+     ],
+     "countPlaceholder": "# of receptacles",
+     "replaces": [
+      "Receptacles",
+      "GFCI receptacles (count)",
+      "Standard receptacles (count)",
+      "GFCI"
      ]
     },
     {
@@ -12830,11 +12887,23 @@
      "header": "Electrical Receptacles"
     },
     {
-     "q": "GFCI",
-     "type": "single",
+     "q": "Receptacles",
+     "type": "countChoice",
      "options": [
-      "Yes",
-      "No"
+      "None",
+      "GFCI",
+      "Standard"
+     ],
+     "countOptions": [
+      "GFCI",
+      "Standard"
+     ],
+     "exclusive": [
+      "None"
+     ],
+     "countPlaceholder": "# of receptacles",
+     "replaces": [
+      "GFCI"
      ]
     },
     {
@@ -13615,11 +13684,23 @@
      "header": "Electrical Receptacles"
     },
     {
-     "q": "GFCI",
-     "type": "single",
+     "q": "Receptacles",
+     "type": "countChoice",
      "options": [
-      "Yes",
-      "No"
+      "None",
+      "GFCI",
+      "Standard"
+     ],
+     "countOptions": [
+      "GFCI",
+      "Standard"
+     ],
+     "exclusive": [
+      "None"
+     ],
+     "countPlaceholder": "# of receptacles",
+     "replaces": [
+      "GFCI"
      ]
     },
     {
@@ -14350,11 +14431,23 @@
      "header": "Electrical Receptacles"
     },
     {
-     "q": "GFCI",
-     "type": "single",
+     "q": "Receptacles",
+     "type": "countChoice",
      "options": [
-      "Yes",
-      "No"
+      "None",
+      "GFCI",
+      "Standard"
+     ],
+     "countOptions": [
+      "GFCI",
+      "Standard"
+     ],
+     "exclusive": [
+      "None"
+     ],
+     "countPlaceholder": "# of receptacles",
+     "replaces": [
+      "GFCI"
      ]
     },
     {
@@ -15115,11 +15208,23 @@
      "header": "Electrical Receptacles"
     },
     {
-     "q": "GFCI",
-     "type": "single",
+     "q": "Receptacles",
+     "type": "countChoice",
      "options": [
-      "Yes",
-      "No"
+      "None",
+      "GFCI",
+      "Standard"
+     ],
+     "countOptions": [
+      "GFCI",
+      "Standard"
+     ],
+     "exclusive": [
+      "None"
+     ],
+     "countPlaceholder": "# of receptacles",
+     "replaces": [
+      "GFCI"
      ]
     },
     {
@@ -15870,11 +15975,23 @@
      "header": "Electrical Receptacles"
     },
     {
-     "q": "GFCI",
-     "type": "single",
+     "q": "Receptacles",
+     "type": "countChoice",
      "options": [
-      "Yes",
-      "No"
+      "None",
+      "GFCI",
+      "Standard"
+     ],
+     "countOptions": [
+      "GFCI",
+      "Standard"
+     ],
+     "exclusive": [
+      "None"
+     ],
+     "countPlaceholder": "# of receptacles",
+     "replaces": [
+      "GFCI"
      ]
     },
     {
@@ -16695,11 +16812,23 @@
      "header": "Electrical Receptacles"
     },
     {
-     "q": "GFCI",
-     "type": "single",
+     "q": "Receptacles",
+     "type": "countChoice",
      "options": [
-      "Yes",
-      "No"
+      "None",
+      "GFCI",
+      "Standard"
+     ],
+     "countOptions": [
+      "GFCI",
+      "Standard"
+     ],
+     "exclusive": [
+      "None"
+     ],
+     "countPlaceholder": "# of receptacles",
+     "replaces": [
+      "GFCI"
      ]
     },
     {
@@ -17724,11 +17853,23 @@
      "header": "Electrical Receptacles"
     },
     {
-     "q": "GFCI",
-     "type": "single",
+     "q": "Receptacles",
+     "type": "countChoice",
      "options": [
-      "Yes",
-      "No"
+      "None",
+      "GFCI",
+      "Standard"
+     ],
+     "countOptions": [
+      "GFCI",
+      "Standard"
+     ],
+     "exclusive": [
+      "None"
+     ],
+     "countPlaceholder": "# of receptacles",
+     "replaces": [
+      "GFCI"
      ]
     },
     {
@@ -19096,23 +19237,25 @@
      "header": "Electrical"
     },
     {
-     "q": "GFCI receptacles (count)",
-     "type": "num",
-     "integer": true,
-     "placeholder": "e.g. 4"
-    },
-    {
-     "q": "Standard receptacles (count)",
-     "type": "num",
-     "integer": true,
-     "placeholder": "e.g. 6"
-    },
-    {
-     "q": "Receptacles GFCI",
-     "type": "single",
+     "q": "Receptacles",
+     "type": "countChoice",
      "options": [
-      "Yes",
-      "No"
+      "None",
+      "GFCI",
+      "Standard"
+     ],
+     "countOptions": [
+      "GFCI",
+      "Standard"
+     ],
+     "exclusive": [
+      "None"
+     ],
+     "countPlaceholder": "# of receptacles",
+     "replaces": [
+      "GFCI receptacles (count)",
+      "Standard receptacles (count)",
+      "Receptacles GFCI"
      ]
     },
     {
@@ -19735,11 +19878,23 @@
      "header": "Electrical"
     },
     {
-     "q": "Receptacles GFCI",
-     "type": "single",
+     "q": "Receptacles",
+     "type": "countChoice",
      "options": [
-      "Yes",
-      "No"
+      "None",
+      "GFCI",
+      "Standard"
+     ],
+     "countOptions": [
+      "GFCI",
+      "Standard"
+     ],
+     "exclusive": [
+      "None"
+     ],
+     "countPlaceholder": "# of receptacles",
+     "replaces": [
+      "Receptacles GFCI"
      ]
     },
     {
@@ -19856,11 +20011,23 @@
      "header": "Electrical (Fireplace)"
     },
     {
-     "q": "Receptacles GFCI",
-     "type": "single",
+     "q": "Receptacles",
+     "type": "countChoice",
      "options": [
-      "Yes",
-      "No"
+      "None",
+      "GFCI",
+      "Standard"
+     ],
+     "countOptions": [
+      "GFCI",
+      "Standard"
+     ],
+     "exclusive": [
+      "None"
+     ],
+     "countPlaceholder": "# of receptacles",
+     "replaces": [
+      "Receptacles GFCI"
      ]
     },
     {
@@ -20603,11 +20770,23 @@
      "header": "Electrical"
     },
     {
-     "q": "Receptacles GFCI",
-     "type": "single",
+     "q": "Receptacles",
+     "type": "countChoice",
      "options": [
-      "Yes",
-      "No"
+      "None",
+      "GFCI",
+      "Standard"
+     ],
+     "countOptions": [
+      "GFCI",
+      "Standard"
+     ],
+     "exclusive": [
+      "None"
+     ],
+     "countPlaceholder": "# of receptacles",
+     "replaces": [
+      "Receptacles GFCI"
      ]
     },
     {
@@ -21617,11 +21796,23 @@
      "header": "Electrical"
     },
     {
-     "q": "Receptacles GFCI",
-     "type": "single",
+     "q": "Receptacles",
+     "type": "countChoice",
      "options": [
-      "Yes",
-      "No"
+      "None",
+      "GFCI",
+      "Standard"
+     ],
+     "countOptions": [
+      "GFCI",
+      "Standard"
+     ],
+     "exclusive": [
+      "None"
+     ],
+     "countPlaceholder": "# of receptacles",
+     "replaces": [
+      "Receptacles GFCI"
      ]
     },
     {
@@ -22198,18 +22389,23 @@
     },
     {
      "q": "Receptacles (outside)",
-     "type": "single",
+     "type": "countChoice",
      "options": [
       "None",
+      "GFCI",
+      "Standard"
+     ],
+     "countOptions": [
+      "GFCI",
+      "Standard"
+     ],
+     "exclusive": [
+      "None"
+     ],
+     "countPlaceholder": "# of receptacles",
+     "replaces": [
+      "Receptacles (outside)",
       "GFCI"
-     ]
-    },
-    {
-     "q": "GFCI",
-     "type": "single",
-     "options": [
-      "Yes",
-      "No"
      ]
     },
     {
@@ -22479,11 +22675,23 @@
      ]
     },
     {
-     "q": "Electrical Receptacles GFCI",
-     "type": "single",
+     "q": "Electrical Receptacles",
+     "type": "countChoice",
      "options": [
-      "Yes",
-      "No"
+      "None",
+      "GFCI",
+      "Standard"
+     ],
+     "countOptions": [
+      "GFCI",
+      "Standard"
+     ],
+     "exclusive": [
+      "None"
+     ],
+     "countPlaceholder": "# of receptacles",
+     "replaces": [
+      "Electrical Receptacles GFCI"
      ]
     },
     {
@@ -32584,10 +32792,10 @@
   "reportBcc": {
    "on": true,
    "email": "quality@vimsinspect.com",
-   "_about": "Owner-admin setting (VIMS platform owner only, not each company's admin): every inspection report emailed from the app is also sent as a blind carbon copy to this address for report-quality review. Disclosed in the VIMS EULA. Clients/agents never see it. Default = quality@vimsinspect.com (client Oct 22)."
+   "_about": "Owner-admin setting (VIMS platform owner only, not each company's admin): every inspection report emailed from the app also goes to this address for report-quality review. Disclosed in the VIMS EULA. Default = quality@vimsinspect.com (client Oct 22). Client Oct 30: the quality copy must not show anywhere the inspector sees it, so it is NOT added to the device's email compose (the phone's mail app shows a Bcc line to the sender). It is sent separately by the VIMS server when a report is emailed. TODO(backend): until the server send exists, no quality copy is sent."
   },
   "ccInspector": {
-   "_about": "Every report emailed from the app is CC'd to the signed-in inspector's own email (archive copy), alongside To = client (+agent) and BCC = platform report-quality address when on."
+   "_about": "Every report emailed from the app is CC'd to the signed-in inspector's own email (archive copy), alongside To = client (+agent). No Bcc on the device compose (client Oct 30); the report-quality copy is sent by the server (see reportBcc)."
   },
   "platformOwners": [
    "masteradmin@vimsinspect.com",
