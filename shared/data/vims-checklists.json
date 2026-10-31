@@ -1,7 +1,7 @@
 {
  "_about": "VIMS shared checklist + configuration data. Single source of truth for the native iOS (SwiftUI) and Android (Kotlin/Compose) apps. Extracted from the client-approved prototype (index.html, approved Sep 15, 2026). Edit here, not in app code.",
- "version": "1.14.0",
- "generated": "2026-10-30",
+ "version": "1.15.0",
+ "generated": "2026-10-31",
  "depths": [
   {
    "id": "high",
@@ -33235,5 +33235,270 @@
  "features": {
   "sync": false,
   "_about": "Client Oct 25: Phase 1 does not sync inspections anywhere (cross-device sync is Phase 2). With sync false: no sync status pill/badges (e.g. 'Offline · 3 queued'), no Settings 'Sync' section or 'Sync now', no automatic sync stub, and no wording about syncing anywhere in the app (How VIMS works, help text, toasts). Keep the code behind this flag for Phase 2."
+ },
+ "agreementPrefill": {
+  "_about": "Client Oct 30: the inspection agreement fills in the client and inspection details the inspector already entered, and has an 'Email inspection agreement' button at the bottom so it can be emailed to the client from the app. Applies to the VIMS agreement (shared/legal/inspection-agreement.json) and to a company's edited version of it. Electronic signing is NOT part of this (separate add-on, quoted Oct 5): the client reads, signs and sends it back. Settings / Company profile still show the blank agreement with no Email button.",
+  "entryPoints": [
+   "Wizard step 1 'Inspection agreement: View' link: filled from what is entered in the wizard so far (all steps, current values, nothing saved).",
+   "NEW row on the inspection screen (the screen with the address / progress card and the checklist groups), right under the card and above 'Checklist · tap a group': file icon, title 'Inspection agreement', subtitle 'Filled in for <client name> · Email to client' ('Filled in · Email to client' when no client name). Opens the agreement filled from that saved inspection. Shown for every inspection type, also after the report is generated."
+  ],
+  "fill": "Header lines (header[2..]) and closing lines: for each label below, the FIRST run of underscores after the label on that line is replaced by ' ' + value (trimmed). Empty value = the underscores stay as they are. Labels match exactly (case-sensitive) inside the line text; 'occurrence' n = the n-th header line containing that label (1 = first). A label that no longer appears (company edited the text) is skipped silently. Filled values print in the same font, bold (viewer and PDF) so the client sees what was filled in.",
+  "lines": [
+   {
+    "part": "header",
+    "label": "Clients Name",
+    "value": "client name"
+   },
+   {
+    "part": "header",
+    "label": "Phone #",
+    "occurrence": 1,
+    "value": "client phone"
+   },
+   {
+    "part": "header",
+    "label": "Email",
+    "occurrence": 1,
+    "value": "client email"
+   },
+   {
+    "part": "header",
+    "label": "Inspectors Name",
+    "value": "inspector's full name (signed-in account)"
+   },
+   {
+    "part": "header",
+    "label": "License/Reg #",
+    "value": "Inspector License # (wizard step 1)"
+   },
+   {
+    "part": "header",
+    "label": "State",
+    "value": "inspection state code, e.g. UT"
+   },
+   {
+    "part": "header",
+    "label": "Date and Time of Inspection",
+    "value": "inspection date + time, 'Nov 3, 2026 9:00 AM' (date only if no time)"
+   },
+   {
+    "part": "header",
+    "label": "Address of Property to be inspected",
+    "value": "'<street>, <city>, <state> <zip>' (skip empty parts)"
+   },
+   {
+    "part": "header",
+    "label": "# Units",
+    "value": "Multi-Unit: total units from the unit mix; Duplex: 2; otherwise empty"
+   },
+   {
+    "part": "header",
+    "label": "Total Sqft",
+    "value": "Total sq ft (wizard step 2)"
+   },
+   {
+    "part": "closing",
+    "label": "Real Estate Agents Name",
+    "value": "agent name"
+   },
+   {
+    "part": "closing",
+    "label": "Agents Email",
+    "value": "agent email"
+   },
+   {
+    "part": "closing",
+    "label": "Printed Name of Client:",
+    "value": "client name"
+   }
+  ],
+  "leftBlank": [
+   "Date of Birth",
+   "Spouse and the spouse's Phone # / Email (2nd occurrence)",
+   "Preferred Language",
+   "Current Address (the client's own address is not collected)",
+   "Time of walk through",
+   "fees and prices ($____)",
+   "'entered into on ____ (Date agreement is signed)'",
+   "Client Signature / Date"
+  ],
+  "checkboxes": {
+   "_about": "Tick = replace that box '☐' with '☒' (U+2612). 'after' = the box right after the label ('Purchase ☐'); 'before' = the box right before it ('☐ Radon Testing'). If the PDF/viewer font has no ☒ glyph, draw it with the font that draws ☐ (fallback) — never print a missing-glyph box. Anything not listed stays unticked.",
+   "propertyType": [
+    {
+     "structure": "Single Family",
+     "box": "Single Family",
+     "side": "after"
+    },
+    {
+     "structure": "Multi-Unit",
+     "box": "Multi-Unit",
+     "side": "after"
+    },
+    {
+     "structure": "Duplex",
+     "box": "Multi-Unit",
+     "side": "after"
+    },
+    {
+     "structure": "Townhouse",
+     "box": "Town House",
+     "side": "after"
+    },
+    {
+     "structure": "Condo",
+     "box": "Condo",
+     "side": "after"
+    }
+   ],
+   "_propertyTypeNote": "'Mobile / Manufactured' ticks nothing (the agreement has separate Mobile Home and Manufactured Home boxes and the app doesn't know which).",
+   "inspectionType": [
+    {
+     "type": "Real Estate Sale",
+     "box": "Purchase",
+     "side": "after"
+    },
+    {
+     "type": "New Construction",
+     "box": "New Construction",
+     "side": "after"
+    },
+    {
+     "type": "Pre-Listing / Maintenance",
+     "box": "Pre-listing/Maintenance",
+     "side": "after"
+    },
+    {
+     "type": "4 Point Inspection",
+     "box": "4 Point or 4 Way Inspection",
+     "side": "after"
+    },
+    {
+     "type": "Phase 1 Foundation",
+     "box": "Phase 1 Foundation pre-pour",
+     "side": "after"
+    },
+    {
+     "type": "Phase 2 Pre-Dry Wall",
+     "box": "Phase 2 Pre-Dry wall",
+     "side": "after"
+    },
+    {
+     "type": "New Build Final",
+     "box": "Phase 3 Final",
+     "side": "after"
+    },
+    {
+     "type": "Component",
+     "box": "Component",
+     "side": "none",
+     "_note": "no box after 'Component'; tick the chosen components instead"
+    }
+   ],
+   "components": [
+    {
+     "component": "Roof",
+     "box": "Roof",
+     "side": "after"
+    },
+    {
+     "component": "Electrical",
+     "box": "Electrical",
+     "side": "after"
+    },
+    {
+     "component": "Plumbing",
+     "box": "Plumbing",
+     "side": "after"
+    },
+    {
+     "component": "HVAC",
+     "box": "HVAC",
+     "side": "after"
+    }
+   ],
+   "_inspectionTypeNote": "Texas, Tests Only and retired types tick nothing in Type of Inspection.",
+   "tests": [
+    {
+     "test": "Radon",
+     "box": "Radon Testing",
+     "side": "before"
+    },
+    {
+     "test": "Indoor Air Quality",
+     "box": "Indoor Air Quality Testing",
+     "side": "before"
+    },
+    {
+     "test": "Lead",
+     "box": "Lead Testing",
+     "side": "before"
+    },
+    {
+     "test": "Thermal Audit",
+     "box": "Thermal Energy Efficiency",
+     "side": "before"
+    },
+    {
+     "test": "Meth Test",
+     "box": "Meth Testing",
+     "side": "before"
+    },
+    {
+     "test": "Termite",
+     "box": "Termite/Pest Inspection",
+     "side": "before"
+    },
+    {
+     "test": "Sewer Scope",
+     "box": "Sewer Scope",
+     "side": "before"
+    },
+    {
+     "test": "Wind Mitigation",
+     "box": "Wind Mitigation Inspection",
+     "side": "before"
+    }
+   ],
+   "utilities": [
+    {
+     "utility": "Heating Oil Tank",
+     "box": "Heating Oil Tank",
+     "side": "before"
+    },
+    {
+     "utility": "Boiler",
+     "box": "Boiler System",
+     "side": "before"
+    }
+   ],
+   "noAgentReport": {
+    "when": "'Send the report to the real estate agent' is unchecked",
+    "box": "NO Report to Real Estate Agent.",
+    "side": "after"
+   }
+  },
+  "emailButton": {
+   "label": "Email inspection agreement",
+   "where": "Full-width primary button at the very bottom of the agreement, after the last closing line. Only when the agreement was opened from an inspection (wizard or inspection screen).",
+   "action": "Builds the filled-in agreement PDF (same as Download, filled) and opens the device mail composer. Attachments: the PDF, plus the inspection state's required documents (stateRules[state].docs) when the state has any. File name 'Inspection-Agreement-<Client-Name>.pdf' ('Inspection-Agreement-<Company-Name>.pdf' when no client name).",
+   "to": "client email (empty To when none entered; the inspector can type it)",
+   "cc": "none",
+   "subject": "Inspection Agreement – <street address>  ('Inspection Agreement' when no address)",
+   "body": [
+    "Hi <client first name>,  ('Hello,' when no client name)",
+    "",
+    "Attached is the inspection agreement for the inspection at <full address> on <date and time>. Please read it, sign it and send it back to me before the inspection.",
+    "",
+    "Thank you,",
+    "<inspector full name>",
+    "<company name>",
+    "<company phone, if set>"
+   ],
+   "_bodyNote": "Leave out 'at <full address>' / 'on <date and time>' when empty. When state documents are attached, add after the first paragraph: 'Also attached: <document titles, comma-separated>, which <state name> requires with the agreement.'",
+   "noMailApp": "If the device can't send mail (no mail account), fall back to the share sheet with the same attachments, as the report email does.",
+   "ownAgreement": "Company uses its own uploaded agreement: the button attaches that uploaded file unchanged (it can't be filled in) plus the state documents; small note above the button: 'Your own agreement is attached as uploaded. It can't be filled in automatically.' Same To / subject / body.",
+   "afterSend": "Nothing is stored; no status changes. Toast 'Agreement ready to send' is NOT shown — the composer itself is the feedback."
+  }
  }
 }
