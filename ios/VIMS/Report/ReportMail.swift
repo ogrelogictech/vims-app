@@ -1,6 +1,7 @@
 import SwiftUI
 import MessageUI
 import UIKit
+import UniformTypeIdentifiers
 
 /// Everything needed to email a finished report. To = client (+ agent, unless the inspection's step-1
 /// "Send the report to the real estate agent" is off — v1.4, e.g. New Hampshire); CC = the signed-in inspector's own
@@ -16,6 +17,8 @@ struct ReportMailDraft: Equatable {
     var body: String
     var attachmentURL: URL
     var attachmentName: String
+    /// More files after the main one, each under its own file name (the agreement email's state documents).
+    var extraAttachments: [URL] = []
 
     static func validEmails(_ list: [String]) -> [String] {
         list.map { Validator.trimmed($0) }.filter { Validator.error(for: $0, rule: .req(.email, "Email")) == nil }
@@ -61,6 +64,47 @@ struct ReportMailDraft: Equatable {
                                attachmentURL: pdf, attachmentName: pdf.lastPathComponent)
     }
 
+    /// Client Oct 30 (3), data v1.15 `agreementPrefill.emailButton`: the inspection agreement to the client. To = the
+    /// client email (empty when none — the inspector can type it), no CC / BCC. `attachment` = the filled agreement PDF,
+    /// or the company's own uploaded agreement unchanged; `docs` = the state's required documents (stateRules docs), each
+    /// attached under its bundled file name, as the state-document draft does.
+    static func agreement(_ fill: AgreementFill, attachment: URL, attachmentName: String, docs: [StateDocDef],
+                          stateName: String?, company: CompanyProfile, sender: String) -> ReportMailDraft {
+        let found = docs.compactMap { d in d.bundleURL.map { (d, $0) } }
+        return ReportMailDraft(
+            to: validEmails([fill.clientEmail]),
+            bcc: [],
+            subject: fill.street.isEmpty ? "Inspection Agreement" : "Inspection Agreement \u{2013} \(fill.street)",
+            body: agreementBody(fill, docTitles: found.map(\.0.name), stateName: stateName, company: company, sender: sender),
+            attachmentURL: attachment,
+            attachmentName: attachmentName,
+            extraAttachments: found.map(\.1))
+    }
+
+    /// The agreement email's text (spec `emailButton.body` + `_bodyNote`).
+    static func agreementBody(_ fill: AgreementFill, docTitles: [String], stateName: String?, company: CompanyProfile, sender: String) -> String {
+        let first = fill.clientName.split(separator: " ").first.map(String.init) ?? ""
+        var body = first.isEmpty ? "Hello,\n\n" : "Hi \(first),\n\n"
+        body += "Attached is the inspection agreement for the inspection"
+        if !fill.fullAddress.isEmpty { body += " at \(fill.fullAddress)" }
+        if !fill.dateTime.isEmpty { body += " on \(fill.dateTime)" }
+        body += ". Please read it, sign it and send it back to me before the inspection.\n"
+        if !docTitles.isEmpty {
+            body += "\nAlso attached: \(docTitles.joined(separator: ", ")), which \(stateName ?? fill.stateCode) requires with the agreement.\n"
+        }
+        let name = sender.trimmingCharacters(in: .whitespaces)
+        body += "\nThank you,\n\(name.isEmpty ? company.name : name)\n\(company.name)"
+        if !company.phone.isEmpty { body += "\n\(company.phone)" }
+        return body
+    }
+
+    /// Every attached file, in order (the share-sheet fallback shares the same ones).
+    var attachmentURLs: [URL] { [attachmentURL] + extraAttachments }
+
+    static func mimeType(_ fileName: String) -> String {
+        UTType(filenameExtension: (fileName as NSString).pathExtension)?.preferredMIMEType ?? "application/octet-stream"
+    }
+
     /// Applies the draft to a mail composer (split out so the configuration is checkable).
     func configure(_ vc: MFMailComposeViewController) {
         vc.setToRecipients(to)
@@ -69,7 +113,12 @@ struct ReportMailDraft: Equatable {
         vc.setSubject(subject)
         vc.setMessageBody(body, isHTML: false)
         if let data = try? Data(contentsOf: attachmentURL) {
-            vc.addAttachmentData(data, mimeType: "application/pdf", fileName: attachmentName)
+            vc.addAttachmentData(data, mimeType: Self.mimeType(attachmentName), fileName: attachmentName)
+        }
+        for url in extraAttachments {
+            if let data = try? Data(contentsOf: url) {
+                vc.addAttachmentData(data, mimeType: Self.mimeType(url.lastPathComponent), fileName: url.lastPathComponent)
+            }
         }
     }
 }

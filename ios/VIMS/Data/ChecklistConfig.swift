@@ -30,6 +30,8 @@ struct ChecklistConfig: Decodable {
     /// v1.10: feature switches. `sync` false (Phase 1) hides every sync pill, the Settings Sync section and sync wording,
     /// and stops the automatic sync stub; the code stays behind the flag for Phase 2. Missing = false.
     let features: FeaturesDef?
+    /// v1.15 (client Oct 30): how the inspection agreement is filled in from the inspection + its Email button.
+    let agreementPrefill: AgreementPrefillDef?
 
     /// Data v1.10 `features.sync` (false / absent in Phase 1).
     var syncEnabled: Bool { features?.sync ?? false }
@@ -41,7 +43,7 @@ struct ChecklistConfig: Decodable {
     private enum CodingKeys: String, CodingKey {
         case version, depths, depthRules, overallCondition, overallConditionDefault, sectionGroups, sections,
              checklistBuilder, wizard, findings, covers, subscription, support, sample, formLabels, reportLayouts,
-             states, stateRules, formReports, features
+             states, stateRules, formReports, features, agreementPrefill
     }
 
     /// `stateRules[code]`, or nil when the state has no special rules (or no state is set).

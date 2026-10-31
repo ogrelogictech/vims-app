@@ -1,4 +1,5 @@
 import UIKit
+import CoreText
 
 /// "Download" in the inspection-agreement viewer: the same blocks the viewer shows (AgreementContent — VIMS or the
 /// company's edited version, `{companyName}` filled), laid out as a clean, paginated US Letter PDF with a page footer.
@@ -14,8 +15,9 @@ enum AgreementPDF {
 
     /// Writes the PDF to a temporary file named "Inspection-Agreement-<Company-Name>.pdf" (the name the share
     /// sheet / Files / Mail use). Nil if it couldn't be written.
-    static func write(_ content: AgreementContent, company: String) -> URL? {
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent(AgreementContent.fileName(company: company))
+    /// `fileName` (filled agreement, data v1.15): "Inspection-Agreement-<Client-Name>.pdf".
+    static func write(_ content: AgreementContent, company: String, fileName: String? = nil) -> URL? {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(fileName ?? AgreementContent.fileName(company: company))
         try? FileManager.default.removeItem(at: url)
         do { try render(content, company: company).pdf.write(to: url, options: .atomic); return url } catch { return nil }
     }
@@ -86,8 +88,18 @@ enum AgreementPDF {
             if indent > 0 { p.tabStops = [NSTextTab(textAlignment: .left, location: indent)]; p.defaultTabInterval = indent }
             return p
         }
-        func add(_ s: String, _ font: UIFont, _ color: UIColor, _ p: NSParagraphStyle) {
-            out.append(NSAttributedString(string: s + "\n", attributes: [.font: font, .foregroundColor: color, .paragraphStyle: p]))
+        // Filled-in values (data v1.15) are bold in ink; ☐ / ☒ use one font that has both glyphs (BoxGlyphFont).
+        func add(_ s: String, _ font: UIFont, _ color: UIColor, _ p: NSParagraphStyle, bold: UIFont? = nil) {
+            let line = NSMutableAttributedString()
+            for seg in AgreementFill.segments(s + "\n") {
+                switch seg.kind {
+                case .plain: line.append(NSAttributedString(string: seg.text, attributes: [.font: font, .foregroundColor: color]))
+                case .bold: line.append(NSAttributedString(string: seg.text, attributes: [.font: bold ?? font, .foregroundColor: ink]))
+                case .box: line.append(NSAttributedString(string: seg.text, attributes: [.font: BoxGlyphFont.font(for: font), .foregroundColor: color]))
+                }
+            }
+            line.addAttribute(.paragraphStyle, value: p, range: NSRange(location: 0, length: line.length))
+            out.append(line)
         }
 
         for b in content.blocks {
@@ -96,11 +108,15 @@ enum AgreementPDF {
                 add(t, VFont.uDisplay(19, .heavy), ink, style(after: 12, lineSpacing: 1))
             case .form(let lines):
                 // Form lines keep their own line breaks (line separators, so they stay one block).
-                add(lines.joined(separator: "\u{2028}"), VFont.uMono(8.6), ink2, style(before: 2, after: 12, lineSpacing: 4.5))
+                // Fixed line height, so lines with the (slightly larger) ☐ / ☒ keep the same rhythm as the others.
+                let p = style(before: 2, after: 12, lineSpacing: 4.5)
+                p.minimumLineHeight = ceil(VFont.uMono(8.6).lineHeight); p.maximumLineHeight = p.minimumLineHeight
+                add(lines.joined(separator: "\u{2028}"), VFont.uMono(8.6), ink2, p, bold: VFont.uMono(8.6, .semibold))
             case .paragraph(let t, let lead):
-                add(t.replacingOccurrences(of: "\n", with: "\u{2028}"), lead ? VFont.uUI(10.5, .semibold) : body, lead ? ink : ink2, style())
+                add(t.replacingOccurrences(of: "\n", with: "\u{2028}"), lead ? VFont.uUI(10.5, .semibold) : body, lead ? ink : ink2, style(),
+                    bold: VFont.uUI(10.5, .bold))
             case .bullet(let t):
-                add("\u{2022}\t" + t, body, ink2, style(after: 5, indent: 14))
+                add("\u{2022}\t" + t, body, ink2, style(after: 5, indent: 14), bold: VFont.uUI(10.5, .bold))
             case .heading(let t):
                 add(t, VFont.uDisplay(12.5, .bold), brandDeep, style(before: 8, after: 8))
             case .disclosure(let state, let text):
@@ -113,5 +129,44 @@ enum AgreementPDF {
             }
         }
         return out
+    }
+}
+
+/// ☐ and ☒ (data v1.15 ticked boxes) drawn with one font that has both glyphs, so a ticked box never prints as a
+/// missing-glyph box and matches the empty ones: the text font itself when it has both, else the font the system
+/// falls back to for ☐ when that one has ☒ too, else the first of a few system fonts that have both.
+enum BoxGlyphFont {
+    private static var cache: [String: UIFont] = [:]
+    private static let lock = NSLock()
+
+    /// The fallback fonts draw the boxes at about x-height, so they're drawn a little larger than the text
+    /// (`scale`) to keep a ticked ☒ easy to tell from ☐ in the viewer and in print.
+    static let scale: CGFloat = 1.3
+
+    static func font(for base: UIFont) -> UIFont {
+        let key = "\(base.fontName)|\(base.pointSize)"
+        lock.lock(); defer { lock.unlock() }
+        if let f = cache[key] { return f }
+        let r = resolve(base)
+        let f = r.withSize(base.pointSize * (r == base ? 1 : scale))
+        cache[key] = f
+        return f
+    }
+
+    /// True when `font` draws both ☐ and ☒ itself.
+    static func hasBoth(_ font: UIFont) -> Bool {
+        var chars: [UniChar] = [0x2610, 0x2612]
+        var glyphs: [CGGlyph] = [0, 0]
+        return CTFontGetGlyphsForCharacters(font as CTFont, &chars, &glyphs, 2) && glyphs.allSatisfy { $0 != 0 }
+    }
+
+    private static func resolve(_ base: UIFont) -> UIFont {
+        if hasBoth(base) { return base }
+        let fallback = CTFontCreateForString(base as CTFont, "\u{2610}" as CFString, CFRange(location: 0, length: 1)) as UIFont
+        if hasBoth(fallback) { return fallback }
+        for name in ["AppleSymbols", "Menlo-Regular", "HiraginoSans-W3", "PingFangSC-Regular", "STHeitiSC-Light"] {
+            if let f = UIFont(name: name, size: base.pointSize), hasBoth(f) { return f }
+        }
+        return fallback
     }
 }

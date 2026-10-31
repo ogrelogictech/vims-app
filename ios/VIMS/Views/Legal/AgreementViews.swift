@@ -1,5 +1,6 @@
 import SwiftUI
 import QuickLook
+import MessageUI
 
 // VIMS default inspection agreement (shared/legal/inspection-agreement.json, data v1.4) — prototype
 // #s-agreementdoc (renderAgreement). Text is rendered verbatim; `{companyName}` → the signed-in company's name.
@@ -8,19 +9,29 @@ import QuickLook
 /// a code (wizard step 1) shows only that state's entry, or "No additional disclosures for <State>."
 /// A company using its edited copy sees that text instead (in full — it can't be filtered by state).
 /// The header's share button downloads exactly what's shown as a PDF (every user).
+/// `fill` (client Oct 30 (3), data v1.15 `agreementPrefill`): opened from an inspection (wizard step 1's View, or the
+/// inspection screen's "Inspection agreement" row) — the form and closing lines are filled in (bold), the mapped boxes
+/// ticked, and "Email inspection agreement" sits at the very bottom. Settings / Company profile pass no fill (blank, no
+/// button). A company's own uploaded agreement can't be filled: the VIMS text stays blank for reference and the
+/// button attaches the uploaded file.
 struct InspectionAgreementView: View {
     @Environment(AppStore.self) private var store
     let stateCode: String?
+    var fill: AgreementFill? = nil
     @State private var quickLook: URL?
     @State private var jump = FormErrors()     // only used for the DEBUG -agreementScroll jump
     @State private var shareAnchor = PopoverAnchor()
+    @State private var emailAnchor = PopoverAnchor()
+    @State private var mailDraft: ReportReadyView.MailDraftItem?
 
     /// What's on screen (and in the download): the edited copy, else the VIMS agreement; nil if it can't be loaded.
+    /// Filled in from the inspection when there is a fill (not for an uploaded agreement, which is sent as it is).
     private var content: AgreementContent? {
-        if let edited = store.editedAgreementContent { return edited }
-        return InspectionAgreement.bundled.map {
+        let base = store.editedAgreementContent ?? InspectionAgreement.bundled.map {
             AgreementContent.vims($0, company: store.company.name, stateCode: stateCode, stateName: stateName)
         }
+        guard let base, let fill, store.agreementInUse != .uploaded else { return base }
+        return fill.apply(to: base)
     }
 
     var body: some View {
@@ -31,6 +42,7 @@ struct InspectionAgreementView: View {
                errors: jump) {
             if let content {
                 document(content)
+                if let fill { emailSection(content, fill: fill) }
             } else {
                 Text("The VIMS inspection agreement couldn't be loaded.")
                     .font(VFont.ui(13)).foregroundStyle(VC.ink2)
@@ -39,13 +51,26 @@ struct InspectionAgreementView: View {
             }
         }
         .quickLookPreview($quickLook)
+        .sheet(item: $mailDraft) { item in
+            MailComposeView(draft: item.draft) { result in
+                mailDraft = nil
+                // The composer itself is the feedback (spec: no "Agreement ready to send" toast); nothing is stored.
+                if result == .saved { store.toast("Saved to Drafts") }
+            }
+            .ignoresSafeArea()
+        }
         #if DEBUG
         .task {
-            // -agreementScroll disclosures: scroll to the state disclosures (review screenshots).
-            // -openShare: tap Download (share-sheet anchor check on iPad).
+            // -agreementScroll disclosures|email: scroll to the state disclosures / the Email button (review screenshots).
+            // -openShare: tap Download (share-sheet anchor check on iPad). -emailAgreement: tap Email inspection agreement.
             try? await Task.sleep(nanoseconds: 500_000_000)
-            if DebugLaunch.value("-agreementScroll") != nil { jump.scrollTarget = "agreement-disclosures" }
+            if let t = DebugLaunch.value("-agreementScroll") { jump.scrollTarget = t == "email" ? "agreement-email" : "agreement-disclosures" }
             if DebugFlags.openShare { DebugFlags.openShare = false; download() }
+            if DebugFlags.emailAgreement, let content, let fill {
+                DebugFlags.emailAgreement = false
+                try? await Task.sleep(nanoseconds: 700_000_000)
+                emailAgreement(content, fill: fill)
+            }
         }
         #endif
     }
@@ -55,10 +80,67 @@ struct InspectionAgreementView: View {
     /// Renders what's shown into "Inspection-Agreement-<Company>.pdf" and opens the share sheet
     /// (Save to Files, Mail, AirDrop, Print). On iPad the sheet points at the header button.
     private func download() {
-        guard let content, let url = AgreementPDF.write(content, company: store.company.name) else {
+        guard let content, let url = AgreementPDF.write(content, company: store.company.name,
+                                                        fileName: fill?.fileName(company: store.company.name)) else {
             store.toast("Couldn't create the agreement PDF"); return
         }
         ShareSheet.present([url], from: shareAnchor, title: "Share agreement")
+    }
+
+    /// "Email inspection agreement": full-width primary button after the last closing line (only with a fill). With the
+    /// company's own uploaded agreement, a note says it's attached as uploaded.
+    @ViewBuilder
+    private func emailSection(_ content: AgreementContent, fill: AgreementFill) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if store.agreementInUse == .uploaded {
+                Text("Your own agreement is attached as uploaded. It can\u{2019}t be filled in automatically.")
+                    .font(VFont.ui(12.5)).foregroundStyle(VC.ink3).lineSpacing(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            Button { emailAgreement(content, fill: fill) } label: { IconLabel(fill.emailLabel, icon: "email-to-client") }
+                .buttonStyle(.vPrimary)
+                .popoverAnchor(emailAnchor)
+                .accessibilityHint(fill.clientEmail.isEmpty ? "Opens an email with the agreement attached"
+                                   : "Opens an email to \(fill.clientEmail) with the agreement attached")
+        }
+        .padding(.top, 14)
+        .id("agreement-email")
+    }
+
+    /// Builds the filled agreement PDF (or takes the uploaded agreement unchanged), adds the state's required documents
+    /// (stateRules docs) and opens the mail composer — To the client, subject / body per data v1.15. Without a mail
+    /// account the share sheet opens with the same files, as for the report. Nothing is stored.
+    /// TODO(backend): send from the VIMS server (and keep the sent agreement with the inspection) once it exists.
+    private func emailAgreement(_ content: AgreementContent, fill: AgreementFill) {
+        let company = store.company
+        let attachment: URL
+        if store.agreementInUse == .uploaded {
+            guard let own = store.ownAgreementURL else { store.toast("Your agreement file is missing"); return }
+            // The stored copy keeps the uploaded bytes; share it under the name it was uploaded with.
+            let name = (company.agreementName?.isEmpty == false ? company.agreementName! : own.lastPathComponent)
+                .replacingOccurrences(of: "/", with: "-")
+            let named = FileManager.default.temporaryDirectory.appendingPathComponent(name)
+            try? FileManager.default.removeItem(at: named)
+            attachment = (try? FileManager.default.copyItem(at: own, to: named)) != nil ? named : own
+        } else {
+            guard let url = AgreementPDF.write(content, company: company.name, fileName: fill.fileName(company: company.name)) else {
+                store.toast("Couldn't create the agreement PDF"); return
+            }
+            attachment = url
+        }
+        let draft = ReportMailDraft.agreement(fill, attachment: attachment, attachmentName: attachment.lastPathComponent,
+                                              docs: store.config.stateRule(fill.stateCode)?.requiredDocs ?? [],
+                                              stateName: store.config.stateName(fill.stateCode), company: company,
+                                              sender: store.session?.name ?? "")
+        #if DEBUG
+        DebugLaunch.dumpAgreementMail(draft)
+        #endif
+        if MFMailComposeViewController.canSendMail() {
+            mailDraft = .init(draft: draft)
+        } else {
+            ShareSheet.present(draft.attachmentURLs, from: emailAnchor, title: draft.extraAttachments.isEmpty ? "Share agreement" : nil)
+        }
     }
 
     private func document(_ content: AgreementContent) -> some View {
@@ -107,7 +189,7 @@ struct InspectionAgreementView: View {
                 .accessibilityAddTraits(.isHeader)
                 .padding(.bottom, 10)
         case .form(let lines):
-            Text(lines.joined(separator: "\n"))
+            Text(Self.rich(lines.joined(separator: "\n"), size: 11.5, mono: true))
                 .font(VFont.mono(11.5)).foregroundStyle(VC.ink2)
                 .lineSpacing(5)
                 .fixedSize(horizontal: false, vertical: true)
@@ -145,11 +227,32 @@ struct InspectionAgreementView: View {
     }
 
     private func paragraph(_ text: String, color: Color, weight: VWeight = .regular, bottom: CGFloat = 9) -> some View {
-        Text(text)
+        Text(Self.rich(text, size: 13, mono: false))
             .font(VFont.ui(13, weight)).foregroundStyle(color).lineSpacing(4)
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.bottom, bottom)
+    }
+
+    /// Agreement text with the filled-in values (data v1.15 markers) bold in ink and ☐ / ☒ drawn with one font that has
+    /// both glyphs (`BoxGlyphFont`, the same as the PDF). Plain text comes through unchanged.
+    static func rich(_ s: String, size: CGFloat, mono: Bool) -> AttributedString {
+        let style: Font.TextStyle = size < 12.8 ? .caption : .footnote
+        var out = AttributedString()
+        for seg in AgreementFill.segments(s) {
+            var run = AttributedString(seg.text)
+            switch seg.kind {
+            case .plain: break
+            case .bold:
+                run.font = mono ? VFont.mono(size, .semibold) : VFont.ui(size, .bold)
+                run.foregroundColor = VC.ink
+            case .box:
+                let f = BoxGlyphFont.font(for: mono ? VFont.uMono(size) : VFont.uUI(size))
+                run.font = f.fontName.hasPrefix(".") ? Font(f as CTFont) : .custom(f.fontName, size: f.pointSize, relativeTo: style)
+            }
+            out += run
+        }
+        return out
     }
 }
 

@@ -143,7 +143,7 @@ struct RootView: View {
         case .feedbackAdmin: if store.isPlatformOwner { FeedbackAdminView() } else { OwnerOnlyView() }
         case .reportBcc: if store.isPlatformOwner { ReportBccView() } else { OwnerOnlyView() }
         case .eula: EULAView()
-        case .agreement(let st): InspectionAgreementView(stateCode: st)
+        case .agreement(let st, let fill): InspectionAgreementView(stateCode: st, fill: fill)
         // Same permission as uploading an agreement (company admins).
         case .agreementEditor: if store.isAdmin { AgreementEditorView() } else { OwnerOnlyView(message: "Only company admins can edit the agreement") }
         case .deleteAccount: DeleteAccountView()

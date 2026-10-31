@@ -110,7 +110,7 @@ struct StateFieldBlock: View {
     }
 
     /// v1.4: "Inspection agreement: View (shows the selected state's section)" → the VIMS agreement viewer,
-    /// filtered to the picked state (every state when none is picked yet).
+    /// filtered to the picked state (every state when none is picked yet), filled in from the wizard (v1.15).
     private var agreementLine: some View {
         var text = AttributedString("Inspection agreement: ")
         var link = AttributedString("View")
@@ -126,9 +126,9 @@ struct StateFieldBlock: View {
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
             .contentShape(Rectangle())
-            .onTapGesture { endEditing(); store.push(.agreement(state: draft.state)) }
+            .onTapGesture { openAgreement() }
             .environment(\.openURL, OpenURLAction { _ in
-                endEditing(); store.push(.agreement(state: draft.state))
+                openAgreement()
                 return .handled
             })
             .accessibilityElement(children: .ignore)
@@ -138,6 +138,13 @@ struct StateFieldBlock: View {
             .accessibilityAddTraits(.isLink)
             .padding(.horizontal, 2).padding(.top, -4).padding(.bottom, 14)
             .id("agreementLine")
+    }
+
+    /// Data v1.15: the agreement opens filled in from what's entered in the wizard so far (every step's current values,
+    /// nothing saved), with "Email inspection agreement" at the bottom.
+    private func openAgreement() {
+        endEditing()
+        store.push(.agreement(state: draft.state, fill: store.agreementFill(draft)))
     }
 
     @ViewBuilder

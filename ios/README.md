@@ -37,7 +37,7 @@ xcrun simctl launch --terminate-running-process "iPhone 17" com.vims.app -resetD
 
 `-screen` accepts: `login signup forgot join home splash wizard editWizard sections section drawer photos markup flag summary
 report reportReady settings company instructions manage editSection plans inspectors subscribe subscribed billing
-feedback reportBcc eula signupEula deleteAccount phase1 phase2 agreement agreementEditor`. Extras: `-step N` (wizard 1–4), `-depth high|standard|fast`,
+feedback reportBcc eula signupEula deleteAccount phase1 phase2 agreement agreementEditor inspectionAgreement`. Extras: `-step N` (wizard 1–4), `-depth high|standard|fast`,
 `-section NAME`, `-inspection PREFIX|TYPE` (e.g. `Texas`, `"4 Point Inspection"`), `-generate` (with
 `-screen reportReady`: regenerate the PDF first), `-group NAME` (Manage checklist), `-overview` (phase screens),
 `-trialDaysLeft N`, `-resetData` (wipes the SwiftData store + files and recreates the demo account),
@@ -970,3 +970,56 @@ Screenshots: `screenshots/oct12-*.png` — `ipad-01…18` 13" (landscape 01–13
   before / after: the two unreported ones changed only by the added heading and its Not started status; answers,
   photos, findings, savedSections, checklistVersion and report identical; the reported ones unchanged; the finished one
   stays 100%; OCT30TEST receptacle lines identical. Screenshots `screenshots/oct30b-*.png`.
+
+### iOS 0.27.0 (28) — client Oct 30, 3rd round (shared v1.15.0)
+
+- **Version**: `MARKETING_VERSION` 0.27.0, `CURRENT_PROJECT_VERSION` 28 in every configuration. Bundle identifier
+  unchanged (`com.vims.app`). No stored fields added (nothing to migrate).
+- **Inspection agreement filled in** (data v1.15 `agreementPrefill`, client: "the customer information does not pre-fill
+  into the inspection agreement"): `Data/Legal/AgreementFill.swift`. `AgreementPrefillDef` reads the JSON leniently (labels,
+  part, occurrence, the checkbox mappings, the button label); `AgreementFill.make(inspection, spec:, wizard:,
+  inspectorName:)` builds the values (client name / phone / email, the signed-in inspector's full name, License/Reg #,
+  state code, "Nov 3, 2026 9:00 AM", "<street>, <city>, <state> <zip>", # Units = the unit-mix total for Multi-Unit / 2 for
+  Duplex, Total Sqft, agent name / email, printed client name) and the boxes to tick; `apply(to: AgreementContent)` fills
+  them in — all pure functions. Header labels fill the n-th form line containing the label, closing labels the text block
+  that has them (so a company's edited agreement is filled wherever its labels still match; a missing label is skipped);
+  the first run of underscores after the label becomes the value with one space after the label; empty values keep the
+  blanks. Text already filled in is never searched again. Boxes: ☐ → ☒ right after / right before the mapped text
+  (property type — Duplex ticks Multi-Unit, Mobile / Manufactured nothing; inspection type — Component ticks its
+  components, Texas / Tests Only / retired types nothing; tests; utilities — not for `areasLockedTypes`, whose utility
+  choices are kept but unused; "NO Report to Real Estate Agent." when send-to-agent is off).
+- **Bold values, ☒ that renders**: filled values carry private-use markers (U+E000 / U+E001) that the viewer
+  (`InspectionAgreementView.rich`, AttributedString) and `AgreementPDF` draw bold in ink (IBM Plex Sans Bold; Plex Mono
+  SemiBold, its heaviest weight, in the form block). IBM Plex has neither ☐ nor ☒, so both are drawn with one font that
+  has both glyphs (`BoxGlyphFont`: the system fallback for ☐ when it also has ☒ — Menlo for the mono block, Apple Symbols
+  for body text), 1.3× the text size so a tick is easy to see; the PDF form block keeps a fixed line height.
+- **Entry points**: route `.agreement(state:fill:)` (`fill` nil = blank, as from Settings / Company profile, which stay
+  blank with no button). Wizard step 1 "Inspection agreement: View" passes `store.agreementFill(draft)` — every step's
+  current values, nothing saved. New **Inspection agreement** row on the inspection screen (`SectionsOverviewView
+  .agreementRow`, file icon, "Filled in for <client> · Email to client" / "Filled in · Email to client"), right under the
+  progress card above "Checklist · tap a group" (iPad landscape: under the progress card in the right column), for every
+  inspection type and after the report.
+- **Email inspection agreement**: full-width primary button after the last closing line, only with a fill. Builds the
+  filled PDF `Inspection-Agreement-<Client-Name>.pdf` (company name when no client; Download in the header gives the same
+  filled PDF) and opens the mail composer (`ReportMailDraft.agreement`): To = client email (empty when none), no CC / BCC,
+  subject "Inspection Agreement – <street>" ("Inspection Agreement" without one), body per spec (Hi <first> / Hello,
+  at <address> / on <date and time> left out when empty, "Also attached: <titles>, which <State> requires with the
+  agreement." when the state has `stateRules` docs, inspector name, company, phone). Attachments: the PDF plus the state's
+  documents (`ReportMailDraft.extraAttachments`, MIME type from the file extension). No mail account → share sheet with
+  the same files, anchored to the button. Company's own uploaded agreement: the note "Your own agreement is attached as
+  uploaded. It can't be filled in automatically." above the button and the uploaded file attached unchanged under its
+  uploaded name (the VIMS text shown for reference stays blank). Nothing is stored, no toast on send.
+- DEBUG: `-oct30cAgreement` (creates once / reuses the Oct 30 sample inspection: Dana Whitfield, 2550 NW Raleigh St,
+  Portland, OR 97210, agent Kim Lopez, send to agent off, OR CCB 201544, Nov 3 2026 9:00, Component Roof + HVAC,
+  Multi-Unit 8 units, 6400 sq ft, Radon + Wind Mitigation, Boiler; `-oct30cBlank` the same without client name / email /
+  address / date), `-screen inspectionAgreement` (its agreement as the row opens it; `-agreementScroll email`,
+  `-emailAgreement` taps the button), `-oct30cWizard` (with `-screen wizard`: the new-inspection draft gets those values on
+  every step), `-oct30cStatus` (OCT30CTEST lines: filled lines, ticks, blank fill unchanged, edited-agreement fill, box
+  fonts, PDF pages, mail draft), `-agreementDump` (each agreement email also writes draft.txt + attachments to
+  Documents/agreement-dump/).
+- Verified on iPad Air 11-inch (M4) (iOS 26.5): wizard → View filled (a typed client-name change shows), send-to-agent
+  toggled on → the NO box unticked, inspection-screen row → filled agreement, Email → share sheet with the PDF + Oregon
+  notice (simulator has no Mail account; draft dumped: To / subject / body as specified), own uploaded agreement attached
+  byte-identical with the note, blank inspection ("Hello,", To empty, subject "Inspection Agreement", blanks kept),
+  Settings → Company profile agreement blank with no button; the generated PDF rendered and checked (bold values, ☒ drawn).
+  Screenshots `screenshots/oct30c-*.png`, PDF + page renders `screenshots/pdf/oct30c-*`.

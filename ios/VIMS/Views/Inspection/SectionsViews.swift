@@ -26,12 +26,14 @@ struct SectionsOverviewView: View {
                         VStack(alignment: .leading, spacing: 0) {
                             SectionLabel(text: "Progress", top: 0)
                             progressCard(insp, done: done, total: leafs.count, pct: pct)
+                            agreementRow(insp)
                             actions(insp)
                         }
                         .frame(width: 340)
                     }
                 } else {
                     progressCard(insp, done: done, total: leafs.count, pct: pct)
+                    agreementRow(insp)
                     groups(insp, top: 8)
                     actions(insp)
                 }
@@ -75,6 +77,39 @@ struct SectionsOverviewView: View {
             .padding(.top, 11)
         }
         .vCard(EdgeInsets(top: 14, leading: 16, bottom: 14, trailing: 16))
+        .padding(.bottom, 12)
+    }
+
+    /// Client Oct 30 (3), data v1.15: "Inspection agreement" under the progress card (every inspection type, also after
+    /// the report) → the agreement filled in from this saved inspection, with "Email inspection agreement".
+    private func agreementRow(_ insp: Inspection) -> some View {
+        let client = insp.clientName.trimmingCharacters(in: .whitespaces)
+        let subtitle = client.isEmpty ? "Filled in \u{00B7} Email to client" : "Filled in for \(client) \u{00B7} Email to client"
+        return Button {
+            store.push(.agreement(state: insp.state, fill: store.agreementFill(insp)))
+        } label: {
+            HStack(spacing: 11) {
+                ProtoIcon("file", size: 17).foregroundStyle(VC.brand)
+                    .frame(width: 30, height: 30).background(VC.paper3)
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Inspection agreement").font(VFont.ui(14.5, .bold)).foregroundStyle(VC.ink)
+                    Text(subtitle).font(VFont.ui(12.5)).foregroundStyle(VC.ink3)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                ProtoIcon("chevron-right", size: 18).foregroundStyle(VC.ink3)
+            }
+            .padding(.horizontal, 15).padding(.vertical, 11)
+            .frame(minHeight: 56)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(PressableStyle())
+        .background(VC.paper)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(VC.line, lineWidth: 1))
+        .accessibilityLabel("Inspection agreement, \(subtitle)")
+        .accessibilityHint("Opens the agreement filled in for this inspection")
         .padding(.bottom, 12)
     }
 

@@ -31,6 +31,8 @@ enum DebugFlags {
     static var scrollToItem: String?
     /// -openGroup HEADING: the Sections screen opens with only that group expanded (e.g. "Planned Maintenance").
     static var openGroup: String?
+    /// -emailAgreement: the filled agreement taps "Email inspection agreement" on arrival (composer / share sheet).
+    static var emailAgreement = false
 }
 
 #if DEBUG
@@ -71,6 +73,19 @@ enum DebugFlags {
 ///   -oct30bStatus              print OCT30BTEST lines (every inspection: headings in order, the new section, statuses,
 ///                              progress, kept checklists, report notes list)
 ///   -openGroup HEADING         with -screen sections: only that group expanded (e.g. "Planned Maintenance")
+///   -oct30cAgreement           data v1.15: create (once) the Oct 30 agreement inspection — Dana Whitfield, 2550 NW Raleigh
+///                              St, Portland, OR 97210, agent Kim Lopez, send to agent off, license OR CCB 201544, Nov 3 2026
+///                              9:00, Component (Roof, HVAC), Multi-Unit (8 units), 6400 sq ft, Radon + Wind Mitigation,
+///                              Boiler — and use it as the chosen inspection; -oct30cBlank: the same with no client
+///                              name / email / address / date (blanks stay, "Hello,", file named by company)
+///   -screen inspectionAgreement  the chosen inspection's agreement, filled in, as its inspection-screen row opens it
+///                              (-agreementScroll email: scrolled to the Email button; -emailAgreement: tap it)
+///   -oct30cWizard              with -screen wizard: fill the new-inspection draft with the -oct30cAgreement values on
+///                              every step (step 1 View then opens the agreement filled from the draft)
+///   -oct30cStatus              print OCT30CTEST lines (filled form / closing lines, ticked boxes, blank fill unchanged,
+///                              edited-agreement fill, ☐/☒ font, mail draft to / subject / body / attachments, PDF pages)
+///   -agreementDump             every agreement email also writes its draft (draft.txt) and attachments to
+///                              Documents/agreement-dump/ (simctl get_app_container … data)
 ///   -state XX                  set the chosen inspection's property state (OK summary disclosure, OR cover notice)
 ///   -cover "C|Cat|Opt|Style"   set the chosen inspection's report cover (e.g. "Blue|Holidays|4th of July|Shaded")
 ///   -wizState TX[,UT]          pick those states in order when the wizard opens (prints STATETEST lines)
@@ -117,7 +132,7 @@ enum DebugFlags {
 ///   -screen NAME               login signup forgot join home splash wizard sections section drawer photos
 ///                              markup flag summary report reportReady settings company instructions manage
 ///                              editSection plans inspectors subscribe subscribed billing feedback phase1 phase2
-///                              agreement agreementEditor
+///                              agreement agreementEditor inspectionAgreement
 ///   -step N                    wizard step (1–4)
 ///   -depth high|standard|fast  checklist depth for the demo inspection
 ///   -section NAME              section to open (default Roof / Outside Utilities for high)
@@ -273,6 +288,100 @@ enum DebugLaunch {
         }
     }
 
+    /// Client Oct 30 (3), data v1.15 `agreementPrefill` sample values (see -oct30cAgreement / -oct30cWizard).
+    static func oct30cValues(_ d: inout Inspection, config: ChecklistConfig, blank: Bool) {
+        d.fields["Client name"] = blank ? "" : "Dana Whitfield"
+        d.fields["Client phone"] = "(503) 555-0188"
+        d.fields["Client email"] = blank ? "" : "dana.whitfield@example.com"
+        d.fields["Inspection address"] = blank ? "" : "2550 NW Raleigh St"
+        d.fields["City"] = blank ? "" : "Portland"
+        d.fields["ZIP code"] = blank ? "" : "97210"
+        d.setState("OR", config: config)
+        d.stateDocsAck = config.stateRule("OR").map { StateDocsAck(state: "OR", docs: $0.requiredDocs.map(\.name), acknowledgedAt: Date()) }
+        d.fields["Real estate agent name"] = "Kim Lopez"
+        d.fields["Real estate agent email"] = "kim.lopez@example.com"
+        d.sendToAgent = false
+        d.fields[Inspection.licenseField] = "OR CCB 201544"
+        d.fields["Date"] = blank ? "" : "2026-11-03"
+        d.fields["Time"] = blank ? "" : "09:00"
+        d.inspType = "Component"
+        d.components = ["Roof", "HVAC"]
+        d.structure = "Multi-Unit"
+        d.unitMix = config.wizard.unitMixDefault     // 0 + 2 + 4 + 2 + 0 = 8 units
+        d.fields["Total sq ft"] = "6400"
+        d.tests = ["Radon", "Wind Mitigation"]
+        d.utilities = ["Boiler"]
+    }
+
+    /// -oct30cAgreement [-oct30cBlank]: the agreement inspection (created once, found again by its client / address on a
+    /// later launch). Returns the inspection to use.
+    @MainActor
+    static func seedOct30c(_ store: AppStore, _ id: UUID) -> UUID {
+        guard has("-oct30cAgreement") else { return id }
+        let blank = has("-oct30cBlank")
+        let tag = blank ? "OCT30C blank" : "Dana Whitfield"
+        if let found = store.inspections.first(where: { ($0.field("Real estate agent name") == "Kim Lopez") && (blank ? $0.clientName.isEmpty : $0.clientName == tag) }) {
+            return found.id
+        }
+        var draft = store.newInspectionDraft()
+        oct30cValues(&draft, config: store.config, blank: blank)
+        let nid = store.buildChecklist(from: draft)
+        print("OCT30CTEST created \(tag) inspection \(nid)")
+        return nid
+    }
+
+    /// -oct30cStatus: the filling checked on its own (pure functions) for the chosen inspection.
+    @MainActor
+    static func oct30cStatus(_ store: AppStore, _ id: UUID) {
+        guard has("-oct30cStatus"), let insp = store.inspection(id), let doc = InspectionAgreement.bundled else { return }
+        let fill = store.agreementFill(insp)
+        let name = { (c: String) in store.config.stateName(c) ?? c }
+        let base = AgreementContent.vims(doc, company: store.company.name, stateCode: insp.state, stateName: name)
+        let filled = fill.apply(to: base)
+        print("OCT30CTEST insp=\(insp.addressLine1) client=\(fill.clientName) lines=\(fill.lines.count) ticks=\(fill.ticks.map(\.box))")
+        for (a, b) in zip(base.formLines, filled.formLines) where a != b { print("OCT30CTEST form: \(AgreementFill.plain(b))") }
+        for (a, b) in zip(base.blocks, filled.blocks) where a != b {
+            if case .paragraph(let t, _) = b { print("OCT30CTEST closing: \(AgreementFill.plain(t))") }
+        }
+        let allText = filled.blocks.map { b -> String in
+            switch b { case .form(let l): return l.joined(separator: "\n"); default: return b.fillableText ?? "" }
+        }.joined(separator: "\n")
+        print("OCT30CTEST ticked=\(allText.filter { $0 == AgreementFill.tickedBox }.count) of \(fill.ticks.count) empty=\(allText.filter { $0 == AgreementFill.emptyBox }.count)")
+        print("OCT30CTEST blankFillUnchanged=\(AgreementFill().apply(to: base) == base) settingsBlank=\(base.formLines == doc.formLines.map { InspectionAgreement.fill($0, company: store.company.name) })")
+        let edited = AgreementContent.edited(EditedAgreement(blocks: base.blocks).encoded, company: store.company.name, form: store.agreementFormLines)
+        print("OCT30CTEST editedFill sameAsVims=\(fill.apply(to: edited).formLines == filled.formLines)")
+        for (label, f) in [("mono", VFont.uMono(8.6)), ("ui", VFont.uUI(10.5)), ("mono11.5", VFont.uMono(11.5))] {
+            let bf = BoxGlyphFont.font(for: f)
+            print("OCT30CTEST boxFont \(label) base=\(f.fontName) baseHasBoth=\(BoxGlyphFont.hasBoth(f)) -> \(bf.fontName) hasBoth=\(BoxGlyphFont.hasBoth(bf))")
+        }
+        let pdf = AgreementPDF.render(filled, company: store.company.name)
+        print("OCT30CTEST pdf pages=\(pdf.pageCount) bytes=\(pdf.pdf.count) fileName=\(fill.fileName(company: store.company.name))")
+        let rule = store.config.stateRule(fill.stateCode)
+        let draft = ReportMailDraft.agreement(fill, attachment: URL(fileURLWithPath: "/tmp/" + fill.fileName(company: store.company.name)),
+                                              attachmentName: fill.fileName(company: store.company.name), docs: rule?.requiredDocs ?? [],
+                                              stateName: store.config.stateName(fill.stateCode), company: store.company, sender: store.session?.name ?? "")
+        print("OCT30CTEST mail to=\(draft.to) cc=\(draft.cc) bcc=\(draft.bcc) subject=\(draft.subject) attachments=\([draft.attachmentName] + draft.extraAttachments.map(\.lastPathComponent))")
+        for l in draft.body.components(separatedBy: "\n") { print("OCT30CTEST body| \(l)") }
+        // A few pure edge checks.
+        print("OCT30CTEST edge fillNoBlank=\(AgreementFill.fillLine("Clients Name", label: "Clients Name", value: "X") == nil) emptyValue=\(AgreementFill.fillLine("Email ____", label: "Email", value: " ") == nil) noSpace=\(AgreementFill.plain(AgreementFill.fillLine("Date and Time of Inspection____ Time", label: "Date and Time of Inspection", value: "Nov 3") ?? "")) before=\(AgreementFill.tickBox("☐ Radon Testing $__", box: "Radon Testing", side: "before") ?? "-") after=\(AgreementFill.tickBox("Single Family ☐ Multi-Unit ☐", box: "Multi-Unit", side: "after") ?? "-") partial=\(AgreementFill.tickBox("Wind Mitigation ☐", box: "Mitigation", side: "after") ?? "nil")")
+    }
+
+    /// -agreementDump: the agreement email's draft and attachments, written to Documents/agreement-dump/ for inspection.
+    @MainActor
+    static func dumpAgreementMail(_ d: ReportMailDraft) {
+        guard has("-agreementDump"), let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
+        let dir = docs.appendingPathComponent("agreement-dump")
+        try? FileManager.default.removeItem(at: dir)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        var txt = "to=\(d.to)\ncc=\(d.cc)\nbcc=\(d.bcc)\nsubject=\(d.subject)\nattachments=\([d.attachmentName] + d.extraAttachments.map(\.lastPathComponent))\n"
+        txt += "canSendMail=\(MFMailComposeViewController.canSendMail())\n--- body ---\n\(d.body)\n"
+        try? txt.write(to: dir.appendingPathComponent("draft.txt"), atomically: true, encoding: .utf8)
+        try? FileManager.default.copyItem(at: d.attachmentURL, to: dir.appendingPathComponent(d.attachmentName))
+        for u in d.extraAttachments { try? FileManager.default.copyItem(at: u, to: dir.appendingPathComponent(u.lastPathComponent)) }
+        print("AGREEMENTMAIL dumped to \(dir.path)")
+        print(txt)
+    }
+
     /// Client Oct 30, 2nd round (data v1.14, Planned Maintenance Recommendations) — see -oct30bFill / -oct30bStatus.
     @MainActor
     static func seedOct30b(_ store: AppStore, _ id: UUID) {
@@ -386,7 +495,7 @@ enum DebugLaunch {
             v.tap("GFCI", item: item); let s4 = "\(v.summary) counts=\(v.counts)"
             v.setCount("0", for: "GFCI", item: item); let s5 = "\(v.summary) counts=\(v.counts)"
             v.tap("None", item: item); let s6 = "\(v.summary) counts=\(v.counts)"
-            var a = SectionAnswers(); var w = CountChoice(selected: ["GFCI", "Standard"], counts: ["GFCI": 4, "Standard": 6]); w.store(in: &a, key: "k")
+            var a = SectionAnswers(); let w = CountChoice(selected: ["GFCI", "Standard"], counts: ["GFCI": 4, "Standard": 6]); w.store(in: &a, key: "k")
             print("OCT30TEST rules none=\(s1) | type GFCI 4=\(s2) | +Standard 6=\(s3) | untap GFCI=\(s4) | GFCI 0=\(s5) | None=\(s6) | stored choices=\(a.choices) text=\(a.text)")
         }
         return id
@@ -743,6 +852,7 @@ enum DebugLaunch {
         if has("-openComment") { DebugFlags.openCommentList = true }
         if has("-openPreview") { DebugFlags.openPreview = true }
         if has("-openShare") { DebugFlags.openShare = true }
+        if has("-emailAgreement") { DebugFlags.emailAgreement = true }
         if let f = value("-scrubTo").flatMap(Double.init) { DebugFlags.scrubTo = CGFloat(f) }
         if let z = value("-markupZoom").flatMap(Double.init) { DebugFlags.markupZoom = CGFloat(z) }
         if let q = value("-scrollToItem") { DebugFlags.scrollToItem = q }
@@ -790,6 +900,8 @@ enum DebugLaunch {
         seedOct29(store, id)
         id = seedOct30(store, id)
         seedOct30b(store, id)
+        id = seedOct30c(store, id)
+        oct30cStatus(store, id)
         let depth = store.inspection(id)?.depth ?? .standard
         let section = value("-section") ?? (ridge.leafSections.contains("Roof") ? (depth == .high ? "Outside Utilities" : "Roof") : (ridge.leafSections.first ?? "Roof"))
 
@@ -811,6 +923,8 @@ enum DebugLaunch {
         case "wizard": DebugFlags.wizardStep = step; store.path = [.wizard(editing: nil)]
         case "editWizard": DebugFlags.wizardStep = step; store.path = [.sections(id), .wizard(editing: id)]
         case "sections": store.path = [.sections(id)]
+        case "inspectionAgreement":
+            if let i = store.inspection(id) { store.path = [.sections(id), .agreement(state: i.state, fill: store.agreementFill(i))] }
         case "section": store.path = [.sections(id), .section(id, section)]
         case "drawer": DebugFlags.openDrawer = true; store.path = [.sections(id), .section(id, section)]
         case "photos": store.path = store.catalog.isPhotosOnly(section) ? [.sections(id), .photos(id, section)] : [.sections(id), .section(id, section), .photos(id, section)]

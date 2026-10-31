@@ -16,8 +16,9 @@ enum Route: Hashable {
     case plans, inspectors, subscribe, subscriptionStarted, billing, feedbackAdmin, reportBcc
     case eula, deleteAccount
     /// VIMS default inspection agreement viewer: nil = every state's disclosures (Company profile),
-    /// a code = only that state's section (wizard step 1).
-    case agreement(state: String?)
+    /// a code = only that state's section (wizard step 1). `fill` (client Oct 30 (3), data v1.15): opened from an inspection
+    /// (wizard step 1 or the inspection screen) — the agreement is filled in from it and has "Email inspection agreement".
+    case agreement(state: String?, fill: AgreementFill? = nil)
     /// Company admins: edit this company's copy of the VIMS agreement.
     case agreementEditor
 }
@@ -170,6 +171,13 @@ final class AppStore {
     }
 
     func showTrialEndedPrompt() { if !isSubscriptionExempt { trialEndedPrompt = true } }
+
+    /// Client Oct 30 (3), data v1.15 `agreementPrefill`: what the inspection agreement is filled in with — a saved
+    /// inspection, or the wizard's draft (every step's current values, nothing saved). Inspector = the signed-in account.
+    func agreementFill(_ insp: Inspection) -> AgreementFill {
+        AgreementFill.make(insp, spec: config.agreementPrefill, wizard: config.wizard,
+                           inspectorName: session?.name ?? currentUser?.name ?? "")
+    }
 
     /// The signed-in inspector's own email, CC'd on every emailed report (data v1.3 `support.ccInspector`).
     var reportCcEmail: String? {

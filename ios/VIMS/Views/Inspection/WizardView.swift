@@ -81,6 +81,11 @@ struct WizardView: View {
             #if DEBUG
             // -wizType TYPE: the draft starts with that Type of inspection (step 3 lock / deselect checks).
             if let t = DebugLaunch.value("-wizType") { draft?.inspType = t }
+            // -oct30cWizard: every step filled with the Oct 30 agreement sample values (data v1.15 View check).
+            if DebugLaunch.has("-oct30cWizard"), editingID == nil, var d = draft {
+                DebugLaunch.oct30cValues(&d, config: store.config, blank: DebugLaunch.has("-oct30cBlank"))
+                draft = d
+            }
             // -wizState TX[,UT…]: pick those states in order through the same setter as the picker.
             if let seq = DebugFlags.wizardStates {
                 DebugFlags.wizardStates = nil
