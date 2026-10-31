@@ -186,12 +186,24 @@ private fun ColumnScope.GateButtons(vm: AppViewModel, onSignOut: () -> Unit) {
  * (Share / Save to device) — every user can download.
  */
 @Composable
-fun AgreementScreen(vm: AppViewModel, nav: NavHostController, state: String) {
+fun AgreementScreen(vm: AppViewModel, nav: NavHostController, routeState: String, inspId: String? = null, fromWizard: Boolean = false) {
     val company by vm.company.collectAsState()
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val a = vm.agreement
     val edited = company.editedAgreement
+    // Data v1.15 agreementPrefill: from an inspection (inspection screen) or the wizard (step 1 View) the agreement is filled
+    // in from those values and ends with "Email inspection agreement". Settings / Company profile: blank, no button.
+    val inspections by vm.inspections.collectAsState()
+    val wizardSel = vm.wizard.collectAsState().value.sel
+    val fillSel = when {
+        inspId != null -> inspections[inspId]?.inspection?.selections
+        fromWizard -> wizardSel
+        else -> null
+    }
+    val fill = remember(fillSel, company.name) { fillSel?.let { vm.agreementFillInput(it) } }
+    val state = fillSel?.state?.takeIf { it.isNotBlank() } ?: routeState
+    var sending by remember { mutableStateOf(false) }
     val sub = if (state.isBlank()) "All 50 states" else vm.config.stateName(state)
     var pdf by remember { mutableStateOf<AppViewModel.AgreementPdfFile?>(null) }
     var sheet by remember { mutableStateOf(false) }
@@ -204,7 +216,7 @@ fun AgreementScreen(vm: AppViewModel, nav: NavHostController, state: String) {
         if (!busy) {
             busy = true
             scope.launch {
-                val r = vm.buildAgreementPdf(state)
+                val r = vm.buildAgreementPdf(state, fill)
                 busy = false
                 if (r == null) vm.toast("Could not create the PDF") else { pdf = r; sheet = true }
             }
@@ -254,10 +266,68 @@ fun AgreementScreen(vm: AppViewModel, nav: NavHostController, state: String) {
             }
             return@VScreen
         }
-        val pieces = remember(company, state) { vm.agreementPieces(company, state) }
+        val pieces = remember(company, state, fill) { vm.agreementPieces(company, state, fill) }
         Column(Modifier.fillMaxWidth().vCard().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp)) {
             pieces.forEach { AgreementPieceView(it) }
         }
+        if (fill != null) {
+            if (ownName != null) Text("Your own agreement is attached as uploaded. It can't be filled in automatically.",
+                style = T.ui(12.5.sp, color = V.ink3, lineHeight = 17.sp), modifier = Modifier.padding(start = 2.dp, end = 2.dp, top = 14.dp))
+            VBtn(vm.config.agreementPrefill.emailButton.label.ifBlank { "Email inspection agreement" }, {
+                if (!sending) {
+                    sending = true
+                    scope.launch { emailAgreement(ctx, vm, fill, state); sending = false }
+                }
+            }, Modifier.padding(top = if (ownName != null) 10.dp else 16.dp), icon = VIcons.mail, enabled = !sending)
+        }
+    }
+}
+
+/**
+ * Data v1.15 "Email inspection agreement": the filled-in agreement PDF (or the company's own uploaded agreement, unchanged)
+ * plus the state's required documents (stateRules[state].docs), in the mail composer — To = client email (empty when none),
+ * no CC, subject / body per agreementPrefill.emailButton. ACTION_SEND_MULTIPLE straight to the email app (a chooser of email
+ * apps when there are several); with no email app on the device, the plain share sheet with the same attachments. Nothing is
+ * stored, no toast (the composer is the feedback).
+ */
+suspend fun emailAgreement(ctx: Context, vm: AppViewModel, fill: com.vims.app.data.AgreementFillInput, state: String) {
+    val c = vm.company.value
+    val own = c.uploadedAgreement != null
+    val main = if (own) vm.ownAgreementAttachment() else vm.buildAgreementPdf(state, fill)?.file
+    if (main == null) { vm.toast(if (own) "Your agreement file isn't on this device" else "Could not create the PDF"); return }
+    val docs = vm.config.stateRule(state)?.docs.orEmpty()
+    val docFiles = docs.mapNotNull { d -> stateDocFile(ctx, d.file)?.let { d to it } }
+    val files = listOf(main) + docFiles.map { it.second }
+    val uris = ArrayList(files.map { FileProvider.getUriForFile(ctx, "${ctx.packageName}.fileprovider", it) })
+    val mimes = files.map { agreementMime(it.extension) }.distinct()
+    val body = com.vims.app.data.AgreementFill.body(fill, c.name, c.phone, docFiles.map { it.first.name }, vm.config.stateName(state))
+    val send = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+        type = mimes.singleOrNull() ?: "*/*"
+        putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
+        if (fill.clientEmail.isNotBlank()) putExtra(Intent.EXTRA_EMAIL, arrayOf(fill.clientEmail.trim()))
+        putExtra(Intent.EXTRA_SUBJECT, com.vims.app.data.AgreementFill.subject(fill.street))
+        putExtra(Intent.EXTRA_TEXT, body)
+        clipData = android.content.ClipData.newRawUri(files[0].name, uris[0]).also { cd -> uris.drop(1).forEach { cd.addItem(android.content.ClipData.Item(it)) } }
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    // Mail composer: the email apps (apps that handle mailto:) that take these attachments. One → it opens straight away;
+    // several → a chooser of just those; none (no mail app / account) → the share sheet with the same attachments, as the
+    // report email does. (A mailto: selector can't be used: the chooser then finds no target for SEND_MULTIPLE.)
+    val pm = ctx.packageManager
+    val mailPkgs = pm.queryIntentActivities(Intent(Intent.ACTION_SENDTO, android.net.Uri.parse("mailto:")), 0).map { it.activityInfo.packageName }.toSet()
+    val targets = pm.queryIntentActivities(send, 0)
+    val mailTargets = targets.filter { it.activityInfo.packageName in mailPkgs }
+    if (com.vims.app.BuildConfig.DEBUG) android.util.Log.d("VIMS-Share", "ACTION_SEND_MULTIPLE agreement mailApps=${mailTargets.map { it.activityInfo.packageName }} type=${send.type} to=${send.getStringArrayExtra(Intent.EXTRA_EMAIL)?.toList()} " +
+        "cc=${send.getStringArrayExtra(Intent.EXTRA_CC)?.toList()} subject=${send.getStringExtra(Intent.EXTRA_SUBJECT)} files=${files.map { "${it.name}(${it.length()})" }}\n$body")
+    try {
+        when {
+            mailTargets.size == 1 -> ctx.startActivity(Intent(send).setClassName(mailTargets[0].activityInfo.packageName, mailTargets[0].activityInfo.name))
+            mailTargets.size > 1 -> ctx.startActivity(Intent.createChooser(send, "Email inspection agreement").putExtra(Intent.EXTRA_EXCLUDE_COMPONENTS,
+                targets.filter { it !in mailTargets }.map { android.content.ComponentName(it.activityInfo.packageName, it.activityInfo.name) }.toTypedArray()))
+            else -> ctx.startActivity(Intent.createChooser(send, "Send inspection agreement"))
+        }
+    } catch (_: ActivityNotFoundException) {
+        vm.toast("No app available to send the agreement")
     }
 }
 
@@ -266,10 +336,12 @@ fun AgreementScreen(vm: AppViewModel, nav: NavHostController, state: String) {
 private fun AgreementPieceView(p: AgreementPiece) {
     when (p) {
         is AgreementPiece.Title -> Text(p.text, style = T.display(18.sp, FontWeight.ExtraBold, lineHeight = 22.sp), modifier = Modifier.padding(bottom = 10.dp))
-        is AgreementPiece.Form -> Text(p.lines.joinToString("\n"), style = T.mono(11.5.sp, color = V.ink2).copy(lineHeight = 20.sp),
+        is AgreementPiece.Form -> Text(filledText(p.lines, p.bold), style = T.mono(11.5.sp, color = V.ink2).copy(lineHeight = 20.sp),
             modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp).clip(RoundedCornerShape(9.dp)).background(V.paper2)
                 .border(1.dp, V.line, RoundedCornerShape(9.dp)).padding(horizontal = 12.dp, vertical = 10.dp))
-        is AgreementPiece.Para -> AgreementPara(p.text, if (p.lead) V.ink else if (p.muted) V.ink3 else V.ink2, if (p.lead) FontWeight.SemiBold else FontWeight.Normal)
+        is AgreementPiece.Para -> if (p.bold.isEmpty()) AgreementPara(p.text, if (p.lead) V.ink else if (p.muted) V.ink3 else V.ink2, if (p.lead) FontWeight.SemiBold else FontWeight.Normal)
+            else Text(filledText(listOf(p.text), mapOf(0 to p.bold)), style = T.ui(13.sp, if (p.lead) FontWeight.SemiBold else FontWeight.Normal, if (p.lead) V.ink else V.ink2, lineHeight = 20.sp),
+                modifier = Modifier.padding(bottom = 9.dp))
         is AgreementPiece.Bullet -> Row(Modifier.padding(start = 4.dp, bottom = 9.dp)) {
             Text("•", style = T.ui(13.sp, color = V.ink2, lineHeight = 20.sp), modifier = Modifier.width(12.dp))
             Text(p.text, style = T.ui(13.sp, color = V.ink2, lineHeight = 20.sp), modifier = Modifier.weight(1f))
@@ -280,6 +352,18 @@ private fun AgreementPieceView(p: AgreementPiece) {
             append(" "); append(p.text)
         }, style = T.ui(13.sp, color = V.ink2, lineHeight = 20.sp), modifier = Modifier.padding(bottom = 9.dp))
         is AgreementPiece.Note -> Text(p.text, style = T.ui(11.5.sp, color = V.ink3, lineHeight = 16.sp), modifier = Modifier.padding(bottom = 9.dp))
+    }
+}
+
+/** Lines joined with line breaks; the values filled in from the inspection (data v1.15) in bold, darker ink. */
+private fun filledText(lines: List<String>, bold: Map<Int, List<IntRange>>) = buildAnnotatedString {
+    lines.forEachIndexed { k, line ->
+        if (k > 0) append("\n")
+        val base = length
+        append(line)
+        bold[k].orEmpty().forEach { r ->
+            if (r.first >= 0 && r.last < line.length) addStyle(SpanStyle(fontWeight = FontWeight.Bold, color = V.ink), base + r.first, base + r.last + 1)
+        }
     }
 }
 

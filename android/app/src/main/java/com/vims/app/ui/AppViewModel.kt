@@ -703,10 +703,22 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      * What the agreement viewer shows: the company's edited version (whole, never filtered by state — saved blocks, or a
      * plain-text edit from before v0.16.0) with the locked VIMS form block after its title, else the VIMS agreement.
      */
-    fun agreementPieces(c: CompanyProfile, state: String): List<com.vims.app.data.AgreementPiece> = c.editedAgreement?.let { stored ->
-        val form = agreement.formLines(c.name)
-        com.vims.app.data.AgreementBlocks.decode(stored)?.let { com.vims.app.data.AgreementBlocks.pieces(it, form) } ?: com.vims.app.data.AgreementText.pieces(stored, form)
-    } ?: agreement.pieces(c.name, state, config::stateName)
+    fun agreementPieces(c: CompanyProfile, state: String, fill: com.vims.app.data.AgreementFillInput? = null): List<com.vims.app.data.AgreementPiece> {
+        val pieces = c.editedAgreement?.let { stored ->
+            val form = agreement.formLines(c.name)
+            com.vims.app.data.AgreementBlocks.decode(stored)?.let { com.vims.app.data.AgreementBlocks.pieces(it, form) } ?: com.vims.app.data.AgreementText.pieces(stored, form)
+        } ?: agreement.pieces(c.name, state, config::stateName)
+        // Data v1.15 agreementPrefill: opened from an inspection (wizard / inspection screen) → filled in. Not when the company
+        // uses its own uploaded agreement (the VIMS text is then only shown for reference; the upload is what gets emailed).
+        return if (fill == null || c.uploadedAgreement != null) pieces else com.vims.app.data.AgreementFill.apply(pieces, config.agreementPrefill, fill)
+    }
+
+    /**
+     * Data v1.15 agreementPrefill: the values the agreement is filled from — a saved inspection's selections or the wizard's
+     * current (unsaved) ones. Inspector = the signed-in account's full name.
+     */
+    fun agreementFillInput(sel: WizardSelections): com.vims.app.data.AgreementFillInput =
+        com.vims.app.data.AgreementFill.input(sel, session.value?.name?.takeIf { it.isNotBlank() } ?: company.value.inspectorName, config.wizard.unitMixDefault)
 
     /** The locked form block (read-only in Edit agreement; the same lines the viewer boxes). */
     fun agreementFormLines(): List<String> = agreement.formLines(company.value.name)
@@ -725,16 +737,38 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     data class AgreementPdfFile(val file: File, val pages: Int)
 
-    /** Download: renders what the viewer shows into cache/agreement/Inspection-Agreement-<Company-Name>.pdf (shared via FileProvider). */
-    suspend fun buildAgreementPdf(state: String): AgreementPdfFile? = withContext(Dispatchers.IO) {
+    /**
+     * Download / Email inspection agreement: renders what the viewer shows (filled in when [fill] is given) into
+     * cache/agreement/Inspection-Agreement-<Company-Name>.pdf — or …-<Client-Name>.pdf when filled for a client (data v1.15)
+     * — shared via FileProvider.
+     */
+    suspend fun buildAgreementPdf(state: String, fill: com.vims.app.data.AgreementFillInput? = null): AgreementPdfFile? = withContext(Dispatchers.IO) {
         val c = company.value
         val dir = File(getApplication<Application>().cacheDir, "agreement")
-        val f = File(dir, agreementPdfName(c.name))
+        val f = File(dir, if (fill != null) com.vims.app.data.AgreementFill.pdfName(fill.clientName, c.name) else agreementPdfName(c.name))
         try {
             dir.listFiles()?.forEach { it.delete() } // only the latest download is kept
-            AgreementPdfFile(f, com.vims.app.report.AgreementPdf(getApplication()).write(agreementPieces(c, state), c.name, f))
+            AgreementPdfFile(f, com.vims.app.report.AgreementPdf(getApplication()).write(agreementPieces(c, state, fill), c.name, f))
         } catch (t: Throwable) {
             android.util.Log.e("VIMS-Agreement", "Could not build the agreement PDF", t); null
+        }
+    }
+
+    /**
+     * Email inspection agreement with the company's own uploaded agreement: the file unchanged, copied to cache/agreement/
+     * under its uploaded name (so the client sees "Smith-Agreement.pdf", not "agreement.pdf"). Null if it isn't on the device.
+     */
+    suspend fun ownAgreementAttachment(): File? = withContext(Dispatchers.IO) {
+        val src = ownAgreementFile()?.takeIf { it.isFile } ?: return@withContext null
+        val name = company.value.agreementName.orEmpty().replace(Regex("[\\\\/:*?\"<>|\\s]+"), "-").trim('-').ifEmpty { src.name }
+            .let { if (it.contains('.')) it else "$it.${src.extension}" }
+        val dir = File(getApplication<Application>().cacheDir, "agreement")
+        try {
+            dir.listFiles()?.forEach { it.delete() }
+            dir.mkdirs()
+            File(dir, name).also { src.copyTo(it, overwrite = true) }
+        } catch (t: Throwable) {
+            android.util.Log.e("VIMS-Agreement", "Could not copy the uploaded agreement", t); null
         }
     }
 

@@ -108,6 +108,12 @@ fun SectionsScreen(vm: AppViewModel, nav: NavHostController, inspId: String) {
                 CountText("$done", " done", V.ink); CountText("${leaves.size - done}", " left", V.ink); CountText("${b.findings.size}", " findings", V.c1)
             }
         }
+        // Data v1.15 agreementPrefill: the agreement filled in from this inspection, with "Email inspection agreement" at its end.
+        // Every inspection type, also after the report is generated.
+        val client = b.inspection.selections.clientName
+        AgreementRow(if (client.isBlank()) "Filled in · Email to client" else "Filled in for $client · Email to client") {
+            nav.navigate(com.vims.app.ui.AgreementR(b.inspection.selections.state, inspId = inspId))
+        }
         Lbl("Checklist · tap a group")
         b.inspection.groups.forEach { g ->
             GroupCard(g, b, open[g.heading] == true, onToggle = { open[g.heading] = open[g.heading] != true },
@@ -158,6 +164,25 @@ private fun GroupCard(g: BuiltGroup, b: InspectionBundle, open: Boolean, onToggl
                 sub.sections.forEachIndexed { i, s -> SecRow(s, b.status(s), last = i == sub.sections.lastIndex, optional = b.isNotes(s)) { onSection(s) } }
             }
         }
+    }
+}
+
+/** Inspection screen row under the address / progress card: file icon, "Inspection agreement", [subtitle], chevron. */
+@Composable
+private fun AgreementRow(subtitle: String, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().vCard().heightIn(min = 60.dp).clickable(role = Role.Button, onClickLabel = "Open the inspection agreement", onClick = onClick)
+            .padding(horizontal = 15.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(11.dp),
+    ) {
+        Box(Modifier.size(30.dp).clip(RoundedCornerShape(8.dp)).background(V.paper3), contentAlignment = Alignment.Center) {
+            Icon(VIcons.file, null, tint = V.brand, modifier = Modifier.size(17.dp))
+        }
+        Column(Modifier.weight(1f)) {
+            Text("Inspection agreement", style = T.ui(14.5.sp, FontWeight.Bold))
+            Text(subtitle, style = T.ui(12.sp, color = V.ink3, lineHeight = 16.sp), modifier = Modifier.padding(top = 1.dp))
+        }
+        Icon(VIcons.caretRight, null, tint = V.ink3, modifier = Modifier.size(18.dp))
     }
 }
 

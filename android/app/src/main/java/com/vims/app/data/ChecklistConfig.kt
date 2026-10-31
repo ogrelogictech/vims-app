@@ -41,6 +41,8 @@ data class ChecklistConfig(
     val stateRules: JsonObject = JsonObject(emptyMap()),
     /** Data v1.10 (client Oct 25): feature switches; missing key = Phase 1 defaults (see [FeaturesDef]). */
     val features: FeaturesDef = FeaturesDef(),
+    /** Data v1.15 (client Oct 30): fill the inspection agreement from the inspection ([AgreementFill]) + its Email button. */
+    val agreementPrefill: AgreementPrefillDef = AgreementPrefillDef(),
 ) {
     /** Parsed [stateRules] (tolerant: unknown keys inside a rule are ignored, malformed entries skipped). */
     private val rules: Map<String, StateRule> by lazy {

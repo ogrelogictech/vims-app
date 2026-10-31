@@ -19,6 +19,11 @@
             <action android:name="android.intent.action.SEND" />
             <data android:mimeType="application/pdf" />
         </intent>
+        <!-- Email inspection agreement (data v1.15): the agreement PDF + state documents to email apps -->
+        <intent>
+            <action android:name="android.intent.action.SEND_MULTIPLE" />
+            <data android:mimeType="*/*" />
+        </intent>
     </queries>
 
     <application

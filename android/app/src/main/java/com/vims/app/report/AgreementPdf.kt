@@ -42,6 +42,8 @@ class AgreementPdf(context: Context) {
     private val plex600 = variable("fonts/IBMPlexSans-Variable.ttf", 600)
     private val plex700 = variable("fonts/IBMPlexSans-Variable.ttf", 700)
     private val mono = try { Typeface.createFromAsset(am, "fonts/IBMPlexMono-Regular.ttf") } catch (_: Exception) { Typeface.MONOSPACE }
+    /** Values filled in from the inspection (data v1.15) — the same mono face, bold (SemiBold is the heaviest shipped). */
+    private val monoBold = try { Typeface.createFromAsset(am, "fonts/IBMPlexMono-SemiBold.ttf") } catch (_: Exception) { Typeface.create(Typeface.MONOSPACE, Typeface.BOLD) }
 
     private fun tp(tf: Typeface, size: Float, color: Int) = TextPaint(Paint.ANTI_ALIAS_FLAG).apply { typeface = tf; textSize = size; this.color = color }
     private val titleP = tp(archivo800, 20f, INK)
@@ -117,9 +119,28 @@ class AgreementPdf(context: Context) {
         y += gapAfter
     }
 
-    private fun form(lines: List<String>) {
+    /**
+     * [lines] joined with line breaks, the filled-in ranges ([bold], per line) in [boldFace] and the darker ink. ☐ / ☒ aren't in
+     * the shipped fonts: StaticLayout draws both with the system fallback font (Noto Sans Symbols), the same face for both.
+     */
+    private fun filled(lines: List<String>, bold: Map<Int, List<IntRange>>, boldFace: Typeface): CharSequence {
+        if (bold.isEmpty()) return lines.joinToString("\n")
+        val sb = SpannableStringBuilder()
+        lines.forEachIndexed { k, line ->
+            if (k > 0) sb.append("\n")
+            val base = sb.length
+            sb.append(line)
+            bold[k].orEmpty().filter { it.first >= 0 && it.last < line.length }.forEach { r ->
+                sb.setSpan(Bold(boldFace), base + r.first, base + r.last + 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                sb.setSpan(ForegroundColorSpan(INK), base + r.first, base + r.last + 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            }
+        }
+        return sb
+    }
+
+    private fun form(lines: List<String>, bold: Map<Int, List<IntRange>>) {
         val pad = 10f
-        val l = layout(lines.joinToString("\n"), formP, CW - 2 * pad, 1.45f)
+        val l = layout(filled(lines, bold, monoBold), formP, CW - 2 * pad, 1.45f)
         if (y + l.height + 2 * pad <= BOTTOM || y <= M) {
             cv?.let { c ->
                 val r = RectF(M, y, M + CW, y + l.height + 2 * pad)
@@ -139,8 +160,9 @@ class AgreementPdf(context: Context) {
         pieces.forEach { p ->
             when (p) {
                 is AgreementPiece.Title -> flow(layout(p.text, titleP, CW, 1.15f), M, 12f)
-                is AgreementPiece.Form -> form(p.lines)
-                is AgreementPiece.Para -> flow(layout(p.text, if (p.lead) leadP else if (p.muted) mutedP else bodyP, CW), M, 7f)
+                is AgreementPiece.Form -> form(p.lines, p.bold)
+                is AgreementPiece.Para -> flow(layout(filled(listOf(p.text), if (p.bold.isEmpty()) emptyMap() else mapOf(0 to p.bold), plex700),
+                    if (p.lead) leadP else if (p.muted) mutedP else bodyP, CW), M, 7f)
                 is AgreementPiece.Bullet -> flow(layout(p.text, bodyP, CW - 14f), M + 14f, 7f, bullet = "•")
                 is AgreementPiece.Heading -> {
                     // Keep a heading with at least a few lines of what follows it.

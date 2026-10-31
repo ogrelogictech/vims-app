@@ -213,7 +213,7 @@ fun StateField(vm: AppViewModel, nav: NavHostController, sel: WizardSelections, 
     // "Inspection agreement: View (shows the selected state's section)" — the VIMS agreement with only this state's disclosures.
     Row(
         Modifier.fillMaxWidth().padding(bottom = 6.dp).heightIn(min = 44.dp).clip(RoundedCornerShape(8.dp))
-            .clickable(role = Role.Button, onClickLabel = "View inspection agreement") { nav.navigate(AgreementR(sel.state)) }.padding(horizontal = 2.dp),
+            .clickable(role = Role.Button, onClickLabel = "View inspection agreement") { nav.navigate(AgreementR(sel.state, wizard = true)) }.padding(horizontal = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(buildAnnotatedString {

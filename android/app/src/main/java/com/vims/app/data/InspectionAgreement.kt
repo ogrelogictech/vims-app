@@ -107,10 +107,16 @@ data class AgreementBlock(val t: String = "p", val text: String = "", val lead: 
 /** One piece of the agreement as the viewer shows it; [AgreementPdf] prints the same list (except [Note]). */
 sealed interface AgreementPiece {
     data class Title(val text: String) : AgreementPiece
-    /** The boxed form lines (client / property / services). */
-    data class Form(val lines: List<String>) : AgreementPiece
-    /** Paragraph (may contain line breaks); `lead` = darker lead-in line, `muted` = gray (e.g. "No additional disclosures"). */
-    data class Para(val text: String, val lead: Boolean = false, val muted: Boolean = false) : AgreementPiece
+    /**
+     * The boxed form lines (client / property / services). [bold] = per line index, the character ranges filled in from
+     * the inspection ([AgreementFill], data v1.15) — drawn bold in the viewer and the PDF.
+     */
+    data class Form(val lines: List<String>, val bold: Map<Int, List<IntRange>> = emptyMap()) : AgreementPiece
+    /**
+     * Paragraph (may contain line breaks); `lead` = darker lead-in line, `muted` = gray (e.g. "No additional disclosures");
+     * [bold] = character ranges filled in from the inspection (closing lines, [AgreementFill]).
+     */
+    data class Para(val text: String, val lead: Boolean = false, val muted: Boolean = false, val bold: List<IntRange> = emptyList()) : AgreementPiece
     data class Bullet(val text: String) : AgreementPiece
     data class Heading(val text: String) : AgreementPiece
     /** "State name: text" (state name in bold). */

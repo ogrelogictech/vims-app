@@ -34,7 +34,9 @@ Join a company with a code attaches a new user to an existing company. Auth is a
 adb shell am start -S -n com.vims.app/.MainActivity --es screen section --es section Roof
 #   screen: login signup forgot join home wizard sections section photos camera markup finding summary report
 #           generated pdf settings company instructions admin editsec plans inspectors subscribe substarted billing feedbackadmin
-#           eula agreement (inspection agreement; add --es state NH to show only that state's disclosures)
+#           eula agreement (inspection agreement; add --es state NH to show only that state's disclosures;
+#           --es insp demo-ridgeline instead = filled in from that inspection + Email button — don't combine with --es state,
+#           which rewrites the inspection's state)
 #           agreementedit (Edit agreement; company admins only)
 #   --es insp demo-ridgeline   --es section "'Outside Utilities'"   --es photo demo-p0   --es cat "North Side"
 #   --es depth high|standard|fast (rewrites that inspection's depth)   --ei step 1-4 (wizard)   --ei coverStep 1-3
@@ -808,3 +810,48 @@ Shared v1.9 (client item 13):
   the serialized `"notes":false` default), the reported inspection unchanged, 34/34 still 100%, Garage still shows / prints the
   old receptacle items and answers. Screenshots `screenshots/oct30b-*`. Test APK `../../VIMS-Android-test-v0.26.0-2026-10-30.apk`
   (debug key, same certificate as v0.25.0, installs over it).
+
+## Client Oct 30 (3) + shared v1.15.0 `agreementPrefill` (v0.27.0)
+
+Client (Jeremy, Oct 30): the customer information should pre-fill into the inspection agreement so it can be emailed to the
+customer from the app, with an "Email inspection agreement" button at the bottom.
+
+- **Data:** `ChecklistConfig.agreementPrefill` (`AgreementPrefillDef`: `lines` label / part / occurrence, `checkboxes` box
+  mappings, `emailButton.label`), read from `vims-checklists.json` (shared assets folder — no copy to keep in sync).
+- **Fill (`data/AgreementFill.kt`, pure Kotlin, no Android):** `AgreementFill.input(selections, inspector, unitMixDefault)` →
+  `AgreementFillInput`; `AgreementFill.apply(pieces, def, input)` fills the viewer's pieces. Header lines: the n-th boxed form
+  line containing the label, the first underscore run after the label becomes the value (one space before it, so
+  "Date and Time of Inspection____" reads "… Inspection Oct 31, 2026 2:30 AM"); closing lines: the first paragraph with the
+  label followed by a blank. Values: client name / phone `(503) 555-0187` / email, inspector = signed-in account name, Inspector
+  License #, state code, "Nov 3, 2026 9:00 AM" (date only without a time), "street, city, ST zip", # Units (Multi-Unit: sum of the
+  unit mix, the default mix when untouched; Duplex 2), Total sq ft, agent name / email, client name again on "Printed Name of
+  Client:". Empty value = blanks stay. Boxes ☐ → ☒ per the data (property type, inspection type, Component's chosen components
+  only when the type is Component, tests, Boiler / Heating Oil Tank, "NO Report to Real Estate Agent." when sending to the agent
+  is off); Mobile / Manufactured, Texas, Tests Only and retired types tick nothing. A company's edited agreement gets the same
+  treatment (form block + its paragraphs) where the labels still appear; missing labels are skipped.
+- **Bold:** `AgreementPiece.Form.bold` (per line) / `Para.bold` ranges; the viewer draws them bold in darker ink (mono
+  SemiBold — the heaviest Plex Mono shipped), the PDF with `IBMPlexMono-SemiBold` / Plex Sans 700. ☐ / ☒ aren't in the shipped
+  fonts; both come from the system fallback (Noto Sans Symbols — embedded in the PDF, checked on a rendered page).
+- **Entry points:** `AgreementR(state, inspId, wizard)`. Wizard step 1 "View" → `wizard = true` (the wizard's current values,
+  all steps, nothing saved). Inspection screen: new row under the address / progress card, above "Checklist · tap a group":
+  file icon, "Inspection agreement", "Filled in for <client> · Email to client" ("Filled in · Email to client" without a client),
+  every inspection type, also after the report → `inspId`. Settings / Company profile → `AgreementR("")`: blank, no button.
+- **Email inspection agreement** (full-width primary button after the closing lines, only from the wizard / an inspection):
+  builds the filled PDF `cache/agreement/Inspection-Agreement-<Client-Name>.pdf` (company name without a client; Download from
+  a filled viewer prints the same filled PDF) and sends `ACTION_SEND_MULTIPLE` with FileProvider URIs (+ ClipData, read grant):
+  PDF + `stateRules[state].docs`, `EXTRA_EMAIL` = client email (none when empty), no CC, subject "Inspection Agreement – <street>"
+  ("Inspection Agreement" without one), body per the data (Hi <first name> / Hello,; "at <address>" / "on <date time>" left out
+  when empty; "Also attached: <titles>, which <State> requires with the agreement." when docs are attached; inspector, company,
+  company phone if set). Goes straight to the email app (apps handling `mailto:`; a chooser of just those when there are several);
+  no email app → the share sheet with the same attachments. `<queries>` gains `SEND_MULTIPLE */*`. Debug builds log the extras
+  and body under `VIMS-Share`. Nothing stored, no toast.
+- **Own uploaded agreement:** the viewer keeps showing the VIMS text unfilled for reference; the button attaches the uploaded
+  file unchanged (copied to `cache/agreement/<uploaded name>`) + the state documents, same To / subject / body, with the note
+  "Your own agreement is attached as uploaded. It can't be filled in automatically." above the button.
+- **Verified** (emulator, Android 15): `adb install -r` over v0.26.0; inspections / answers / photos / findings rows identical
+  before and after (md5 of the Room rows). Wizard (Dana McAllister, 2210 NW Lovejoy St, Portland OR 97210, agent Marcus Bell,
+  send-to-agent off, license CCB 201234, Component + Roof / HVAC, Multi-Unit (8 units) + 9600 sq ft, Boiler, Radon + Wind
+  Mitigation) → View: every mapped line bold, 7 ☒, button at the bottom → Gmail compose activity received SEND_MULTIPLE with
+  2 attachments (agreement + Oregon CCB notice), To / subject / body as above; pulled PDF rendered (5 pages, ☒ drawn). Inspection
+  screen row on 640 Harrison Blvd (report sent) → filled from that inspection. Company profile → View still blank, no button.
+  Screenshots `screenshots/oct30c-*`. Test APK `../../VIMS-Android-test-v0.27.0-2026-10-31.apk` (debug key, installs over v0.26.0).

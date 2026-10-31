@@ -99,8 +99,12 @@ import kotlinx.serialization.Serializable
 @Serializable object FeedbackAdminR
 @Serializable object ReportBccR
 @Serializable object EulaR
-/** Inspection agreement viewer: `state` = "" shows every state's disclosures (Company profile); a code shows only that state's (wizard). */
-@Serializable data class AgreementR(val state: String = "")
+/**
+ * Inspection agreement viewer: `state` = "" shows every state's disclosures (Company profile); a code shows only that state's (wizard).
+ * Data v1.15 agreementPrefill: [inspId] = filled in from that saved inspection (inspection screen row); [wizard] = filled in
+ * from the wizard's current, unsaved values (step 1 View link). Either one also shows "Email inspection agreement".
+ */
+@Serializable data class AgreementR(val state: String = "", val inspId: String? = null, val wizard: Boolean = false)
 /** Edit agreement (company admins): the company's own copy of the VIMS agreement as plain text. */
 @Serializable object AgreementEditR
 /** State document viewer (`file` = asset path relative to shared/, from stateRules.<STATE>.docs). */
@@ -162,7 +166,7 @@ fun VimsRoot(vm: AppViewModel, debug: DebugLaunch?) {
             composable<FeedbackAdminR> { FeedbackAdminScreen(vm, nav) }
             composable<EulaR> { com.vims.app.ui.screens.EulaScreen(vm, nav) }
             composable<ReportBccR> { com.vims.app.ui.screens.ReportBccScreen(vm, nav) }
-            composable<AgreementR> { com.vims.app.ui.screens.AgreementScreen(vm, nav, it.toRoute<AgreementR>().state) }
+            composable<AgreementR> { val r = it.toRoute<AgreementR>(); com.vims.app.ui.screens.AgreementScreen(vm, nav, r.state, r.inspId, r.wizard) }
             composable<AgreementEditR> { com.vims.app.ui.screens.AgreementEditScreen(vm, nav) }
             composable<StateDocR> { val r = it.toRoute<StateDocR>(); com.vims.app.ui.screens.StateDocScreen(vm, nav, r.file, r.name) }
         }
@@ -239,7 +243,7 @@ private suspend fun applyDebug(vm: AppViewModel, nav: NavHostController, d: Debu
         "feedbackadmin" -> FeedbackAdminR
         "reportbcc" -> ReportBccR
         "eula" -> EulaR
-        "agreement" -> AgreementR(d.state.orEmpty())
+        "agreement" -> AgreementR(d.state.orEmpty(), inspId = d.insp?.let { id })
         "agreementedit" -> AgreementEditR
         else -> HomeR
     }

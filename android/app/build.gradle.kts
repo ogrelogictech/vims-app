@@ -14,8 +14,8 @@ android {
         applicationId = "com.vims.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 27
-        versionName = "0.26.0"
+        versionCode = 28
+        versionName = "0.27.0"
     }
 
     buildTypes {
