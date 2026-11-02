@@ -1,7 +1,7 @@
 {
  "_about": "VIMS shared checklist + configuration data. Single source of truth for the native iOS (SwiftUI) and Android (Kotlin/Compose) apps. Extracted from the client-approved prototype (index.html, approved Sep 15, 2026). Edit here, not in app code.",
- "version": "1.15.0",
- "generated": "2026-10-31",
+ "version": "1.16.0",
+ "generated": "2026-11-02",
  "depths": [
   {
    "id": "high",
@@ -35,7 +35,8 @@
   "defaultFromRoomNumber": "Optional with optionsFromCount: in a numbered room section ('Bathroom 2') the item is pre-answered with that room's own number ('2'); the inspector can still change it. Not pre-answered in a section without a number. Client Oct 29.",
   "renamedFrom": "Optional: the item's previous label. Apps that key answers by label must carry an existing answer over from this old label so nothing is lost; started inspections keep their saved checklist. Client Oct 29.",
   "countChoice": "Option buttons where some options carry a whole-number count (client Oct 30, receptacles). options = the buttons; countOptions = the options that show a count field beside them (placeholder countPlaceholder, whole numbers 0-999, optional); exclusive = options that clear every other choice and count when tapped (and are cleared when any other option is tapped or a count is typed). Non-exclusive options toggle and can be combined (GFCI and Standard together); deselecting one clears its count; typing a count above 0 selects its option. Answered = at least one option selected. Answer = {selected: [option, ...], counts: {option: n}}. Report prints e.g. 'GFCI (4), Standard (6)' or 'None'; an option selected without a count prints alone ('GFCI'). visibleIf {includes} matches the selected options.",
-  "replaces": "Optional on a countChoice item: labels of the old items (same section, same sub-header) this item replaces (client Oct 30: the separate 'GFCI' Yes/No and the Oct 29 count fields are folded into one Receptacles item). A company checklist copy that still has those old items gets them swapped for this item in the same place (the item takes the position of the first old item found). Started inspections keep their saved checklist unchanged: do not add this item to a saved checklist that still contains any of the replaced labels, so in-progress answers are never lost or duplicated."
+  "replaces": "Optional on a countChoice item: labels of the old items (same section, same sub-header) this item replaces (client Oct 30: the separate 'GFCI' Yes/No and the Oct 29 count fields are folded into one Receptacles item). A company checklist copy that still has those old items gets them swapped for this item in the same place (the item takes the position of the first old item found). Started inspections keep their saved checklist unchanged: do not add this item to a saved checklist that still contains any of the replaced labels, so in-progress answers are never lost or duplicated.",
+  "typeChangedFrom": "Optional: the item's previous type. A company edit saved earlier still holds this item with the old type; apps switch that copy to the current type and placeholder (matched by label, or by renamedFrom) so the edit doesn't keep the old input. Answers stay: an old typed date is shown and printed as typed until a date is picked; an old non-numeric value in a num item shows the usual inline error until corrected. Team QA Nov 2."
  },
  "overallCondition": [
   "Satisfactory",
@@ -27911,8 +27912,8 @@
     },
     {
      "q": "Date of last pumping",
-     "type": "text",
-     "placeholder": "date"
+     "type": "date",
+     "typeChangedFrom": "text"
     },
     {
      "q": "Filter condition",
@@ -27925,8 +27926,8 @@
     },
     {
      "q": "Date of last filter change",
-     "type": "text",
-     "placeholder": "date"
+     "type": "date",
+     "typeChangedFrom": "text"
     },
     {
      "q": "Condition of tank",
@@ -27949,9 +27950,11 @@
      ]
     },
     {
-     "q": "Depth of sludge",
-     "type": "text",
-     "placeholder": "depth"
+     "q": "Depth of sludge (inches)",
+     "type": "num",
+     "placeholder": "inches",
+     "renamedFrom": "Depth of sludge",
+     "typeChangedFrom": "text"
     },
     {
      "q": "Air pump functioning properly",
