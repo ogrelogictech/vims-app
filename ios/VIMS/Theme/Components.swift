@@ -2,31 +2,46 @@ import SwiftUI
 
 // MARK: - Flow layout (wrapping chips)
 
+/// Wrapping row of chips. A subview whose ideal width fits the line is placed with no size proposal at all, so its Text is
+/// never held to a width. Team QA Nov 2: placing a chip with its exact measured width ("Yes" → "Y…", "Currently Vacant" →
+/// "Currently Vaca…") truncates the text at a non-integer display scale, depending on where the chip lands on the pixel grid
+/// (reproduced with the DEBUG `-chipScale 2.61`). Only a subview wider than the line gets a width, the full line, and wraps.
 struct FlowLayout: Layout {
     var spacing: CGFloat = 8
     var lineSpacing: CGFloat = 8
 
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let maxW = proposal.width ?? .infinity
+    private struct Placement {
+        var origin: CGPoint
+        var proposal: ProposedViewSize
+    }
+
+    /// The one line-breaking pass behind both `Layout` calls, so the measured and the placed layout can't disagree.
+    private func arrange(_ subviews: Subviews, maxWidth: CGFloat) -> (placements: [Placement], width: CGFloat, height: CGFloat) {
+        var placements: [Placement] = []
         var x: CGFloat = 0, y: CGFloat = 0, lineH: CGFloat = 0, widest: CGFloat = 0
         for v in subviews {
-            let s = v.sizeThatFits(ProposedViewSize(width: maxW, height: nil))
-            if x > 0 && x + s.width > maxW { y += lineH + lineSpacing; x = 0; lineH = 0 }
+            let ideal = v.sizeThatFits(.unspecified)
+            let fits = ideal.width <= maxWidth
+            let proposal = fits ? ProposedViewSize.unspecified : ProposedViewSize(width: maxWidth, height: nil)
+            let s = fits ? ideal : v.sizeThatFits(proposal)
+            if x > 0 && x + s.width > maxWidth { y += lineH + lineSpacing; x = 0; lineH = 0 }
+            placements.append(Placement(origin: CGPoint(x: x, y: y), proposal: proposal))
             x += s.width + spacing
             lineH = max(lineH, s.height)
             widest = max(widest, x - spacing)
         }
-        return CGSize(width: proposal.width ?? widest, height: y + lineH)
+        return (placements, widest, y + lineH)
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let a = arrange(subviews, maxWidth: proposal.width ?? .infinity)
+        return CGSize(width: proposal.width ?? a.width, height: a.height)
     }
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        var x = bounds.minX, y = bounds.minY, lineH: CGFloat = 0
-        for v in subviews {
-            let s = v.sizeThatFits(ProposedViewSize(width: bounds.width, height: nil))
-            if x > bounds.minX && x + s.width > bounds.maxX { y += lineH + lineSpacing; x = bounds.minX; lineH = 0 }
-            v.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(width: min(s.width, bounds.width), height: s.height))
-            x += s.width + spacing
-            lineH = max(lineH, s.height)
+        let a = arrange(subviews, maxWidth: bounds.width)
+        for (v, p) in zip(subviews, a.placements) {
+            v.place(at: CGPoint(x: bounds.minX + p.origin.x, y: bounds.minY + p.origin.y), proposal: p.proposal)
         }
     }
 }
@@ -165,6 +180,7 @@ struct ChipView: View {
             .font(VFont.ui(13.5, .medium))
             .foregroundStyle(on ? .white : VC.ink2)
             .multilineTextAlignment(.leading)
+            .fixedSize(horizontal: false, vertical: true)   // a label wider than the line wraps in full, never clipped
             .padding(.horizontal, 15)
             .padding(.vertical, 9)
             .frame(minHeight: 40)

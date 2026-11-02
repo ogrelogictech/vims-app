@@ -6,6 +6,9 @@ struct VIMSApp: App {
     @State private var store: AppStore?
     @State private var loadError: String?
     @Environment(\.scenePhase) private var scenePhase
+    #if DEBUG
+    @UIApplicationDelegateAdaptor(DebugOrientationDelegate.self) private var debugOrientation
+    #endif
 
     init() {
         FontRegistry.registerBundledFonts()
@@ -32,6 +35,9 @@ struct VIMSApp: App {
                 if let store {
                     RootView()
                         .environment(store)
+                        #if DEBUG
+                        .modifier(DebugDisplayScale())
+                        #endif
                 } else {
                     Text(loadError ?? "Loading…").font(VFont.ui(15)).padding()
                 }

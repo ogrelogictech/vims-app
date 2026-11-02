@@ -59,6 +59,9 @@ struct ChecklistCatalog {
     /// e.g. Outside Utilities "Compressor size (sq ft)" → "Compressor size (home sq ft)") takes the new label and keeps
     /// the admin's other changes (its answers move with it, `SectionAnswers.migratingRenamed`); and an item matching a
     /// JSON item that gained `optionsFromCount` / `defaultFromRoomNumber` (Bathroom No. / Bedroom No.) picks those up.
+    /// Data v1.16 `typeChangedFrom`: a copy (matched by label, after the rename) saved before the type changed and still of
+    /// the old type takes the JSON type and placeholder. Answers stay as they are: an old typed date shows and prints as
+    /// typed until a date is picked, an old non-numeric value in a `num` item shows the inline error until corrected.
     static func syncingJSONChanges(_ mine: [ItemDef], json: [ItemDef]) -> [ItemDef] {
         var out = mine
         for j in json where j.header == nil {
@@ -66,6 +69,13 @@ struct ChecklistCatalog {
                let i = out.firstIndex(where: { $0.header == nil && $0.q == old }) {
                 out[i].q = q
                 out[i].renamedFrom = old
+            }
+            if let from = j.typeChangedFrom {
+                for i in out.indices where out[i].header == nil && out[i].q == j.q && out[i].typeChangedFrom == nil && (out[i].type ?? "single") == from {
+                    out[i].type = j.type
+                    out[i].placeholder = j.placeholder
+                    out[i].typeChangedFrom = from
+                }
             }
             if j.optionsFromCount != nil || j.defaultFromRoomNumber != nil {
                 for i in out.indices where out[i].header == nil && out[i].q == j.q && out[i].kind == .single && out[i].optionsFromCount == nil {

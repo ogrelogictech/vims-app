@@ -157,8 +157,11 @@ struct FilteredTextField: UIViewRepresentable {
                 // Numbers (QA Oct 22): a typed character the field can't take — a letter, a 2nd ".", a decimal past the
                 // field's limit, a digit past its max length — is simply not accepted (nothing changes). Grouping commas
                 // the formatter adds or moves don't count as a change; the caret keeps its place among the digits.
+                // Exception (data v1.16 `typeChangedFrom`): a saved answer the field can't hold ("Okay" in a depth typed before
+                // it became a number) would refuse every digit, so the first accepted character replaces it.
                 let bare = { (x: String) in x.replacingOccurrences(of: ",", with: "") }
-                if !string.isEmpty, (string as NSString).length <= 1, bare(filtered) != bare(proposed) { return false }
+                let replacesOldAnswer = filter(current) != current && !filtered.isEmpty
+                if !string.isEmpty, (string as NSString).length <= 1, bare(filtered) != bare(proposed), !replacesOldAnswer { return false }
                 let caretInProposed = min((proposed as NSString).length, range.location + (string as NSString).length)
                 let digitsBefore = bare((proposed as NSString).substring(to: caretInProposed)).count
                 // Filtered numbers are ASCII, so a character index is the UTF-16 offset.

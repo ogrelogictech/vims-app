@@ -716,6 +716,10 @@ struct OptionalDateField: View {
     let components: DatePickerComponents
     let label: String
     @State private var open = false
+    /// Team QA Nov 2: a calendar forced below a field low on the screen was squeezed to two rows (iPhone, Septic dates), so
+    /// a field in the lower half of the window opens it above.
+    @State private var midY: CGFloat = 0
+    @State private var arrowEdge: Edge = .top
 
     private var isDate: Bool { components == .date }
     private var format: String { isDate ? Fmt.answerDateFormat : Fmt.answerTimeFormat }
@@ -751,7 +755,8 @@ struct OptionalDateField: View {
                 .accessibilityLabel(label)
                 .accessibilityValue(display ?? "Not set")
                 .accessibilityHint(isDate ? "Opens the calendar" : "Opens the time picker")
-                .popover(isPresented: $open, arrowEdge: .top) {
+                .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).midY } action: { midY = $0 }
+                .popover(isPresented: $open, arrowEdge: arrowEdge) {
                     picker.presentationCompactAdaptation(.popover)
                 }
                 if display != nil {
@@ -768,8 +773,10 @@ struct OptionalDateField: View {
 
     private func openPicker() {
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-        // Like the wizard's picker, which always holds a date: opening it chooses today / now until changed.
-        if parsed == nil { value = Fmt.date(Date(), format) }
+        // Like the wizard's picker, which always holds a date: opening it chooses today / now until changed. An older typed
+        // answer that can't be read as a date (data v1.16 `typeChangedFrom`, "Hi") stays until a date is actually picked.
+        if value.isEmpty { value = Fmt.date(Date(), format) }
+        arrowEdge = midY > UIScreen.main.bounds.height / 2 ? .bottom : .top
         open = true
     }
 

@@ -125,9 +125,10 @@ struct SectionAnswers: Codable, Hashable {
             guard let old = k.item.renamedFrom, let q = k.item.q, old != q,
                   let r = k.id.range(of: "›" + q, options: .backwards) else { continue }
             let oldKey = k.id.replacingCharacters(in: r, with: "›" + old)
-            if out.choices[k.id]?.isEmpty ?? true, let v = out.choices[oldKey] { out.choices[k.id] = v; out.choices[oldKey] = nil }
-            if out.text[k.id]?.isEmpty ?? true, let v = out.text[oldKey] { out.text[k.id] = v; out.text[oldKey] = nil }
-            if out.detail[k.id]?.isEmpty ?? true, let v = out.detail[oldKey] { out.detail[k.id] = v; out.detail[oldKey] = nil }
+            // The old key always goes, so an answer cleared later never comes back from it on the next load.
+            if let v = out.choices[oldKey] { if out.choices[k.id]?.isEmpty ?? true { out.choices[k.id] = v }; out.choices[oldKey] = nil }
+            if let v = out.text[oldKey] { if out.text[k.id]?.isEmpty ?? true { out.text[k.id] = v }; out.text[oldKey] = nil }
+            if let v = out.detail[oldKey] { if out.detail[k.id]?.isEmpty ?? true { out.detail[k.id] = v }; out.detail[oldKey] = nil }
             if let i = out.present.firstIndex(of: old) {
                 if out.present.contains(q) { out.present.remove(at: i) } else { out.present[i] = q }
             }

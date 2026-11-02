@@ -230,6 +230,10 @@ struct ItemDef: Codable, Hashable {
     var replaces: [String]? = nil
     /// v1.14 `maxLength` (text items, e.g. the Planned Maintenance lines: 300): the most characters the answer may have.
     var maxLength: Int? = nil
+    /// v1.16 `typeChangedFrom` (team QA Nov 2, Septic dates and sludge depth): the item's previous type. A company edit saved
+    /// before the change still holds the old type and switches once (`ChecklistCatalog.syncingJSONChanges`). The key is stored
+    /// with every copy saved after the change, so an admin's later choice of type in Manage checklist is kept.
+    var typeChangedFrom: String? = nil
 
     /// Decimal places a `num` answer may have while typing: 0 for `integer`, else `decimals`, else 2.
     var numDecimals: Int { integer == true ? 0 : max(0, decimals ?? 2) }

@@ -1,5 +1,6 @@
 import Foundation
 import UIKit
+import SwiftUI
 #if DEBUG
 import MessageUI
 #endif
@@ -36,6 +37,26 @@ enum DebugFlags {
 }
 
 #if DEBUG
+/// -allowLandscape: lets a DEBUG build rotate on iPhone (the shipped app is portrait only there), to test chip layout in a
+/// short wide window.
+final class DebugOrientationDelegate: NSObject, UIApplicationDelegate {
+    func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
+        if DebugLaunch.has("-allowLandscape") { return .allButUpsideDown }
+        return UIDevice.current.userInterfaceIdiom == .pad ? .all : .portrait
+    }
+}
+
+/// -chipScale S: runs the whole UI with `\.displayScale` = S (e.g. 2.61), so layout rounds to a non-integer pixel grid.
+struct DebugDisplayScale: ViewModifier {
+    func body(content: Content) -> some View {
+        if let s = DebugLaunch.value("-chipScale").flatMap(Double.init) {
+            content.environment(\.displayScale, CGFloat(s))
+        } else {
+            content
+        }
+    }
+}
+
 /// DEBUG-only screen jumper for review screenshots, e.g.
 ///   xcrun simctl launch "iPhone 17" com.vims.app -skipLogin -screen summary
 /// Arguments:
@@ -86,6 +107,12 @@ enum DebugFlags {
 ///                              edited-agreement fill, ☐/☒ font, mail draft to / subject / body / attachments, PDF pages)
 ///   -agreementDump             every agreement email also writes its draft (draft.txt) and attachments to
 ///                              Documents/agreement-dump/ (simctl get_app_container … data)
+///   -chipScale S               run the whole UI with `\.displayScale` = S (2.61, 2.75, 3.25: chip layout on a non-integer pixel grid)
+///   -allowLandscape            let this DEBUG build rotate on iPhone (the shipped app is portrait only there)
+///   -nov2Old                   data v1.16: the chosen inspection gets Septic with old typed answers under the old labels
+///                              ("Hi", "03/15/2025", "Okay"); status left as it is
+///   -oldSepticEdit             a company edit of Septic saved before v1.16 (text items, old sludge label, baseItems naming it)
+///   -nov2Status                print NOV2TEST lines (item kinds, the sync cases, old answers moved, report lines)
 ///   -state XX                  set the chosen inspection's property state (OK summary disclosure, OR cover notice)
 ///   -cover "C|Cat|Opt|Style"   set the chosen inspection's report cover (e.g. "Blue|Holidays|4th of July|Shaded")
 ///   -wizState TX[,UT]          pick those states in order when the wizard opens (prints STATETEST lines)
@@ -331,6 +358,85 @@ enum DebugLaunch {
     }
 
     /// -oct30cStatus: the filling checked on its own (pure functions) for the chosen inspection.
+    /// A JSON item list as it was before data v1.16 (`typeChangedFrom`, `renamedFrom` undone; old Septic placeholders).
+    static func nov2OldItems(_ list: [ItemDef]) -> [ItemDef] {
+        list.map { it in
+            guard let from = it.typeChangedFrom else { return it }
+            var r = it
+            if let old = it.renamedFrom { r.q = old; r.renamedFrom = nil }
+            r.type = from
+            r.typeChangedFrom = nil
+            r.placeholder = (r.q ?? "").hasPrefix("Date") ? "date" : "depth"
+            return r
+        }
+    }
+
+    /// -nov2Old / -nov2Status: team QA Nov 2, data v1.16.
+    @MainActor
+    static func nov2Seed(_ store: AppStore, _ id: UUID) {
+        let name = "Septic", h = "Maintenance and Condition"
+        if has("-nov2Old"), var insp = store.inspection(id) {
+            if !insp.tests.contains(name) { insp.tests.append(name); store.buildChecklist(from: insp) }
+            store.update(id, markDirty: false) {
+                var a = $0.answers[name] ?? store.defaultAnswers(name)
+                a.text["\(h)›Date of last pumping"] = "Hi"
+                a.text["\(h)›Date of last filter change"] = "03/15/2025"
+                a.text["\(h)›Depth of sludge (inches)"] = nil
+                a.text["\(h)›Depth of sludge"] = "Okay"
+                $0.answers[name] = a
+            }
+        }
+        guard has("-nov2Status"), let json = store.config.sections.first(where: { $0.name == name }) else { return }
+        let watch = { (list: [ItemDef]) -> [String] in
+            list.filter { ($0.q ?? "").hasPrefix("Date of last") || ($0.q ?? "").hasPrefix("Depth of sludge") }
+                .map { "\($0.q ?? "")=\($0.kind)/\($0.placeholder ?? "nil")" }
+        }
+        let jsonAll = json.items + (json.itemsHigh ?? [])
+        print("NOV2TEST version=\(store.config.version) json=\(watch(jsonAll)) companyCatalog=\(watch(store.catalog.items(name, depth: .high).items))")
+        // The sync rule on its own: an old copy; an old copy where an admin chose another type; a copy saved after v1.16 where
+        // an admin went back to Text (the kept key); a renamed copy keeping a custom label; decode + encode of the key.
+        let old = nov2OldItems(jsonAll.filter { $0.typeChangedFrom != nil })
+        print("NOV2TEST oldCopy=\(watch(ChecklistCatalog.syncingJSONChanges(old, json: jsonAll)))")
+        var adminSingle = old; adminSingle[0].type = "single"; adminSingle[0].options = ["Recent", "Old"]
+        print("NOV2TEST adminChoseSingle=\(watch(ChecklistCatalog.syncingJSONChanges(adminSingle, json: jsonAll)))")
+        var adminText = ChecklistCatalog.syncingJSONChanges(old, json: jsonAll); adminText[0].type = "text"
+        print("NOV2TEST adminBackToTextAfterV116=\(watch(ChecklistCatalog.syncingJSONChanges(adminText, json: jsonAll)))")
+        var relabeled = old; relabeled[0].q = "Pumped last"
+        print("NOV2TEST relabeledNoMatch=\(ChecklistCatalog.syncingJSONChanges(relabeled, json: jsonAll).first.map { "\($0.q ?? "")=\($0.kind)" } ?? "")")
+        if let data = try? JSONEncoder().encode(jsonAll.filter { $0.typeChangedFrom != nil }), let text = String(data: data, encoding: .utf8),
+           let back = try? JSONDecoder().decode([ItemDef].self, from: data) {
+            print("NOV2TEST encoded=\(text) decodedKinds=\(back.map { "\($0.kind)/\($0.typeChangedFrom ?? "nil")" })")
+        }
+        // A cleared answer stays cleared on the next load: old key only, and old + new key both present.
+        let jsonKeyed = ItemKeys.keyed(json.itemsHigh ?? [])
+        if let k = jsonKeyed.first(where: { $0.item.renamedFrom != nil }), let r = k.id.range(of: k.item.q ?? "", options: .backwards) {
+            let oldKey = k.id.replacingCharacters(in: r, with: k.item.renamedFrom ?? "")
+            for start in ["oldOnly", "oldAndNew"] {
+                var a = SectionAnswers()
+                a.text[oldKey] = "Okay"
+                if start == "oldAndNew" { a.text[k.id] = "4" }
+                var m = a.migratingLegacy(jsonKeyed)
+                let moved = m.text[k.id] ?? "nil"
+                m.text[k.id] = nil
+                let again = m.migratingLegacy(jsonKeyed)
+                print("NOV2TEST clear \(start) moved=\(moved) oldKeyLeft=\(m.text[oldKey] != nil) afterClearAndReload=\(again.text[k.id] ?? "nil")")
+            }
+        }
+        for insp in store.inspections where insp.answers[name] != nil {
+            let cat = store.catalog(for: insp)
+            let keyed = ItemKeys.keyed(cat.items(name, depth: insp.depth).items)
+            let a = insp.answers[name] ?? SectionAnswers()
+            let m = a.migratingLegacy(keyed)
+            let pick = { (d: [String: String]) in d.filter { $0.key.contains("Date of last") || $0.key.contains("sludge") } }
+            print("NOV2TEST insp=\(insp.addressLine1) depth=\(insp.depth.rawValue) status=\(insp.status[name].map { "\($0)" } ?? "nil") stored=\(pick(a.text)) migrated=\(pick(m.text))")
+            for k in keyed where (k.item.q ?? "").hasPrefix("Date of last") || (k.item.q ?? "").hasPrefix("Depth of sludge") {
+                let v = m.text[k.id] ?? ""
+                let err = k.item.kind == .num ? Validator.error(for: v, rule: .opt(.number(.checklistItem(k.item)), k.item.q ?? "Value")) : nil
+                print("NOV2TEST   \(k.item.q ?? "") kind=\(k.item.kind) value=\(v) readAsDate=\(Fmt.answerDate(v).map { Fmt.date($0, "MMMM d, yyyy") } ?? "no") inlineError=\(err ?? "none")")
+            }
+        }
+    }
+
     @MainActor
     static func oct30cStatus(_ store: AppStore, _ id: UUID) {
         guard has("-oct30cStatus"), let insp = store.inspection(id), let doc = InspectionAgreement.bundled else { return }
@@ -832,6 +938,13 @@ enum DebugLaunch {
             let qs = store.catalog.items(d.name, depth: .high).items.compactMap(\.q).filter { $0.hasPrefix("Compressor size") }
             print("OCT29TEST companyEdit compressorItems=\(qs)")
         }
+        // -oldSepticEdit: a company edit of Septic saved before data v1.16, with the old labels, types and placeholders.
+        if has("-oldSepticEdit"), store.session != nil, var d = store.config.sections.first(where: { $0.name == "Septic" }) {
+            d.itemsHigh = d.itemsHigh.map { nov2OldItems($0) }
+            d.items = nov2OldItems(d.items)
+            d.baseItems = (d.items + (d.itemsHigh ?? [])).map(\.editKey)
+            store.state.overrides.sections[d.name] = d
+        }
         if has("-deviceTrialStatus") {
             let f = ISO8601DateFormatter()
             print("DEVICETRIAL firstTrialStart=\(DeviceTrial.date(.firstTrialStart).map(f.string) ?? "none") demoTrialStart=\(DeviceTrial.date(.demoTrialStart).map(f.string) ?? "none")")
@@ -897,6 +1010,7 @@ enum DebugLaunch {
         if let mode = value("-iaq") { seedAirQuality(store, id, mode: mode) }
         if has("-sampleFindings") { seedOct16Findings(store, id) }
         if let mode = value("-oct17") { seedOct17(store, id, mode: mode) }
+        nov2Seed(store, id)
         seedOct29(store, id)
         id = seedOct30(store, id)
         seedOct30b(store, id)

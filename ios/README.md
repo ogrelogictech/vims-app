@@ -1023,3 +1023,39 @@ Screenshots: `screenshots/oct12-*.png` — `ipad-01…18` 13" (landscape 01–13
   byte-identical with the note, blank inspection ("Hello,", To empty, subject "Inspection Agreement", blanks kept),
   Settings → Company profile agreement blank with no button; the generated PDF rendered and checked (bold values, ☒ drawn).
   Screenshots `screenshots/oct30c-*.png`, PDF + page renders `screenshots/pdf/oct30c-*`.
+
+### iOS 0.28.0 (29) — team QA Nov 2 (shared v1.16.0)
+
+- **Version**: `MARKETING_VERSION` 0.28.0, `CURRENT_PROJECT_VERSION` 29 in every configuration. No stored fields added.
+- **Septic System (High Detail)**: "Date of last pumping" and "Date of last filter change" are `date` items
+  (`OptionalDateField`), "Depth of sludge (inches)" a `num` item on the decimal keypad with the placeholder "inches"
+  (`renamedFrom` moves old answers).
+- **`typeChangedFrom`** (new optional item key, `ItemDef`): `ChecklistCatalog.syncingJSONChanges` switches a saved copy (company
+  edit or kept checklist, matched by label after the rename step) still of the old type to the JSON type and placeholder.
+  It also stores the key on that copy; a copy holding the key is never switched again, so an admin who later picks another
+  type in Manage checklist keeps it (a type choice made before the change, such as Pick one, is also kept).
+- **Old answers**: an old typed date stays as typed in the field and the PDF until a date is picked (one that can be read,
+  "03/15/2025", shows and prints as a date). Opening the picker no longer replaces it with today; closing it without picking
+  keeps it. To choose today's date for such an answer, tap × first or pick another day and then today. An old non-numeric depth
+  ("Okay") moves to the new label, shows in the field with no error on open, prints as typed, and on **Save / Save & next**
+  shows "Enter a number (0 or more)", scrolls to the field and **blocks the save** until it is corrected or cleared. Answers
+  still autosave, leaving by Back works, and a section already Done stays Done. The first accepted digit replaces the old text
+  (`FilteredTextField`; before this every digit was refused); a letter is still refused; one backspace clears it.
+- **Cleared answers stay cleared**: `migratingRenamed` always drops the old-label key, also when the new key already has a
+  value, so nothing can be copied back onto a blank field on a later load. Focusing the field runs no filter; "Okay" stays.
+- **Date popover**: a field in the lower half of the window opens its calendar above the field. Forced below, it was
+  squeezed to two rows on iPhone.
+- **Truncated chips** ("Y…", "N…", "Currently Vaca…", tester's "iPhone Duo"): `FlowLayout` measures and places through one pass
+  (`arrange`). A subview whose ideal width fits the line is placed with `.unspecified`; only one wider than the line gets the
+  line width, and `ChipView`'s text wraps with vertical `fixedSize`. Device not available here. Reproduced with
+  `-chipScale`: at non-integer scales (2.61, 2.625, 2.75, 3.25) the old layout truncated chips depending on their position,
+  at 1.5, 2, 2.5 and 3 it did not. Proposing a wider width (+0.01 pt, +1 pixel) or no height did not help; only no width
+  proposal did. Selecting a chip made no difference here.
+- **iPhone is still portrait only** in Release (`UISupportedInterfaceOrientations_iPhone`). DEBUG `-allowLandscape` lets a
+  debug build rotate for layout checks.
+- DEBUG: `-chipScale S`, `-allowLandscape`, `-nov2Old` (old Septic answers under the old labels), `-oldSepticEdit`, `-nov2Status`
+  (NOV2TEST lines).
+- Verified: iPhone 17 Pro portrait and landscape (`-allowLandscape`), real scale and 2.61 / 2.75 / 3.25, on-screen text read
+  with Vision OCR before and after; iPad Air 11-inch (M4) upgraded in place 0.27.0 (28) -> 0.28.0 with answers and a company
+  edit made in 0.27.0 through the UI. Not tested: the tester's device, and iPhone SE 3 (its simulator did not finish
+  starting here); long labels were checked for wrapping on iPhone 17 Pro. Screenshots `screenshots/nov2-*.png`.
