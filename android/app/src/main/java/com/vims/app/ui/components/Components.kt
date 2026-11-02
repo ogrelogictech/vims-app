@@ -371,7 +371,9 @@ class FieldText internal constructor() {
      * do this) is dropped — the cursor stays at the end. A user's own long-press / double-tap selection later is kept.
      */
     fun change(new: TextFieldValue, filter: (String) -> String): String {
-        val t = filter(new.text)
+        // Team QA Nov 2: only the cursor moved (a tap on the field), so nothing is filtered: an older answer the filter would strip
+        // ("Okay" in a `num` item, data v1.16) stays with its inline error until the inspector actually types.
+        val t = if (new.text == last.text) new.text else filter(new.text)
         val autoSelectAll = t == new.text && t == last.text && t.isNotEmpty() && new.selection.min == 0 && new.selection.max == t.length &&
             last.selection.collapsed && android.os.SystemClock.uptimeMillis() - focusedAt < 600
         last = when {

@@ -257,6 +257,11 @@ data class ItemDef(
     val replaces: List<String>? = null,
     /** Data v1.14: most characters a `text` item accepts (notes lines: 300). Null = the app's usual text limit. */
     val maxLength: Int? = null,
+    /**
+     * Data v1.16 `itemTypes.typeChangedFrom` (team QA Nov 2): the item's previous type. A saved copy (company edit or inspection
+     * snapshot) still on that type switches to the current type and placeholder ([ChecklistEngine.carry]); answers stay.
+     */
+    val typeChangedFrom: String? = null,
 ) {
     val isHeader: Boolean get() = header != null
     /** Decimal places a `num` item accepts while typing: 0 for `integer`, else `decimals` (default 2). */

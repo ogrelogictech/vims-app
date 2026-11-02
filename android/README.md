@@ -855,3 +855,31 @@ customer from the app, with an "Email inspection agreement" button at the bottom
   2 attachments (agreement + Oregon CCB notice), To / subject / body as above; pulled PDF rendered (5 pages, ☒ drawn). Inspection
   screen row on 640 Harrison Blvd (report sent) → filled from that inspection. Company profile → View still blank, no button.
   Screenshots `screenshots/oct30c-*`. Test APK `../../VIMS-Android-test-v0.27.0-2026-10-31.apk` (debug key, installs over v0.26.0).
+
+## Team QA Nov 2 + shared v1.16.0 (v0.28.0)
+
+Team QA: Septic System (High Detail) "Date of last pumping" / "Date of last filter change" should be date pickers and "Depth of
+sludge" a number in inches.
+
+- **Data:** shared assets folder (`assets.directories.add("../../shared")`, no copy): the two dates are `type: date`, the depth is
+  "Depth of sludge (inches)", `type: num`, placeholder "inches", `renamedFrom`. `SectionScreen.ItemCard` needed no change: date →
+  `PickerField` / `pickDate`, `num` with default 2 decimals → `KeyboardType.Decimal` (inputType 0x2002).
+- **`typeChangedFrom`:** new optional `ItemDef.typeChangedFrom` (null default; not written when null, unknown keys ignored, so stored
+  edits and snapshots decode as before). `ChecklistEngine.carry`, after the rename step: a saved line still on that type takes the
+  current type, placeholder and `integer` / `decimals`, plus the `typeChangedFrom` itself so an unchanged line still equals the VIMS
+  item (no false "Edited" on the next save). Runs in memory on load for company overrides and inspection snapshots, written with the
+  next edit.
+- **Old answers:** an old typed date stays as typed: `Fmt.date` / `Fmt.slash` fall back to the raw string, `pickDate` opens on today,
+  Cancel keeps it, a picked date replaces it, the PDF prints it as typed. An old depth moves to the new key via `renamedFrom` (old key
+  kept) and shows "Enter a number" until corrected. **The error does not block anything:** `saveSection` has no validation, so Save /
+  Save & next mark the section Done and the PDF prints "Okay".
+- **Two fixes found testing this** (both also apply to the earlier renames and `num` upgrades): `FieldText.change` ran the filter on
+  cursor-only events, so just tapping the field erased "Okay"; it now filters only when the text changed. `upgradeAnswers` re-copied the
+  old answer when the new key was blank, so a depth the inspector cleared came back on the next load; it now copies only when the new key
+  is absent.
+- **Landscape chips:** `VChip` has no `maxLines`. Wizard steps 1-4 and Septic / Wind Mitigation sections (116-character options) in landscape
+  on a Pixel 6 size: nothing truncated, no chip code changed.
+- **Verified** (throwaway emulator, Android 15): v0.27.0 fresh → wizard inspection with Septic at High Detail + typed answers "Hi" / "two years
+  ago" / "Okay" + Septic High Detail company edit in Manage checklist → `adb install -r` → inspection / answer / photo / finding rows and
+  `editsJson` byte-identical after launch. Screenshots `screenshots/nov2-*`. Test APK
+  `../../VIMS-Android-test-v0.28.0-2026-11-02.apk` (debug key, installs over v0.27.0).

@@ -309,6 +309,8 @@ class ChecklistEngine(val config: ChecklistConfig, val edits: ChecklistEdits) {
          *  - `optionsFromCount` / `defaultFromRoomNumber` are copied onto a saved single-choice line of the same label;
          *  - with [options]: a single / multi line whose saved options are all still offered gets the added ones, in data
          *    order (Water Pressure rating: Good, Low → Good, Low, High). Options a line has that the data dropped stay.
+         *  - data v1.16 `typeChangedFrom`: a saved line (after the rename) still on the item's old type takes the current type and
+         *    placeholder; its answer stays as typed (shown and printed as typed; a `num` item shows its inline error until corrected).
          */
         fun carry(list: List<ItemDef>, current: List<ItemDef>, options: Boolean = true): List<ItemDef> {
             if (list.isEmpty() || current.isEmpty()) return list
@@ -322,6 +324,9 @@ class ChecklistEngine(val config: ChecklistConfig, val edits: ChecklistEdits) {
                 if (q0 !in now) renames[q0]?.takeIf { c -> c.q !in labels }?.let { c -> i = i.copy(q = c.q, renamedFrom = c.renamedFrom) }
                 val c = now[i.q]
                 if (c != null) {
+                    // Data v1.16 `typeChangedFrom` (team QA Nov 2): a copy still on the old input takes the current type and placeholder.
+                    if (c.typeChangedFrom != null && i.type == c.typeChangedFrom && i.type != c.type)
+                        i = i.copy(type = c.type, placeholder = c.placeholder, integer = c.integer, decimals = c.decimals, typeChangedFrom = c.typeChangedFrom)
                     if (c.optionsFromCount != null && i.optionsFromCount == null && i.type == "single" && c.type == "single")
                         i = i.copy(optionsFromCount = c.optionsFromCount, defaultFromRoomNumber = c.defaultFromRoomNumber)
                     val mine = i.options
@@ -430,7 +435,8 @@ class ChecklistEngine(val config: ChecklistConfig, val edits: ChecklistEdits) {
                         val v = r.values[old]
                         if (v != null && key !in r.values) { r = r.copy(values = r.values + (key to v)); changed = true }
                         val t = r.inputs[old]
-                        if (t != null && r.inputs[key].isNullOrBlank()) { r = r.copy(inputs = r.inputs + (key to t)); changed = true }
+                        // `key !in`: an answer the inspector cleared stays cleared; the old key is still there on every load.
+                        if (t != null && key !in r.inputs) { r = r.copy(inputs = r.inputs + (key to t)); changed = true }
                     }
                 }
                 r
