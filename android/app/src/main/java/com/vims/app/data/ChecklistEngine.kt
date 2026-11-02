@@ -309,8 +309,8 @@ class ChecklistEngine(val config: ChecklistConfig, val edits: ChecklistEdits) {
          *  - `optionsFromCount` / `defaultFromRoomNumber` are copied onto a saved single-choice line of the same label;
          *  - with [options]: a single / multi line whose saved options are all still offered gets the added ones, in data
          *    order (Water Pressure rating: Good, Low → Good, Low, High). Options a line has that the data dropped stay.
-         *  - data v1.16 `typeChangedFrom`: a saved line (after the rename) still on the item's old type takes the current type and
-         *    placeholder; its answer stays as typed (shown and printed as typed; a `num` item shows its inline error until corrected).
+         *  - data v1.16 `typeChangedFrom`: a saved line (after the rename) still on the item's old type, saved before the change (no key yet),
+         *    takes the current type and placeholder, so an admin who later picks the old type keeps it; its answer stays as typed (shown and printed as typed; a `num` item shows its inline error until corrected).
          */
         fun carry(list: List<ItemDef>, current: List<ItemDef>, options: Boolean = true): List<ItemDef> {
             if (list.isEmpty() || current.isEmpty()) return list
@@ -325,7 +325,7 @@ class ChecklistEngine(val config: ChecklistConfig, val edits: ChecklistEdits) {
                 val c = now[i.q]
                 if (c != null) {
                     // Data v1.16 `typeChangedFrom` (team QA Nov 2): a copy still on the old input takes the current type and placeholder.
-                    if (c.typeChangedFrom != null && i.type == c.typeChangedFrom && i.type != c.type)
+                    if (c.typeChangedFrom != null && i.typeChangedFrom == null && i.type == c.typeChangedFrom && i.type != c.type)
                         i = i.copy(type = c.type, placeholder = c.placeholder, integer = c.integer, decimals = c.decimals, typeChangedFrom = c.typeChangedFrom)
                     if (c.optionsFromCount != null && i.optionsFromCount == null && i.type == "single" && c.type == "single")
                         i = i.copy(optionsFromCount = c.optionsFromCount, defaultFromRoomNumber = c.defaultFromRoomNumber)
