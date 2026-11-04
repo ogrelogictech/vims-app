@@ -36,7 +36,10 @@ interface AuthService {
     suspend fun signIn(email: String, password: String): AuthResult
     suspend fun createAccount(name: String, company: String, email: String, password: String, eulaVersion: String): AuthResult
     suspend fun joinCompany(name: String, email: String, code: String, password: String, eulaVersion: String): AuthResult
-    suspend fun sendPasswordReset(email: String): Boolean
+    /** True when an account for [email] is on this device (Reset password, shared features.passwordReset = "device"). */
+    suspend fun accountOnDevice(email: String): Boolean
+    /** Saves a new salt + hash for that account and nothing else; the caller has confirmed the device credential. Returns the error, or null when saved. */
+    suspend fun resetPassword(email: String, newPassword: String): AuthResult.Error?
     suspend fun companyExists(code: String): Boolean
     suspend fun signOut()
 }
@@ -144,8 +147,15 @@ class LocalAuthService(
     /** "vis4827" / "VIS-4827" → "VIS-4827" (stored form). */
     private fun normalizeCode(code: String): String = com.vims.app.util.formatJoinCode(code.uppercase(Locale.US).filter { it.isLetterOrDigit() })
 
-    // TODO(backend): send the reset email from the server.
-    override suspend fun sendPasswordReset(email: String): Boolean = email.isNotBlank()
+    // Phase 1 passwords exist only on this device, so no reset email can be sent. TODO(backend): server-side reset.
+    override suspend fun accountOnDevice(email: String): Boolean = withContext(Dispatchers.IO) { dao.userByEmail(email.trim().lowercase(Locale.US)) != null }
+
+    override suspend fun resetPassword(email: String, newPassword: String): AuthResult.Error? = withContext(Dispatchers.IO) {
+        val u = dao.userByEmail(email.trim().lowercase(Locale.US)) ?: return@withContext AuthResult.Error("No account for that email on this device.", "password")
+        val salt = PasswordHasher.newSalt()
+        dao.updateUserPassword(u.id, salt, PasswordHasher.hash(newPassword, salt))
+        null
+    }
     override suspend fun signOut() {}
 
     /** "Acme Home Inspections" → "ACM-4821" (unique). */

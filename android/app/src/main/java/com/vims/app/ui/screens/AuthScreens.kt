@@ -1,5 +1,9 @@
 package com.vims.app.ui.screens
 
+import android.app.Activity
+import android.app.KeyguardManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -27,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -45,6 +50,7 @@ import com.vims.app.ui.JoinR
 import com.vims.app.ui.LoginR
 import com.vims.app.ui.SignupR
 import com.vims.app.ui.back
+import com.vims.app.ui.components.Banner
 import com.vims.app.ui.components.RequiredHint
 import com.vims.app.ui.components.BtnKind
 import com.vims.app.ui.components.ContentWidth
@@ -133,16 +139,68 @@ fun SignupScreen(vm: AppViewModel, nav: NavHostController) {
     }
 }
 
+/**
+ * Reset password (shared features.passwordReset = "device"): Phase 1 passwords exist only on this device, so no email can be sent.
+ * Email → an account for it must be on this device → the device's own screen lock → new password. The password step only opens
+ * once the screen lock was confirmed for that email, and the email can't change after that.
+ */
 @Composable
 fun ForgotScreen(vm: AppViewModel, nav: NavHostController) {
+    var confirmedEmail by rememberSaveable { mutableStateOf<String?>(null) }
+    VScreen("Reset password", "VIMS", net(vm), backAction(nav)) {
+        val confirmed = confirmedEmail
+        if (confirmed == null) ResetEmailStep(vm) { confirmedEmail = it } else ResetPasswordStep(vm, nav, confirmed)
+    }
+}
+
+/**
+ * KeyguardManager's confirm-credential screen rather than androidx.biometric: no new dependency, MainActivity stays a
+ * ComponentActivity (BiometricPrompt needs a FragmentActivity), and it works from minSdk 26 (BiometricPrompt only accepts
+ * DEVICE_CREDENTIAL on its own from API 30). Deprecated in API 29 but still supported.
+ */
+@Suppress("DEPRECATION")
+@Composable
+private fun ResetEmailStep(vm: AppViewModel, onConfirmed: (String) -> Unit) {
+    val ctx = LocalContext.current
     var email by rememberSaveable { mutableStateOf("") }
+    var noScreenLock by rememberSaveable { mutableStateOf(false) }
     val form = rememberForm()
     val emailErr = form.check("email", email) { Checks.email(email) }
-    VScreen("Reset password", "VIMS", net(vm), backAction(nav)) {
-        Text("Enter your email and we'll send a reset link.", style = T.ui(14.sp, color = V.ink2, lineHeight = 21.sp), modifier = Modifier.padding(top = 4.dp, bottom = 16.dp))
-        VField("Email", email, { email = it }, Modifier.formField(form, "email"), placeholder = "you@company.com", keyboard = KeyboardType.Email, error = emailErr, required = true)
-        VBtn("Send reset link", { if (form.submit()) vm.sendReset(email) { nav.navigate(LoginR) { popUpTo(0) { inclusive = true } } } })
+    // Any result other than OK is a cancel: stay on this screen with no error.
+    val confirm = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
+        if (r.resultCode == Activity.RESULT_OK) onConfirmed(email.trim())
     }
+    Text("Your password is stored on this device. Confirm it's you with your device screen lock, then choose a new password.",
+        style = T.ui(14.sp, color = V.ink2, lineHeight = 21.sp), modifier = Modifier.padding(top = 4.dp, bottom = 16.dp))
+    VField("Email", email, { email = it }, Modifier.formField(form, "email"), placeholder = "you@company.com", keyboard = KeyboardType.Email, error = emailErr, required = true)
+    if (noScreenLock) Banner("Set a screen lock in your device Settings first, then try again.", modifier = Modifier.padding(bottom = 13.dp))
+    VBtn("Continue", {
+        noScreenLock = false
+        if (form.submit()) vm.accountOnDevice(email) { found ->
+            if (!found) form.fail("email", "No account for that email on this device.", email)
+            else {
+                val keyguard = ctx.getSystemService(KeyguardManager::class.java)
+                val intent = if (keyguard.isDeviceSecure) keyguard.createConfirmDeviceCredentialIntent("Reset password", "Confirm it's you to choose a new VIMS password.") else null
+                if (intent == null) noScreenLock = true else confirm.launch(intent)
+            }
+        }
+    })
+}
+
+/** Same fields and rules as Create account. */
+@Composable
+private fun ResetPasswordStep(vm: AppViewModel, nav: NavHostController, email: String) {
+    var pw by rememberSaveable { mutableStateOf("") }
+    var pw2 by rememberSaveable { mutableStateOf("") }
+    val form = rememberForm()
+    val pwErr = form.check("password", pw) { Checks.passwordNew(pw) }
+    val pw2Err = form.check("confirm", pw2) { Checks.confirm(pw, pw2) }
+    Text("Choose a new password for $email.", style = T.ui(14.sp, color = V.ink2, lineHeight = 21.sp), modifier = Modifier.padding(top = 4.dp, bottom = 16.dp))
+    PasswordField("New password", pw, { pw = it }, placeholder = "At least 8 characters", error = pwErr, modifier = Modifier.formField(form, "password"), required = true)
+    PasswordField("Confirm password", pw2, { pw2 = it }, placeholder = "Re-enter your password", error = pw2Err, modifier = Modifier.formField(form, "confirm"), required = true)
+    VBtn("Update password", {
+        if (form.submit()) vm.resetPassword(email, pw, onError = { e -> form.fail("password", e.message, pw) }) { nav.navigate(LoginR) { popUpTo(0) { inclusive = true } } }
+    })
 }
 
 @Composable

@@ -40,8 +40,8 @@ import java.time.LocalDate
 /**
  * DEMO DATA — belongs ONLY to the demo account (jeremy@visionpropertyinspections.com / Vision Property Inspections);
  * new accounts start empty. The demo account's sample inspections (equivalent to the prototype's sample data) so the client can review
- * the app. Everything demo-specific lives in this one file. To ship without demo data, delete this file and the two
- * `DemoSeed.…` calls in AppContainer.start() (VimsApplication.kt), plus the debug-only `debugSignIn()` in AppViewModel.
+ * the app. Everything demo-specific lives in this one file. Since v0.29.0 the two `DemoSeed.…` calls in AppContainer.start()
+ * (VimsApplication.kt) run in debug builds only, so a fresh release install has no demo account; an install that already has it keeps it.
  */
 object DemoSeed {
 

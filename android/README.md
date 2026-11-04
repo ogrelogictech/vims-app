@@ -23,7 +23,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 adb shell am start -n com.vims.app/.MainActivity
 ```
 
-**Demo account:** `jeremy@visionpropertyinspections.com` / `inspect2026` (owns the sample inspections and the
+**Demo account (debug builds only since v0.29.0; an install that already has it keeps it):** `jeremy@visionpropertyinspections.com` / `inspect2026` (owns the sample inspections and the
 Vision Property Inspections company, join code `VIS-4827`). Create account makes a brand-new, empty user + company;
 Join a company with a code attaches a new user to an existing company. Auth is a local stub (`TODO(backend)`).
 
@@ -62,7 +62,7 @@ Release builds ignore these extras (`BuildConfig.DEBUG`).
 | `data/Repository.kt` | `VimsRepository` interface + `RoomRepository` (session-scoped in-memory `StateFlow`s, write-through to Room in order on one background thread) |
 | `services/Services.kt` | `AuthService` (local users/companies, salted PBKDF2 hash), `SubscriptionService`, `SyncService` + stubs (`TODO(backend)`) |
 | `report/ReportPdfGenerator.kt` | On-device PDF (`android.graphics.pdf.PdfDocument`) following `report.html` |
-| `demo/DemoSeed.kt` | **All demo data** (first launch only) |
+| `demo/DemoSeed.kt` | **All demo data** (first launch only, debug builds only) |
 | `ui/AppViewModel.kt` | UI state + actions for every screen |
 | `ui/VimsNav.kt` | Routes, NavHost, toast host, debug jumper |
 | `ui/SplashVideo.kt` | Launch video (Media3 ExoPlayer, muted, fit-inside with edge-color letterbox, once, tap to skip; last frame ~1 s when animations are off) |
@@ -186,7 +186,7 @@ subscription** / **Yes, cancel**. Trial shows no cancel button.
 
 ### Delete account / Make owner / Sign out
 - Settings → Account → **Delete account** (red): dialog explains what is deleted (account, inspections, photos, reports
-  on this device; deletion request to VIMS within 10 working days per the EULA) and requires typing `DELETE`.
+  on this device; with `features.sync` false: everything is on this device and can't be recovered; the "10 working days" wording stays in the sync branch) and requires typing `DELETE`.
   Non-owner: deletes their user row, inspections (cascade), user folder, removes them from the company's inspector list,
   signs out. Owner with other users on the company: blocked — "Make another admin the owner first (Inspectors → Make
   owner)". Sole owner: company row + folder deleted too and the subscription marked cancelled. Returns to Sign in.
@@ -883,3 +883,23 @@ sludge" a number in inches.
   ago" / "Okay" + Septic High Detail company edit in Manage checklist → `adb install -r` → inspection / answer / photo / finding rows and
   `editsJson` byte-identical after launch. Screenshots `screenshots/nov2-*`. Test APK
   `../../VIMS-Android-test-v0.28.0-2026-11-02.apk` (debug key, installs over v0.27.0).
+
+## v0.29.0: app-only cleanup (shared v1.17.0)
+Phase 1 has no network code (no `INTERNET` permission), so nothing may claim a server does something.
+
+- **Demo account off in release:** `AppContainer.start()` calls `DemoSeed` only when `BuildConfig.DEBUG`. A fresh release install has no
+  demo row and an empty sign-in; an install that already has the demo account keeps it, its inspections and its password. `DemoSeed.DEMO_COMPANY_ID`
+  in the `deviceTrial` filter is only a string compare, so no row is needed. `JsonMigration` still creates the account for a pre-Room store (existing installs only).
+- **Which build gets what:** `assembleDebug` seeds the demo and enables the intent jumper, in any signing key. `assembleRelease` has neither, but this
+  project has no release `signingConfig`, so it writes `app-release-unsigned.apk`, which must be signed (`zipalign`, `apksigner`) before it installs.
+  A release signed with the same key installs over a debug build with `adb install -r` and keeps the data.
+- **Reset password (`features.passwordReset = "device"`):** email → an account for it on this device ("No account for that email on this device.") → device
+  screen lock → New password + Confirm password (same checks as Create account) → `AuthService.resetPassword` (new salt + hash through `PasswordHasher`,
+  `VimsDao.updateUserPassword`, no other column) → sign-in with the toast "Password updated". `sendPasswordReset` is gone. Uses
+  `KeyguardManager.createConfirmDeviceCredentialIntent`, not androidx.biometric: no new dependency, `MainActivity` stays a `ComponentActivity`,
+  and DEVICE_CREDENTIAL alone isn't accepted by BiometricPrompt below API 30 (minSdk 26). No screen lock: "Set a screen lock in your device Settings first, then try again."
+  Cancel: stays on the screen, no error. The system screen blocks screenshots.
+- **Report quality copy (`features.reportCopy`, default false):** row "Not active yet"; note "Not active yet. Sending a copy needs the VIMS server, so no copies are
+  being sent."; On / Off disabled; the stored on value and address are kept. Save writes the address only and toasts "Address saved. No copies are being sent yet."
+- **Sync wording audit (`features.sync` false):** every sync / upload / portal string in the UI code is behind `vm.syncEnabled`, `netState.shown` or `Features.sync`.
+- **Verified** (throwaway emulator, Android 15, PIN lock): see `screenshots/nov4-*`. Test APK `../../VIMS-Android-test-v0.29.0-2026-11-04.apk` (debug key, installs over v0.28.0).

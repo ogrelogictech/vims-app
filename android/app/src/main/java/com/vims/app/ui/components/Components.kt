@@ -577,9 +577,9 @@ fun ChipFlow(modifier: Modifier = Modifier, content: @Composable FlowRowScope.()
 
 /** Single-select chip group: tap again to deselect (unless required). */
 @Composable
-fun SingleChips(options: List<String>, selected: String?, onSelect: (String?) -> Unit, required: Boolean = false, modifier: Modifier = Modifier) {
+fun SingleChips(options: List<String>, selected: String?, onSelect: (String?) -> Unit, required: Boolean = false, modifier: Modifier = Modifier, enabled: Boolean = true) {
     ChipFlow(modifier) {
-        options.forEach { o -> VChip(o, o == selected, { onSelect(if (o == selected && !required) null else o) }) }
+        options.forEach { o -> VChip(o, o == selected, { onSelect(if (o == selected && !required) null else o) }, enabled = enabled) }
     }
 }
 

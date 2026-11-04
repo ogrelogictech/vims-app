@@ -168,7 +168,7 @@ fun SettingsScreen(vm: AppViewModel, nav: NavHostController) {
             Text("VIMS platform settings — they apply to every company.", style = T.ui(12.sp, color = V.ink3), modifier = Modifier.padding(start = 2.dp, bottom = 10.dp))
             NavRow(VIcons.dollar, "Plans & pricing", "VIMS plans · monthly & yearly prices") { nav.navigate(PlansR) }
             val p = vm.platform.collectAsState().value
-            NavRow(VIcons.mailPlus, "Report quality copy", p.activeBcc?.let { "On · $it · sent by the VIMS server" } ?: "Off") { nav.navigate(ReportBccR) }
+            NavRow(VIcons.mailPlus, "Report quality copy", if (vm.reportCopyEnabled) p.activeBcc?.let { "On · $it · sent by the VIMS server" } ?: "Off" else "Not active yet") { nav.navigate(ReportBccR) }
             NavRow(VIcons.mail, "Feedback & support", "Change the feedback contact email") { nav.navigate(FeedbackAdminR) }
         }
 
@@ -429,6 +429,8 @@ fun OwnerOnly(vm: AppViewModel, nav: NavHostController, title: String) {
  * VIMS platform-owner setting "Report quality copy": every report emailed from the app also goes to this address for
  * report-quality review (disclosed in the VIMS EULA). Stored app-level, not per company. Client Oct 30 (shared v1.13.0): the
  * copy is sent separately by the VIMS server — never added to the inspector's email compose (no Bcc line in their mail app).
+ * features.reportCopy = false (Phase 1, no server): "Not active yet", the switch is disabled and shows Off, the stored on / address
+ * values are kept (Save writes the address and leaves the stored on value as it was).
  * TODO(backend): the server send (see shareReport).
  */
 @Composable
@@ -437,16 +439,21 @@ fun ReportBccScreen(vm: AppViewModel, nav: NavHostController) {
     val platform by vm.platform.collectAsState()
     var on by rememberSaveable(platform.reportBccOn) { mutableStateOf(platform.reportBccOn) }
     var email by rememberSaveable(platform.reportBccEmail) { mutableStateOf(platform.reportBccEmail) }
+    val active = vm.reportCopyEnabled
     val form = rememberForm()
-    val err = form.check("email", email) { if (on || email.isNotBlank()) Checks.email(email) else null }
+    val err = form.check("email", email) { if ((active && on) || email.isNotBlank()) Checks.email(email) else null }
     VScreen("Report quality copy", companyName(vm), net(vm), backAction(nav), listOf(homeAction(nav))) {
-        Hint("**Master admin (VIMS owner only)** — when an inspector emails a report from the app, the **VIMS server sends a separate copy** to this address so report quality can be reviewed. It is never added to the inspector’s email, so the inspector, clients and agents don’t see this address. Disclosed in the VIMS EULA.",
+        if (!active) {
+            com.vims.app.ui.components.LockedNote("Not active yet. Sending a copy needs the VIMS server, so no copies are being sent.", Modifier.padding(top = 2.dp, bottom = 10.dp))
+            Hint("**Master admin (VIMS owner only)** — once it’s on, the copy never appears on the inspector’s email, so the inspector, clients and agents won’t see this address.",
+                Modifier.padding(bottom = 14.dp))
+        } else Hint("**Master admin (VIMS owner only)** — when an inspector emails a report from the app, the **VIMS server sends a separate copy** to this address so report quality can be reviewed. It is never added to the inspector’s email, so the inspector, clients and agents don’t see this address. Disclosed in the VIMS EULA.",
             Modifier.padding(top = 2.dp, bottom = 14.dp))
         Row(Modifier.padding(bottom = 14.dp).fillMaxWidth().vCard(12.dp).padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("Copy every emailed report", style = T.ui(14.5.sp, FontWeight.Bold), modifier = Modifier.weight(1f))
-            SingleChips(listOf("On", "Off"), if (on) "On" else "Off", { v -> if (v != null) on = v == "On" }, required = true, modifier = Modifier.width(140.dp))
+            SingleChips(listOf("On", "Off"), if (active && on) "On" else "Off", { v -> if (v != null) on = v == "On" }, required = true, modifier = Modifier.width(140.dp), enabled = active)
         }
-        VField("Quality copy address", email, { email = it }, Modifier.formField(form, "email"), placeholder = "you@company.com", keyboard = KeyboardType.Email, error = err, required = on)
+        VField("Quality copy address", email, { email = it }, Modifier.formField(form, "email"), placeholder = "you@company.com", keyboard = KeyboardType.Email, error = err, required = active && on)
         VBtn("Save", { if (form.submit()) vm.saveReportBcc(on, email) }, icon = VIcons.check)
     }
 }
@@ -461,7 +468,9 @@ fun DeleteAccountDialog(vm: AppViewModel, nav: NavHostController, onDismiss: () 
         "Delete your account?",
         "This deletes your account and your inspections, photos and reports on this device." +
             (if (owner) " As the owner, your company and its subscription are deleted too when nobody else is on it." else "") +
-            " VIMS completes the deletion within 10 working days. Type **DELETE** to confirm.",
+            // Phase 1 (features.sync = false): nothing exists off the device, so there is no server deletion to wait for.
+            (if (vm.syncEnabled) " VIMS completes the deletion within 10 working days." else " Everything is stored on this device, so once it's deleted it can't be recovered.") +
+            " Type **DELETE** to confirm.",
         "Delete", danger = true, confirmEnabled = typed == "DELETE",
         onConfirm = { vm.deleteAccount(onError = { error = it }) { onDismiss(); nav.navigate(com.vims.app.ui.LoginR) { popUpTo(0) { inclusive = true } } } },
         onDismiss = onDismiss,

@@ -128,10 +128,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** VIMS plans and prices (platform-level, data v1.11): the shipped defaults or a master admin's edits. */
     fun pricing(p: com.vims.app.data.PlatformSettings = platform.value): com.vims.app.data.Pricing = p.pricing(config.subscription)
 
-    /** Owner-only: Report quality copy (sent by the VIMS server, client Oct 30). The address is validated by the screen. */
+    /** Owner-only: Report quality copy (sent by the VIMS server, client Oct 30; features.reportCopy). The address is validated by the screen. */
     fun saveReportBcc(on: Boolean, email: String) {
         repo.updatePlatform { it.copy(reportBccOn = on, reportBccEmail = email.trim()) }
-        toast(if (on) "Quality copies will be sent to ${email.trim()}" else "Report quality copy turned off")
+        toast(when {
+            !reportCopyEnabled -> "Address saved. No copies are being sent yet."
+            on -> "Quality copies will be sent to ${email.trim()}"
+            else -> "Report quality copy turned off"
+        })
     }
 
     val engine: StateFlow<ChecklistEngine> = repo.edits.map { ChecklistEngine(config, it) }
@@ -154,6 +158,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     /** `features.sync` (data v1.10): false in Phase 1 — no sync UI, wording or automatic sync stub (the code stays for Phase 2). */
     val syncEnabled: Boolean = config.features.sync
+    /** features.reportCopy (data v1.17): false until the VIMS server can send the Report quality copy. */
+    val reportCopyEnabled: Boolean = config.features.reportCopy
 
     val net: StateFlow<NetState> = combine(repo.inspections, repo.settings, _online) { m, s, on ->
         NetState(pending = m.values.count { it.inspection.pendingSync }, synced = s.lastSyncAt != null, online = on, shown = syncEnabled)
@@ -258,8 +264,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun sendReset(email: String, onOk: () -> Unit) = viewModelScope.launch {
-        if (container.auth.sendPasswordReset(email)) { toast("Reset link sent"); onOk() }
+    fun accountOnDevice(email: String, onResult: (Boolean) -> Unit) = viewModelScope.launch { onResult(container.auth.accountOnDevice(email)) }
+
+    /** Reset password, after the device credential was confirmed on screen. */
+    fun resetPassword(email: String, password: String, onError: (AuthResult.Error) -> Unit, onOk: () -> Unit) = viewModelScope.launch {
+        val e = container.auth.resetPassword(email, password)
+        if (e != null) onError(e) else { toast("Password updated"); onOk() }
     }
 
     /** Clears every user/company value from memory; the next user only ever loads their own data. */

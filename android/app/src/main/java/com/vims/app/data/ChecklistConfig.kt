@@ -81,9 +81,11 @@ data class ChecklistConfig(
  * `features` (data v1.10). [sync] = cross-device sync (Phase 2). Phase 1 ships `false`: no sync pill / badges, no Settings
  * "Sync" section or Sync now, no automatic sync stub and no sync wording anywhere. The sync code stays behind this flag.
  * Defaults to false when the key is missing (Phase 1 never syncs).
+ * [reportCopy] (data v1.17) = the VIMS server sends the Report quality copy. Phase 1 ships `false`, also when the key is missing:
+ * the row reads "Not active yet", the switch is disabled, stored values are kept and nothing claims a server sends anything.
  */
 @Serializable
-data class FeaturesDef(val sync: Boolean = false)
+data class FeaturesDef(val sync: Boolean = false, val reportCopy: Boolean = false)
 
 /** `features` of the loaded shared data, for UI code without a view model (registered by [ChecklistLoader.load]). */
 object Features {

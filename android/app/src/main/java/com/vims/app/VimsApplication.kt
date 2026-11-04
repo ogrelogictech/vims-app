@@ -50,9 +50,12 @@ class AppContainer(private val app: Application) {
     /** Startup: one-time JSON → Room import, demo account, then restore the last signed-in user (their data only). */
     suspend fun start() {
         JsonMigration.runIfNeeded(roomRepo.root.parentFile!!, db.dao(), config)
-        // DEMO DATA: remove this line (and demo/DemoSeed.kt) to ship without the demo account.
-        DemoSeed.ensureDemoAccount(db.dao(), repo, ChecklistEngine(config, com.vims.app.data.ChecklistEdits()))
-        DemoSeed.ensureDemoLogo(db.dao(), app.filesDir, app.resources)
+        // DEMO DATA: debug builds only (v0.29.0). A release build never creates the demo account, but an install that already
+        // has it keeps it: nothing here (or anywhere else in a release build) removes or rewrites the row, its inspections or its password.
+        if (BuildConfig.DEBUG) {
+            DemoSeed.ensureDemoAccount(db.dao(), repo, ChecklistEngine(config, com.vims.app.data.ChecklistEdits()))
+            DemoSeed.ensureDemoLogo(db.dao(), app.filesDir, app.resources)
+        }
         // v0.21.0: installs upgraded from earlier builds record their first (non-demo) company's trial start as the device's trial.
         // v0.22.1: a company owned by a VIMS master admin never counts as the device's trial (master admins are exempt).
         val owners = com.vims.app.data.PlatformOwners(config.support.platformOwners)

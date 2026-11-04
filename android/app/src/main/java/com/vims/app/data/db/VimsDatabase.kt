@@ -103,6 +103,7 @@ interface VimsDao {
     @Insert(onConflict = OnConflictStrategy.ABORT) suspend fun insertUser(u: UserEntity)
     @Query("UPDATE users SET settingsJson = :json WHERE id = :id") suspend fun updateUserSettings(id: String, json: String)
     @Query("UPDATE users SET name = :name WHERE id = :id") suspend fun updateUserName(id: String, name: String)
+    @Query("UPDATE users SET salt = :salt, passwordHash = :hash WHERE id = :id") suspend fun updateUserPassword(id: String, salt: String, hash: String)
     @Query("UPDATE users SET eulaVersion = :version, eulaAcceptedAt = :at WHERE id = :id") suspend fun acceptEula(id: String, version: String, at: Long)
     @Query("UPDATE users SET photoFile = :file WHERE id = :id") suspend fun updateUserPhoto(id: String, file: String?)
     @Query("SELECT * FROM users WHERE companyId = :companyId") suspend fun usersInCompany(companyId: String): List<UserEntity>
