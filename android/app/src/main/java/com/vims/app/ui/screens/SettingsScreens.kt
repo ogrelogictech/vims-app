@@ -500,7 +500,7 @@ fun DeleteAccountDialog(vm: AppViewModel, nav: NavHostController, onDismiss: () 
             (if (owner) " As the owner, your company is deleted too when nobody else is on it." else "") +
             // Phase 1 (features.sync = false): nothing exists off the device, so there is no server deletion to wait for.
             (if (vm.syncEnabled) " VIMS completes the deletion within 10 working days." else " Everything is stored on this device, so once it's deleted it can't be recovered.") +
-            " Deleting your account doesn't cancel your subscription. Cancel it in your Apple or Google account settings." +
+            " Deleting your account doesn't cancel your subscription. Cancel it in your Google Play account settings." +
             " Type **DELETE** to confirm.",
         "Delete", danger = true, confirmEnabled = typed == "DELETE",
         onConfirm = { vm.deleteAccount(onError = { error = it }) { onDismiss(); nav.navigate(com.vims.app.ui.LoginR) { popUpTo(0) { inclusive = true } } } },

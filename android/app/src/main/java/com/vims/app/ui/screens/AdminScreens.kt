@@ -488,7 +488,7 @@ private fun PlansReadOnly(vm: AppViewModel, nav: NavHostController) {
     val plans by vm.billing.plans.collectAsState()
     LaunchedEffect(Unit) { vm.loadPlans() }
     VScreen("Plans & pricing", "Master admin · VIMS", net(vm), backAction(nav), listOf(homeAction(nav))) {
-        Hint("Prices are set in App Store Connect and Google Play Console.", Modifier.padding(top = 2.dp, bottom = 12.dp))
+        Hint("Prices are set in Google Play Console.", Modifier.padding(top = 2.dp, bottom = 12.dp))
         when (val p = plans) {
             com.vims.app.services.PlansState.Loading -> Hint("Loading store prices…", Modifier.padding(bottom = 12.dp))
             com.vims.app.services.PlansState.Unavailable -> PlansCantLoad(vm)

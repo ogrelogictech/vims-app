@@ -590,7 +590,7 @@ struct DeleteAccountView: View {
                 // Shared v1.18 `subscription.store.deleteAccount`: only the Apple Account can cancel a store subscription.
                 if store.hasStoreSubscription {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Deleting your account doesn\u{2019}t cancel your subscription. Cancel it in your Apple or Google account settings.")
+                        Text("Deleting your account doesn\u{2019}t cancel your subscription. Cancel it in your Apple Account settings.")
                             .font(VFont.ui(13)).foregroundStyle(VC.ink2).lineSpacing(2)
                             .fixedSize(horizontal: false, vertical: true)
                         Button("Manage subscription") { Task { await store.purchases.showManageSubscriptions() } }

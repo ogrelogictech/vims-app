@@ -32886,7 +32886,7 @@
    "offline": "The last verified status and expiry are cached on the device. If the store can't be reached, the cached status holds until expiry plus 7 days. A store that answers overrides the cache.",
    "plansScreen": "App only: Monthly and Yearly at store prices; Pay per report at the store price; Portal + App stays Coming soon and not purchasable. Each purchasable option shows title, length and price before buying, plus: 'Payment is charged to your Apple Account / Google Play account. Subscriptions renew automatically unless canceled at least 24 hours before the end of the current period. Manage or cancel in your account settings.' Includes Restore Purchases, Manage subscription (store's own screen), and links to the License agreement (in-app) and Privacy Policy (https://vimsinspect.com/privacy.html). If prices can't load: 'Plans can't load right now. Check your connection and try again.' with Try again.",
    "removed": "Card form, card on file, seats and extra-inspector pricing on Subscribe, in-app cancel and undo, pro-rated refund text, and any wording that names Square. Keep them out of reach rather than leaving dead screens.",
-   "deleteAccount": "Replace 'Your subscription is cancelled (no further charges)' with: 'Deleting your account doesn't cancel your subscription. Cancel it in your Apple or Google account settings.' plus a Manage subscription link."
+   "deleteAccount": "Replace 'Your subscription is cancelled (no further charges)' with: 'Deleting your account doesn't cancel your subscription. Cancel it in your Apple Account settings.' on iOS, 'Google Play account settings' on Android (Apple guideline 2.3.10: no other platforms in the iOS app) plus a Manage subscription link."
   }
  },
  "support": {

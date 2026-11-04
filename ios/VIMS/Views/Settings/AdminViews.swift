@@ -1598,7 +1598,7 @@ private struct StorePricesView: View {
 
     var body: some View {
         Screen(title: "Plans & pricing", subtitle: "Master admin", actions: [store.homeAction()]) {
-            Text("Prices are set in App Store Connect and Google Play Console.")
+            Text("Prices are set in App Store Connect.")
                 .font(VFont.ui(13)).foregroundStyle(VC.ink3).lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 2).padding(.bottom, 12)
