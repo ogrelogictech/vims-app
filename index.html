@@ -436,9 +436,10 @@
 
     <!-- FORGOT -->
     <section class="screen" id="s-forgot" data-title="Reset password">
-      <p style="font-size:14px;color:var(--ink-2);margin:4px 0 16px;line-height:1.5">Enter your email and we'll send a reset link.</p>
+      <p style="font-size:14px;color:var(--ink-2);margin:4px 0 16px;line-height:1.5">Your password is stored on this device. Confirm it's you with your device passcode, then choose a new password.</p>
       <div class="field"><label>Email</label><input class="txt" type="email" placeholder="you@company.com"></div>
-      <button class="btn primary" onclick="toast('Reset link sent');setTimeout(function(){go('s-login')},700)">Send reset link</button>
+      <div id="forgotnew" style="display:none"><div class="field"><label>New password</label><input class="txt" type="password" placeholder="At least 8 characters"></div><div class="field"><label>Confirm password</label><input class="txt" type="password" placeholder="Type it again"></div></div>
+      <button class="btn primary" id="forgotbtn" onclick="var n=document.getElementById('forgotnew');if(n.style.display==='none'){n.style.display='';this.textContent='Update password';toast('Device passcode confirmed');}else{n.style.display='none';this.textContent='Continue';toast('Password updated');setTimeout(function(){go('s-login')},700);}">Continue</button>
     </section>
 
     <!-- JOIN A COMPANY BY CODE -->
@@ -679,7 +680,7 @@
       <p class="lbl">Master admin &middot; VIMS owner only</p>
       <p style="font-size:12px;color:var(--ink-3);margin:-4px 2px 10px">Platform settings for VIMS master admins (the VIMS owner). Company admins don&rsquo;t see this section.</p>
       <button class="row" onclick="go('s-plans')"><div class="lead"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div><div class="mid"><b>Plans &amp; pricing</b><span>VIMS plans &amp; prices &middot; monthly and yearly</span></div><div class="end"><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></span></div></button>
-      <button class="row" onclick="go('s-reportbcc')"><div class="lead"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 6-10 7L2 6"/><path d="M16 17h6M19 14v6"/></svg></div><div class="mid"><b>Report quality copy</b><span id="set-bccline">Copy of every emailed report, sent by the VIMS server</span></div><div class="end"><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></span></div></button>
+      <button class="row" onclick="go('s-reportbcc')"><div class="lead"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 6-10 7L2 6"/><path d="M16 17h6M19 14v6"/></svg></div><div class="mid"><b>Report quality copy</b><span id="set-bccline">Not active yet</span></div><div class="end"><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></span></div></button>
       <button class="row" onclick="go('s-feedbackadmin')"><div class="lead"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 6-10 7L2 6"/></svg></div><div class="mid"><b>Feedback &amp; support</b><span>Change the feedback contact email</span></div><div class="end"><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></span></div></button>
 
       <p class="lbl">Help &amp; feedback</p>
@@ -760,8 +761,8 @@
     <section class="screen" id="s-eula" data-title="License agreement"><div id="eulabody"></div></section>
 
     <section class="screen" id="s-reportbcc" data-title="Report quality copy">
-      <p style="font-size:13px;color:var(--ink-3);margin:2px 0 14px"><b>Master admin (VIMS owner only)</b> &mdash; when an inspector emails a report from the app, the <b>VIMS server sends a separate copy</b> to this address so report quality can be reviewed. It is never added to the inspector&rsquo;s email, so the inspector, clients and agents don&rsquo;t see this address. Disclosed in the VIMS EULA.</p>
-      <div class="counter" style="margin-bottom:14px"><b>Copy every emailed report</b><div class="chips" data-single data-req style="margin:0" id="bcconoff"><button class="chip on" data-bcc="1">On</button><button class="chip" data-bcc="0">Off</button></div></div>
+      <p style="font-size:13px;color:var(--ink-3);margin:2px 0 14px"><b>Master admin (VIMS owner only)</b> &mdash; <b>Not active yet.</b> Sending a copy needs the VIMS server, so no copies are being sent. Once it&rsquo;s on, the copy never appears on the inspector&rsquo;s email, so the inspector, clients and agents won&rsquo;t see this address.</p>
+      <div class="counter" style="margin-bottom:14px"><b>Copy every emailed report</b><div class="chips locked" data-single data-req data-manual style="margin:0" id="bcconoff"><button class="chip on" data-bcc="1">On</button><button class="chip" data-bcc="0">Off</button></div></div>
       <div class="field"><label for="bccinput">Quality copy address</label><input class="txt" id="bccinput" type="email" placeholder="you@company.com"></div>
       <button class="btn primary" onclick="saveReportBcc()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Save</button>
     </section>
@@ -5069,15 +5070,15 @@ SEC['Wind Mitigation'].itemsHigh=[
   // Client Oct 30 (shared v1.13.0): sent separately by the VIMS server, never as a Bcc on the inspector's email compose.
   var REPORT_BCC={on:true,email:'quality@vimsinspect.com'};
   function updateBccUI(){
-    var l=document.getElementById('set-bccline'); if(l) l.textContent=REPORT_BCC.on&&REPORT_BCC.email?('On · '+REPORT_BCC.email):'Off';
+    var l=document.getElementById('set-bccline'); if(l) l.textContent='Not active yet';
     var inp=document.getElementById('bccinput'); if(inp) inp.value=REPORT_BCC.email;
-    var g=document.getElementById('bcconoff'); if(g) g.querySelectorAll('.chip').forEach(function(c){ c.classList.toggle('on',(c.getAttribute('data-bcc')==='1')===REPORT_BCC.on); });
+    var g=document.getElementById('bcconoff'); if(g) g.querySelectorAll('.chip').forEach(function(c){ c.classList.toggle('on',c.getAttribute('data-bcc')==='0'); }); // shared v1.17 features.reportCopy=false: locked Off
   }
   window.saveReportBcc=function(){
     var on=!!document.querySelector('#bcconoff .chip.on[data-bcc="1"]');
     var v=(document.getElementById('bccinput').value||'').replace(/\s+/g,'');
-    if(on && !/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(v)){ toast('Enter a valid email address'); return; }
-    REPORT_BCC={on:on,email:v}; updateBccUI(); toast(on?'Quality copies will be sent to '+v:'Report quality copy turned off');
+    if(v && !/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(v)){ toast('Enter a valid email address'); return; }
+    REPORT_BCC={on:on,email:v}; updateBccUI(); toast('Address saved. No copies are being sent yet.');
   };
   var INSPECTOR_EMAIL='jeremy@visionpropertyinspections.com';
   window.emailReport=function(){ toast('Report queued to email the client'+(sel.sendToAgent===false?'':' & agent')+' · CC you ('+INSPECTOR_EMAIL+')'); }; // no BCC on the inspector's email (client Oct 30): the quality copy is sent by the server
