@@ -43,6 +43,8 @@ protocol Repository: AnyObject {
     func user(id: UUID) -> UserAccount?
     func insertUser(_ u: UserAccount) throws
     func updateUser(_ u: UserAccount)
+    /// Writes only the password hash and salt (Reset password); the rest of the account row is left as stored.
+    func updatePassword(userID: UUID, hash: String, salt: String) throws
     /// Deletes the user row, their inspections and their per-user folder (users/<id>/…).
     func deleteUser(id: UUID)
     func userCount() -> Int
@@ -69,8 +71,13 @@ protocol Repository: AnyObject {
 }
 
 enum RepositoryError: LocalizedError {
-    case duplicateEmail
-    var errorDescription: String? { "An account with that email already exists." }
+    case duplicateEmail, noAccount
+    var errorDescription: String? {
+        switch self {
+        case .duplicateEmail: return "An account with that email already exists."
+        case .noAccount: return "No account for that email on this device."
+        }
+    }
 }
 
 @MainActor
@@ -170,6 +177,13 @@ final class SwiftDataRepository: Repository {
         r.eulaAcceptedAt = u.eulaAcceptedAt
         r.photoFile = u.photoFile
         save()
+    }
+
+    func updatePassword(userID: UUID, hash: String, salt: String) throws {
+        guard let r = userRecord(id: userID) else { throw RepositoryError.noAccount }
+        r.passwordHash = hash
+        r.salt = salt
+        try context.save()
     }
 
     func deleteUser(id: UUID) {

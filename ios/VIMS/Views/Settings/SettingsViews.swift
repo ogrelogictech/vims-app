@@ -88,7 +88,7 @@ struct SettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, 2).padding(.top, -4).padding(.bottom, 10)
                 NavRow(symbol: "plans-pricing-edit", title: "Plans & pricing", subtitle: "VIMS subscription plans & prices") { store.push(.plans) }
-                NavRow(symbol: "report-bcc", title: "Report quality copy", subtitle: store.platform.bccSummary) { store.push(.reportBcc) }
+                NavRow(symbol: "report-bcc", title: "Report quality copy", subtitle: store.platform.bccSummary(active: store.config.reportCopyEnabled)) { store.push(.reportBcc) }
                 NavRow(symbol: "email-to-client", title: "Feedback & support", subtitle: "Change the feedback contact email") { store.push(.feedbackAdmin) }
             }
 
@@ -481,15 +481,17 @@ struct ReportBccView: View {
 
     var body: some View {
         Screen(title: "Report quality copy", actions: [store.homeAction()], errors: errors) {
-            Text(md("**Master admin (VIMS owner only)** — when an inspection report is emailed from the app, the **VIMS server sends a separate copy** to this address so report quality can be reviewed. It is never added to the inspector’s email (no Bcc line), so inspectors, clients and agents don’t see this address. Disclosed in the VIMS EULA."))
+            Text(md(active
+                    ? "**Master admin (VIMS owner only)** — when an inspection report is emailed from the app, the **VIMS server sends a separate copy** to this address so report quality can be reviewed. It is never added to the inspector’s email (no Bcc line), so inspectors, clients and agents don’t see this address. Disclosed in the VIMS EULA."
+                    : "**Master admin (VIMS owner only)** — **Not active yet.** Sending a copy needs the VIMS server, so no copies are being sent. Once it’s on, the copy never appears on the inspector’s email, so the inspector, clients and agents won’t see this address."))
                 .font(VFont.ui(13)).foregroundStyle(VC.ink3).lineSpacing(2)
                 .padding(.top, 2).padding(.bottom, 14)
                 .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 8) {
                 Text("Send a quality copy of every emailed report").font(VFont.ui(14.5, .semibold)).foregroundStyle(VC.ink)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                ChipGroup(options: ["On", "Off"], selection: Binding(get: { [on ? "On" : "Off"] }, set: { if let f = $0.first { on = f == "On"; errors.clear() } }),
-                          single: true, required: true)
+                ChipGroup(options: ["On", "Off"], selection: Binding(get: { [switchOn ? "On" : "Off"] }, set: { if let f = $0.first { on = f == "On"; errors.clear() } }),
+                          single: true, required: true, disabled: !active, disabledHint: "Not active yet")
                     .fixedSize()
             }
             .padding(.horizontal, 14).padding(.vertical, 8)
@@ -498,7 +500,7 @@ struct ReportBccView: View {
             .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(VC.line, lineWidth: 1))
             .padding(.bottom, 14)
             VTextField(label: "Quality copy address", text: $email, placeholder: "you@company.com", keyboard: .emailAddress, contentType: .emailAddress,
-                       capitalization: .never, kind: .email, fieldID: "bcc", errors: errors, required: on)
+                       capitalization: .never, kind: .email, fieldID: "bcc", errors: errors, required: switchOn)
             Button { save() } label: { IconLabel("Save", icon: "link-my-account") }
                 .buttonStyle(.vPrimary)
         }
@@ -509,14 +511,20 @@ struct ReportBccView: View {
         }
     }
 
+    /// Data v1.17 `features.reportCopy`: false in Phase 1 (no server, so no copies). The switch shows Off and is locked;
+    /// the stored On/Off is kept for when it becomes active.
+    private var active: Bool { store.config.reportCopyEnabled }
+    private var switchOn: Bool { active && on }
+
     private func save() {
         // The address is required while the quality copy is on; when off it may be blank but must still be valid if entered.
-        guard errors.validate([("bcc", email, on ? .req(.email, "Quality copy address") : .opt(.email, "Quality copy address"))]) else { return }
+        guard errors.validate([("bcc", email, switchOn ? .req(.email, "Quality copy address") : .opt(.email, "Quality copy address"))]) else { return }
         var p = store.platform
-        p.reportBccOn = on
+        if active { p.reportBccOn = on }
         p.reportBccEmail = Validator.trimmed(email).lowercased()
         store.savePlatform(p)
-        store.toast(on ? "The VIMS server will send report copies to \(p.reportBccEmail)" : "Report quality copy turned off")
+        store.toast(!active ? "Address saved. No copies are being sent yet."
+                    : on ? "The VIMS server will send report copies to \(p.reportBccEmail)" : "Report quality copy turned off")
     }
 }
 
@@ -556,7 +564,7 @@ struct DeleteAccountView: View {
                         if store.subscription.active { bullet("Your subscription is cancelled (no further charges)") }
                     }
                     Text(store.syncEnabled ? "We also delete your data from the VIMS servers within 10 working days. This can't be undone."
-                                           : "We also delete your account and company information from the VIMS servers within 10 working days. This can't be undone.")
+                                           : "Everything is stored on this device, so once it's deleted it can't be recovered.")
                         .font(VFont.ui(12.5)).foregroundStyle(VC.ink3).lineSpacing(2).padding(.top, 4)
                         .fixedSize(horizontal: false, vertical: true)
                 }

@@ -471,8 +471,8 @@ struct ReportReadyView: View {
             return me.map { "The report is emailed to \(who), with a copy to you (\($0))." }
                 ?? "The report is emailed to \(who)."
         }
-        return "Mail isn't set up on this device, so the report opens in the share sheet. When reports are emailed through VIMS, "
-            + "they go to \(who)"
+        return "Mail isn't set up on this device, so the report opens in the share sheet. When Mail is set up, "
+            + "reports go to \(who)"
             + (me.map { " with a copy to you (\($0))" } ?? "")
             + "."
     }

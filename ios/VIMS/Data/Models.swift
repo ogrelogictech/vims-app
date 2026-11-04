@@ -821,7 +821,11 @@ struct PlatformSettings: Codable, Hashable {
         let e = reportBccEmail.trimmingCharacters(in: .whitespaces)
         return reportBccOn && !e.isEmpty ? e : nil
     }
-    var bccSummary: String { activeReportBcc.map { "On · sent by the VIMS server to \($0)" } ?? "Off" }
+    /// The Settings row. `active` = data v1.17 `features.reportCopy`, false in Phase 1: no server, so no copies.
+    func bccSummary(active: Bool) -> String {
+        guard active else { return "Not active yet" }
+        return activeReportBcc.map { "On · sent by the VIMS server to \($0)" } ?? "Off"
+    }
 
     /// Client Oct 28 (data v1.11): the VIMS subscription plans and prices, edited only by a master admin in Plans & pricing
     /// and used on every company's Subscribe screen. nil until a master admin saves a change = the shared JSON's plans.

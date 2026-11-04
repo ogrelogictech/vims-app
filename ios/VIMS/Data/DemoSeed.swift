@@ -6,13 +6,17 @@ import UIKit
 //
 // The demo data belongs ONLY to the demo account (jeremy@visionpropertyinspections.com,
 // password inspect2026) and its company "Vision Property Inspections" (VIS-4827).
-// Brand-new accounts start empty. To ship without it set `DemoSeed.enabled = false`
-// (no demo account is created), or delete this file and the `seedDemoAccount` call in
-// Store/Bootstrap.swift.
+// Brand-new accounts start empty. `DemoSeed.enabled` is true in Debug only: a Release build
+// seeds no demo account and prefills nothing on sign-in. An install that already has the demo
+// account keeps it, with its inspections and password.
 // ============================================================================
 
 enum DemoSeed {
+    #if DEBUG
     static let enabled = true
+    #else
+    static let enabled = false
+    #endif
 
     /// The demo inspections' answers for the wizard chips. Data v1.9.1 has no chip defaults (nothing is preselected on
     /// New Inspection), so the seeded sample inspections carry these filled-in values instead.
@@ -22,9 +26,14 @@ enum DemoSeed {
         "Basement": "None", "Garage": "Attached", "Car port": "None", "Number of cars": "2",
     ]
 
-    /// Prefilled on the sign-in screen for review convenience (prototype screen 01).
-    static let loginEmail = enabled ? "jeremy@visionpropertyinspections.com" : ""
-    static let loginPassword = enabled ? "inspect2026" : ""
+    /// The demo account's sign-in, whatever `enabled` says: the legacy JSON migration (Store/Bootstrap.swift) gives the
+    /// migrated account this password in every build.
+    static let accountEmail = "jeremy@visionpropertyinspections.com"
+    static let accountPassword = "inspect2026"
+
+    /// Prefilled on the sign-in screen for review convenience (prototype screen 01). Empty in Release.
+    static let loginEmail = enabled ? accountEmail : ""
+    static let loginPassword = enabled ? accountPassword : ""
 
     static let ownerName = "Jeremy Heath"
 

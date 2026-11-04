@@ -61,6 +61,8 @@ final class AppStore {
     var syncing = false
     /// "Your free trial has ended" (New inspection with the trial over and no subscription).
     var trialEndedPrompt = false
+    /// Counts completed password resets, so the sign-in screen drops an old password and its error.
+    var passwordResets = 0
 
     @ObservationIgnored private var inspectionSaveTasks: [UUID: Task<Void, Never>] = [:]
     @ObservationIgnored private var autoSyncTask: Task<Void, Never>?
@@ -370,6 +372,14 @@ final class AppStore {
         repo.saveCompany(c)
         loadSession(u)
         toast("Linked to \(c.profile.name)")
+    }
+
+    /// Reset password, after the device owner confirmed (`ForgotPasswordView`): back to sign-in, which clears its fields.
+    func resetPassword(userID: UUID, newPassword: String) async throws {
+        try await auth.resetPassword(userID: userID, newPassword: newPassword)
+        passwordResets += 1
+        back()
+        toast("Password updated")
     }
 
     /// Clears everything in memory; the next user starts from a clean slate.

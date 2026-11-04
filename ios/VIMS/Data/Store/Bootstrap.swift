@@ -4,7 +4,7 @@ import UIKit
 /// First-launch setup of the SwiftData store:
 ///  1. one-time migration of the pre-SwiftData JSON files (Documents/vims/app.json + inspections/*.json)
 ///     into the demo user/company, moving their photos/reports/logo into the per-owner folders;
-///  2. otherwise, the demo account (DemoSeed) when enabled.
+///  2. otherwise, the demo account (DemoSeed) when enabled (Debug builds only).
 @MainActor
 enum Bootstrap {
     static func run(repo: any Repository, config: ChecklistConfig) {
@@ -20,8 +20,8 @@ enum Bootstrap {
         repo.saveCompany(CompanyState(id: companyID, profile: seeded.state.company,
                                       subscription: seeded.state.subscription, overrides: seeded.state.overrides))
         let salt = PasswordHasher.newSalt()
-        try? repo.insertUser(UserAccount(id: userID, email: DemoSeed.loginEmail.lowercased(), name: DemoSeed.ownerName,
-                                         companyID: companyID, passwordHash: PasswordHasher.hash(DemoSeed.loginPassword, salt: salt),
+        try? repo.insertUser(UserAccount(id: userID, email: DemoSeed.accountEmail.lowercased(), name: DemoSeed.ownerName,
+                                         companyID: companyID, passwordHash: PasswordHasher.hash(DemoSeed.accountPassword, salt: salt),
                                          salt: salt, createdAt: Date(), settings: seeded.state.settings))
         for i in seeded.inspections { repo.saveInspection(i, userID: userID, companyID: companyID) }
     }
@@ -87,13 +87,13 @@ enum Bootstrap {
         state.company.agreementFile = remap(state.company.agreementFile)
 
         // The migrated data is the demo account's (the only account that existed on this device).
-        let email = (state.session?.email ?? state.company.inspectors.first(where: { $0.owner })?.email ?? DemoSeed.loginEmail).lowercased()
+        let email = (state.session?.email ?? state.company.inspectors.first(where: { $0.owner })?.email ?? DemoSeed.accountEmail).lowercased()
         let name = state.session?.name ?? state.company.inspectors.first(where: { $0.owner })?.name ?? DemoSeed.ownerName
         if let i = state.company.inspectors.firstIndex(where: { $0.owner }) { state.company.inspectors[i].id = userID }
         repo.saveCompany(CompanyState(id: companyID, profile: state.company, subscription: state.subscription, overrides: state.overrides))
         let salt = PasswordHasher.newSalt()
         try? repo.insertUser(UserAccount(id: userID, email: email, name: name, companyID: companyID,
-                                         passwordHash: PasswordHasher.hash(DemoSeed.loginPassword, salt: salt), salt: salt,
+                                         passwordHash: PasswordHasher.hash(DemoSeed.accountPassword, salt: salt), salt: salt,
                                          createdAt: Date(), settings: state.settings))
 
         let dir = files.url(for: "inspections")

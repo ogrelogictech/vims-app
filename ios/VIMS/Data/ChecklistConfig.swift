@@ -35,6 +35,8 @@ struct ChecklistConfig: Decodable {
 
     /// Data v1.10 `features.sync` (false / absent in Phase 1).
     var syncEnabled: Bool { features?.sync ?? false }
+    /// Data v1.17 `features.reportCopy` (false / absent in Phase 1).
+    var reportCopyEnabled: Bool { features?.reportCopy ?? false }
 
     /// Keys of JSON objects whose order matters but that Swift dictionaries lose.
     var unitMixOrder: [String] = []
@@ -59,7 +61,7 @@ struct ChecklistConfig: Decodable {
 }
 
 /// `features` (v1.10).
-struct FeaturesDef: Decodable { let sync: Bool? }
+struct FeaturesDef: Decodable { let sync: Bool?; let reportCopy: Bool? }
 
 /// `states[]` entry (v1.3).
 struct StateDef: Decodable, Hashable { let code: String; let name: String }

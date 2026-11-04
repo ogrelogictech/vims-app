@@ -805,6 +805,19 @@ enum DebugLaunch {
             }
             for n in ["Chimney", "Roof", "Solar Panels"] { print("CHECKLISTTEST new-inspection \(n)=\(store.catalog.section(n)?.items.filter { !$0.isHeader }.count ?? -1)") }
         }
+        // -writeLegacyFixture: pre-SwiftData JSON files (no session, no owner) under Documents/vims/legacy-fixture, to copy
+        // into an install with no accounts and test Bootstrap.migrateLegacyJSON on a Release build.
+        if has("-writeLegacyFixture"), let demo = store.repo.user(email: DemoSeed.loginEmail),
+           var insp = store.repo.inspections(userID: demo.id).first {
+            insp.photos = [:]
+            insp.report = nil
+            let enc = JSONEncoder(); enc.dateEncodingStrategy = .iso8601
+            if let a = try? enc.encode(DemoSeed.emptyState(config: store.config)), let i = try? enc.encode(insp) {
+                _ = store.repo.files.saveFile(a, folder: "legacy-fixture", name: "app.json")
+                _ = store.repo.files.saveFile(i, folder: "legacy-fixture/inspections", name: "\(insp.id.uuidString).json")
+            }
+            print("LEGACYFIXTURE \(store.repo.url(for: "legacy-fixture").path)")
+        }
         if has("-platformStatus") {
             let p = store.platform
             print("PLATFORMTEST stored feedback=\(p.feedbackEmail) bccOn=\(p.reportBccOn) bcc=\(p.reportBccEmail) migratedThisLaunch=\(store.platformMigrated)")

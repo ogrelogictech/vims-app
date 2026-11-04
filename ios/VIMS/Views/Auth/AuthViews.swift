@@ -26,6 +26,10 @@ struct LoginView: View {
             #endif
             if DebugFlags.validate, store.path.isEmpty { DebugFlags.validate = false; email = "jeremy@@example"; password = "abc"; signIn() }
         }
+        .onChange(of: store.passwordResets) { _, _ in
+            password = ""
+            errors.clear()
+        }
     }
 
     /// iPhone and iPad portrait: brand block over the form (the approved design).
@@ -233,30 +237,87 @@ struct SignupView: View {
 struct ForgotPasswordView: View {
     @Environment(AppStore.self) private var store
     @State private var email = ""
+    /// Set once the device owner has confirmed; only then are the new password fields shown.
+    @State private var account: UserAccount?
+    @State private var password = ""
+    @State private var confirm = ""
+    /// Why the device check didn't go through (no screen lock, failed). Cancelling shows nothing.
+    @State private var notice: String?
     @State private var errors = FormErrors()
+    @State private var busy = false
 
     var body: some View {
         Screen(title: "Reset password", errors: errors, maxContentWidth: PadLayout.formWidth) {
-            Text("Enter your email and we'll send a reset link.")
-                .font(VFont.ui(14)).foregroundStyle(VC.ink2).lineSpacing(3)
-                .padding(.top, 4).padding(.bottom, 16)
-            VTextField(label: "Email", text: $email, placeholder: "you@company.com", keyboard: .emailAddress, contentType: .emailAddress,
-                       capitalization: .never, kind: .email, fieldID: "email", errors: errors, required: true)
-            Button("Send reset link") {
-                guard errors.validate([("email", email, .req(.email, "Email"))]) else { return }
-                Task {
-                    do {
-                        try await store.auth.requestPasswordReset(email: Validator.trimmed(email))
-                        store.toast("Reset link sent")
-                        try? await Task.sleep(nanoseconds: 700_000_000)
-                        store.back()
-                    } catch { errors.set("email", error.localizedDescription) }
+            if let account {
+                Text("Choose a new password for \(account.email).")
+                    .font(VFont.ui(14)).foregroundStyle(VC.ink2).lineSpacing(3)
+                    .padding(.top, 4).padding(.bottom, 16)
+                    .fixedSize(horizontal: false, vertical: true)
+                VSecureField(label: "New password", text: $password, placeholder: "At least 8 characters", contentType: .newPassword,
+                             fieldID: "password", errors: errors, required: true)
+                VSecureField(label: "Confirm password", text: $confirm, placeholder: "Re-enter your password", contentType: .newPassword,
+                             fieldID: "confirm", errors: errors, required: true)
+                Button {
+                    save(account)
+                } label: {
+                    if busy { ProgressView().tint(.white) } else { Text("Update password") }
                 }
+                .buttonStyle(.vPrimary)
+                .disabled(busy)
+            } else {
+                Text("Your password is stored on this device. Confirm it's you with your device passcode, then choose a new password.")
+                    .font(VFont.ui(14)).foregroundStyle(VC.ink2).lineSpacing(3)
+                    .padding(.top, 4).padding(.bottom, 16)
+                    .fixedSize(horizontal: false, vertical: true)
+                VTextField(label: "Email", text: $email, placeholder: "you@company.com", keyboard: .emailAddress, contentType: .emailAddress,
+                           capitalization: .never, kind: .email, fieldID: "email", errors: errors, required: true)
+                if let notice {
+                    Banner(symbol: "info", text: AttributedString(notice))
+                        .padding(.bottom, 14)
+                }
+                Button {
+                    confirmOwner()
+                } label: {
+                    if busy { ProgressView().tint(.white) } else { Text("Continue") }
+                }
+                .buttonStyle(.vPrimary)
+                .disabled(busy)
             }
-            .buttonStyle(.vPrimary)
         }
         .onAppear {
             if DebugFlags.validate { DebugFlags.validate = false; email = "name@company"; _ = errors.validate([("email", email, .req(.email, "Email"))]) }
+        }
+    }
+
+    private func confirmOwner() {
+        notice = nil
+        let rule = FieldRule.req(.email, "Email", custom: { store.repo.user(email: $0) == nil ? "No account for that email on this device." : nil })
+        guard errors.validate([("email", email, rule)]), let found = store.repo.user(email: Validator.trimmed(email)) else { return }
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        busy = true
+        Task {
+            let result = await DeviceOwnerCheck.confirm(reason: "Confirm it's you to choose a new password.")
+            busy = false
+            switch result {
+            case .confirmed: account = found
+            case .cancelled: break
+            case .noScreenLock: notice = "Set a screen lock in your device Settings first, then try again."
+            case .failed: notice = "We couldn't confirm it's you. Try again."
+            }
+        }
+    }
+
+    private func save(_ account: UserAccount) {
+        let fields: [(id: String, value: String, rule: FieldRule)] = [
+            ("password", password, .req(.password, "New password")),
+            ("confirm", confirm, .req(.plain(max: nil), "Confirm password", custom: { $0 == password ? nil : "Passwords don't match" }))
+        ]
+        guard errors.validate(fields) else { return }
+        busy = true
+        Task {
+            do { try await store.resetPassword(userID: account.id, newPassword: password) }
+            catch { errors.set("password", "Couldn't save the new password. Try again.") }
+            busy = false
         }
     }
 }

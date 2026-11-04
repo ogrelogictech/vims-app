@@ -1,4 +1,5 @@
 import Foundation
+import LocalAuthentication
 import Network
 
 // Backend-dependent services. Phase 1 ships local stubs so the app is fully usable
@@ -30,10 +31,11 @@ protocol AuthService {
     func signIn(email: String, password: String) async throws -> UserAccount
     /// Creates a user (password stored salted + hashed) attached to `companyID`.
     func register(name: String, email: String, password: String, companyID: UUID) async throws -> UserAccount
-    func requestPasswordReset(email: String) async throws
+    /// Saves a new password with a new salt. Nothing else on the account changes.
+    func resetPassword(userID: UUID, newPassword: String) async throws
 }
 
-// TODO(backend): Laravel API — POST /auth/login, /auth/register, /auth/forgot, /companies/join.
+// TODO(backend): Laravel API — POST /auth/login, /auth/register, /companies/join.
 // Local stub: a User table in SwiftData with salted PBKDF2 password hashes.
 @MainActor
 final class LocalAuthService: AuthService {
@@ -61,9 +63,45 @@ final class LocalAuthService: AuthService {
         return u
     }
 
-    func requestPasswordReset(email: String) async throws {
-        // TODO(backend): send the reset email. Locally we only check the format.
-        guard Validator.error(for: email, rule: .req(.email, "Email")) == nil else { throw ServiceError.invalid("Enter a valid email address") }
+    func resetPassword(userID: UUID, newPassword: String) async throws {
+        let salt = PasswordHasher.newSalt()
+        try repo.updatePassword(userID: userID, hash: PasswordHasher.hash(newPassword, salt: salt), salt: salt)
+    }
+}
+
+/// Reset password (`features.passwordReset` = "device"): the device's own Face ID / Touch ID / passcode confirms it's the
+/// owner, since Phase 1 passwords exist only on the device and no reset email can be sent.
+enum DeviceOwnerCheck {
+    enum Result { case confirmed, cancelled, noScreenLock, failed }
+
+    @MainActor
+    static func confirm(reason: String) async -> Result {
+        #if DEBUG
+        // -resetAuth ok|cancel|nolock|failed: skips the system prompt (automation; a simulator always reports a screen lock).
+        switch DebugLaunch.value("-resetAuth") {
+        case "ok": return .confirmed
+        case "cancel": return .cancelled
+        case "nolock": return .noScreenLock
+        case "failed": return .failed
+        default: break
+        }
+        #endif
+        let context = LAContext()
+        var error: NSError?
+        guard context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &error) else {
+            return error?.code == LAError.Code.passcodeNotSet.rawValue ? .noScreenLock : .failed
+        }
+        do {
+            return try await context.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: reason) ? .confirmed : .failed
+        } catch let e as LAError {
+            switch e.code {
+            case .userCancel, .systemCancel, .appCancel, .notInteractive: return .cancelled
+            case .passcodeNotSet: return .noScreenLock
+            default: return .failed
+            }
+        } catch {
+            return .failed
+        }
     }
 }
 

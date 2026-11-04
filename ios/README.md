@@ -19,8 +19,9 @@ xcrun simctl install "iPhone 17" build/DerivedData/Build/Products/Debug-iphonesi
 xcrun simctl launch "iPhone 17" com.vims.app
 ```
 
-Bundle id `com.vims.app` is a placeholder. First launch creates the demo account (see below); the sign-in screen
-is prefilled with it (`jeremy@visionpropertyinspections.com` / `inspect2026`). Other accounts come from
+Bundle id `com.vims.app` is a placeholder. In a Debug build, first launch creates the demo account (see below) and the
+sign-in screen is prefilled with it (`jeremy@visionpropertyinspections.com` / `inspect2026`). A Release build does
+neither (0.29.0). Other accounts come from
 **Create account** (new company) or **Join a company with a code** — each starts with no inspections.
 
 Cold launch plays the splash video, then Sign in (or Home when a session is saved).
@@ -339,7 +340,7 @@ All in `VIMS/Services/Services.swift`, behind protocols so a Laravel implementat
 
 | Protocol | Stub | Phase 1 behavior |
 |---|---|---|
-| `AuthService` | `LocalAuthService` | local User table in SwiftData: sign in checks the email + salted PBKDF2 hash; register creates the user (Create account also creates a company; Join attaches to the company with that code); forgot password only checks the email format |
+| `AuthService` | `LocalAuthService` | local User table in SwiftData: sign in checks the email + salted PBKDF2 hash; register creates the user (Create account also creates a company; Join attaches to the company with that code); Reset password confirms with the device's own passcode (`DeviceOwnerCheck`) and writes a new salt + hash |
 | `SubscriptionService` | `LocalSubscriptionService` | the form validates the card (Luhn, expiry, CVC, name, ZIP) and the stub simulates Square success; stores only a "Visa ····4242" label, never card data. The card form is a placeholder until Square's card-entry SDK replaces it; cancel / undo cancellation are stubbed too |
 | `SyncService` | `LocalSyncService` | Phase 2 only: with `features.sync` false (data v1.10) it never runs and no sync UI shows. With it on, "Sync now" marks pending inspections synced; auto-sync toggle is stored only |
 
@@ -348,14 +349,15 @@ hidden for non-admins in the UI only), and pulling checklist/plan changes from t
 
 ## Demo seed (easy to remove)
 
-`VIMS/Data/DemoSeed.swift` + `Data/Store/Bootstrap.swift` create, on first launch only, the **demo account**
+`VIMS/Data/DemoSeed.swift` + `Data/Store/Bootstrap.swift` create, on first launch of a **Debug** build only, the **demo account**
 `jeremy@visionpropertyinspections.com` / `inspect2026` and its company "Vision Property Inspections" (code
 VIS-4827, VIMS logo, free look with 10 days left) with four inspections owned by that user — 1428 Ridgeline Dr
 (in progress, sample findings, placeholder photos), 82 Canyon Crest #4 (report generated, waiting to sync),
 210 Willow Park, Lot 17 (scheduled), 640 Harrison Blvd (yesterday, report sent). The demo data belongs only to
-that account; new accounts start empty. To ship without it set `DemoSeed.enabled = false` (no demo account,
-empty sign-in fields), or delete `DemoSeed.swift` and the `seedDemoAccount` path in `Bootstrap.swift`. Delete
-the app (or launch with `-resetData` in Debug) to reseed.
+that account; new accounts start empty. `DemoSeed.enabled` is `#if DEBUG` since 0.29.0: Release creates no demo account
+and shows empty sign-in fields. An install that already has the demo account keeps it in Release, with its inspections and
+password (the row and its hash are in the store). The legacy JSON migration uses `DemoSeed.accountPassword`, which doesn't
+depend on `enabled`. Delete the app (or launch with `-resetData` in Debug) to reseed a Debug build.
 
 ## Not in Phase 1
 
@@ -1059,3 +1061,30 @@ Screenshots: `screenshots/oct12-*.png` — `ipad-01…18` 13" (landscape 01–13
   with Vision OCR before and after; iPad Air 11-inch (M4) upgraded in place 0.27.0 (28) -> 0.28.0 with answers and a company
   edit made in 0.27.0 through the UI. Not tested: the tester's device, and iPhone SE 3 (its simulator did not finish
   starting here); long labels were checked for wrapping on iPhone 17 Pro. Screenshots `screenshots/nov2-*.png`.
+
+### iOS 0.29.0 (30) — app-only cleanup (shared v1.17.0)
+
+Phase 1 has no network code, so nothing may claim a server does something.
+
+- **Demo account off in Release**: see "Demo seed". `DeviceTrial` needed no change: `demoTrialStart` is only read when the
+  demo is seeded, and `backfill` still recognizes an existing demo company by its join code.
+- **Reset password** (`features.passwordReset` = "device", `ForgotPasswordView`): intro, Email ("No account for that email on
+  this device." inline), `LAContext` `.deviceOwnerAuthentication` (`DeviceOwnerCheck`, `NSFaceIDUsageDescription` added), then
+  New password + Confirm password with Create account's rules. Cancelling stays on the screen with no error. No screen lock:
+  "Set a screen lock in your device Settings first, then try again." Save goes through `Repository.updatePassword`, which
+  writes only the hash and salt. Back to sign-in, which clears a typed password and its error; toast "Password updated".
+- **Delete account**: the non-sync note reads "Everything is stored on this device, so once it's deleted it can't be recovered."
+- **Report quality copy** (`features.reportCopy` = false, `ChecklistConfig.reportCopyEnabled`): Settings row "Not active yet",
+  On/Off locked on Off, note "Not active yet. Sending a copy needs the VIMS server, so no copies are being sent." The stored
+  On/Off is kept; the address can still be edited and is optional while inactive; toast "Address saved. No copies are being
+  sent yet." The server wording stays behind the flag.
+- **Share sheet note** without Mail no longer says "emailed through VIMS".
+- DEBUG: `-writeLegacyFixture` (JSON files for testing the legacy migration on a Release build), `-resetAuth ok|cancel|nolock|failed`
+  (Reset password skips the system prompt; a simulator always reports a screen lock, so `nolock` is the only way to see that message there).
+- Verified on throwaway iPhone 17 Pro simulators, Release build. Fresh install: empty sign-in, no demo account, none seeded after deleting
+  the only account and relaunching. 0.28.0 (29) Debug upgraded in place: store byte-identical at first launch, demo signs in with its typed
+  password, 4 inspections. Reset through real `LAContext`: passcode sheet shown and left with Home (no error), Face ID sheet with a
+  simulated no-match, Cancel (no error), and a simulated match (`notifyutil com.apple.BiometricKit_Sim.pearl.match`). The store diff shows only the
+  hash and salt changed. Legacy JSON (no session, no owner) migrated and signed in. Not tested: typing a passcode into the prompt, a
+  real device, iPad. The simulator always reports a screen lock, so the no-lock message was seen only with Debug `-resetAuth nolock`.
+  Screenshots `screenshots/nov4-*.png`.
