@@ -128,10 +128,13 @@ struct LoginView: View {
 
             Button("Create account") { store.push(.signup) }
                 .buttonStyle(.vGhost).padding(.top, 10)
-            Button { store.push(.join) } label: {
-                IconLabel("Join a company with a code", icon: "join-a-company")
+            // Data v1.18 `features.companyJoin`: off in Phase 1 (no server, so a code can't reach a company on another device).
+            if store.config.companyJoinEnabled {
+                Button { store.push(.join) } label: {
+                    IconLabel("Join a company with a code", icon: "join-a-company")
+                }
+                .buttonStyle(.vGhost).padding(.top, 10)
             }
-            .buttonStyle(.vGhost).padding(.top, 10)
             Button("Forgot password?") { store.push(.forgot) }
                 .font(VFont.ui(12.5))
                 .foregroundStyle(VC.ink3)

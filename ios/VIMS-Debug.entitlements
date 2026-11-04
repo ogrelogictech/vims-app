@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Debug only. The simulator's StoreKit testing refuses an app without this ("not installed for development"), and a
+	     build with no signing team doesn't get it otherwise. -->
+	<key>get-task-allow</key>
+	<true/>
+</dict>
+</plist>

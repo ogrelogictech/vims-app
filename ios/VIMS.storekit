@@ -1,0 +1,117 @@
+{
+  "appPolicies" : {
+    "eula" : "",
+    "policies" : [
+      {
+        "locale" : "en_US",
+        "policyText" : "",
+        "policyURL" : ""
+      }
+    ]
+  },
+  "identifier" : "4C2E9A10",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+    {
+      "displayPrice" : "4.99",
+      "familyShareable" : false,
+      "internalID" : "6757000003",
+      "localizations" : [
+        {
+          "description" : "TEST price from VIMS.storekit. One inspection report.",
+          "displayName" : "Report credit",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "vims.report.credit",
+      "referenceName" : "Report credit (TEST price $4.99)",
+      "type" : "Consumable"
+    }
+  ],
+  "settings" : {
+    "_applicationInternalID" : "",
+    "_compatibilityTimeRate" : {
+      "3" : 6
+    },
+    "_failTransactionsEnabled" : false,
+    "_locale" : "en_US",
+    "_storefront" : "USA",
+    "_storeKitErrors" : [
+
+    ],
+    "_timeRate" : 0
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "21757000",
+      "localizations" : [
+
+      ],
+      "name" : "VIMS App",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "384.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "6757000002",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "TEST price from VIMS.storekit. The VIMS inspection app, billed yearly.",
+              "displayName" : "App only, yearly",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "vims.app.yearly",
+          "recurringSubscriptionPeriod" : "P1Y",
+          "referenceName" : "App only yearly (TEST price $384.99)",
+          "subscriptionGroupID" : "21757000",
+          "type" : "RecurringSubscription",
+          "winbackOffers" : [
+
+          ]
+        },
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "34.99",
+          "familyShareable" : false,
+          "groupNumber" : 2,
+          "internalID" : "6757000001",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "TEST price from VIMS.storekit. The VIMS inspection app, billed monthly.",
+              "displayName" : "App only, monthly",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "vims.app.monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "App only monthly (TEST price $34.99)",
+          "subscriptionGroupID" : "21757000",
+          "type" : "RecurringSubscription",
+          "winbackOffers" : [
+
+          ]
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 4,
+    "minor" : 0
+  }
+}

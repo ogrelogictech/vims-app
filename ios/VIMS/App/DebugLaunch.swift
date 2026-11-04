@@ -67,8 +67,6 @@ struct DebugDisplayScale: ViewModifier {
 ///   -ownerStatus               print OWNERTEST lines (signed-in master admin flag + owner matching for sample emails)
 ///   -pricingStatus             print PRICINGTEST lines (VIMS plans / yearly prices / company plan, period, total)
 ///   -checklistStatus           print CHECKLISTTEST lines (company edits, each inspection's kept sections + item counts)
-///   -period monthly|yearly     with -screen subscribe: preselect the billing period
-///   -plan ID                   with -screen subscribe: preselect a plan
 ///   -customSection "NAME|Group"  add a custom checklist section (as Manage checklist → Add section)
 ///   -confirmRestore NAME|all|picked|"A,B"  with -screen manage: open the restore confirmation (picked = every
 ///                              Edited / Added section, or the named ones, as Restore selected checklists confirms)
@@ -76,10 +74,15 @@ struct DebugDisplayScale: ViewModifier {
 ///   -eulaVersion V             pretend shared/legal/eula.json has version V (re-acceptance gate test)
 ///   -eulaGate                  show the EULA gate even with -screen / -skipLogin
 ///   -profilePhotoSample        set the signed-in user's profile photo from an inspection photo
-///   -activeSub                 mark the signed-in company's subscription active (Square · Visa ····4242)
-///   -subPeriod monthly|yearly  with -activeSub: the billing period (prints CANCELTEST: paid, days left, refund)
-///   -subStartedDaysAgo N       with -activeSub: the subscription started N days ago (pro-rated refund checks)
-///   -confirmCancel             with -screen billing: open the Cancel subscription confirmation
+///   -activeSub                 read as subscribed without asking the store (screen jumps; purchases: see DebugStoreLab)
+///   -storeCredits N            set the report credits on this device
+///   -resetStoreVault           clear the cached store status and report credits
+///   -seedStoreCache STATE:DAYS cache a status (subscribed|gracePeriod|billingRetry|expired) with expiry DAYS from now
+///   -storeOffline              the connection reads as offline for this launch (the store isn't asked; see offline rule)
+///   -ownerBypass               every platform-owner email reads as verified (no master admin code)
+///   -ownerCodeTest CODE        check the Master admin code screen against a throwaway CODE hashed the same way
+///   -ownerCodeSelfTest         print OWNERCODETEST lines: normalization and PBKDF2 with a throwaway code
+///   -resetOwnerCode            forget every platform-owner email's verified flag on this device
 ///   -pickRestore [-pickAll]    with -screen manage: open Restore selected checklists (all ticked)
 ///   -eulaStatus                print each local account's accepted EULA version to the console
 ///   -mailSelfTest              print the report email draft (to/CC/BCC/subject/attachment) + state-document drafts
@@ -191,6 +194,7 @@ enum DebugLaunch {
         if has("-resetData") { SwiftDataRepository.wipeStore(); FileStore().wipeAll(); DeviceTrial.clearDemo() }
         // -resetDeviceTrial: forget this device's free-trial record (and the demo's), so the next Create account gets 30 days.
         if has("-resetDeviceTrial") { DeviceTrial.clear(); print("DEVICETRIAL cleared") }
+        prepareStoreFlags()
     }
 
     /// Prints the report email draft (and checks a real MFMailComposeViewController accepts it) so the
@@ -788,7 +792,7 @@ enum DebugLaunch {
             let p = store.pricing, sub = store.subscription
             print("PRICINGTEST stored=\(store.platform.plans != nil) plans=" + p.plans.map { "\($0.id):\($0.price)/\($0.priceYearly.map { String($0) } ?? "-")\($0.isComingSoon ? ":soon" : "")" }.joined(separator: ",")
                   + " extra=\(p.extraMonthly)/\(p.extraYearly)")
-            print("PRICINGTEST company=\(store.company.name) selected=\(sub.selectedPlan) period=\(sub.period.rawValue) active=\(sub.active) total=\(sub.totalLabel(seats: store.seats())) next=\(Fmt.date(sub.nextBillingDate, "MMM d, yyyy")) companyPlans=" + sub.plans.map { "\($0.id):\($0.price)" }.joined(separator: ","))
+            print("PRICINGTEST company=\(store.company.name) selected=\(sub.selectedPlan) period=\(sub.period.rawValue) subscribed=\(store.hasStoreSubscription) companyPlans=" + sub.plans.map { "\($0.id):\($0.price)" }.joined(separator: ","))
         }
         // -customSection "NAME|Group": add a custom section the way Manage checklist → Add section does (restore checks).
         if let v = value("-customSection"), store.session != nil {
@@ -852,28 +856,8 @@ enum DebugLaunch {
         }
         if let d = value("-trialDaysLeft"), let n = Int(d) {
             store.state.subscription.trialStart = Calendar.current.date(byAdding: .day, value: -(store.state.subscription.trialDays - n), to: Date()) ?? Date()
-            store.state.subscription.active = false
-            store.state.subscription.cancelledAt = nil
         }
-        // -activeSub: pretend the company already subscribed (Plan & billing cancel test).
-        if has("-activeSub"), store.session != nil, !store.state.subscription.active {
-            store.state.subscription.active = true
-            store.state.subscription.paymentLabel = "Square · Visa ····4242"
-            store.state.subscription.cardOnFile = CardOnFile(brand: "Visa", last4: "4242", expMonth: 8, expYear: 2028)
-            store.state.subscription.startedAt = Calendar.current.date(byAdding: .day, value: -2, to: Date())
-            store.state.subscription.cancelledAt = nil
-            store.state.subscription.endedAt = nil
-            store.state.subscription.refundAmount = nil
-            store.state.subscription.refundDays = nil
-            // -subPeriod monthly|yearly, -subStartedDaysAgo N: the period and start date (yearly cancel / refund checks).
-            if let p = value("-subPeriod") { store.state.subscription.billingPeriod = p }
-            if let d = value("-subStartedDaysAgo"), let n = Int(d) {
-                store.state.subscription.startedAt = Calendar.current.date(byAdding: .day, value: -n, to: Date())
-            }
-            store.state.subscription.paidAmount = store.state.subscription.total(seats: store.seats())
-            let sub = store.state.subscription, r = sub.proratedRefund(seats: store.seats())
-            print("CANCELTEST period=\(sub.period.rawValue) paid=\(r.paid) daysLeft=\(r.daysLeft) daysInPeriod=\(r.daysInPeriod) refund=\(r.amount) next=\(Fmt.date(sub.nextBillingDate, "MMM d, yyyy"))")
-        }
+        applyStoreFlags(store)
         // -companyName NAME: rename the signed-in company, as Company profile → Company name → Save does.
         if let n = value("-companyName"), store.session != nil { store.state.company.name = n }
         if let v = value("-eulaVersion") { store.eula.version = v }
@@ -962,7 +946,7 @@ enum DebugLaunch {
             let f = ISO8601DateFormatter()
             print("DEVICETRIAL firstTrialStart=\(DeviceTrial.date(.firstTrialStart).map(f.string) ?? "none") demoTrialStart=\(DeviceTrial.date(.demoTrialStart).map(f.string) ?? "none")")
             let sub = store.subscription
-            print("DEVICETRIAL session=\(store.session?.email ?? "none") company=\(store.company.name) trialStart=\(f.string(from: sub.trialStart)) daysLeft=\(sub.trialDaysLeft) active=\(sub.active) deviceTrialUsed=\(sub.deviceTrialUsed ?? false) trialEnded=\(sub.trialEnded) canStartNewInspection=\(store.canStartNewInspection) exempt=\(store.isSubscriptionExempt)")
+            print("DEVICETRIAL session=\(store.session?.email ?? "none") company=\(store.company.name) trialStart=\(f.string(from: sub.trialStart)) daysLeft=\(sub.trialDaysLeft) subscribed=\(store.hasStoreSubscription) deviceTrialUsed=\(sub.deviceTrialUsed ?? false) trialEnded=\(sub.trialEnded) canStartNewInspection=\(store.canStartNewInspection) exempt=\(store.isSubscriptionExempt)")
         }
         if let v = value("-wizState") { DebugFlags.wizardStates = v.split(separator: ",").map(String.init) }
         if has("-mailSelfTest") { mailSelfTest(store) }
@@ -988,7 +972,7 @@ enum DebugLaunch {
         let general: [String: [Route]] = [
             "signup": [.signup], "forgot": [.forgot], "join": [.join], "wizard": [.wizard(editing: nil)],
             "settings": [.settings], "company": [.settings, .company], "instructions": [.settings, .instructions],
-            "plans": [.settings, .plans], "subscribe": [.subscribe], "billing": [.settings, .billing],
+            "plans": [.settings, .plans], "subscribe": [.subscribe], "billing": [.settings, .billing], "ownerCode": [.settings, .ownerCode],
             "feedback": [.settings, .feedbackAdmin], "agreement": value("-agreementState").map { [.wizard(editing: nil), .agreement(state: $0)] } ?? [.settings, .company, .agreement(state: nil)], "agreementEditor": [.settings, .company, .agreementEditor], "eula": [.settings, .eula], "deleteAccount": [.settings, .deleteAccount], "signupEula": [.signup, .eula], "reportBcc": [.settings, .reportBcc], "inspectors": [.settings, .inspectors], "manage": [.settings, .manageChecklist]
         ]
         if let r = general[screen] {

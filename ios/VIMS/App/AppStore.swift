@@ -13,7 +13,7 @@ enum Route: Hashable {
     case settings, company, instructions
     case manageChecklist
     case editSection(String)
-    case plans, inspectors, subscribe, subscriptionStarted, billing, feedbackAdmin, reportBcc
+    case plans, inspectors, subscribe, subscriptionStarted, billing, feedbackAdmin, reportBcc, ownerCode
     case eula, deleteAccount
     /// VIMS default inspection agreement viewer: nil = every state's disclosures (Company profile),
     /// a code = only that state's section (wizard step 1). `fill` (client Oct 30 (3), data v1.15): opened from an inspection
@@ -31,7 +31,8 @@ final class AppStore {
     var eula: EULADocument
     let repo: any Repository
     let auth: AuthService
-    let subscriptionService: SubscriptionService
+    /// App Store subscriptions and report credits. Device-wide: it belongs to the Apple Account, not to a VIMS account.
+    let purchases: StoreKitSubscriptionService
     let syncService: SyncService
     @ObservationIgnored private let connectivity = Connectivity()
 
@@ -59,8 +60,6 @@ final class AppStore {
     var showVideoSplash = true
     var isOnline = true
     var syncing = false
-    /// "Your free trial has ended" (New inspection with the trial over and no subscription).
-    var trialEndedPrompt = false
     /// Counts completed password resets, so the sign-in screen drops an old password and its error.
     var passwordResets = 0
 
@@ -76,13 +75,13 @@ final class AppStore {
     @ObservationIgnored private var loadingSession = false
 
     init(config: ChecklistConfig, eula: EULADocument, repo: any Repository,
-         subscriptionService: SubscriptionService = LocalSubscriptionService(),
          syncService: SyncService = LocalSyncService()) {
         self.config = config
         self.eula = eula
         self.repo = repo
         self.auth = LocalAuthService(repo: repo)
-        self.subscriptionService = subscriptionService
+        self.purchases = StoreKitSubscriptionService(ids: config.subscription.store?.ios)
+        AuthError.companyJoinEnabled = config.companyJoinEnabled
         self.syncService = syncService
         self.state = DemoSeed.emptyState(config: config)
         self.platform = PlatformSettings.defaults(config)
@@ -109,6 +108,8 @@ final class AppStore {
 
         connectivity.onChange = { [weak self] online in self?.setOnline(online) }
         connectivity.start()
+        purchases.isReachable = { [weak self] in self?.isOnline ?? true }
+        purchases.start()
     }
 
     var catalog: ChecklistCatalog { ChecklistCatalog(config: config, overrides: state.overrides) }
@@ -154,25 +155,69 @@ final class AppStore {
     /// automatic sync stub never runs. The sync code below stays for Phase 2.
     var syncEnabled: Bool { config.syncEnabled }
 
-    // MARK: Free trial
+    // MARK: Access (shared v1.18 `subscription.store.access`)
 
-    /// A new inspection needs the free trial (30 days, `subscription.trialDays`) or an active subscription. Existing
-    /// inspections stay viewable and editable, and their reports can still be shared / re-sent.
-    var canStartNewInspection: Bool { isSubscriptionExempt || !subscription.trialEnded }
+    /// An active store subscription, including any grace or billing-retry period the store reports.
+    var hasStoreSubscription: Bool { purchases.hasSubscription }
 
-    /// Client Oct 28 follow-up: VIMS master admins (platform owners) never need a free trial or subscription — no trial
-    /// splash, trial-ended / Subscribe prompts or countdowns, and New inspection always works ("Master admin · no
-    /// subscription needed"). Their Create account doesn't use up the device's free trial either (`Bootstrap.newCompany`).
+    /// A new inspection is allowed with: the verified master admin code; the device trial still running; an active store
+    /// subscription; or, after the trial, at least one report credit. Nothing else blocks anything: opening, editing,
+    /// exporting and emailing what is already saved always work.
+    var canStartNewInspection: Bool {
+        isSubscriptionExempt || !subscription.trialEnded || hasStoreSubscription || purchases.credits > 0
+    }
+
+    /// Client Oct 28 follow-up: verified VIMS master admins never need a free trial or subscription — no trial splash,
+    /// trial-ended / Subscribe prompts or countdowns, and New inspection always works ("Master admin · no subscription
+    /// needed"). Their Create account doesn't use up the device's free trial either (`Bootstrap.newCompany`).
     /// TODO(backend): the server grants this (the owner role / an entitlement on the session), not the app.
     var isSubscriptionExempt: Bool { isPlatformOwner }
     static let exemptLine = "Master admin · no subscription needed"
 
-    /// Every "New inspection" button (Home header +, Home, side menu): the wizard, or the Subscribe prompt.
+    /// Every "New inspection" button (Home header +, Home, side menu): the wizard, or the plans screen. A blocked tap asks
+    /// the store first, so a subscription bought elsewhere moments ago isn't refused.
     func startNewInspection() {
-        if canStartNewInspection { push(.wizard(editing: nil)) } else { showTrialEndedPrompt() }
+        if canStartNewInspection { push(.wizard(editing: nil)); return }
+        Task {
+            await purchases.refresh()
+            push(canStartNewInspection ? .wizard(editing: nil) : .subscribe)
+        }
     }
 
-    func showTrialEndedPrompt() { if !isSubscriptionExempt { trialEndedPrompt = true } }
+    /// Spec `reportCredit`: an inspection's first report, with no subscription and no trial, uses one credit. Regenerating
+    /// a report it already has is free.
+    func reportUsesCredit(_ id: UUID) -> Bool {
+        guard let insp = inspection(id), insp.report == nil else { return false }
+        return !isSubscriptionExempt && subscription.trialEnded && !hasStoreSubscription
+    }
+
+    // MARK: Master admin code (shared v1.18 `support.ownerCode`)
+
+    /// Settings shows the Master admin code row: this account has a platform-owner email and hasn't entered the code.
+    var needsOwnerCode: Bool {
+        guard let email = session?.email else { return false }
+        return PlatformOwner.isListed(email: email, config: config) && !isPlatformOwner
+    }
+
+    enum OwnerCodeResult { case verified, wrong, notSaved }
+
+    /// PBKDF2 at 200,000 iterations, so it runs off the main thread.
+    func verifyOwnerCode(_ input: String) async -> OwnerCodeResult {
+        guard let email = session?.email, PlatformOwner.isListed(email: email, config: config), let spec = ownerCodeSpec else { return .wrong }
+        let ok = await Task.detached(priority: .userInitiated) { OwnerCode.matches(input, spec: spec) }.value
+        guard ok else { return .wrong }
+        guard OwnerVerification.setVerified(email: email) else { return .notSaved }
+        state.session?.isPlatformOwner = true
+        showSplash = false
+        return .verified
+    }
+
+    private var ownerCodeSpec: OwnerCodeDef? {
+        #if DEBUG
+        if let test = DebugLaunch.ownerCodeTestSpec { return test }
+        #endif
+        return config.support.ownerCode
+    }
 
     /// Client Oct 30 (3), data v1.15 `agreementPrefill`: what the inspection agreement is filled in with — a saved
     /// inspection, or the wizard's draft (every step's current values, nothing saved). Inspector = the signed-in account.
@@ -397,7 +442,7 @@ final class AppStore {
     }
 
     func presentSplashIfNeeded() {
-        guard state.session != nil, !state.subscription.active, !isSubscriptionExempt, !DebugFlags.suppressSplash else { return }
+        guard state.session != nil, !hasStoreSubscription, !isSubscriptionExempt, !DebugFlags.suppressSplash else { return }
         Task {
             try? await Task.sleep(nanoseconds: 320_000_000)
             withAnimation(.easeOut(duration: 0.24)) { self.showSplash = true }
@@ -801,14 +846,20 @@ final class AppStore {
         return ReportData.make(insp, config: config, overrides: catalog(for: insp).overrides, company: state.company, repo: files, logo: companyLogoImage())
     }
 
-    /// Renders the PDF on-device and saves it under reports/.
+    /// Renders the PDF on-device and saves it under reports/. A report that needs a credit needs one on hand (`ReportView`
+    /// offers the purchase first); the credit is used only once the report is saved, so a failed render costs nothing.
     func generateReport(_ id: UUID) async -> ReportInfo? {
+        let usesCredit = reportUsesCredit(id)
+        if usesCredit, purchases.credits < 1 { return nil }
         guard let data = reportData(id) else { return nil }
         let result = await Task.detached(priority: .userInitiated) { ReportRenderer.render(data) }.value
         guard let path = files.saveFile(result.pdf, folder: "\(userFolder)/reports", name: "\(id.uuidString).pdf") else { return nil }
         let info = ReportInfo(generatedAt: Date(), pageCount: result.pageCount, file: path)
         update(id) { $0.report = info }
         state.settings.defaultCover = inspection(id)?.cover ?? state.settings.defaultCover
+        if usesCredit, purchases.useCredit(), let insp = inspection(id), let uid = currentUser?.id, let cid = companyID {
+            repo.saveInspection(insp, userID: uid, companyID: cid)   // now, not debounced: regenerating this one is free
+        }
         return info
     }
 
@@ -845,7 +896,10 @@ final class AppStore {
         #endif
         let cameOnline = online && !isOnline
         if isOnline != online { isOnline = online }
-        if cameOnline { requestAutoSync(after: 1) }
+        if cameOnline {
+            requestAutoSync(after: 1)
+            Task { await purchases.refresh() }     // a store that answers overrides the cached status
+        }
     }
 
     private func performSync(manual: Bool) async {
@@ -1011,13 +1065,16 @@ final class AppStore {
 
     // MARK: Master admin — VIMS plans & prices (client Oct 28, data v1.11)
 
-    /// The VIMS plans and per-inspector rates every company subscribes to (stored master-admin edits, else the JSON).
-    var pricing: PlatformSettings.Pricing { platform.pricing(config) }
+    /// The VIMS plans and per-inspector rates (stored master-admin edits, else the JSON). With `features.planEditing` off,
+    /// always the JSON: earlier edits stay stored but do nothing, since the stores set the prices.
+    var pricing: PlatformSettings.Pricing {
+        config.planEditingEnabled ? platform.pricing(config) : PlatformSettings.defaults(config).pricing(config)
+    }
 
     /// Plans & pricing (master admin only): saves the whole plan list + rates VIMS-wide and refreshes this company's copy.
-    /// TODO(backend): the server owns the plans (Square catalog) and enforces the master-admin role.
+    /// TODO(backend): the server owns the plans and enforces the master-admin role.
     func savePricing(_ p: PlatformSettings.Pricing) {
-        guard isPlatformOwner, !p.plans.isEmpty else { return }
+        guard config.planEditingEnabled, isPlatformOwner, !p.plans.isEmpty else { return }
         var s = platform
         s.plans = p.plans
         s.extraInspectorMonthly = p.extraMonthly
@@ -1027,7 +1084,7 @@ final class AppStore {
     }
 
     /// Plans & pricing → delete a plan (master admin). At least one plan always stays; a company on the deleted plan moves
-    /// to the first remaining one it can pick. TODO(backend): DELETE the plan on the server (Square catalog item).
+    /// to the first remaining one it can pick. TODO(backend): DELETE the plan on the server.
     func deletePlan(_ id: String) {
         var p = pricing
         guard isPlatformOwner, p.plans.count > 1, let i = p.plans.firstIndex(where: { $0.id == id }) else { return }
@@ -1038,7 +1095,7 @@ final class AppStore {
 
     /// Mirrors the VIMS plans into the signed-in company's subscription (older builds kept a per-company copy that company
     /// admins could edit — it is replaced here, so upgraded companies get the current prices). A company whose plan was
-    /// deleted, or that sits on a "Coming soon" plan without an active subscription, moves to the first plan it can pick.
+    /// deleted, or that sits on a "Coming soon" plan, moves to the first plan it can pick.
     func applyPlatformPricing() {
         let p = pricing
         var sub = state.subscription
@@ -1046,7 +1103,7 @@ final class AppStore {
         sub.extraInspectorMonthly = p.extraMonthly
         sub.extraInspectorYearly = p.extraYearly
         let current = sub.plan(sub.selectedPlan)
-        if current == nil || (current?.isSelectable == false && !sub.active),
+        if current == nil || current?.isSelectable == false,
            let first = p.plans.first(where: \.isSelectable) ?? p.plans.first {
             sub.selectedPlan = first.id
         }
@@ -1059,7 +1116,7 @@ final class AppStore {
         guard !n.isEmpty else { toast("Enter a name"); return false }
         state.company.inspectors.append(Inspector(name: n, email: email.trimmingCharacters(in: .whitespaces)))
         let per = state.subscription.period
-        toast("Inspector added · +\(Fmt.money(state.subscription.extraRate(per)))\(per.unit)")
+        toast(config.companyJoinEnabled ? "Inspector added · +\(Fmt.money(state.subscription.extraRate(per)))\(per.unit)" : "Inspector added")
         return true
     }
 
@@ -1099,18 +1156,16 @@ final class AppStore {
     }
 
     /// App Store 5.1.1(v) account deletion. Deletes the user, their inspections, photos and reports on this
-    /// device. An owner who is alone on the company also deletes the company (subscription cancelled).
+    /// device. An owner who is alone on the company also deletes the company. A store subscription isn't affected: only
+    /// the Apple Account can cancel it, and Delete account says so.
     /// TODO(backend): send a deletion request to the server (completed within 10 working days per the EULA).
     enum DeleteAccountBlock: Error { case ownerWithTeam }
     func deleteAccount() async throws {
         guard let me = currentUser, let cid = companyID else { return }
         if isCompanyOwner && !otherCompanyUsers.isEmpty { throw DeleteAccountBlock.ownerWithTeam }
         flushNow()
+        OwnerVerification.clear(email: me.email)
         if isCompanyOwner {
-            if state.subscription.active && !state.subscription.cancelled {
-                try? await subscriptionService.cancelSubscription(period: state.subscription.period, refund: nil)
-                state.subscription.cancelledAt = Date()
-            }
             loadingSession = true          // don't re-save the company we're deleting
             repo.deleteCompany(id: cid)
             // Invited inspectors without an account go with the company.
@@ -1147,57 +1202,6 @@ final class AppStore {
         let ins = state.company.inspectors[i]
         saveAppStateNow()
         toast(ins.admin ? "\(ins.name) is now an admin" : "\(ins.name) is no longer an admin")
-    }
-
-    /// Subscribe → Start / Update subscription with the plan and Monthly / Yearly period chosen on the screen (a plan
-    /// without a yearly price is monthly; "Coming soon" plans can't be started).
-    func startSubscription(planID: String, period: BillingPeriod, payment: SubscriptionPayment) async throws {
-        guard let plan = state.subscription.plan(planID), plan.isSelectable else {
-            throw ServiceError.invalid("That plan isn't available yet. Choose another plan.")
-        }
-        let per: BillingPeriod = plan.hasYearly ? period : .monthly
-        let (label, card) = try await subscriptionService.startSubscription(planID: planID, period: per, seats: seats(), payment: payment)
-        state.subscription.selectedPlan = planID
-        state.subscription.billingPeriod = per.rawValue
-        state.subscription.active = true
-        state.subscription.paymentLabel = label
-        state.subscription.cardOnFile = card
-        state.subscription.startedAt = Date()
-        state.subscription.cancelledAt = nil
-        state.subscription.endedAt = nil
-        state.subscription.refundAmount = nil
-        state.subscription.refundDays = nil
-        state.subscription.paidAmount = state.subscription.total(plan: plan, period: per, seats: seats())
-    }
-
-    /// Owner/admin only (EULA 2026-10-28, 4.1 / 12.3 / 12.4). Monthly: stays active until the end of the billing period,
-    /// then stops renewing. Yearly: access ends now and the unused days are refunded pro-rated (`proratedRefund`); new
-    /// inspections then need a new subscription, like an ended trial (master admins stay exempt).
-    func cancelSubscription() async throws {
-        guard isAdmin, state.subscription.active, !state.subscription.cancelled else { return }
-        let now = Date()
-        if state.subscription.period == .yearly {
-            let r = state.subscription.proratedRefund(on: now, seats: seats())
-            try await subscriptionService.cancelSubscription(period: .yearly, refund: r.amount)
-            state.subscription.active = false
-            state.subscription.cancelledAt = now
-            state.subscription.endedAt = now
-            state.subscription.refundAmount = r.amount
-            state.subscription.refundDays = r.daysLeft
-            saveAppStateNow()
-            toast("Subscription ended \u{2014} \(Fmt.money(r.amount)) will be refunded to your card")
-        } else {
-            try await subscriptionService.cancelSubscription(period: .monthly, refund: nil)
-            state.subscription.cancelledAt = now
-            toast("Subscription cancelled \u{2014} active until \(Fmt.date(state.subscription.nextBillingDate, "MMM d, yyyy").replacingOccurrences(of: " ", with: "\u{00A0}"))")
-        }
-    }
-
-    func resumeSubscription() async throws {
-        guard isAdmin, state.subscription.cancelled else { return }
-        try await subscriptionService.resumeSubscription()
-        state.subscription.cancelledAt = nil
-        toast("Cancellation undone — auto-pay continues")
     }
 
     // MARK: Company files (per company)

@@ -57,6 +57,11 @@ struct SettingsView: View {
             Button("Delete account") { store.push(.deleteAccount) }
                 .buttonStyle(VButtonStyle(kind: .ghost, tint: VC.c1))
                 .padding(.top, 10)
+            // Shared v1.18 `support.ownerCode`: only a platform-owner email that hasn't entered the code yet.
+            if store.needsOwnerCode {
+                NavRow(symbol: "legal-document", title: "Master admin code", subtitle: "Turn on VIMS master admin access") { store.push(.ownerCode) }
+                    .padding(.top, 12)
+            }
 
             // Data v1.10 `features.sync` is false in Phase 1 (nothing syncs): no Sync section, pending counts or Sync now.
             if store.syncEnabled {
@@ -154,14 +159,19 @@ struct SettingsView: View {
 }
 
 extension SettingsView {
-    /// "App only · Yearly · $935.00/yr" · "App only · trial" · "Pay per report · $5.00 / report"
+    /// "App only · Yearly · $384.99/yr" · "App only · trial, 12 days left" · "Report credits: 2"
     fileprivate var planSubtitle: String {
-        let sub = store.subscription
-        let name = sub.plan(sub.selectedPlan)?.name ?? ""
-        if store.isSubscriptionExempt && !sub.active { return AppStore.exemptLine }
-        guard sub.active else { return "\(name) · \(sub.subscriptionEnded ? "cancelled" : sub.trialEnded ? "trial ended" : "trial")" }
-        if sub.plan(sub.selectedPlan)?.isPerReport == true { return "\(name) · \(sub.totalLabel(seats: store.seats()))" }
-        return "\(name) · \(sub.period.label) · \(sub.totalLabel(seats: store.seats()))"
+        let sub = store.subscription, p = store.purchases
+        let name = store.config.subscription.plans.first { $0.id == "app" }?.name ?? "App only"
+        if store.hasStoreSubscription {
+            let yearly = p.status.productID == p.ids?.yearly
+            let price = (yearly ? StorePlanOption.yearly : StorePlanOption.monthly).priceLabel(p)
+            return ([name, yearly ? "Yearly" : "Monthly", price] as [String?]).compactMap { $0 }.joined(separator: " · ")
+        }
+        if store.isSubscriptionExempt { return AppStore.exemptLine }
+        if !sub.trialEnded { return "Free trial · \(sub.trialDaysLeft) days left" }
+        if p.credits > 0 { return "\(p.credits) report credit\(p.credits == 1 ? "" : "s") left" }
+        return p.status.lapsed ? "Subscription ended" : "Trial ended"
     }
 }
 
@@ -373,7 +383,9 @@ struct InstructionsView: View {
                             : "**Everything saves on your device.** Inspections, photos and reports are stored on this device and work fully offline — they are not copied to a server, so save or share the reports you want to keep."))
                 .padding(.bottom, 14)
             card("info", "Getting started",
-                 "**New account:** tap **Create account** on sign-in and enter your details, or tap **Join a company with a code** if your company gave you one. New companies start on a **\(store.subscription.trialDays)-day free look** — set up your company profile and logo in Settings first.")
+                 store.config.companyJoinEnabled
+                 ? "**New account:** tap **Create account** on sign-in and enter your details, or tap **Join a company with a code** if your company gave you one. New companies start on a **\(store.subscription.trialDays)-day free look** — set up your company profile and logo in Settings first."
+                 : "**New account:** tap **Create account** on sign-in and enter your details. New companies start on a **\(store.subscription.trialDays)-day free look** — set up your company profile and logo in Settings first.")
             card("list", "Run an inspection",
                  "Tap **New inspection**, then step through: inspection info → property details → the areas to inspect. On each section, tap the answers that apply, add photos, mark them up, and flag any concern into a category. Use **Save & next section** to move through quickly.")
             card("flask", "Checklist depth",
@@ -384,8 +396,10 @@ struct InstructionsView: View {
                  store.syncEnabled
                  ? "From the Summary tap **Save and generate report**, choose a cover (color → theme → style), and the app builds your branded PDF. It queues to send when you are back online."
                  : "From the Summary tap **Save and generate report**, choose a cover (color → theme → style), and the app builds your branded PDF on this device. Then email it to your client or save and share it from **Report ready**.")
-            card("bolt", "Subscription & inspectors",
-                 "Your free look counts down at every sign-in. Subscribe through **Square** any time. Add inspectors under your company license and share your **company code** so they can join.")
+            card("bolt", store.config.companyJoinEnabled ? "Subscription & inspectors" : "Subscription",
+                 store.config.companyJoinEnabled
+                 ? "Your free look counts down at every sign-in. Subscribe any time. Add inspectors under your company license and share your **company code** so they can join."
+                 : "Your free look counts down at every sign-in. Subscribe any time, monthly or yearly, or pay per report. You pay through your Apple Account, and you manage or cancel there.")
             VStack(spacing: 4) {
                 Text("Need a hand? Contact VIMS support").font(VFont.ui(13)).foregroundStyle(VC.ink3)
                 // Tappable (Oct 13 QA): Mail composer when Mail is set up, else the mailto: handler (another mail app),
@@ -561,7 +575,6 @@ struct DeleteAccountView: View {
                     bullet("Your \(n) inspection\(n == 1 ? "" : "s"), with their photos and reports, on this device")
                     if store.isCompanyOwner {
                         bullet("The company \(store.company.name) — its profile, logo, checklist changes and inspector invites")
-                        if store.subscription.active { bullet("Your subscription is cancelled (no further charges)") }
                     }
                     Text(store.syncEnabled ? "We also delete your data from the VIMS servers within 10 working days. This can't be undone."
                                            : "Everything is stored on this device, so once it's deleted it can't be recovered.")
@@ -574,6 +587,17 @@ struct DeleteAccountView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(VC.c1, lineWidth: 1))
                 .padding(.bottom, 16)
+                // Shared v1.18 `subscription.store.deleteAccount`: only the Apple Account can cancel a store subscription.
+                if store.hasStoreSubscription {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Deleting your account doesn\u{2019}t cancel your subscription. Cancel it in your Apple or Google account settings.")
+                            .font(VFont.ui(13)).foregroundStyle(VC.ink2).lineSpacing(2)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Button("Manage subscription") { Task { await store.purchases.showManageSubscriptions() } }
+                            .buttonStyle(.vGhost)
+                    }
+                    .padding(.bottom, 16)
+                }
                 VTextField(label: "Type DELETE to confirm", text: $confirmText, placeholder: "DELETE", capitalization: .characters,
                            fieldID: "confirm", errors: errors, required: true)
                 Button { submit() } label: {

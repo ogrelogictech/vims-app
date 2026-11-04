@@ -674,48 +674,28 @@ enum BillingPeriod: String, Codable, CaseIterable, Hashable {
     var totalLabel: String { "\(label) total" }
 }
 
+/// A company's trial and its view of the VIMS plan list. A subscription is not stored here: since shared v1.18 the App
+/// Store reports it (`StoreKitSubscriptionService`). Earlier builds also stored a simulated subscription in this JSON
+/// (active, paymentLabel, cardOnFile, startedAt, cancelledAt, endedAt, refund…, paidAmount): those keys are ignored when
+/// decoding and dropped on the next save, so they count for nothing.
 struct SubscriptionState: Codable, Hashable {
-    /// The VIMS plan list. Since client Oct 28 (data v1.11) plans and prices are VIMS-wide, owned by the master admin
-    /// (`PlatformSettings.pricing`): `AppStore` mirrors them in here on every session load, so a company's stored copy
-    /// is never the source of truth (older builds stored a per-company copy that company admins could edit).
+    /// The VIMS plan list. Since client Oct 28 (data v1.11) plans and prices are VIMS-wide (`PlatformSettings.pricing`):
+    /// `AppStore` mirrors them in here on every session load, so a company's stored copy is never the source of truth.
     var plans: [PlanDef]
     var extraInspectorMonthly: Double
     var selectedPlan: String
     var trialStart: Date
     var trialDays: Int
-    var active: Bool = false
-    var paymentLabel: String?
-    /// QA Oct 14: the remembered card (brand / last 4 / expiry only — see `CardOnFile`), offered on the next update.
-    var cardOnFile: CardOnFile?
-    var startedAt: Date?
-    /// Set when an owner/admin cancels: the subscription stays active until `nextBillingDate`,
-    /// then stops renewing. Optional so older saved data still decodes.
-    var cancelledAt: Date?
     /// True when this company was created on a device that had already used its free trial (one trial per device,
     /// `DeviceTrial`): it started with the trial used up. nil on older saved data.
     var deviceTrialUsed: Bool?
     /// v1.11: per-inspector yearly rate (mirrored like `plans`). nil on older saved data → monthly × 12.
     var extraInspectorYearly: Double?
-    /// v1.11: the company's billing period ("monthly" | "yearly"). nil on older saved data = monthly.
+    /// v1.11: the company's billing period ("monthly" | "yearly"), used only by the Phase 2 inspector pricing.
     var billingPeriod: String?
-    /// v0.23 (EULA 2026-10-28, 4.1 / 12.3 / 12.4): a cancelled YEARLY plan ends on the cancellation date (`active` goes
-    /// false) with a pro-rated refund for the unused days. A cancelled monthly plan keeps `active` and runs to
-    /// `nextBillingDate` as before. All optional, so older saved data still decodes.
-    var endedAt: Date?
-    var refundAmount: Double?
-    var refundDays: Int?
-    /// What the current period was charged (Start / Update subscription). nil on older data → today's total.
-    var paidAmount: Double?
 
-    /// Monthly cancellation pending: still active until `nextBillingDate`.
-    var cancelled: Bool { active && cancelledAt != nil }
-
-    /// A yearly subscription that was cancelled: access ended on `endedAt` (no new inspections until subscribing again).
-    var subscriptionEnded: Bool { !active && endedAt != nil }
-
-    /// No active subscription and no free trial left (the trial is over, or a yearly cancel ended the subscription):
-    /// no new inspections (Subscribe prompt).
-    var trialEnded: Bool { !active && (trialDaysLeft == 0 || endedAt != nil) }
+    /// The free trial is over.
+    var trialEnded: Bool { trialDaysLeft == 0 }
 
     func plan(_ id: String) -> PlanDef? { plans.first { $0.id == id } }
 
@@ -731,12 +711,12 @@ struct SubscriptionState: Codable, Hashable {
         return plan(selectedPlan)?.hasYearly == true ? p : .monthly
     }
 
-    /// Each additional inspector for a period.
+    /// Each additional inspector for a period (Phase 2, `features.companyJoin`).
     func extraRate(_ period: BillingPeriod) -> Double {
         period == .yearly ? (extraInspectorYearly ?? extraInspectorMonthly * 12) : extraInspectorMonthly
     }
 
-    /// A plan's price for a period (the per-report price for Pay per report).
+    /// A plan's reference price for a period (the per-report price for Pay per report).
     static func price(_ p: PlanDef, _ period: BillingPeriod) -> Double {
         period == .yearly && p.hasYearly ? (p.priceYearly ?? p.price) : p.price
     }
@@ -748,50 +728,10 @@ struct SubscriptionState: Codable, Hashable {
         return Fmt.money(price(p, per)) + per.unit
     }
 
-    /// Plan + additional inspectors for a plan / period (0 for Pay per report).
-    func total(plan p: PlanDef?, period: BillingPeriod, seats: Int) -> Double {
-        guard let p, !p.isPerReport else { return 0 }
-        let per: BillingPeriod = p.hasYearly ? period : .monthly
-        return Self.price(p, per) + Double(max(0, seats - 1)) * extraRate(per)
-    }
-
-    /// "$84.85/mo" · "$935.00/yr" · "$5.00 / report"
-    func totalLabel(plan p: PlanDef?, period: BillingPeriod, seats: Int) -> String {
-        guard let p else { return "" }
-        if p.isPerReport { return Fmt.money(p.price) + " / report" }
-        let per: BillingPeriod = p.hasYearly ? period : .monthly
-        return Fmt.money(total(plan: p, period: per, seats: seats)) + per.unit
-    }
-
-    /// The company's current plan + period total.
-    func total(seats: Int) -> Double { total(plan: plan(selectedPlan), period: period, seats: seats) }
-    func totalLabel(seats: Int) -> String { totalLabel(plan: plan(selectedPlan), period: period, seats: seats) }
-
-    /// The billing period that contains `date`; periods roll forward from `startedAt` (auto-renew).
-    func billingPeriodBounds(containing date: Date) -> (start: Date, end: Date) {
-        let start = startedAt ?? date
-        let cal = Calendar.current, unit: Calendar.Component = period == .yearly ? .year : .month
-        var n = 0
-        while n < 1200, let end = cal.date(byAdding: unit, value: n + 1, to: start) {
-            if end > date { return (cal.date(byAdding: unit, value: n, to: start) ?? start, end) }
-            n += 1
-        }
-        return (start, cal.date(byAdding: unit, value: 1, to: start) ?? start)
-    }
-
-    /// The next renewal (for a pending monthly cancellation: the end of the period it was cancelled in).
-    var nextBillingDate: Date { billingPeriodBounds(containing: cancelledAt ?? Date()).end }
-
-    /// EULA 4.1 / 12.4 — cancelling a yearly plan: price paid × days remaining ÷ days in the period, rounded to cents.
-    func proratedRefund(on date: Date = Date(), seats: Int) -> (amount: Double, daysLeft: Int, daysInPeriod: Int, paid: Double) {
-        let cal = Calendar.current
-        let b = billingPeriodBounds(containing: date)
-        let day = { (a: Date, z: Date) in cal.dateComponents([.day], from: cal.startOfDay(for: a), to: cal.startOfDay(for: z)).day ?? 0 }
-        let inPeriod = max(1, day(b.start, b.end))
-        let left = min(inPeriod, max(0, day(date, b.end)))
-        let paid = paidAmount ?? total(seats: seats)
-        let amount = (paid * Double(left) / Double(inPeriod) * 100).rounded(.toNearestOrAwayFromZero) / 100
-        return (amount, left, inPeriod, paid)
+    /// Plan + additional inspectors for the company's plan and period (Phase 2, `features.companyJoin`).
+    func total(seats: Int) -> Double {
+        guard let p = plan(selectedPlan), !p.isPerReport else { return 0 }
+        return Self.price(p, period) + Double(max(0, seats - 1)) * extraRate(period)
     }
 }
 
@@ -829,7 +769,7 @@ struct PlatformSettings: Codable, Hashable {
 
     /// Client Oct 28 (data v1.11): the VIMS subscription plans and prices, edited only by a master admin in Plans & pricing
     /// and used on every company's Subscribe screen. nil until a master admin saves a change = the shared JSON's plans.
-    /// TODO(backend): server-owned (Square catalog).
+    /// With `features.planEditing` off (Phase 1) nothing edits these and they aren't used: prices come from the store.
     var plans: [PlanDef]? = nil
     var extraInspectorMonthly: Double? = nil
     var extraInspectorYearly: Double? = nil
@@ -876,7 +816,8 @@ struct PlatformSettings: Codable, Hashable {
 /// VIMS platform owners (system admins) — the shared JSON `support.platformOwners` list (data v1.5), several
 /// allowed so the client always has at least two. Matched case-insensitively after trimming. No password is
 /// stored or seeded for these accounts: the owner creates an account / signs in with the email and their own
-/// password, and gets the VIMS owner settings when the email is listed.
+/// password. Shared v1.18 `support.ownerCode`: the emails are public, so a listed email is a normal user until the code is
+/// entered once on this device (`OwnerVerification`). `isOwner` means listed AND verified, so every caller respects it.
 /// TODO(backend): the server owns this list and returns an isPlatformOwner flag / role with the session.
 enum PlatformOwner {
     static func normalized(_ email: String) -> String { email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
@@ -885,9 +826,15 @@ enum PlatformOwner {
         (config.support.platformOwners ?? []).map(normalized).filter { !$0.isEmpty }
     }
 
-    static func isOwner(email: String, config: ChecklistConfig) -> Bool {
+    /// One of `support.platformOwners`, verified or not (Settings shows it the Master admin code row).
+    static func isListed(email: String, config: ChecklistConfig) -> Bool {
         let e = normalized(email)
         return !e.isEmpty && emails(config).contains(e)
+    }
+
+    /// A listed email that has entered the master admin code on this device.
+    static func isOwner(email: String, config: ChecklistConfig) -> Bool {
+        isListed(email: email, config: config) && OwnerVerification.isVerified(email: email)
     }
 }
 
@@ -896,7 +843,7 @@ struct Session: Codable, Hashable {
     var email: String
     var inspectorID: UUID?
     var isAdmin: Bool
-    /// VIMS platform owner — only this account sees platform settings (report BCC, feedback email).
+    /// Verified VIMS platform owner (`PlatformOwner.isOwner`) — only this account sees platform settings and has free access.
     var isPlatformOwner: Bool = false
 }
 

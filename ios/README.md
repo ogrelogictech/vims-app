@@ -19,6 +19,17 @@ xcrun simctl install "iPhone 17" build/DerivedData/Build/Products/Debug-iphonesi
 xcrun simctl launch "iPhone 17" com.vims.app
 ```
 
+### Which build is which (0.30.0)
+
+| Build | App ID | How | Purchases |
+|---|---|---|---|
+| Debug | `com.vims.app` | scheme **VIMS**, Run | `VIMS.storekit` when Xcode runs it (test prices, no charge) |
+| Team Release / Ad Hoc | `com.vims.app` | scheme **VIMS**, Product > Archive (`-configuration Release`) | No products unless App Store Connect has them for this ID, so the plans screen says it can't load |
+| Store (TestFlight, App Store) | `com.vimsinspect.app` | scheme **VIMS Store**, Product > Archive (`-scheme "VIMS Store" archive`) | App Store Connect products, sandbox in TestFlight |
+
+The two app IDs can sit side by side on one phone; inspections do not move between them. Prices never come from this repo at
+runtime: `VIMS.storekit` holds test values ($34.99, $384.99, $4.99) and is not in any app bundle.
+
 Bundle id `com.vims.app` is a placeholder. In a Debug build, first launch creates the demo account (see below) and the
 sign-in screen is prefilled with it (`jeremy@visionpropertyinspections.com` / `inspect2026`). A Release build does
 neither (0.29.0). Other accounts come from
@@ -47,7 +58,7 @@ video is skipped by default whenever `-screen` is given), `-validate` (submits t
 validation errors show), `-eulaVersion V` (pretend eula.json has version V → re-acceptance gate), `-eulaGate`
 (show the gate even with `-screen`, which otherwise skips it), `-eulaStatus` (print each account's accepted
 version), `-eulaSection N|footer` (viewer scroll), `-prefill EMAIL [-code CODE] [-agree]` (valid Create account /
-Join details), `-activeSub` (mark the subscription active), `-profilePhotoSample` (profile photo from an
+Join details), `-activeSub` (read as subscribed, no store), `-profilePhotoSample` (profile photo from an
 inspection photo), `-confirmDelete` (with `-screen deleteAccount`: type DELETE and submit), `-prefill EMAIL -password PW -validate`
 on `-screen login` (try that sign-in), `-confirm PW` (signup confirm value), `-iaq fill|blank|legacy|overflow` (adds
 Indoor Air Quality to the chosen inspection and marks it done: sample readings / no readings / pre-v1.7 answers /
@@ -61,7 +72,7 @@ user feature.
 SwiftUI views ──► AppStore (@Observable, @MainActor)  ──► Repository (SwiftDataRepository + FileStore)
                      │  ├─ ChecklistConfig (shared JSON, loaded at launch)
                      │  ├─ ChecklistCatalog (JSON + admin overrides, checklist builder)
-                     │  └─ Services: AuthService · SubscriptionService · SyncService (local stubs)
+                     │  └─ Services: AuthService · SyncService (local stubs) · StoreKitSubscriptionService
                      └─ path: [Route]  ──► one NavigationStack (custom blue header, system bar hidden)
 ```
 
@@ -130,15 +141,12 @@ SwiftUI views ──► AppStore (@Observable, @MainActor)  ──► Repository
   "License agreement") shows the text with **I agree** and **Sign out**. Viewer: Settings → Legal → End User
   License Agreement ("Revised <revised>") — title, revised date, intro, numbered headings in brand-deep, all 14
   sections, footer.
-- **Cancel subscription** (Plan & billing, active subscription, owner/admin only; the trial shows no button):
-  (since 0.23.0 monthly only; a yearly plan ends on cancellation with a pro-rated refund, see the 0.23.0 notes)
-  red "Cancel subscription" → inline confirm card (active until the next billing date, no refunds or prorated
-  charges, download within 30 days) with Keep subscription / **Yes, cancel** → status "Cancelled · active until
-  <date>", explanatory card and **Undo cancellation**. Stored as `SubscriptionState.cancelledAt`.
-  TODO(backend): Square subscription cancel / resume (`SubscriptionService.cancelSubscription/resumeSubscription`).
+- **Cancel subscription**: only in the Apple Account (Manage subscription opens the store's own screen). In-app cancel, undo and the
+  refund text were removed in 0.30.0.
 - **Delete account** (App Store 5.1.1(v)): Settings → Account → Delete account (red) → a screen listing what is
   deleted (the account, the user's inspections with photos and reports on this device; for a sole owner also the
-  company, with the subscription cancelled) and a "Type DELETE to confirm" field. An owner with other users on the
+  company) and a "Type DELETE to confirm" field; with an active store subscription, a note that deleting doesn't cancel it, with
+  a Manage subscription button. An owner with other users on the
   company is blocked with "Make another admin the owner first" (Inspectors now has **Make owner** for admins,
   visible to the owner). A non-owner is removed from the company. Ends on Sign in. TODO(backend): server
   deletion request (within 10 working days per the EULA).
@@ -320,7 +328,8 @@ ios/
       Store/    Records.swift (SwiftData models + password hashing), Bootstrap.swift (demo account, new
                 company, one-time JSON migration), DeviceTrial.swift (one free trial per device, Keychain)
     Validation/ Validation.swift (rules, filters, FormErrors), FilteredTextField.swift
-    Services/   Services.swift (Auth / Subscription / Sync stubs, connectivity)
+    Services/   Services.swift (Auth / Sync stubs, connectivity), StoreKitService.swift (StoreKit 2 subscriptions, report credits,
+                DeviceVault Keychain store, master admin code)
     Report/     ReportRenderer.swift (report data + standard PDF pages), ReportForms.swift (Texas TREC + 4-Point pages)
     Theme/      Theme.swift (tokens, fonts, formatting), ProtoIcons.swift (prototype icon renderer),
                 Components.swift (chips, buttons, cards, fields…)
@@ -341,7 +350,7 @@ All in `VIMS/Services/Services.swift`, behind protocols so a Laravel implementat
 | Protocol | Stub | Phase 1 behavior |
 |---|---|---|
 | `AuthService` | `LocalAuthService` | local User table in SwiftData: sign in checks the email + salted PBKDF2 hash; register creates the user (Create account also creates a company; Join attaches to the company with that code); Reset password confirms with the device's own passcode (`DeviceOwnerCheck`) and writes a new salt + hash |
-| `SubscriptionService` | `LocalSubscriptionService` | the form validates the card (Luhn, expiry, CVC, name, ZIP) and the stub simulates Square success; stores only a "Visa ····4242" label, never card data. The card form is a placeholder until Square's card-entry SDK replaces it; cancel / undo cancellation are stubbed too |
+| (no protocol) | `StoreKitSubscriptionService` | real StoreKit 2, no server: see "iOS 0.30.0". |
 | `SyncService` | `LocalSyncService` | Phase 2 only: with `features.sync` false (data v1.10) it never runs and no sync UI shows. With it on, "Sync now" marks pending inspections synced; auto-sync toggle is stored only |
 
 Also pending backend work: sending the report/receipts by email server-side, role enforcement (admin screens are
@@ -1088,3 +1097,49 @@ Phase 1 has no network code, so nothing may claim a server does something.
   hash and salt changed. Legacy JSON (no session, no owner) migrated and signed in. Not tested: typing a passcode into the prompt, a
   real device, iPad. The simulator always reports a screen lock, so the no-lock message was seen only with Debug `-resetAuth nolock`.
   Screenshots `screenshots/nov4-*.png`.
+
+### iOS 0.30.0 (31) — in-app subscriptions (shared v1.18.0)
+
+StoreKit 2 replaces the simulated Square subscription. No server: the App Store bills and reports status.
+
+- **Service** (`Services/StoreKitService.swift`, `AppStore.purchases`): products from `subscription.store.ios`, `purchase` (pending and
+  cancelled are not errors; unverified unlocks nothing and stays unfinished), `Transaction.updates` from launch, `Transaction.unfinished`,
+  `Product.SubscriptionInfo.status` + `Transaction.currentEntitlements`, `finish()`, `AppStore.sync()` for Restore Purchases,
+  `AppStore.showManageSubscriptions`. The app's own `AppStore` class shadows StoreKit's, so it is written `StoreKit.AppStore`. Status is
+  refreshed at launch, on foreground, on reconnect, after a transaction (again 4 seconds later: the store's status lags a purchase by a
+  couple of seconds, and a signed entitlement or the just-delivered transaction covers that gap), and when the paid period ends.
+- **Access** (`AppStore.canStartNewInspection`): verified owner code, device trial running, active subscription (including grace and billing
+  retry), or at least one report credit. Otherwise New inspection goes to the plans screen. Nothing blocks opening, editing, exporting or
+  emailing what is saved. A subscription belongs to the Apple Account, so it covers every VIMS account on the device, as credits do.
+- **Simulated subscriptions**: `SubscriptionState` no longer has `active`, the card or refund fields. Old JSON still decodes (unknown keys are
+  ignored) and the next save drops them.
+- **Offline** (`StoreSubscriptionStatus`, Keychain `DeviceVault`): the last verified status holds until expiry + 7 days when the store can't be
+  asked; a store that answers replaces it. A signed unexpired transaction counts as verified with no connection.
+- **Report credits** (`ReportCreditLedger`, Keychain, so a reinstall keeps them; consumables can't be restored): the credit is saved first, then
+  the transaction is finished; transaction IDs make a redelivery count once. First report with no subscription and no trial uses one, after
+  the PDF is saved. `insp.report != nil` = free to regenerate. With no credit, `ReportView` offers the purchase. "Preview report format" stays
+  readable but has no Share button while the report still needs a credit.
+- **Plans screen** (`SubscribeView`), **Plan & billing** (`BillingView`), read-only **Plans & pricing** (`features.planEditing` false; the editor is
+  behind the flag). Card form, card on file, seats, cancel / undo and refund text are deleted. Unused card validators remain in `Validation.swift`.
+- **`features.companyJoin` false**: no Join on sign-in, no join code, no extra-inspector price (code behind the flag). Inspectors keeps the team list,
+  Make admin / Make owner / Remove for accounts on this device; an old invite with no account shows "No account on this device" and can only be
+  removed; Add inspector is hidden, since nobody added could ever sign in.
+- **Master admin code** (`OwnerCode`, `OwnerVerification`, `support.ownerCode`): `PlatformOwner.isOwner` now means listed AND verified, so every caller
+  respects it; `isListed` drives the Settings row. Flag: Keychain, by email, this device only; Delete account removes it.
+- **Build configurations**: `Store` (copy of Release, `com.vimsinspect.app`), shared scheme `VIMS Store`. `VIMS-Debug.entitlements` (Debug only) adds
+  `get-task-allow`: without it the simulator's StoreKit testing rejects a build with no signing team ("not installed for development").
+- **Privacy manifest** `VIMS/PrivacyInfo.xcprivacy`: no tracking, nothing collected, UserDefaults reason CA92.1. StoreKit needs no Info.plist key.
+- **Testing without Xcode's Run button**: Xcode applies the scheme's StoreKit configuration only when it launches the app itself, so DEBUG has
+  `DebugStoreLab` (loads `SKTestSession` from the simulator runtime; expire, renew, refund, billing retry, grace, Ask to Buy, accelerated time):
+
+  ```bash
+  P=/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library
+  SIMCTL_CHILD_DYLD_FRAMEWORK_PATH=$P/Frameworks:$P/PrivateFrameworks xcrun simctl launch --terminate-running-process <device> \
+    com.vims.app -storeKitLab "$PWD/VIMS.storekit" -noSplash -noVideo
+  # commands go in <data container>/Documents/storelab-cmd.txt, results in storelab-out.txt (see DebugStoreLab.run)
+  xcodebuild test -project VIMS.xcodeproj -scheme VIMS -destination 'platform=iOS Simulator,name=<device>' \
+    -only-testing:VIMSUITests/StorePurchaseUITests -derivedDataPath build/DerivedData
+  ```
+
+  Once a session has run on a simulator, `storekitd` keeps using its configuration for that bundle ID, even with no lab. To see the no-products state,
+  use an erased simulator. Transaction IDs restart after `-storeKitClear`, so also pass `-resetStoreVault` or the credit ledger treats them as seen.

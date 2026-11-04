@@ -29,7 +29,7 @@ struct HomeView: View {
                leading: .menu,
                onLeading: { withAnimation(.easeOut(duration: 0.24)) { menuOpen = true } },
                actions: [HeaderAction(symbol: "hdr-add", label: "New inspection") { store.startNewInspection() }]) {
-            if store.isSubscriptionExempt && !store.subscription.active {
+            if store.isSubscriptionExempt && !store.hasStoreSubscription {
                 // Client Oct 28: master admins never see a trial countdown or Subscribe.
                 Text(md("**Master admin** · no subscription needed")).font(VFont.ui(13.5)).foregroundStyle(VC.brandDeep)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -39,10 +39,10 @@ struct HomeView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
                     .overlay(RoundedRectangle(cornerRadius: 13, style: .continuous).stroke(Color(hex: 0xC9DEE6), lineWidth: 1))
                     .padding(.bottom, 14)
-            } else if !store.subscription.active {
+            } else if !store.hasStoreSubscription {
                 Button { store.push(.subscribe) } label: {
                     HStack {
-                        Text(md(store.subscription.trialEnded ? "**\(TrialEndedText.badge(store))**" : "**Free trial** · \(store.subscription.trialDaysLeft) days left")).font(VFont.ui(13.5))
+                        Text(md(homeBadge)).font(VFont.ui(13.5))
                         Spacer()
                         HStack(spacing: 3) {
                             Text("Subscribe").font(VFont.ui(13.5, .semibold))
@@ -82,6 +82,13 @@ struct HomeView: View {
                 actionButtons.padding(.top, 14)
             }
         }
+    }
+
+    private var homeBadge: String {
+        let sub = store.subscription, credits = store.purchases.credits
+        if !sub.trialEnded { return "**Free trial** · \(sub.trialDaysLeft) days left" }
+        if credits > 0 { return "**\(credits) report credit\(credits == 1 ? "" : "s")** left" }
+        return "**\(TrialEndedText.badge(store))**"
     }
 
     @ViewBuilder
@@ -300,24 +307,25 @@ struct TrialSplashView: View {
     }
 }
 
-/// Wording for the trial-ended prompt and splash (one free trial per device, `DeviceTrial`).
+/// Wording for the trial-ended splash and block (one free trial per device, `DeviceTrial`).
 @MainActor
 enum TrialEndedText {
-    /// "Free trial ended" · "Subscription ended" (a cancelled yearly plan, EULA 4.1 / 12.3).
+    /// A subscription this device saw has ended, rather than the free trial.
+    private static func lapsed(_ store: AppStore) -> Bool { store.purchases.status.lapsed }
+
+    /// "Free trial ended" · "Subscription ended".
     static func badge(_ store: AppStore) -> String {
-        store.subscription.subscriptionEnded ? "Subscription ended" : "Free trial ended"
+        lapsed(store) ? "Subscription ended" : "Free trial ended"
     }
     static func title(_ store: AppStore) -> String {
-        store.subscription.subscriptionEnded ? "Your subscription has ended" : "Your free trial has ended"
+        lapsed(store) ? "Your subscription has ended" : "Your free trial has ended"
     }
     static func lead(_ store: AppStore) -> String {
         let sub = store.subscription
-        if sub.subscriptionEnded, let d = sub.endedAt {
-            return "Your yearly subscription was cancelled and ended on \(Fmt.date(d, "MMM d, yyyy"))."
-        }
+        if lapsed(store) { return "Your subscription ended on \(PlanStatusText.day(store.purchases.status.expiresAt))." }
         return sub.deviceTrialUsed == true ? "This device has already used its \(sub.trialDays)-day free trial."
                                            : "Your \(sub.trialDays)-day free trial is over."
     }
-    static let rest = "Subscribe to start new inspections. Your existing inspections stay available, and their reports can still be shared."
+    static let rest = "Subscribe or buy a report credit to start new inspections. Your existing inspections stay available, and their reports can still be shared."
     static func message(_ store: AppStore) -> String { lead(store) + " " + rest }
 }

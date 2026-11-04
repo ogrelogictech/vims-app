@@ -198,8 +198,8 @@ struct WizardView: View {
         draft = d
         if step < store.config.wizard.steps.count { go(step + 1, proxy); return }
         if d.field("Inspector").isEmpty { d.fields["Inspector"] = store.session?.name ?? store.company.inspectorName }
-        // Free trial over and no subscription: a new inspection can't be built (existing ones can still be edited).
-        if editingID == nil, !store.canStartNewInspection { store.showTrialEndedPrompt(); return }
+        // No access (trial over mid-draft, say): a new inspection can't be built (existing ones can still be edited).
+        if editingID == nil, !store.canStartNewInspection { store.push(.subscribe); return }
         let id = store.buildChecklist(from: d)
         if editingID != nil {
             store.toast("Checklist updated")

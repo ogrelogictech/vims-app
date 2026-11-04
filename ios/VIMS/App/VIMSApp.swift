@@ -50,7 +50,10 @@ struct VIMSApp: App {
         .onChange(of: scenePhase) { _, phase in
             if phase == .background { store?.flushNow() }
             // Auto-sync when the app comes back to the foreground (team QA Oct 22); a no-op while `features.sync` is off.
-            if phase == .active { store?.requestAutoSync(after: 1) }
+            if phase == .active {
+                store?.requestAutoSync(after: 1)
+                Task { await store?.purchases.refresh() }
+            }
         }
     }
 }
@@ -70,7 +73,7 @@ struct RootView: View {
                 }
             }
 
-            if store.showSplash, store.session != nil, !store.isSubscriptionExempt, !store.showVideoSplash, !store.needsEulaAcceptance {
+            if store.showSplash, store.session != nil, !store.isSubscriptionExempt, !store.hasStoreSubscription, !store.showVideoSplash, !store.needsEulaAcceptance {
                 TrialSplashView()
                     .transition(.opacity)
                     .zIndex(10)
@@ -105,13 +108,6 @@ struct RootView: View {
             }
         }
         .animation(.easeOut(duration: 0.25), value: store.toastMessage)
-        // Free trial over, no subscription: New inspection asks to subscribe instead of opening the wizard.
-        .alert(TrialEndedText.title(store), isPresented: $store.trialEndedPrompt) {
-            Button("Not now", role: .cancel) {}
-            Button("Subscribe") { store.push(.subscribe) }
-        } message: {
-            Text(TrialEndedText.message(store))
-        }
         .measuresWindowWidth()
         #if DEBUG
         .task { DebugLaunch.applyOrientation() }
@@ -123,8 +119,9 @@ struct RootView: View {
         switch r {
         case .signup: SignupView()
         case .forgot: ForgotPasswordView()
-        case .join: JoinCompanyView()
-        // A new inspection needs the trial or a subscription (a route reached any other way shows the same block).
+        // Data v1.18 `features.companyJoin`: nothing links here in Phase 1.
+        case .join: if store.config.companyJoinEnabled { JoinCompanyView() } else { OwnerOnlyView(message: "Joining a company isn\u{2019}t available yet.") }
+        // A new inspection needs access (`canStartNewInspection`; a route reached any other way shows the same block).
         case .wizard(let editing):
             if editing == nil && !store.canStartNewInspection { TrialEndedView() } else { WizardView(editingID: editing) }
         case .sections(let id): SectionsOverviewView(inspectionID: id)
@@ -145,6 +142,7 @@ struct RootView: View {
         case .subscribe: SubscribeView()
         case .subscriptionStarted: SubscriptionStartedView()
         case .billing: BillingView()
+        case .ownerCode: if store.needsOwnerCode { OwnerCodeView() } else { OwnerOnlyView() }
         // VIMS master admin (platform-owner) screens: nobody else can open them (TODO(backend): enforced server-side too).
         case .feedbackAdmin: if store.isPlatformOwner { FeedbackAdminView() } else { OwnerOnlyView() }
         case .reportBcc: if store.isPlatformOwner { ReportBccView() } else { OwnerOnlyView() }
@@ -157,7 +155,7 @@ struct RootView: View {
     }
 }
 
-/// New inspection with the free trial over and no subscription.
+/// New inspection with no access (spec `subscription.store.access`).
 struct TrialEndedView: View {
     @Environment(AppStore.self) private var store
     var body: some View {

@@ -1,3 +1,4 @@
+import StoreKit
 import SwiftUI
 
 // MARK: - 23 Manage checklist (admin)
@@ -652,6 +653,11 @@ struct PlansAdminView: View {
     @State private var errors = FormErrors()
 
     var body: some View {
+        // Data v1.18 `features.planEditing` is false in Phase 1: the stores set the prices. The editor stays for Phase 2.
+        if store.config.planEditingEnabled { editor } else { StorePricesView() }
+    }
+
+    @ViewBuilder private var editor: some View {
         let pricing = store.pricing
         Screen(title: "Plans & pricing", subtitle: "Master admin", actions: [store.homeAction()], errors: errors) {
             Text(md("**Master admin (VIMS owner only)** — edit monthly and yearly plan prices, add a plan, or set the per-inspector rates. Changes apply to every company\u{2019}s Subscribe screen. Company admins can\u{2019}t see or change these."))
@@ -869,7 +875,13 @@ struct InspectorsView: View {
 
     var body: some View {
         Screen(title: "Inspectors", actions: [store.homeAction()], errors: errors) {
-            if wide.isWide {
+            if !joinEnabled {
+                // Data v1.18 `features.companyJoin` is false in Phase 1: no server, so nobody can be added from another
+                // device. What's left is the people already on this device: their roles, ownership and the list itself.
+                intro
+                if store.isAdmin && store.otherCompanyUsers.count > 0 { roles }
+                team
+            } else if wide.isWide {
                 // iPad landscape: the join code and the add form on the left, the team beside them.
                 HStack(alignment: .top, spacing: 24) {
                     VStack(alignment: .leading, spacing: 0) { intro; joinCode; addForm }
@@ -890,15 +902,21 @@ struct InspectorsView: View {
             }
             Button("Cancel", role: .cancel) { removing = nil }
         } message: { ins in
-            Text("They'll lose access to \(store.company.name)'s checklist, plans and profile. Their own inspections stay on their device.")
+            Text(joinEnabled ? "They'll lose access to \(store.company.name)'s checklist, plans and profile. Their own inspections stay on their device."
+                 : store.repo.user(id: ins.id) != nil ? "They come off \(store.company.name)'s team and lose admin access. Their account and inspections stay on this device."
+                 : "They come off \(store.company.name)'s team list.")
         }
         .onAppear {
             if DebugFlags.validate { DebugFlags.validate = false; name = ""; email = store.company.inspectors.first?.email ?? "x@y.com"; addInspector() }
         }
     }
 
+    private var joinEnabled: Bool { store.config.companyJoinEnabled }
+
     private var intro: some View {
-        Text(md("Add inspector accounts under your company license. First inspector is included; each additional is **\(Fmt.money(store.subscription.extraRate(store.subscription.period)))\(store.subscription.period.unit)**."))
+        Text(md(joinEnabled
+                ? "Add inspector accounts under your company license. First inspector is included; each additional is **\(Fmt.money(store.subscription.extraRate(store.subscription.period)))\(store.subscription.period.unit)**."
+                : "Inspector accounts on this device. An inspector on another phone or tablet creates an account and subscribes there."))
             .font(VFont.ui(13)).foregroundStyle(VC.ink3).padding(.top, 2).padding(.bottom, 12)
             .fixedSize(horizontal: false, vertical: true)
     }
@@ -933,7 +951,9 @@ struct InspectorsView: View {
     }
 
     private var roles: some View {
-        Text(md("You (the account owner) are an **admin** by default. Tap **Make admin** to grant any inspector admin access — admins can manage checklists, plans, the company profile, and settings. Nothing is hard-coded; roles are set here."))
+        Text(md(joinEnabled
+                ? "You (the account owner) are an **admin** by default. Tap **Make admin** to grant any inspector admin access — admins can manage checklists, plans, the company profile, and settings. Nothing is hard-coded; roles are set here."
+                : "You (the account owner) are an **admin** by default. Tap **Make admin** to grant any inspector here admin access — admins can manage checklists, the company profile, and settings."))
             .font(VFont.ui(12)).foregroundStyle(VC.ink3).lineSpacing(2).padding(.horizontal, 2).padding(.bottom, 12)
             .fixedSize(horizontal: false, vertical: true)
     }
@@ -948,6 +968,9 @@ struct InspectorsView: View {
                         Text("\(ins.name) · \(ins.roleLabel)").font(VFont.ui(15, .semibold)).foregroundStyle(VC.ink)
                             .lineLimit(2).fixedSize(horizontal: false, vertical: true)
                         Text(ins.email.isEmpty ? "no email yet" : ins.email).font(VFont.ui(12.5, .medium)).foregroundStyle(VC.ink2).lineLimit(1).minimumScaleFactor(0.75)  // long emails shrink, not cut (QA Oct 22)
+                        if !joinEnabled, ins.id != store.myInspectorID, store.repo.user(id: ins.id) == nil {
+                            Text("No account on this device").font(VFont.ui(12)).foregroundStyle(VC.ink3).padding(.top, 3)
+                        }
                         // Admins who aren't the owner can't take ownership back (security); say so on the owner's row.
                         if ins.owner, ins.id != store.myInspectorID {
                             Text("Only the owner can transfer ownership.")
@@ -957,21 +980,26 @@ struct InspectorsView: View {
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    // With join off, an old invite (no account on this device) can never turn into an account: it can
+                    // only be removed, and can't be given a role or the company.
+                    let actionable = joinEnabled || store.repo.user(id: ins.id) != nil
                     if ins.owner {
                         Pill(kind: .done, text: "Owner")
                     } else if ins.id == store.myInspectorID {
                         // Your own row: no Make admin / Remove / Make owner (same as Android).
                         if ins.admin { Pill(kind: .prog, text: "Admin", dot: false) }
-                    } else {
+                    } else if joinEnabled || store.isAdmin {
                         VStack(alignment: .trailing, spacing: 6) {
-                            Button { store.toggleAdmin(ins.id) } label: {
-                                Pill(kind: ins.admin ? .prog : .new, text: ins.admin ? "Admin ✓" : "Make admin", dot: false)
-                                    .frame(minHeight: 32)
+                            if actionable {
+                                Button { store.toggleAdmin(ins.id) } label: {
+                                    Pill(kind: ins.admin ? .prog : .new, text: ins.admin ? "Admin ✓" : "Make admin", dot: false)
+                                        .frame(minHeight: 32)
+                                }
+                                .buttonStyle(ChipPressStyle())
                             }
-                            .buttonStyle(ChipPressStyle())
                             // Only the current owner can hand over ownership — to anyone on the team with an email
                             // (including the previous owner), after confirming. The new owner becomes an admin too.
-                            if store.isCompanyOwner && !ins.email.isEmpty {
+                            if actionable && store.isCompanyOwner && !ins.email.isEmpty {
                                 MakeOwnerButton(inspector: ins)
                             }
                             Button { removing = ins } label: {
@@ -1038,281 +1066,343 @@ private struct MakeOwnerButton: View {
     }
 }
 
-// MARK: - 26 Subscribe (Square)
+// MARK: - 26 Plans (App Store in-app purchases, shared v1.18.0 `subscription.store.plansScreen`)
+
+/// One purchasable option on the plans screen.
+enum StorePlanOption: Hashable, CaseIterable {
+    case monthly, yearly, credit
+
+    @MainActor func product(_ p: StoreKitSubscriptionService) -> Product? {
+        switch self {
+        case .monthly: return p.monthly
+        case .yearly: return p.yearly
+        case .credit: return p.reportCredit
+        }
+    }
+    var fallbackTitle: String {
+        switch self {
+        case .monthly: return "App only, monthly"
+        case .yearly: return "App only, yearly"
+        case .credit: return "Report credit"
+        }
+    }
+    var length: String {
+        switch self {
+        case .monthly: return "1 month · renews automatically"
+        case .yearly: return "1 year · renews automatically"
+        case .credit: return "One inspection report · no subscription"
+        }
+    }
+    var unit: String {
+        switch self {
+        case .monthly: return "/mo"
+        case .yearly: return "/yr"
+        case .credit: return "/report"
+        }
+    }
+    /// The store's price: "$34.99/mo".
+    @MainActor func priceLabel(_ p: StoreKitSubscriptionService) -> String? { product(p).map { $0.displayPrice + unit } }
+}
 
 struct SubscribeView: View {
     @Environment(AppStore.self) private var store
-    @State private var card = ""
-    @State private var expiry = ""
-    @State private var cvc = ""
-    @State private var holder = ""
-    @State private var zip = ""
-    @State private var errors = FormErrors()
+    @Environment(\.openURL) private var openURL
+    @State private var choice: StorePlanOption?
     @State private var busy = false
-    /// QA Oct 14: with a remembered card, "Use this card" (default) or "Use a different card" (shows the card form).
-    @State private var useDifferentCard = false
-    /// Client Oct 28: the plan and Monthly / Yearly period picked here; saved on Start / Update subscription.
-    @State private var planID: String?
-    @State private var periodChoice: BillingPeriod?
+    @State private var restoring = false
+    /// A pending purchase: not an error.
+    @State private var notice: String?
+    @State private var failure: String?
 
-    private var chosenPlan: PlanDef? {
-        let sub = store.subscription
-        if let id = planID, let p = sub.plan(id), p.isSelectable { return p }
-        if let p = sub.plan(sub.selectedPlan), p.isSelectable { return p }
-        return sub.plans.first(where: \.isSelectable)
+    private var purchases: StoreKitSubscriptionService { store.purchases }
+    private var currentOption: StorePlanOption? {
+        guard store.hasStoreSubscription else { return nil }
+        return purchases.status.productID == purchases.ids?.yearly ? .yearly : .monthly
     }
-    /// The period in effect for the chosen plan (a plan without a yearly price is monthly).
-    private var period: BillingPeriod {
-        guard chosenPlan?.hasYearly == true else { return .monthly }
-        return periodChoice ?? BillingPeriod(rawValue: store.subscription.billingPeriod ?? "") ?? .monthly
+    /// Defaults to the first option that isn't the current plan.
+    private var chosen: StorePlanOption? {
+        if let choice, choice.product(purchases) != nil, choice != currentOption { return choice }
+        return StorePlanOption.allCases.first { $0 != currentOption && $0.product(purchases) != nil }
     }
-
-    private var brand: CardBrand { CardBrand.detect(card.filter(\.isNumber)) }
-    /// The usable card on file (an expired one isn't offered).
-    private var savedCard: CardOnFile? {
-        guard let c = store.subscription.cardOnFile, !c.isExpired() else { return nil }
-        return c
-    }
-    private var usingSavedCard: Bool { savedCard != nil && !useDifferentCard }
 
     var body: some View {
-        let sub = store.subscription
-        Screen(title: "Subscription", actions: [store.homeAction()], errors: errors) {
-            if store.isSubscriptionExempt && !sub.active {
-                Banner(symbol: "free-trial-days", tint: VC.brandDeep, background: VC.brand.opacity(0.08), border: Color(hex: 0xC9DEE6), textColor: VC.brandDeep,
-                       text: md("**\(AppStore.exemptLine).** VIMS master admin accounts don\u{2019}t need a free trial or a subscription."))
-                    .padding(.bottom, 14)
-            } else if !sub.active {
-                Banner(symbol: "free-trial-days", tint: VC.brandDeep, background: VC.brand.opacity(0.08), border: Color(hex: 0xC9DEE6), textColor: VC.brandDeep,
-                       text: md(sub.subscriptionEnded
-                                ? "**Your yearly subscription ended on \(sub.endedAt.map { Fmt.date($0, "MMM d, yyyy") } ?? "").** Subscribe again to start new inspections — your existing inspections and reports stay available."
-                                : sub.trialEnded
-                                ? "**Your free trial has ended.** Subscribe to start new inspections — your existing inspections and reports stay available."
-                                : "**Free trial — \(sub.trialDaysLeft) days left.** Set up your subscription now so access continues automatically when the trial ends."))
-                    .padding(.bottom, 14)
+        Screen(title: "Subscription", actions: [store.homeAction()]) {
+            statusBanner
+            switch purchases.productsState {
+            case .idle, .loading:
+                HStack(spacing: 10) {
+                    ProgressView()
+                    Text("Loading plans…").font(VFont.ui(13.5)).foregroundStyle(VC.ink3)
+                }
+                .frame(maxWidth: .infinity, minHeight: 80)
+            case .unavailable:
+                loadFailed
+            case .loaded:
+                plans
             }
-            SectionLabel(text: "Choose your plan", top: 2)
-            if sub.plans.contains(where: \.hasYearly) { periodPicker }
-            ForEach(sub.plans, id: \.id) { p in planRow(p) }
-            SectionLabel(text: "Inspector seats")
-            // Seats never go below the current team (people with an email); − only removes open seats added with +.
-            let teamSize = max(1, store.company.inspectors.filter { !$0.email.isEmpty || $0.owner }.count)
-            CounterRow(label: "Inspectors on this license", value: Binding(
-                get: { store.seats() },
-                set: { v in
-                    let cur = store.company.inspectors.count
-                    if v > cur { store.state.company.inspectors.append(Inspector(name: "Inspector \(cur + 1)", email: "")) }
-                    else if v < cur, let last = store.company.inspectors.last(where: { !$0.owner && $0.email.isEmpty }) { store.removeInspector(last.id) }
-                }), range: min(teamSize, StepperLimits.seats.upperBound)...StepperLimits.seats.upperBound)
-            Text(md(chosenPlan?.isPerReport == true
-                    ? "Pay per report has no inspector fee — each report is **\(Fmt.money(chosenPlan?.price ?? 0))**."
-                    : "First inspector included · each additional **\(Fmt.money(sub.extraRate(period)))\(period.unit)** (billed \(period.label.lowercased()))"))
-                .font(VFont.ui(12)).foregroundStyle(VC.ink3).padding(.horizontal, 2).padding(.top, 2)
+            portal
+            footer
+        }
+        .task {
+            await purchases.loadProducts()
+            await purchases.refresh()
+        }
+    }
+
+    @ViewBuilder private var statusBanner: some View {
+        if let text = PlanStatusText.banner(store) {
+            Banner(symbol: "free-trial-days", tint: VC.brandDeep, background: VC.brand.opacity(0.08), border: Color(hex: 0xC9DEE6), textColor: VC.brandDeep,
+                   text: md(text))
+                .padding(.bottom, 14)
+        }
+    }
+
+    private var loadFailed: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Plans can\u{2019}t load right now. Check your connection and try again.")
+                .font(VFont.ui(14)).foregroundStyle(VC.ink2).lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
-            HStack {
-                Text(chosenPlan?.isPerReport == true ? "Billing" : period.totalLabel).font(VFont.ui(15, .bold)).foregroundStyle(VC.ink)
-                Spacer()
-                Text(sub.totalLabel(plan: chosenPlan, period: period, seats: store.seats())).font(VFont.mono(22, .semibold)).foregroundStyle(VC.brand)
-                    .minimumScaleFactor(0.7).lineLimit(1)
-            }
-            .vCard()
-            .padding(.top, 14)
+            Button("Try again") { Task { await purchases.loadProducts(); await purchases.refresh() } }
+                .buttonStyle(.vPrimary)
+        }
+        .vCard()
+    }
 
-            SectionLabel(text: "Payment — via Square")
-                .overlay(alignment: .bottomTrailing) { if !usingSavedCard { RequiredHint().fixedSize().padding(.bottom, 4) } }
-            if let saved = savedCard {
-                cardChoice(saved)
+    @ViewBuilder private var plans: some View {
+        let hasSub = StorePlanOption.monthly.product(purchases) != nil || StorePlanOption.yearly.product(purchases) != nil
+        if hasSub {
+            SectionLabel(text: planName("app", "App only"), top: 2)
+            ForEach([StorePlanOption.monthly, .yearly].filter { $0.product(purchases) != nil }, id: \.self) { optionRow($0) }
+        }
+        if purchases.reportCredit != nil {
+            SectionLabel(text: planName("payg", "Pay per report"), top: hasSub ? 10 : 2)
+            optionRow(.credit)
+        }
+        if let chosen {
+            Text(disclosure).font(VFont.ui(12)).foregroundStyle(VC.ink3).lineSpacing(2)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 2).padding(.top, 4)
+            if let failure { FieldError(text: failure).padding(.top, 10) }
+            if let notice {
+                Text(notice).font(VFont.ui(12.5)).foregroundStyle(VC.brandDeep)
+                    .fixedSize(horizontal: false, vertical: true).padding(.top, 10)
             }
-            if !usingSavedCard {
-                cardForm
+            Button { buy(chosen) } label: {
+                if busy { ProgressView().tint(.white) } else { IconLabel(ctaTitle(chosen), icon: "link-my-account") }
             }
-            HStack(spacing: 8) {
-                ProtoIcon("secured-by-square", size: 14)
-                Text(chosenPlan?.isPerReport == true ? "Secured by Square · billed per report · cancel anytime"
-                     : "Secured by Square · auto-renews \(period.label.lowercased()) · cancel anytime").font(VFont.ui(12))
-            }
-            .foregroundStyle(VC.ink3).padding(.horizontal, 2).padding(.top, 8)
-            Button { start() } label: {
-                if busy { ProgressView().tint(.white) } else { IconLabel(sub.active ? "Update subscription" : "Start subscription", icon: "link-my-account") }
-            }
-            .buttonStyle(.vPrimary).padding(.top, 16)
+            .buttonStyle(.vPrimary)
             .disabled(busy)
-        }
-        .onAppear {
-            #if DEBUG
-            if let v = DebugLaunch.value("-period") { periodChoice = BillingPeriod(rawValue: v) }
-            if let v = DebugLaunch.value("-plan") { planID = v }
-            #endif
-            if DebugFlags.validate { DebugFlags.validate = false; useDifferentCard = true; card = FieldKind.cardNumber.filter("4242424242424241"); expiry = "01/24"; cvc = "12"; start() }
+            .padding(.top, 14)
         }
     }
 
-    /// Monthly / Yearly (client Oct 28). Plans without a yearly price (Pay per report) are monthly / per report only.
-    private var periodPicker: some View {
-        let yearlyOK = chosenPlan?.hasYearly == true
-        return VStack(alignment: .leading, spacing: 6) {
-            Picker("Billing period", selection: Binding(get: { period }, set: { periodChoice = $0 })) {
-                ForEach(BillingPeriod.allCases, id: \.self) { Text($0.label).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            .disabled(!yearlyOK)
-            if !yearlyOK, let p = chosenPlan {
-                Text("\(p.name) has no yearly option.").font(VFont.ui(12)).foregroundStyle(VC.ink3)
-            }
-        }
-        .padding(.bottom, 12)
+    /// Spec text, Apple Account on iOS.
+    private var disclosure: String {
+        "Payment is charged to your Apple Account. Subscriptions renew automatically unless canceled at least 24 hours before the end of the current period. Manage or cancel in your account settings."
     }
 
-    private func planRow(_ p: PlanDef) -> some View {
-        let on = chosenPlan?.id == p.id
-        let soon = p.isComingSoon
-        return Button { planID = p.id } label: {
+    private func planName(_ id: String, _ fallback: String) -> String {
+        store.config.subscription.plans.first { $0.id == id }?.name ?? fallback
+    }
+
+    private func ctaTitle(_ option: StorePlanOption) -> String {
+        switch option {
+        case .credit: return "Buy report credit"
+        case .monthly: return currentOption == nil ? "Subscribe" : "Switch to monthly"
+        case .yearly: return currentOption == nil ? "Subscribe" : "Switch to yearly"
+        }
+    }
+
+    private func optionRow(_ option: StorePlanOption) -> some View {
+        let isCurrent = option == currentOption
+        let on = chosen == option
+        return Button { choice = option; failure = nil; notice = nil } label: {
             HStack(spacing: 13) {
                 Circle().stroke(on ? VC.brand : VC.line, lineWidth: 2).frame(width: 22, height: 22)
                     .overlay(Circle().fill(on ? VC.brand : .clear).frame(width: 11, height: 11))
-                    .opacity(soon ? 0.4 : 1)
+                    .opacity(isCurrent ? 0.4 : 1)
                 VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 7) {
-                        Text(p.name).font(VFont.ui(15, .bold)).foregroundStyle(soon ? VC.ink2 : VC.ink)
-                        if soon { Pill(kind: .queued, text: "Coming soon", dot: false) }
-                    }
-                    Text(p.desc).font(VFont.ui(12.5)).foregroundStyle(VC.ink3)
+                    Text(option.product(purchases)?.displayName ?? option.fallbackTitle).font(VFont.ui(15, .bold)).foregroundStyle(VC.ink)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(option.length).font(VFont.ui(12.5)).foregroundStyle(VC.ink3)
                         .multilineTextAlignment(.leading)
                         .fixedSize(horizontal: false, vertical: true)
-                    if soon {
-                        Text("Not available yet — you can\u{2019}t choose this plan until it launches.")
-                            .font(VFont.ui(11.5)).foregroundStyle(VC.ink3)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .padding(.top, 3)
+                    if isCurrent { Pill(kind: .done, text: "Current plan").padding(.top, 3) }
+                    if option == .credit, purchases.credits > 0 {
+                        Text(creditsLine).font(VFont.ui(12.5, .semibold)).foregroundStyle(VC.brandDeep).padding(.top, 2)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                VStack(alignment: .trailing, spacing: 2) {
-                    priceText(p, p.hasYearly ? period : .monthly, big: true)
-                    if p.hasYearly { Text("or \(SubscriptionState.priceLabel(p, period == .yearly ? .monthly : .yearly))").font(VFont.mono(10.5)).foregroundStyle(VC.ink3) }
-                }
-                .opacity(soon ? 0.6 : 1)
+                Text(option.priceLabel(purchases) ?? "").font(VFont.mono(15, .semibold)).foregroundStyle(VC.ink)
+                    .lineLimit(1).minimumScaleFactor(0.7)
             }
             .padding(.horizontal, 16).padding(.vertical, 15)
-            .background(soon ? VC.paper2 : VC.paper)
+            .background(VC.paper)
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(on ? VC.brand : VC.line, style: StrokeStyle(lineWidth: 1.5, dash: soon ? [5, 4] : [])))
+            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(on ? VC.brand : VC.line, lineWidth: 1.5))
             .shadow(color: on ? VC.brand.opacity(0.13) : .clear, radius: 3)
         }
         .buttonStyle(ChipPressStyle())
-        .disabled(soon)
+        .disabled(isCurrent)
         .padding(.bottom, 10)
         .accessibilityAddTraits(on ? .isSelected : [])
-        .accessibilityHint(soon ? "Coming soon. Not available yet." : "")
     }
 
-    private func priceText(_ p: PlanDef, _ per: BillingPeriod, big: Bool) -> Text {
-        let unit = p.isPerReport ? (p.unit ?? "/report") : per.unit
-        return Text(Fmt.money(SubscriptionState.price(p, per))).font(VFont.mono(15, .semibold)).foregroundColor(VC.ink)
-            + Text(unit).font(VFont.mono(11)).foregroundColor(VC.ink3)
+    private var creditsLine: String {
+        "You have \(purchases.credits) report credit\(purchases.credits == 1 ? "" : "s") on this device."
     }
 
-    /// "Visa •••• 4242 (exp 08/28)" with Use this card / Use a different card.
-    private func cardChoice(_ saved: CardOnFile) -> some View {
-        VStack(spacing: 0) {
-            radioRow(title: "Use this card", detail: saved.display, on: !useDifferentCard) { useDifferentCard = false }
-            Rectangle().fill(VC.line2).frame(height: 1)
-            radioRow(title: "Use a different card", detail: nil, on: useDifferentCard) { useDifferentCard = true }
-        }
-        .background(VC.paper)
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(VC.line, lineWidth: 1))
-        .padding(.bottom, 13)
-    }
-
-    private func radioRow(title: String, detail: String?, on: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 13) {
-                Circle().stroke(on ? VC.brand : VC.line, lineWidth: 2).frame(width: 22, height: 22)
-                    .overlay(Circle().fill(on ? VC.brand : .clear).frame(width: 11, height: 11))
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title).font(VFont.ui(15, .bold)).foregroundStyle(VC.ink)
-                    if let detail { Text(detail).font(VFont.mono(13, .medium)).foregroundStyle(VC.ink2) }
+    /// Portal + App stays Coming soon and can't be bought.
+    @ViewBuilder private var portal: some View {
+        if let p = store.config.subscription.plans.first(where: \.isComingSoon) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 7) {
+                    Text(p.name).font(VFont.ui(15, .bold)).foregroundStyle(VC.ink2)
+                    Pill(kind: .queued, text: "Coming soon", dot: false)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                Text(p.desc).font(VFont.ui(12.5)).foregroundStyle(VC.ink3)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("Not available yet \u{2014} you can\u{2019}t choose this plan until it launches.")
+                    .font(VFont.ui(11.5)).foregroundStyle(VC.ink3)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 3)
             }
-            .padding(.horizontal, 16).padding(.vertical, 14)
-            .frame(minHeight: 52)
-            .contentShape(Rectangle())
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 16).padding(.vertical, 15)
+            .background(VC.paper2)
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(VC.line, style: StrokeStyle(lineWidth: 1.5, dash: [5, 4])))
+            .padding(.top, 16)
         }
-        .buttonStyle(ChipPressStyle())
-        .accessibilityAddTraits(on ? .isSelected : [])
     }
 
-    @ViewBuilder private var cardForm: some View {
-            // Placeholder card form until Square's In-App Payments SDK card entry replaces it (TODO(backend)).
-            VTextField(label: "Card number", text: $card, placeholder: "1234 5678 9012 3456",
-                       keyboard: .numberPad, contentType: .creditCardNumber, capitalization: .never,
-                       kind: .cardNumber, fieldID: "card", errors: errors, trailing: brand.rawValue, required: true)
-            HStack(alignment: .top, spacing: 10) {
-                VTextField(label: "Expiry", text: $expiry, placeholder: "MM/YY",
-                           keyboard: .numberPad, contentType: .creditCardExpiration, capitalization: .never, bottom: 0,
-                           kind: .expiry, fieldID: "expiry", errors: errors, required: true)
-                VTextField(label: "CVC", text: $cvc, placeholder: brand == .amex ? "1234" : "123",
-                           keyboard: .numberPad, contentType: .creditCardSecurityCode, capitalization: .never, bottom: 0,
-                           kind: .cvc(amex: brand == .amex), fieldID: "cvc", errors: errors, required: true)
+    private var footer: some View {
+        VStack(spacing: 10) {
+            Button { restore() } label: {
+                if restoring { ProgressView() } else { Text("Restore Purchases") }
             }
-            .padding(.bottom, 13)
-            VTextField(label: "Cardholder name", text: $holder, placeholder: "Name on card", contentType: .name, capitalization: .words,
-                       kind: .personName, fieldID: "holder", errors: errors, required: true)
-            // US ZIP or a Canadian / UK postal code: letters, digits, space and "-", uppercased, 3–10 characters.
-            VTextField(label: "Billing ZIP / postal code", text: $zip, placeholder: "84015", keyboard: .default, contentType: .postalCode,
-                       capitalization: .characters, bottom: 0, kind: .zip, fieldID: "zip", errors: errors, required: true)
-    }
-
-    private func start() {
-        if usingSavedCard, let saved = savedCard {
-            errors.clear()
-            run(.cardOnFile(saved))
-            return
+            .buttonStyle(.vGhost)
+            .disabled(restoring)
+            Button("Manage subscription") { Task { await purchases.showManageSubscriptions() } }
+                .buttonStyle(.vGhost)
+            StoreLegalLinks()
         }
-        let amex = brand == .amex
-        let fields: [(id: String, value: String, rule: FieldRule)] = [
-            ("card", card, .req(.cardNumber, "Card number")),
-            ("expiry", expiry, .req(.expiry, "Expiry")),
-            ("cvc", cvc, .req(.cvc(amex: amex), "CVC")),
-            ("holder", holder, .req(.personName, "Cardholder name")),
-            ("zip", zip, .req(.zip, "Billing ZIP / postal code"))
-        ]
-        guard errors.validate(fields) else { return }
-        run(.newCard(CardEntry(number: card, expiry: expiry, cvc: cvc, name: holder, zip: zip)))
+        .padding(.top, 16)
     }
 
-    private func run(_ payment: SubscriptionPayment) {
-        busy = true
+    private func buy(_ option: StorePlanOption) {
+        guard let product = option.product(purchases) else { return }
+        busy = true; failure = nil; notice = nil
         Task {
-            do {
-                guard let plan = chosenPlan else { throw ServiceError.invalid("Choose a plan") }
-                try await store.startSubscription(planID: plan.id, period: period, payment: payment)
-                card = ""; expiry = ""; cvc = ""; holder = ""; zip = ""
-                useDifferentCard = false
-                store.push(.subscriptionStarted)
-            } catch {
-                errors.set("card", error.localizedDescription)
-            }
+            let outcome = await purchases.purchase(product)
             busy = false
+            switch outcome {
+            case .purchased:
+                if option == .credit {
+                    store.toast("Report credit added")
+                    choice = nil
+                } else {
+                    store.push(.subscriptionStarted)
+                }
+            case .pending:
+                notice = "Waiting for approval. It\u{2019}s added as soon as it\u{2019}s approved."
+            case .cancelled:
+                break
+            case .failed(let message):
+                failure = message
+            }
         }
     }
+
+    private func restore() {
+        restoring = true; failure = nil; notice = nil
+        Task {
+            switch await purchases.restore() {
+            case .restored: store.toast("Your subscription is restored")
+            case .nothingFound: store.toast("No subscription to restore on this Apple Account")
+            case .cancelled: break
+            case .failed(let message): failure = message
+            }
+            restoring = false
+        }
+    }
+}
+
+/// License agreement (in-app) and Privacy Policy, required next to a subscription purchase.
+struct StoreLegalLinks: View {
+    @Environment(AppStore.self) private var store
+    @Environment(\.openURL) private var openURL
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 18) { eula; privacy }
+            VStack(spacing: 0) { eula; privacy }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var eula: some View {
+        Button { store.push(.eula) } label: { linkText("License agreement") }.buttonStyle(.plain)
+    }
+
+    private var privacy: some View {
+        Button {
+            if let url = URL(string: "https://vimsinspect.com/privacy.html") { openURL(url) }
+        } label: { linkText("Privacy Policy") }
+        .buttonStyle(.plain)
+    }
+
+    private func linkText(_ t: String) -> some View {
+        Text(t).font(VFont.ui(13, .medium)).foregroundStyle(VC.brandDeep).underline()
+            .frame(minHeight: 44).contentShape(Rectangle())
+    }
+}
+
+/// Wording shared by the plans screen, Plan & billing, Settings and the trial prompts.
+@MainActor
+enum PlanStatusText {
+    static func optionName(_ store: AppStore, _ productID: String?) -> String {
+        let p = store.purchases
+        if productID == p.ids?.yearly { return "Yearly" }
+        if productID == p.ids?.monthly { return "Monthly" }
+        return ""
+    }
+
+    static func day(_ date: Date?) -> String {
+        date.map { Fmt.date($0, "MMM d, yyyy").replacingOccurrences(of: " ", with: "\u{00A0}") } ?? ""
+    }
+
+    /// The plans screen's lead line.
+    static func banner(_ store: AppStore) -> String? {
+        let p = store.purchases, sub = store.subscription
+        if store.hasStoreSubscription {
+            if p.status.hasBillingIssue { return billingIssue }
+            if p.isOfflineHold { return offlineHold }
+            return nil
+        }
+        if store.isSubscriptionExempt {
+            return "**\(AppStore.exemptLine).** VIMS master admin accounts don\u{2019}t need a free trial or a subscription."
+        }
+        if !sub.trialEnded {
+            return "**Free trial \u{2014} \(sub.trialDaysLeft) days left.** Set up your subscription any time. Billing starts when you subscribe."
+        }
+        if p.status.lapsed {
+            return "**Your subscription ended on \(day(p.status.expiresAt)).** Subscribe or buy a report credit to start new inspections \u{2014} your existing inspections and reports stay available."
+        }
+        return "**Your free trial has ended.** Subscribe or buy a report credit to start new inspections \u{2014} your existing inspections and reports stay available."
+    }
+
+    static let billingIssue = "**Apple couldn\u{2019}t renew your subscription.** Update your payment method in your account settings to keep it. Access continues for now."
+    static let offlineHold = "**Can\u{2019}t reach the App Store right now.** Using your last known subscription status."
 }
 
 struct SubscriptionStartedView: View {
     @Environment(AppStore.self) private var store
     var body: some View {
-        let sub = store.subscription
-        let p = sub.plan(sub.selectedPlan)
-        let plan = p?.name ?? "App"
-        // Client Oct 28: the confirmation shows the period chosen ("billed yearly · $935.00/yr").
-        let billed = p?.isPerReport == true ? "billed per report · \(sub.totalLabel(seats: store.seats()))"
-            : "billed \(sub.period.label.lowercased()) · \(sub.totalLabel(seats: store.seats()))"
+        let name = store.config.subscription.plans.first { $0.id == "app" }?.name ?? "App"
         Screen(title: "Subscription active", actions: [store.homeAction()]) {
             SuccessBlock(title: "Subscription active",
-                         message: AttributedString("Your \(plan) plan (\(billed)) is set up with auto-pay through Square. Access continues after your trial with no interruption.")) {
+                         message: AttributedString("Your \(name) plan is active. It renews automatically through your Apple Account.")) {
                 Button("View subscription") { store.path = [.settings, .billing] }.buttonStyle(.vPrimary)
                 Button("Back to inspections") { store.goHome() }.buttonStyle(.vGhost)
             }
@@ -1324,18 +1414,17 @@ struct SubscriptionStartedView: View {
 
 struct BillingView: View {
     @Environment(AppStore.self) private var store
-    @State private var confirmCancel = false
-    @State private var busy = false
+    @State private var restoring = false
+    @State private var failure: String?
+
+    private var purchases: StoreKitSubscriptionService { store.purchases }
 
     var body: some View {
         let sub = store.subscription
-        let plan = sub.plan(sub.selectedPlan)
-        let seats = store.seats()
-        let periodEnd = Fmt.date(sub.nextBillingDate, "MMM d, yyyy").replacingOccurrences(of: " ", with: "\u{00A0}")  // keep the date on one line
-        let endedOn = sub.endedAt.map { Fmt.date($0, "MMM d, yyyy").replacingOccurrences(of: " ", with: "\u{00A0}") } ?? ""
-        let yearly = sub.period == .yearly && plan?.isPerReport != true
+        let status = purchases.status
+        let subscribed = store.hasStoreSubscription
         Screen(title: "Subscription", actions: [store.homeAction()]) {
-            if store.isSubscriptionExempt && !sub.active {
+            if store.isSubscriptionExempt && !subscribed {
                 // Client Oct 28: master admins have no trial or plan to show.
                 VStack(alignment: .leading, spacing: 6) {
                     Text(AppStore.exemptLine).font(VFont.ui(15, .bold)).foregroundStyle(VC.ink)
@@ -1346,148 +1435,105 @@ struct BillingView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .vCard()
                 .padding(.bottom, 12)
-                if store.isAdmin {
-                    Button { store.push(.inspectors) } label: { IconLabel("Manage inspectors", icon: "manage-inspectors-h") }
-                        .buttonStyle(.vGhost)
-                }
+                if store.isAdmin { manageInspectors }
             } else {
-            VStack(spacing: 0) {
-                row("Status") {
-                    if sub.cancelled { Pill(kind: .queued, text: "Cancelled · active until \(periodEnd)") }
-                    else if sub.active { Pill(kind: .done, text: "Active · auto-pay") }
-                    else if sub.subscriptionEnded { Pill(kind: .queued, text: "Cancelled · ended \(endedOn)") }
-                    else if sub.trialEnded { Pill(kind: .queued, text: "Trial ended") }
-                    else { Pill(kind: .queued, text: "Trial · \(sub.trialDaysLeft)d left") }
+                if subscribed, let text = PlanStatusText.banner(store) {
+                    Banner(text: md(text)).padding(.bottom, 12)
                 }
-                row("Plan") { Text("\(plan?.name ?? "") · \(plan.map { SubscriptionState.priceLabel($0, sub.period) } ?? "")").font(VFont.ui(14, .bold)).foregroundStyle(VC.ink)
-                    .multilineTextAlignment(.trailing) }
-                if plan?.perReport != true {
-                    // Client Oct 28: monthly or yearly; extra inspectors follow the company's period.
-                    row("Billing period") { Text(sub.period.label).font(VFont.ui(14, .bold)).foregroundStyle(VC.ink) }
-                    row("Inspectors") { Text("\(seats) (\(max(0, seats - 1)) × \(Fmt.money(sub.extraRate(sub.period)))\(sub.period.unit))").font(VFont.ui(14, .bold)).foregroundStyle(VC.ink) }
-                }
-                row(plan?.perReport == true ? "Billing" : sub.period.totalLabel) { Text(sub.totalLabel(seats: seats)).font(VFont.ui(14, .bold)).foregroundStyle(VC.ink) }
-                row("Payment") { Text(sub.active || sub.subscriptionEnded ? (sub.cardOnFile?.display ?? sub.paymentLabel ?? "Square") : "Not set up").font(VFont.ui(14, .bold)).foregroundStyle(VC.ink) }
-                if sub.subscriptionEnded {
-                    // EULA 4.1 / 12.4: a cancelled yearly plan ends on the cancellation date, with a pro-rated refund.
-                    row("Access ended") { Text(endedOn).font(VFont.ui(14, .bold)).foregroundStyle(VC.ink) }
-                    row("Pro-rated refund", last: true) {
-                        Text(Fmt.money(sub.refundAmount ?? 0)).font(VFont.ui(14, .bold)).foregroundStyle(VC.ink)
-                    }
-                } else {
-                    row(sub.cancelled ? "Active until" : sub.active ? "Next billing" : sub.trialEnded ? "Trial" : "Trial ends", last: true) {
-                        Text(sub.active ? periodEnd : sub.trialEnded ? "Ended" : "in \(sub.trialDaysLeft) days").font(VFont.ui(14, .bold)).foregroundStyle(VC.ink)
-                    }
-                }
-            }
-            .background(VC.paper)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(VC.line, lineWidth: 1))
-            .padding(.bottom, 12)
-            Button { store.push(.inspectors) } label: { IconLabel("Manage inspectors", icon: "manage-inspectors-h") }
-                .buttonStyle(.vGhost)
-            Button(sub.active ? "Change plan / payment" : "Set up subscription") { store.push(.subscribe) }
-                .buttonStyle(VButtonStyle(kind: sub.active ? .ghost : .primary))
-                .padding(.top, 10)
-
-            if sub.subscriptionEnded {
-                Text(endedNote(sub, endedOn: endedOn))
-                    .font(VFont.ui(13)).foregroundStyle(VC.ink2).lineSpacing(3)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .vCard()
-                    .padding(.top, 14)
-            }
-
-            // EULA 2026-10-28, 4.1 / 12.3 / 12.4 — monthly: cancel at the end of the billing period; yearly: access ends on
-            // the cancellation date with a pro-rated refund. Owner/admin only; not shown during the trial.
-            if sub.active && store.isAdmin {
-                if sub.cancelled {
-                    Text("Your subscription is cancelled and stays active until \(Text(periodEnd).font(VFont.ui(13, .bold)).foregroundStyle(VC.ink)). Download anything you need within 30 days after it ends.")
-                        .font(VFont.ui(13)).foregroundStyle(VC.ink2).lineSpacing(3)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .vCard()
-                        .padding(.top, 14)
-                    Button { run { try await store.resumeSubscription() } } label: { busyLabel("Undo cancellation", tint: VC.ink) }
-                        .buttonStyle(.vGhost)
-                        .disabled(busy)
-                        .padding(.top, 10)
-                } else if confirmCancel {
-                    VStack(alignment: .leading, spacing: 2) {
-                        if yearly {
-                            let r = sub.proratedRefund(seats: seats)
-                            let today = Fmt.date(Date(), "MMM d, yyyy").replacingOccurrences(of: " ", with: "\u{00A0}")
-                            Text("Cancel your yearly subscription?").font(VFont.ui(13, .bold)).foregroundStyle(VC.ink)
-                            Text("Yearly plans end on the cancellation date, so your access ends today (\(Text(today).font(VFont.ui(13, .bold)))) and you won\u{2019}t be able to start new inspections. A pro-rated refund of \(Text(Fmt.money(r.amount)).font(VFont.ui(13, .bold)).foregroundStyle(VC.ink)) for the \(r.daysLeft) unused day\(r.daysLeft == 1 ? "" : "s") will be refunded to your card\(sub.cardOnFile.map { " (\($0.brand) ending in \($0.last4))" } ?? ""). Your existing inspections and reports stay available. Download anything you need within 30 days.")
-                                .font(VFont.ui(13)).foregroundStyle(VC.ink2).lineSpacing(3)
-                                .fixedSize(horizontal: false, vertical: true)
-                            Text("\(Fmt.money(r.paid)) paid \u{00D7} \(r.daysLeft) days remaining \u{00F7} \(r.daysInPeriod) days in the period = \(Fmt.money(r.amount))")
-                                .font(VFont.ui(12)).foregroundStyle(VC.ink3)
-                                .fixedSize(horizontal: false, vertical: true)
-                                .padding(.top, 8)
-                                .accessibilityLabel("Refund: \(Fmt.money(r.paid)) paid, times \(r.daysLeft) days remaining, divided by \(r.daysInPeriod) days in the period, equals \(Fmt.money(r.amount))")
-                        } else {
-                            Text("Cancel your subscription?").font(VFont.ui(13, .bold)).foregroundStyle(VC.ink)
-                            Text("Monthly plans stay active until the next billing date (\(Text(periodEnd).font(VFont.ui(13, .bold)))), then stop renewing. There is no refund for the rest of the month. Download anything you need within 30 days after it ends.")
-                                .font(VFont.ui(13)).foregroundStyle(VC.ink2).lineSpacing(3)
-                                .fixedSize(horizontal: false, vertical: true)
+                VStack(spacing: 0) {
+                    row("Status") { statusPill(subscribed: subscribed, sub: sub) }
+                    if subscribed {
+                        row("Plan") { boldText(planLine(status.productID)) }
+                        row("Payment") { boldText("Apple Account") }
+                        // Billing retry has no date to promise: the store retries until it gives up.
+                        if status.state != .billingRetry {
+                            row(status.state == .gracePeriod ? "Grace period until" : status.willAutoRenew ? "Renews" : "Active until") { boldText(PlanStatusText.day(status.expiresAt)) }
                         }
+                        if let pending = status.pendingProductID, !PlanStatusText.optionName(store, pending).isEmpty {
+                            row("Next plan") { boldText("\(PlanStatusText.optionName(store, pending)) on \(PlanStatusText.day(status.expiresAt))") }
+                        }
+                    } else if status.lapsed {
+                        row(status.state == .revoked ? "Refunded" : "Ended") { boldText(PlanStatusText.day(status.expiresAt)) }
+                    } else {
+                        row(sub.trialEnded ? "Trial" : "Trial ends") { boldText(sub.trialEnded ? "Ended" : "in \(sub.trialDaysLeft) days") }
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(EdgeInsets(top: 15, leading: 16, bottom: 15, trailing: 16))
-                    .background(VC.paper)
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(VC.c1, lineWidth: 1))
-                    .padding(.top, 14)
-                    ViewThatFits(in: .horizontal) {
-                        HStack(spacing: 10) { keepButton; yesCancelButton }
-                        VStack(spacing: 10) { yesCancelButton; keepButton }
-                    }
-                    .padding(.top, 10)
-                } else {
-                    Button("Cancel subscription") { withAnimation(.easeOut(duration: 0.2)) { confirmCancel = true } }
-                        .buttonStyle(VButtonStyle(kind: .ghost, tint: VC.c1))
-                        .padding(.top, 10)
+                    row("Report credits", last: true) { boldText("\(purchases.credits)") }
                 }
-            }
+                .background(VC.paper)
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(VC.line, lineWidth: 1))
+                .padding(.bottom, 12)
+                if store.isAdmin { manageInspectors }
+                Button(subscribed ? "Change plan" : "Set up subscription") { store.push(.subscribe) }
+                    .buttonStyle(VButtonStyle(kind: subscribed ? .ghost : .primary))
+                    .padding(.top, 10)
+                Button("Manage subscription") { Task { await purchases.showManageSubscriptions() } }
+                    .buttonStyle(.vGhost)
+                    .padding(.top, 10)
+                Button { restore() } label: {
+                    if restoring { ProgressView() } else { Text("Restore Purchases") }
+                }
+                .buttonStyle(.vGhost)
+                .disabled(restoring)
+                .padding(.top, 10)
+                if let failure { FieldError(text: failure).padding(.top, 8) }
+                Text("Cancel in your Apple Account settings. Refunds follow Apple\u{2019}s rules.")
+                    .font(VFont.ui(12)).foregroundStyle(VC.ink3).lineSpacing(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 2).padding(.top, 10)
             }
         }
-        #if DEBUG
-        .onAppear { if DebugLaunch.has("-confirmCancel") { confirmCancel = true } }
-        #endif
+        .task {
+            await purchases.loadProducts()
+            await purchases.refresh()
+        }
     }
 
-    /// After a yearly cancellation (EULA 4.1 / 12.4).
-    private func endedNote(_ sub: SubscriptionState, endedOn: String) -> AttributedString {
-        let refund = Fmt.money(sub.refundAmount ?? 0)
-        let days = sub.refundDays.map { " for the \($0) unused day\($0 == 1 ? "" : "s")" } ?? ""
-        let card = sub.cardOnFile.map { " (\($0.brand) ending in \($0.last4))" } ?? ""
-        return md("Your yearly subscription was cancelled and access ended on **\(endedOn)**. A pro-rated refund of **\(refund)**\(days) will be refunded to your card\(card). Subscribe again to start new inspections; your existing inspections and reports stay available. Download anything you need within 30 days.")
-    }
-
-    private var keepButton: some View {
-        Button("Keep subscription") { withAnimation(.easeOut(duration: 0.2)) { confirmCancel = false } }
+    private var manageInspectors: some View {
+        Button { store.push(.inspectors) } label: { IconLabel("Manage inspectors", icon: "manage-inspectors-h") }
             .buttonStyle(.vGhost)
     }
 
-    private var yesCancelButton: some View {
-        Button { run { try await store.cancelSubscription() } } label: { busyLabel("Yes, cancel", tint: .white) }
-            .buttonStyle(VButtonStyle(kind: .danger))
-            .disabled(busy)
-    }
-
     @ViewBuilder
-    private func busyLabel(_ title: String, tint: Color) -> some View {
-        if busy { ProgressView().tint(tint) } else { Text(title) }
+    private func statusPill(subscribed: Bool, sub: SubscriptionState) -> some View {
+        let status = purchases.status
+        if subscribed {
+            if status.hasBillingIssue { Pill(kind: .queued, text: "Payment issue") }
+            else if status.willAutoRenew { Pill(kind: .done, text: "Active · renews automatically") }
+            else { Pill(kind: .queued, text: "Canceled · active until \(PlanStatusText.day(status.expiresAt))") }
+        } else if status.state == .revoked {
+            Pill(kind: .queued, text: "Refunded")
+        } else if status.lapsed {
+            Pill(kind: .queued, text: "Ended")
+        } else if sub.trialEnded {
+            Pill(kind: .queued, text: "Trial ended")
+        } else {
+            Pill(kind: .queued, text: "Trial · \(sub.trialDaysLeft)d left")
+        }
     }
 
-    private func run(_ op: @escaping () async throws -> Void) {
-        busy = true
+    /// "App only · Monthly · $34.99/mo"; the price only when the store has answered.
+    private func planLine(_ productID: String?) -> String {
+        let name = store.config.subscription.plans.first { $0.id == "app" }?.name ?? "App only"
+        let option: StorePlanOption = productID == purchases.ids?.yearly ? .yearly : .monthly
+        return [name, PlanStatusText.optionName(store, productID), option.priceLabel(purchases)]
+            .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
+    }
+
+    private func boldText(_ t: String) -> some View {
+        Text(t).font(VFont.ui(14, .bold)).foregroundStyle(VC.ink).multilineTextAlignment(.trailing)
+    }
+
+    private func restore() {
+        restoring = true; failure = nil
         Task {
-            do { try await op() } catch { store.toast(error.localizedDescription) }
-            confirmCancel = false
-            busy = false
+            switch await purchases.restore() {
+            case .restored: store.toast("Your subscription is restored")
+            case .nothingFound: store.toast("No subscription to restore on this Apple Account")
+            case .cancelled: break
+            case .failed(let message): failure = message
+            }
+            restoring = false
         }
     }
 
@@ -1500,5 +1546,96 @@ struct BillingView: View {
         .padding(.horizontal, 15).padding(.vertical, 12)
         .frame(minHeight: 46)
         .overlay(alignment: .bottom) { if !last { Rectangle().fill(VC.line2).frame(height: 1) } }
+    }
+}
+
+// MARK: - Master admin code (shared v1.18 `support.ownerCode`)
+
+struct OwnerCodeView: View {
+    @Environment(AppStore.self) private var store
+    @State private var code = ""
+    @State private var errors = FormErrors()
+    @State private var busy = false
+
+    var body: some View {
+        Screen(title: "Master admin code", actions: [store.homeAction()], errors: errors) {
+            HintText(text: "Enter the master admin code once on this device to turn on the VIMS master admin screens and free access for this account.")
+                .padding(.top, 2).padding(.bottom, 14)
+            VTextField(label: "Master admin code", text: $code, capitalization: .characters, mono: true,
+                       fieldID: "ownerCode", errors: errors, required: true)
+            Button { submit() } label: {
+                if busy { ProgressView().tint(.white) } else { IconLabel("Confirm code", icon: "link-my-account") }
+            }
+            .buttonStyle(.vPrimary)
+            .disabled(busy)
+        }
+    }
+
+    private func submit() {
+        guard !busy else { return }
+        guard !OwnerCode.normalized(code).isEmpty else { errors.set("ownerCode", "That code isn\u{2019}t right."); return }
+        busy = true
+        errors.clear()
+        Task {
+            switch await store.verifyOwnerCode(code) {
+            case .verified:
+                code = ""
+                store.back()
+                store.toast("Master admin access is on")
+            case .wrong:
+                errors.set("ownerCode", "That code isn\u{2019}t right.")
+            case .notSaved:
+                errors.set("ownerCode", "That code is right, but it couldn\u{2019}t be saved on this device. Try again.")
+            }
+            busy = false
+        }
+    }
+}
+
+/// Plans & pricing with `features.planEditing` off: read-only, at store prices.
+private struct StorePricesView: View {
+    @Environment(AppStore.self) private var store
+
+    var body: some View {
+        Screen(title: "Plans & pricing", subtitle: "Master admin", actions: [store.homeAction()]) {
+            Text("Prices are set in App Store Connect and Google Play Console.")
+                .font(VFont.ui(13)).foregroundStyle(VC.ink3).lineSpacing(2)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 2).padding(.bottom, 12)
+            ForEach(store.config.subscription.plans, id: \.id) { p in planCard(p) }
+        }
+        .task { await store.purchases.loadProducts() }
+    }
+
+    private func planCard(_ p: PlanDef) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Text(p.name).font(VFont.ui(14.5, .bold)).foregroundStyle(VC.ink)
+                if p.isComingSoon { Pill(kind: .queued, text: "Coming soon", dot: false) }
+            }
+            if !p.isComingSoon {
+                if p.isPerReport {
+                    priceRow("Per report", .credit, reference: SubscriptionState.priceLabel(p, .monthly))
+                } else {
+                    priceRow("Monthly", .monthly, reference: SubscriptionState.priceLabel(p, .monthly))
+                    priceRow("Yearly", .yearly, reference: SubscriptionState.priceLabel(p, .yearly))
+                }
+            }
+        }
+        .vCard(EdgeInsets(top: 13, leading: 14, bottom: 13, trailing: 14), radius: 13)
+        .padding(.bottom, 11)
+    }
+
+    /// The store price; the JSON's reference price, labeled, only while no store price is available.
+    private func priceRow(_ label: String, _ option: StorePlanOption, reference: String) -> some View {
+        HStack {
+            Text(label).font(VFont.ui(13.5)).foregroundStyle(VC.ink2)
+            Spacer()
+            if let live = option.priceLabel(store.purchases) {
+                Text(live).font(VFont.mono(14, .semibold)).foregroundStyle(VC.ink)
+            } else {
+                Text("\(reference) (reference)").font(VFont.mono(12.5)).foregroundStyle(VC.ink3)
+            }
+        }
     }
 }

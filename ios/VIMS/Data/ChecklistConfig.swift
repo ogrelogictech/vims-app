@@ -37,6 +37,11 @@ struct ChecklistConfig: Decodable {
     var syncEnabled: Bool { features?.sync ?? false }
     /// Data v1.17 `features.reportCopy` (false / absent in Phase 1).
     var reportCopyEnabled: Bool { features?.reportCopy ?? false }
+    /// Data v1.18 `features.companyJoin` (false / absent in Phase 1): no Join a company, no join code, no extra-inspector
+    /// price. The code stays behind the flag for Phase 2.
+    var companyJoinEnabled: Bool { features?.companyJoin ?? false }
+    /// Data v1.18 `features.planEditing` (false / absent in Phase 1): master admin Plans & pricing is read-only, store prices.
+    var planEditingEnabled: Bool { features?.planEditing ?? false }
 
     /// Keys of JSON objects whose order matters but that Swift dictionaries lose.
     var unitMixOrder: [String] = []
@@ -61,7 +66,7 @@ struct ChecklistConfig: Decodable {
 }
 
 /// `features` (v1.10).
-struct FeaturesDef: Decodable { let sync: Bool?; let reportCopy: Bool? }
+struct FeaturesDef: Decodable { let sync: Bool?; let reportCopy: Bool?; let companyJoin: Bool?; let planEditing: Bool? }
 
 /// `states[]` entry (v1.3).
 struct StateDef: Decodable, Hashable { let code: String; let name: String }
@@ -501,6 +506,26 @@ struct SubscriptionDef: Decodable {
     let extraInspectorYearly: Double?
     /// v1.11: ["monthly", "yearly"]. Informational; a plan offers Yearly when it has `priceYearly`.
     let billingPeriods: [String]?
+    /// v1.18: Phase 1 subscriptions are store in-app purchases. Prices always come from the store at runtime.
+    let store: StoreDef?
+}
+
+/// `subscription.store` (v1.18). The access, offline and plans-screen rules are text in the JSON; `AppStore` and
+/// `StoreKitSubscriptionService` implement them.
+struct StoreDef: Decodable {
+    let ios: IOSStoreDef?
+    let storeAppID: String?
+    let testAppID: String?
+}
+
+struct IOSStoreDef: Decodable {
+    let subscriptionGroup: String
+    let monthly: String
+    let yearly: String
+    let reportCredit: String
+
+    var all: [String] { [monthly, yearly, reportCredit] }
+    var subscriptionIDs: Set<String> { [monthly, yearly] }
 }
 
 struct PlanDef: Codable, Hashable {
@@ -536,6 +561,14 @@ struct SupportDef: Decodable {
     let replacedDefaults: ReplacedDefaultsDef?
     /// v1.9.2: the client's vimsinspect.com mailboxes (informational; nothing reads it at runtime).
     let domainEmails: [String: String]?
+    /// v1.18: how a platform-owner account proves it (hash only, see `OwnerCode`). Missing = nothing can verify.
+    let ownerCode: OwnerCodeDef?
+}
+
+struct OwnerCodeDef: Decodable, Sendable {
+    let saltHex: String
+    let iterations: Int
+    let hashHex: String
 }
 
 struct ReplacedDefaultsDef: Decodable {

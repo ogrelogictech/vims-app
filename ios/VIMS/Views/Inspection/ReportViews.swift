@@ -1,6 +1,7 @@
 import SwiftUI
 import PDFKit
 import MessageUI
+import StoreKit
 
 // MARK: - 17 Summary
 
@@ -116,6 +117,9 @@ struct ReportView: View {
     @State private var pageEstimate: Int?
     @State private var generating = false
     @State private var preview: PreviewDoc?
+    /// First report with no subscription, trial or credit (shared v1.18 `reportCredit`): offer the purchase here.
+    @State private var offerCredit = false
+    @State private var buyingCredit = false
     var wide = WideLayout()
 
     var body: some View {
@@ -137,7 +141,36 @@ struct ReportView: View {
             .onAppear {
                 Task { await estimate() }
             }
+            .task {
+                if store.reportUsesCredit(inspectionID) {
+                    await store.purchases.loadProducts()
+                    await store.purchases.refresh()
+                }
+            }
             .documentCover(item: $preview) { doc in PDFPreviewSheet(doc: doc) }
+            .alert("This report needs a report credit", isPresented: $offerCredit) {
+                if let credit = store.purchases.reportCredit {
+                    Button("Buy for \(credit.displayPrice)") { buyCredit(credit) }
+                }
+                Button("See plans") { store.push(.subscribe) }
+                Button("Not now", role: .cancel) {}
+            } message: {
+                Text("One report credit covers this inspection\u{2019}s report, and regenerating it later is free.")
+            }
+        }
+    }
+
+    private func buyCredit(_ credit: Product) {
+        buyingCredit = true
+        Task {
+            let outcome = await store.purchases.purchase(credit)
+            buyingCredit = false
+            switch outcome {
+            case .purchased: await generate()
+            case .pending: store.toast("Waiting for approval")
+            case .cancelled: break
+            case .failed(let message): store.toast(message)
+            }
         }
     }
 
@@ -194,11 +227,18 @@ struct ReportView: View {
             Banner(text: md("You're **offline**. The report generates on the device now; it uploads on the next sync."))
                 .padding(.top, 16)
         }
+        if store.reportUsesCredit(inspectionID) {
+            let n = store.purchases.credits
+            HintText(text: n > 0
+                     ? "This report uses 1 of your \(n) report credit\(n == 1 ? "" : "s"). Regenerating it later is free."
+                     : "This report needs a report credit. Regenerating it later is free.")
+                .padding(.top, 14)
+        }
         Button { Task { await generate() } } label: {
-            if generating { ProgressView().tint(.white) } else { IconLabel("Generate PDF report", icon: "generate-pdf-report") }
+            if generating || buyingCredit { ProgressView().tint(.white) } else { IconLabel("Generate PDF report", icon: "generate-pdf-report") }
         }
         .buttonStyle(.vPrimary)
-        .disabled(generating)
+        .disabled(generating || buyingCredit)
         .padding(.top, 12)
     }
 
@@ -247,10 +287,16 @@ struct ReportView: View {
         let r = await Task.detached(priority: .userInitiated) { ReportRenderer.render(data) }.value
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("VIMS-report-preview.pdf")
         try? r.pdf.write(to: url, options: .atomic)
-        preview = PreviewDoc(url: url, title: "Report preview")
+        // The format preview of a report that still needs a credit can be read but not shared.
+        preview = PreviewDoc(url: url, title: "Report preview", shareable: !store.reportUsesCredit(inspectionID))
     }
 
     private func generate() async {
+        if store.reportUsesCredit(inspectionID), store.purchases.credits < 1 {
+            // Ask the store first: a subscription bought elsewhere means no credit is needed.
+            await store.purchases.refresh()
+            if store.reportUsesCredit(inspectionID) { offerCredit = true; return }
+        }
         generating = true
         let info = await store.generateReport(inspectionID)
         generating = false
@@ -496,6 +542,7 @@ struct PreviewDoc: Identifiable {
     let id = UUID()
     let url: URL
     let title: String
+    var shareable = true
 }
 
 struct PDFPreviewSheet: View {
@@ -513,12 +560,14 @@ struct PDFPreviewSheet: View {
                 .accessibilityLabel("Close")
                 Text(doc.title).font(VFont.display(16, .bold)).foregroundStyle(.white).lineLimit(1)
                 Spacer()
-                ShareLink(item: doc.url) {
-                    ProtoIcon("upload-logo-png", size: 19).foregroundStyle(.white)
-                        .frame(width: 44, height: 44).background(Color.white.opacity(0.12))
-                        .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+                if doc.shareable {
+                    ShareLink(item: doc.url) {
+                        ProtoIcon("upload-logo-png", size: 19).foregroundStyle(.white)
+                            .frame(width: 44, height: 44).background(Color.white.opacity(0.12))
+                            .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+                    }
+                    .accessibilityLabel("Share PDF")
                 }
-                .accessibilityLabel("Share PDF")
             }
             .padding(.horizontal, 12).padding(.vertical, 12)
             .background(VC.hdr.ignoresSafeArea(edges: .top))   // full-screen cover on iPad: blue under the status bar
