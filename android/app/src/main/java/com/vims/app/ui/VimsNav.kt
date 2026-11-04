@@ -38,7 +38,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.vims.app.ui.screens.AdminScreen
-import com.vims.app.ui.screens.BillingScreen
 import com.vims.app.ui.screens.CameraScreen
 import com.vims.app.ui.screens.CompanyScreen
 import com.vims.app.ui.screens.EditSectionScreen
@@ -59,7 +58,6 @@ import com.vims.app.ui.screens.SectionScreen
 import com.vims.app.ui.screens.SectionsScreen
 import com.vims.app.ui.screens.SettingsScreen
 import com.vims.app.ui.screens.SignupScreen
-import com.vims.app.ui.screens.SubStartedScreen
 import com.vims.app.ui.screens.SubscribeScreen
 import com.vims.app.ui.screens.SummaryScreen
 import com.vims.app.ui.screens.TrialSplash
@@ -94,8 +92,6 @@ import kotlinx.serialization.Serializable
 @Serializable object PlansR
 @Serializable object InspectorsR
 @Serializable object SubscribeR
-@Serializable object SubStartedR
-@Serializable object BillingR
 @Serializable object FeedbackAdminR
 @Serializable object ReportBccR
 @Serializable object EulaR
@@ -113,9 +109,7 @@ import kotlinx.serialization.Serializable
 /** Debug-only launch options (adb `--es screen …`), used to open any screen directly for screenshots. */
 data class DebugLaunch(val screen: String, val insp: String?, val section: String?, val cat: String?, val photo: String?, val depth: String?, val splash: Boolean, val step: Int = 1, val coverStep: Int = 1, val eulaVersion: String? = null, val state: String? = null, val cover: String? = null, val inspType: String? = null, val generate: Boolean = false,
     /** Trial QA: `--ez trialEnded true` ends the signed-in company's free look; `--ez resetDeviceTrial true` forgets the device's trial record. */
-    val trialEnded: Boolean = false, val resetDeviceTrial: Boolean = false,
-    /** Billing QA: `--es subscribed yearly|monthly [--ei subscribedDaysAgo 100]` — an active (not cancelled) subscription started N days ago. */
-    val subscribed: String? = null, val subscribedDaysAgo: Int = 0)
+    val trialEnded: Boolean = false, val resetDeviceTrial: Boolean = false)
 
 fun NavHostController.back() { if (!popBackStack()) goHome() }
 fun NavHostController.goHome() = navigate(HomeR) { popUpTo(0) { inclusive = true } }
@@ -161,8 +155,6 @@ fun VimsRoot(vm: AppViewModel, debug: DebugLaunch?) {
             composable<PlansR> { PlansAdminScreen(vm, nav) }
             composable<InspectorsR> { InspectorsScreen(vm, nav) }
             composable<SubscribeR> { SubscribeScreen(vm, nav) }
-            composable<SubStartedR> { SubStartedScreen(vm, nav) }
-            composable<BillingR> { BillingScreen(vm, nav) }
             composable<FeedbackAdminR> { FeedbackAdminScreen(vm, nav) }
             composable<EulaR> { com.vims.app.ui.screens.EulaScreen(vm, nav) }
             composable<ReportBccR> { com.vims.app.ui.screens.ReportBccScreen(vm, nav) }
@@ -172,17 +164,10 @@ fun VimsRoot(vm: AppViewModel, debug: DebugLaunch?) {
         }
 
         TrialSplash(vm, nav)
-        // Client Oct 25: the free look ended without a subscription — new inspections are blocked behind this prompt.
-        if (vm.subscribePrompt.collectAsState().value && session?.platformOwner != true) {
-            val a = vm.account.collectAsState().value
-            // EULA 12.3: an ended (cancelled) subscription — yearly plans end on the cancellation date — gates like an ended trial.
-            val subEnded = a.subscriptionEnded()
-            com.vims.app.ui.components.ConfirmDialog(
-                if (subEnded) "Your subscription has ended" else if (a.trialUsedOnDevice) "Free trial already used" else "Your free trial has ended",
-                if (!subEnded && a.trialUsedOnDevice) "This device's free trial has already been used, so a new company starts without one. Subscribe to start inspections."
-                else "Subscribe to start new inspections. Your saved inspections stay here — you can still open them and share or re-send their reports.",
-                "Subscribe", onConfirm = { vm.closeSubscribePrompt(); nav.navigate(SubscribeR) }, onDismiss = { vm.closeSubscribePrompt() }, dismissLabel = "Not now",
-            )
+        // Shared subscription.store.access: anything that needs access and doesn't have it shows the plans screen.
+        val needPlans by vm.subscribePrompt.collectAsState()
+        LaunchedEffect(needPlans) {
+            if (needPlans) { vm.closeSubscribePrompt(); nav.navigate(SubscribeR) { launchSingleTop = true } }
         }
         // Re-acceptance: eula.json version differs from the signed-in user's accepted version.
         val s = session
@@ -202,7 +187,6 @@ private suspend fun applyDebug(vm: AppViewModel, nav: NavHostController, d: Debu
     if (d.resetDeviceTrial) vm.debugResetDeviceTrial()
     if (d.screen != "login") vm.debugSignIn()
     if (d.trialEnded) vm.debugEndTrial()
-    d.subscribed?.let { vm.debugSubscribe(it, d.subscribedDaysAgo) }
     // "latest" = the most recently created inspection (QA of inspections made in the wizard).
     val id = if (d.insp == "latest") vm.inspections.value.values.maxByOrNull { it.inspection.createdAt }?.id ?: "demo-ridgeline" else d.insp ?: "demo-ridgeline"
     vm.debugApplyAnswers(id)
@@ -238,8 +222,7 @@ private suspend fun applyDebug(vm: AppViewModel, nav: NavHostController, d: Debu
         "plans" -> PlansR
         "inspectors" -> InspectorsR
         "subscribe" -> SubscribeR
-        "substarted" -> SubStartedR
-        "billing" -> BillingR
+        "billing" -> SubscribeR
         "feedbackadmin" -> FeedbackAdminR
         "reportbcc" -> ReportBccR
         "eula" -> EulaR

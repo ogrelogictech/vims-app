@@ -75,7 +75,7 @@ import com.vims.app.util.rememberForm
 fun WizardScreen(vm: AppViewModel, nav: NavHostController, inspId: String?) {
     var started by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(Unit) {
-        // Client Oct 25: no new inspection once the free look has ended without a subscription (any way into the wizard).
+        // Shared subscription.store.access: no new inspection without access, any way into the wizard (shows the plans screen).
         if (inspId == null && !vm.canStartInspection()) { vm.promptSubscribe(); nav.back(); return@LaunchedEffect }
         if (!started) { vm.startWizard(inspId); started = true }
     }

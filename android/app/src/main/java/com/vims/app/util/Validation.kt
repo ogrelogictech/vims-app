@@ -109,12 +109,6 @@ object Filters {
     fun url(v: String) = v.filterNot { it.isWhitespace() }.take(300)
     /** Digits + ".", at most 2 decimals. */
     fun price(v: String): String { val d = decimal(v, 10); val i = d.indexOf('.'); return if (i >= 0) d.take(i + 3) else d }
-    fun cardNumber(v: String): String { val d = v.filter { it.isDigit() }; return d.take(if (CardBrand.of(d) == CardBrand.AMEX) 15 else 19) }
-    /** Expiry digits "MMYY" ([ExpiryTransform] shows "MM/YY"). A leading 2–9 month gets a 0 prefix. */
-    fun expiry(v: String): String { var d = v.filter { it.isDigit() }; if (d.length == 1 && d[0] in '2'..'9') d = "0$d"; return d.take(4) }
-    fun cvc(v: String, amex: Boolean) = v.filter { it.isDigit() }.take(if (amex) 4 else 3)
-    /** Billing ZIP / postal code: letters, digits, space, "-"; uppercase; max 10 (US 84015 / 84015-1234, Canada K1A 0B1, UK SW1A 1AA). */
-    fun postalCode(v: String) = base(v.uppercase(Locale.US).filter { it in 'A'..'Z' || it.isDigit() || it == ' ' || it == '-' }, 10)
     fun sectionName(v: String) = base(v, 60)
     fun question(v: String) = base(v, 120)
     fun option(v: String) = base(v, 60)
@@ -184,19 +178,6 @@ object Limits {
     }
     /** Min for a checklist `num` item: Septic "System number" starts at 1, everything else allows 0. */
     fun checklistMin(question: String): Double = if (question.trim().equals("System number", ignoreCase = true)) 1.0 else 0.0
-}
-
-enum class CardBrand(val label: String) {
-    VISA("Visa"), MASTERCARD("Mastercard"), AMEX("American Express"), DISCOVER("Discover"), UNKNOWN("");
-    companion object {
-        fun of(digits: String): CardBrand = when {
-            digits.startsWith("34") || digits.startsWith("37") -> AMEX
-            digits.startsWith("4") -> VISA
-            digits.take(2).toIntOrNull() in 51..55 || digits.take(4).toIntOrNull() in 2221..2720 -> MASTERCARD
-            digits.startsWith("6011") || digits.startsWith("65") || digits.take(3).toIntOrNull() in 644..649 -> DISCOVER
-            else -> UNKNOWN
-        }
-    }
 }
 
 /** On-submit checks. Each returns an error message, or null when the value is fine. */
@@ -277,34 +258,6 @@ object Checks {
         existing.any { it.equals(v.trim(), ignoreCase = true) } -> "That option is already on this question"
         else -> null
     }
-
-    // ---- card entry (placeholder until Square's card SDK)
-    fun luhn(d: String): Boolean {
-        var sum = 0; var alt = false
-        for (i in d.indices.reversed()) { var n = d[i] - '0'; if (alt) { n *= 2; if (n > 9) n -= 9 }; sum += n; alt = !alt }
-        return d.isNotEmpty() && sum % 10 == 0
-    }
-    fun cardNumber(d: String): String? {
-        if (d.isEmpty()) return "Enter the card number"
-        val amex = CardBrand.of(d) == CardBrand.AMEX
-        if (amex && d.length != 15 || !amex && d.length !in 13..19) return "Enter the full card number"
-        return if (!luhn(d)) "That card number isn't valid" else null
-    }
-    fun expiry(d: String, today: LocalDate = LocalDate.now()): String? {
-        if (d.length != 4) return "Enter the expiry as MM/YY"
-        val m = d.take(2).toInt(); val y = 2000 + d.drop(2).toInt()
-        if (m !in 1..12) return "Enter a month from 01 to 12"
-        val endOfMonth = LocalDate.of(y, m, 1).plusMonths(1).minusDays(1)
-        if (endOfMonth.isBefore(today)) return "This card has expired"
-        if (y > today.year + 20) return "Check the expiry year"
-        return null
-    }
-    fun cvc(d: String, amex: Boolean): String? = if (d.length != (if (amex) 4 else 3)) "Enter the ${if (amex) 4 else 3}-digit security code" else null
-    fun postalCode(v: String): String? = when {
-        v.isBlank() -> "Enter the billing ZIP or postal code"
-        v.trim().length !in 3..10 -> "Enter a valid ZIP or postal code"
-        else -> null
-    }
 }
 
 /* ---------------------------------------------------------------- on-screen formatting */
@@ -332,11 +285,7 @@ fun formatPhone(d: String): String = when {
     d.length <= 6 -> "(${d.take(3)}) ${d.drop(3)}"
     else -> "(${d.take(3)}) ${d.substring(3, 6)}-${d.drop(6)}"
 }
-fun formatCard(d: String): String =
-    if (CardBrand.of(d) == CardBrand.AMEX) listOf(d.take(4), d.drop(4).take(6), d.drop(10)).filter { it.isNotEmpty() }.joinToString(" ")
-    else d.chunked(4).joinToString(" ")
 fun formatJoinCode(raw: String): String = if (raw.length > 3) raw.take(3) + "-" + raw.drop(3) else raw
-fun formatExpiry(d: String): String = if (d.length > 2) d.take(2) + "/" + d.drop(2) else d
 
 /** "450000" (or a stored "450,000") → "450,000"; decimals kept ("1234.5" → "1,234.5"). */
 fun formatGrouped(raw: String): String {
@@ -349,8 +298,6 @@ fun formatGrouped(raw: String): String {
 val PhoneTransform: VisualTransformation = Grouping { if (it.all(Char::isDigit)) formatPhone(it) else it }
 /** Valuation / sq ft show grouping commas while the stored value stays digits (docs: "may also show grouping commas"). */
 val GroupedNumberTransform: VisualTransformation = Grouping(::formatGrouped)
-val CardTransform: VisualTransformation = Grouping(::formatCard)
-val ExpiryTransform: VisualTransformation = Grouping(::formatExpiry)
 
 /* ---------------------------------------------------------------- form state */
 

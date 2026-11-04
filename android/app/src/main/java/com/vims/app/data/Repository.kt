@@ -60,6 +60,10 @@ interface VimsRepository {
     fun photoFile(photo: Photo): File = File(root.parentFile, photo.file)
     /** Company members' profile photos by lowercased email (for the Inspectors list); includes the signed-in user. */
     val memberPhotos: StateFlow<Map<String, String>>
+    /** Lowercased emails of the company's accounts on this device (users rows, unlike the inspectors list). */
+    val memberEmails: StateFlow<Set<String>>
+    /** Shared support.ownerCode was entered: the signed-in account is verified from now on, on this device. */
+    suspend fun verifyOwner()
     /** The signed-in user's own profile photo (relative to filesDir), or null → initials. */
     val userPhoto: StateFlow<String?>
     fun setUserPhoto(relative: String?)
@@ -101,6 +105,8 @@ class RoomRepository(
     private val _platform = MutableStateFlow(PlatformSettings())
     private val _memberPhotos = MutableStateFlow<Map<String, String>>(emptyMap())
     private val _userPhoto = MutableStateFlow<String?>(null)
+    private val _memberEmails = MutableStateFlow<Set<String>>(emptySet())
+    override val memberEmails = _memberEmails.asStateFlow()
     override val memberPhotos = _memberPhotos.asStateFlow()
     override val userPhoto = _userPhoto.asStateFlow()
 
@@ -144,10 +150,12 @@ class RoomRepository(
         val user = dao.user(session.userId)
         val co = dao.company(session.companyId)
         if (user == null || co == null) { clearMemory(); return@withContext }
-        // TODO(backend): the platform-owner flag comes from the server; locally it is `support.platformOwners` in the shared JSON.
+        // Shared support.ownerCode: a platformOwners email is a normal user until the code was entered once for this account on this
+        // device ([verifyOwner]). platformOwner on the session means verified, so every owner check everywhere respects it.
+        // TODO(backend): the platform-owner flag comes from the server.
         val acct = dec(AccountState.serializer(), co.accountJson, AccountState())
         // The role always follows the company's inspectors list (Make admin / Make owner), also for a session restored at launch.
-        @Suppress("NAME_SHADOWING") val session = session.copy(platformOwner = owners.isOwner(user.email), eulaVersion = user.eulaVersion, role = roleIn(acct, session.email, session.role))
+        @Suppress("NAME_SHADOWING") val session = session.copy(platformOwner = owners.isOwner(user.email) && dao.kv(ownerKey(user.id)) != null, eulaVersion = user.eulaVersion, role = roleIn(acct, session.email, session.role))
         val ins = dao.inspectionsFor(user.id)
         val answers = dao.answersFor(user.id).groupBy { it.inspectionId }
         val photos = dao.photosFor(user.id).groupBy { it.inspectionId }
@@ -195,7 +203,9 @@ class RoomRepository(
         if (migratedDefs.isNotEmpty()) android.util.Log.i("VIMS-Checklist", "Planned Maintenance added to ${migratedDefs.size} inspection(s)")
         _inspections.value = bundles
         _userPhoto.value = user.photoFile
-        _memberPhotos.value = dao.usersInCompany(co.id).mapNotNull { u -> u.photoFile?.let { u.email.lowercase() to it } }.toMap()
+        val members = dao.usersInCompany(co.id)
+        _memberPhotos.value = members.mapNotNull { u -> u.photoFile?.let { u.email.lowercase() to it } }.toMap()
+        _memberEmails.value = members.map { it.email.lowercase() }.toSet()
         _session.value = session
         if (persist) dao.putKv(KvEntity(KEY_SESSION, enc(Session.serializer(), session)))
         if (com.vims.app.BuildConfig.DEBUG) android.util.Log.i("VIMS-Session", "activate ${session.email} role=${session.role} masterAdmin=${session.platformOwner}")
@@ -203,7 +213,7 @@ class RoomRepository(
 
     private fun clearMemory() {
         _session.value = null
-        _userPhoto.value = null; _memberPhotos.value = emptyMap()
+        _userPhoto.value = null; _memberPhotos.value = emptyMap(); _memberEmails.value = emptySet()
         _inspections.value = emptyMap()
         _account.value = AccountState(); _company.value = CompanyProfile(); _settings.value = AppSettings(); _edits.value = ChecklistEdits()
     }
@@ -217,6 +227,16 @@ class RoomRepository(
     }
 
     override suspend fun flush() { withContext(writer) {} }
+
+    override suspend fun verifyOwner() = withContext(writer) {
+        val s = _session.value ?: return@withContext
+        if (!owners.isOwner(s.email)) return@withContext
+        // A kv row needs no Room migration, and a deleted and re-created account (a new user id) starts unverified.
+        dao.putKv(KvEntity(ownerKey(s.userId), s.email))
+        val n = s.copy(platformOwner = true)
+        _session.value = n
+        dao.putKv(KvEntity(KEY_SESSION, enc(Session.serializer(), n)))
+    }
 
     override fun setUserPhoto(relative: String?) {
         val s = _session.value ?: return
@@ -232,9 +252,10 @@ class RoomRepository(
         val isOwner = acct.inspectors.firstOrNull { it.email.equals(s.email, true) }?.owner == true || s.role == Role.OWNER
         if (isOwner && others.isNotEmpty()) return@withContext "Make another admin the owner first (Inspectors → Make owner)."
         dao.deleteInspectionsOf(s.userId) // answers, photos, findings cascade
+        dao.deleteKv(ownerKey(s.userId))
         File(root, "users/${s.userId}").deleteRecursively()
         if (isOwner) {
-            // Sole owner: the company goes too (its users row cascades). TODO(backend): cancel the Square subscription server-side.
+            // Sole owner: the company goes too (its users row cascades). A store subscription stays with the Google account (shared deleteAccount).
             dao.deleteCompany(s.companyId)
             File(root, "companies/${s.companyId}").deleteRecursively()
         } else {
@@ -358,7 +379,10 @@ class RoomRepository(
         mutate(id) { it.copy(defs = defs) }?.let { b -> val v = enc(defsSer, b.defs); write { dao.updateDefs(id, u, v) } }
     }
 
-    companion object { const val KEY_SESSION = "session"; const val KEY_PLATFORM = "platformSettings" }
+    companion object {
+        const val KEY_SESSION = "session"; const val KEY_PLATFORM = "platformSettings"
+        fun ownerKey(userId: String) = "ownerVerified.$userId"
+    }
 }
 
 /**
@@ -367,7 +391,8 @@ class RoomRepository(
  * No password is stored or seeded for them: the owner creates an account / signs in with that email and their own
  * password, and is a "Master admin" (client Oct 28): a Master admin section in the side menu and Settings with Plans &
  * pricing, Report quality copy (BCC) and Feedback & support, plus a Master admin badge. Only the exact addresses count —
- * another domain (masteradmin@vimsinspection.com) is not an owner.
+ * another domain (masteradmin@vimsinspection.com) is not an owner. This class only matches the email: shared support.ownerCode makes
+ * such an account a normal user until the code is entered ([Session.platformOwner] = matched and verified).
  * TODO(backend): the server owns this list and sends the flag with the session.
  */
 class PlatformOwners(emails: List<String>) {

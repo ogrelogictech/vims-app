@@ -383,7 +383,8 @@ fun PdfPreviewScreen(vm: AppViewModel, nav: NavHostController, inspId: String) {
     DisposableEffect(renderer) { onDispose { renderer?.close() } }
     VScreen(
         "Report preview", b.inspection.selections.street, net(vm), backAction(nav),
-        listOf(HdrAction(VIcons.share, "Share report") { file?.let { shareReport(ctx, vm, b, it) } }, homeAction(nav)), scroll = false,
+        // A preview that would still cost a credit to generate stays on this screen: no Share until the report is generated.
+        listOfNotNull(HdrAction(VIcons.share, "Share report") { file?.let { shareReport(ctx, vm, b, it) } }.takeIf { vm.reportGate(b.inspection) == com.vims.app.services.ReportGate.FREE }, homeAction(nav)), scroll = false,
     ) {
         if (renderer == null) {
             Text("No report generated yet.", style = T.ui(14.sp, color = V.ink3), modifier = Modifier.padding(16.dp))

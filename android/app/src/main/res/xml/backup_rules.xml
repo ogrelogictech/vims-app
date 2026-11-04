@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Auto Backup on Android 8 to 11 (API 26-30). Android 12+ with targetSdk 31+ reads data_extraction_rules.xml instead.
+     An <include> means only what's listed is copied. The database (with password hashes), the inspections, photos and reports
+     stay on this device, as the app says. vims_device.xml is DeviceTrial: restoring it can only bring back "trial used". -->
+<full-backup-content>
+    <include domain="sharedpref" path="vims_device.xml" />
+</full-backup-content>

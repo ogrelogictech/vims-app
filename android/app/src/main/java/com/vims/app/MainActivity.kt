@@ -57,6 +57,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun showUi(cold: Boolean, launchedWithDebug: Boolean, showVideo: Boolean) {
+        (application as VimsApplication).let { com.vims.app.services.BillingFlavor.handleIntent(it, intent, it.container) }
         // Free-look splash: a restored session counts as a sign-in during the trial.
         if (cold && !launchedWithDebug && vm.session.value != null) vm.maybeShowSplash()
         setContent {
@@ -72,7 +73,7 @@ class MainActivity : ComponentActivity() {
         uiShown = true
     }
 
-    /** Back in the foreground: "Auto-sync when online" syncs queued inspections (once the UI — and the view model — exist). */
+    /** Back in the foreground: billing asks the store again, and "Auto-sync when online" syncs queued inspections (once the UI and the view model exist). */
     override fun onResume() {
         super.onResume()
         if (uiShown) vm.onAppResume()
@@ -80,6 +81,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        setIntent(intent)
+        (application as VimsApplication).let { if (it.ready.value) com.vims.app.services.BillingFlavor.handleIntent(it, intent, it.container) }
         parseDebug(intent)?.let { debug = it }
     }
 
@@ -95,7 +98,6 @@ class MainActivity : ComponentActivity() {
             state = i.getStringExtra("state"), cover = i.getStringExtra("cover"), inspType = i.getStringExtra("inspType"),
             generate = i.getBooleanExtra("generate", false),
             trialEnded = i.getBooleanExtra("trialEnded", false), resetDeviceTrial = i.getBooleanExtra("resetDeviceTrial", false),
-            subscribed = i.getStringExtra("subscribed"), subscribedDaysAgo = i.getIntExtra("subscribedDaysAgo", 0),
         )
     }
 }

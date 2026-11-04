@@ -7,7 +7,6 @@ import com.vims.app.data.ChecklistEdits
 import com.vims.app.data.ChecklistLoader
 import com.vims.app.data.CompanyProfile
 import com.vims.app.data.Inspector
-import com.vims.app.data.Plan
 import com.vims.app.data.Role
 import com.vims.app.data.Session
 import com.vims.app.data.VimsRepository
@@ -44,22 +43,6 @@ interface AuthService {
     suspend fun signOut()
 }
 
-/** [cardId] = Square's card-on-file id once the backend exists (TODO(backend): Square Cards API); null in the local stub. */
-data class SubscriptionResult(val ok: Boolean, val cardLast4: String? = null, val message: String? = null, val cardId: String? = null)
-
-interface SubscriptionService {
-    /**
-     * Card details go straight to Square's tokenizer in production; the app never stores the card number.
-     * [cardNumber] null = charge the card on file (TODO(backend): Square Cards API card id).
-     */
-    suspend fun startSubscription(plan: Plan, period: String, seats: Int, cardNumber: String?): SubscriptionResult
-    /** Monthly: stops renewal at the next billing date (no refund). Yearly: ends now (EULA 12.3) — see [refundUnused]. */
-    suspend fun cancelSubscription(): Boolean
-    /** EULA 12.4: refunds the unused days of a cancelled yearly plan to the card on file. */
-    suspend fun refundUnused(amount: Double): Boolean
-    suspend fun resumeSubscription(): Boolean
-}
-
 interface SyncService {
     /** Number of local changes waiting to upload. */
     fun pendingCount(): Int
@@ -73,16 +56,8 @@ interface SyncService {
  */
 class LocalAuthService(
     private val dao: VimsDao, private val config: ChecklistConfig, private val deviceTrial: DeviceTrial? = null,
-    private val owners: com.vims.app.data.PlatformOwners = com.vims.app.data.PlatformOwners(config.support.platformOwners),
 ) : AuthService {
     private val json = ChecklistLoader.json
-
-    /**
-     * Client Oct 28: every session the auth service hands out already carries the master-admin flag (matched on the stored,
-     * trimmed + lowercased email), so no path — Create account, Sign in, Join company — depends on a later step to add it.
-     * The repository re-checks it on every activate / session restore. TODO(backend): the server sends the flag.
-     */
-    private fun Session.withOwner() = copy(platformOwner = owners.isOwner(email))
 
     private fun roleFor(email: String, account: AccountState): Role {
         val ins = account.inspectors.firstOrNull { it.email.equals(email, ignoreCase = true) }
@@ -93,10 +68,10 @@ class LocalAuthService(
 
     override suspend fun signIn(email: String, password: String): AuthResult = withContext(Dispatchers.IO) {
         val e = email.trim().lowercase(Locale.US)
-        val u = dao.userByEmail(e) ?: return@withContext AuthResult.Error("No account found for that email. Check it, or create an account / join a company with a code.", "email")
+        val u = dao.userByEmail(e) ?: return@withContext AuthResult.Error(if (config.features.companyJoin) "No account found for that email. Check it, or create an account / join a company with a code." else "No account found for that email on this device. Check it, or create an account.", "email")
         if (!PasswordHasher.verify(password, u.salt, u.passwordHash)) return@withContext AuthResult.Error("Incorrect password. Try again or tap Forgot password.", "password")
         val c = dao.company(u.companyId) ?: return@withContext AuthResult.Error("This account's company is missing on this device.")
-        AuthResult.Success(Session(u.name, u.email, roleFor(u.email, account(c)), userId = u.id, companyId = c.id).withOwner())
+        AuthResult.Success(Session(u.name, u.email, roleFor(u.email, account(c)), userId = u.id, companyId = c.id))
     }
 
     override suspend fun createAccount(name: String, company: String, email: String, password: String, eulaVersion: String): AuthResult = withContext(Dispatchers.IO) {
@@ -106,10 +81,8 @@ class LocalAuthService(
         // One free trial per device (client Oct 25): the first company created here starts the device's trial; any later
         // company starts with the trial already used (Subscribe shown). TODO(backend): see [DeviceTrial].
         val today = LocalDate.now().toEpochDay()
-        // Client Oct 28: a VIMS master admin is exempt from the trial / subscription gate, so their company neither consumes the
-        // device's one free trial nor starts as "trial already used". TODO(backend): the server grants the exemption.
-        val masterAdmin = owners.isOwner(e)
-        val trialUsed = !masterAdmin && deviceTrial?.used == true
+        // Shared support.ownerCode: a platformOwners email is a normal user until the code is entered, so it gets the same trial rules.
+        val trialUsed = deviceTrial?.used == true
         val acct = newAccount(config, joinCode(company)).copy(
             inspectors = listOf(Inspector(UUID.randomUUID().toString(), name.trim(), e, owner = true, admin = true)),
             trialStartEpochDay = if (trialUsed) today - config.subscription.trialDays else today,
@@ -124,8 +97,8 @@ class LocalAuthService(
         // TODO(backend): send the EULA acceptance (version + time) to the server.
         val u = newUser(name, e, password, cid, config).copy(eulaVersion = eulaVersion, eulaAcceptedAt = System.currentTimeMillis())
         dao.insertUser(u)
-        if (!trialUsed && !masterAdmin) deviceTrial?.record(today)
-        AuthResult.Success(Session(u.name, u.email, Role.OWNER, userId = u.id, companyId = cid, eulaVersion = eulaVersion).withOwner())
+        if (!trialUsed) deviceTrial?.record(today)
+        AuthResult.Success(Session(u.name, u.email, Role.OWNER, userId = u.id, companyId = cid, eulaVersion = eulaVersion))
     }
 
     override suspend fun joinCompany(name: String, email: String, code: String, password: String, eulaVersion: String): AuthResult = withContext(Dispatchers.IO) {
@@ -139,7 +112,7 @@ class LocalAuthService(
             acct = acct.copy(inspectors = acct.inspectors + Inspector(UUID.randomUUID().toString(), name.trim(), e), seats = maxOf(acct.seats, acct.inspectors.size + 1))
             dao.updateCompanyAccount(c.id, json.encodeToString(AccountState.serializer(), acct))
         }
-        AuthResult.Success(Session(u.name, u.email, roleFor(e, acct), userId = u.id, companyId = c.id).withOwner())
+        AuthResult.Success(Session(u.name, u.email, roleFor(e, acct), userId = u.id, companyId = c.id))
     }
 
     override suspend fun companyExists(code: String): Boolean = withContext(Dispatchers.IO) { dao.companyByCode(normalizeCode(code)) != null }
@@ -184,24 +157,6 @@ class LocalAuthService(
     }
 }
 
-// TODO(backend): Laravel API + Square Subscriptions API. Replace the raw card fields with the Square
-// In-App Payments SDK card entry (tokenized nonce); never send or persist the card number.
-class LocalSubscriptionService : SubscriptionService {
-    // [period] = "monthly" / "yearly" (data v1.11). TODO(backend): Square subscription plan variation per period.
-    override suspend fun startSubscription(plan: Plan, period: String, seats: Int, cardNumber: String?): SubscriptionResult {
-        if (cardNumber == null) return SubscriptionResult(ok = true) // card on file
-        val digits = cardNumber.filter { it.isDigit() }
-        return SubscriptionResult(ok = true, cardLast4 = if (digits.length >= 4) digits.takeLast(4) else "4242")
-    }
-
-    // TODO(backend): Square Subscriptions API — cancel at period end / resume.
-    override suspend fun cancelSubscription(): Boolean = true
-    override suspend fun resumeSubscription(): Boolean = true
-    // TODO(backend): Square refund — Refunds API (RefundPayment) against the yearly payment for [amount] (EULA 12.4), then cancel
-    // the Square subscription immediately instead of at the period end.
-    override suspend fun refundUnused(amount: Double): Boolean = true
-}
-
 // TODO(backend): Laravel API — upload pending inspections, photos, findings, and reports; pull checklist/plan edits.
 class LocalSyncService(private val repo: VimsRepository) : SyncService {
     override fun pendingCount(): Int = repo.inspections.value.values.count { it.inspection.pendingSync }
@@ -217,32 +172,13 @@ fun trialDaysLeft(trialDays: Int, trialStartEpochDay: Long, today: LocalDate = L
     (trialDays - (today.toEpochDay() - trialStartEpochDay)).toInt().coerceAtLeast(0)
 
 /**
- * Whether the company may start NEW inspections (client Oct 25): an active subscription (a cancelled monthly one until the next
- * billing date, a cancelled yearly one not at all — EULA 12.3) or free-look days left. Existing inspections and their reports stay available either way.
- */
-fun hasAccess(a: AccountState, today: LocalDate = LocalDate.now(), masterAdmin: Boolean = false): Boolean {
-    // Client Oct 28: VIMS master admins (support.platformOwners) can always start inspections. TODO(backend): server-granted.
-    if (masterAdmin) return true
-    if (a.active) {
-        // EULA 2026-10-28: a cancelled monthly plan keeps access until the next billing date; a cancelled yearly plan ends on the
-        // cancellation date. Once a cancelled subscription has ended, the leftover free-trial days don't reopen access.
-        if (!a.subscriptionEnded(today)) return true
-        return false
-    }
-    return trialDaysLeft(a.trialDays, a.trialStartEpochDay, today) > 0
-}
-
-/** The free look has run out and there is no subscription: show "trial ended" wording and the Subscribe prompt. */
-fun trialEnded(a: AccountState, today: LocalDate = LocalDate.now()): Boolean = !hasAccess(a, today)
-
-/**
  * One free trial per DEVICE (client Oct 25). The first trial start on this device is kept at app level — its own
  * SharedPreferences file `vims_device`, outside every account and company row — so a company created later on the same device
  * starts with the trial already used, and deleting an account or signing up again doesn't reset it. The demo company is not
  * a trial start. Upgrades from builds before v0.21.0 take the earliest trial start of the companies already on the device
  * ([backfill]).
  *
- * Auto Backup: this file is deliberately NOT excluded. Restoring it after a reinstall (or onto a new phone of the same Google
+ * Auto Backup: this file is the only thing backed up (res/xml/backup_rules.xml, data_extraction_rules.xml). Restoring it after a reinstall (or onto a new phone of the same Google
  * account) can only bring back "trial used" — it can never grant a new trial — while excluding it would hand out a fresh
  * trial on every reinstall. (Clearing app data / a reinstall without a backup still resets it on the device; only the server
  * can stop that.)

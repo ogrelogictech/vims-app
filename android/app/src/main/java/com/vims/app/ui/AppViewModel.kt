@@ -95,38 +95,55 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun acceptEula() = viewModelScope.launch { repo.acceptEula(currentEulaVersion); toast("License agreement accepted") }
 
-    // Subscription cancel / resume (owner & admins; TODO(backend): Square).
     /**
-     * EULA 2026-10-28 (4.1 / 12.3 / 12.4): a MONTHLY plan stays active until the next billing date (no refund, Undo possible);
-     * a YEARLY plan ends today and the unused days are refunded pro rata to the card on file ([yearlyRefund]).
+     * VIMS master admin: a `support.platformOwners` email whose owner code was entered on this device (shared support.ownerCode;
+     * the repository only sets the flag then). Composables read `session.platformOwner` from collected state.
      */
-    fun cancelSubscription() = viewModelScope.launch {
-        val a = account.value
-        val yearly = pricing().period(a) == com.vims.app.data.BillingPeriod.YEARLY
-        if (!container.subscriptions.cancelSubscription()) return@launch
-        if (yearly) {
-            val refund = yearlyRefund(a)
-            container.subscriptions.refundUnused(refund) // TODO(backend): Square refund
-            repo.updateAccount { it.copy(cancelled = true, cancelledEpochDay = LocalDate.now().toEpochDay(), refundAmount = refund) }
-            toast("Subscription cancelled — ${com.vims.app.util.Fmt.money(refund)} will be refunded to your card")
-        } else {
-            repo.updateAccount { it.copy(cancelled = true, cancelledEpochDay = null, refundAmount = null) }
-            toast("Subscription cancelled — active until ${account.value.periodEndEpochDay?.let { com.vims.app.util.Fmt.date(java.time.LocalDate.ofEpochDay(it)) } ?: "the end of the period"}")
-        }
-    }
-    /** EULA 12.4: yearly price paid (plan + additional inspectors) × unused days ÷ days in the period, rounded to cents. */
-    fun yearlyRefund(a: AccountState = account.value, today: LocalDate = LocalDate.now()): Double = a.proratedRefund(periodTotal(a), today)
-    fun resumeSubscription() = viewModelScope.launch {
-        // Undo is for a cancelled monthly plan that hasn't ended yet; a cancelled yearly plan has ended (and was refunded).
-        val a = account.value
-        if (a.endsOnCancel || a.subscriptionEnded()) return@launch
-        if (container.subscriptions.resumeSubscription()) { repo.updateAccount { it.copy(cancelled = false) }; toast("Cancellation undone — auto-pay continues") }
-    }
-    /** VIMS master admin (`support.platformOwners`, client Oct 28) — composables read `session.platformOwner` from collected state. */
     val isPlatformOwner: Boolean get() = session.value?.platformOwner == true
 
-    /** VIMS plans and prices (platform-level, data v1.11): the shipped defaults or a master admin's edits. */
-    fun pricing(p: com.vims.app.data.PlatformSettings = platform.value): com.vims.app.data.Pricing = p.pricing(config.subscription)
+    /** A platform-owner email that hasn't entered the owner code: Settings shows its "Master admin code" row. */
+    fun ownerCodeRowShown(s: Session?): Boolean = s != null && !s.platformOwner && container.owners.isOwner(s.email)
+
+    /** Compares off the main thread (200,000 PBKDF2 rounds); [onResult] true = saved and master admin is on. */
+    fun submitOwnerCode(code: String, onResult: (Boolean) -> Unit) = viewModelScope.launch {
+        val def = container.ownerCode
+        val ok = withContext(Dispatchers.Default) { com.vims.app.util.OwnerCode.matches(code, def.saltHex, def.iterations, def.hashHex) }
+        if (ok) { repo.verifyOwner(); toast("Master admin is on for this account") }
+        onResult(ok)
+    }
+
+    /** features.companyJoin (data v1.18): false until a server can carry a join code to another device. */
+    val companyJoinEnabled: Boolean = config.features.companyJoin
+    /** features.planEditing (data v1.18): false = prices are the store's, so Plans & pricing is read-only. */
+    val planEditingEnabled: Boolean = config.features.planEditing
+
+    /** VIMS plans (platform-level, data v1.11): the shipped ones, plus a master admin's edits only while plans can be edited. */
+    fun pricing(p: com.vims.app.data.PlatformSettings = platform.value): com.vims.app.data.Pricing =
+        (if (planEditingEnabled) p else com.vims.app.data.PlatformSettings()).pricing(config.subscription)
+
+    /* ------------------------------------------------------------------ store billing (shared subscription.store) */
+
+    val billing: com.vims.app.services.BillingManager = container.billing
+    val memberEmails: StateFlow<Set<String>> = repo.memberEmails
+
+    fun loadPlans() = billing.loadPlans()
+    fun restorePurchases() = billing.restore()
+    fun buy(activity: android.app.Activity, kind: com.vims.app.services.PlanKind) = billing.purchase(activity, kind)
+
+    /** Play's own subscription page (the one place to cancel, change payment or leave an account hold). */
+    fun manageSubscriptionUrl(): String {
+        val pkg = getApplication<Application>().packageName
+        val sub = config.subscription.store.android.subscription
+        return if (billing.status.value.token != null) "https://play.google.com/store/account/subscriptions?sku=$sub&package=$pkg"
+        else "https://play.google.com/store/account/subscriptions"
+    }
+
+    /** "App only · Monthly" for the Plans and Settings status. */
+    fun planName(s: com.vims.app.services.BillingStatus): String {
+        val ids = config.subscription.store.android
+        val name = config.subscription.plans.firstOrNull { it.id == "app" }?.name ?: "App only"
+        return when (s.basePlan) { ids.monthlyBasePlan -> "$name · Monthly"; ids.yearlyBasePlan -> "$name · Yearly"; else -> name }
+    }
 
     /** Owner-only: Report quality copy (sent by the VIMS server, client Oct 30; features.reportCopy). The address is validated by the screen. */
     fun saveReportBcc(on: Boolean, email: String) {
@@ -185,9 +202,28 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** MainActivity.onResume: the app is back in the foreground. */
-    fun onAppResume() { if (!syncEnabled) return; _online.value = onlineNow(); requestAutoSync(600) }
+    fun onAppResume() {
+        billing.refreshAsync()
+        if (!syncEnabled) return
+        _online.value = onlineNow(); requestAutoSync(600)
+    }
 
     init {
+        // Start: ask the store (the first resume can run before this view model exists).
+        billing.refreshAsync()
+        viewModelScope.launch {
+            billing.events.collect { e ->
+                when (e) {
+                    com.vims.app.services.BillingEvent.SubscriptionStarted -> toast("Subscription active")
+                    com.vims.app.services.BillingEvent.CreditAdded -> toast("Report credit added")
+                    com.vims.app.services.BillingEvent.Pending -> toast("Payment pending. Access starts once Google Play confirms it.")
+                    com.vims.app.services.BillingEvent.AlreadyOwned -> toast("You already own this on Google Play")
+                    com.vims.app.services.BillingEvent.Failed -> toast("Google Play couldn't finish that. Try again.")
+                    is com.vims.app.services.BillingEvent.Restored -> toast(if (e.found) "Purchases restored" else "No purchases to restore")
+                    com.vims.app.services.BillingEvent.RestoreFailed -> toast("Google Play can't be reached right now. Try again.")
+                }
+            }
+        }
         // The connectivity watch only drives the sync stub, so Phase 1 (features.sync = false) doesn't register it.
         if (syncEnabled) {
             try { connectivity?.registerDefaultNetworkCallback(netCallback) } catch (_: Exception) {}
@@ -211,25 +247,40 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val splash: StateFlow<Boolean> = _splash.asStateFlow()
     fun closeSplash() { _splash.value = false }
     /** [force]: debug launches (`--ez splash true`) show it also for a subscribed company (QA screenshots). */
-    fun maybeShowSplash(force: Boolean = false) { if (force || (!account.value.active && !isPlatformOwner)) _splash.value = true }
+    fun maybeShowSplash(force: Boolean = false) {
+        val b = billing.status.value
+        if (force || (!b.active && !isPlatformOwner && !(trialDaysLeft() == 0 && b.credits > 0))) _splash.value = true
+    }
 
     fun trialDaysLeft(): Int = account.value.let { trialDaysLeft(it.trialDays, it.trialStartEpochDay) }
 
     /**
-     * Client Oct 25: once the free look has ended without an active subscription, NEW inspections are blocked (the Subscribe
-     * prompt shows instead). Existing inspections stay viewable and their reports can still be shared / re-sent. Checked by
-     * every way into a new inspection (Home +, New inspection buttons, side menu, the wizard itself and Build checklist), in
-     * every build type — no demo or debug path skips it.
+     * Shared subscription.store.access ([com.vims.app.services.Access]). Without it NEW inspections are blocked and the plans screen
+     * shows; opening, editing, exporting and emailing what's saved is never blocked. Checked by every way into a new inspection
+     * (Home +, New inspection buttons, side menu, the wizard itself and Build checklist), in every build type.
      */
-    fun canStartInspection(): Boolean = com.vims.app.services.hasAccess(account.value, masterAdmin = isPlatformOwner)
+    fun canStartInspection(): Boolean = billing.status.value.let {
+        com.vims.app.services.Access.canStartNewInspection(isPlatformOwner, trialDaysLeft(), it.active, it.credits)
+    }
+
+    /** What generating this inspection's report costs. A report generated once regenerates free. */
+    fun reportGate(i: Inspection): com.vims.app.services.ReportGate = billing.status.value.let {
+        com.vims.app.services.Access.reportGate(isPlatformOwner, trialDaysLeft(), it.active, it.credits, alreadyGenerated = i.reportGeneratedAt != null)
+    }
+
+    /**
+     * A generated report is always available. A PDF from "Preview report format" (which generates no report and uses no credit) is
+     * only viewable in the preview when generating the report would cost a credit; otherwise it would be a free report.
+     */
+    fun exportableReport(id: String): File? = bundle(id)?.inspection?.takeIf { reportGate(it) == com.vims.app.services.ReportGate.FREE }?.let { reportFile(id) }
 
     private val _subscribePrompt = MutableStateFlow(false)
-    /** The "free trial has ended — Subscribe" dialog (VimsRoot). */
+    /** Asks VimsRoot to show the plans screen. */
     val subscribePrompt: StateFlow<Boolean> = _subscribePrompt.asStateFlow()
     fun closeSubscribePrompt() { _subscribePrompt.value = false }
     fun promptSubscribe() { if (!isPlatformOwner) _subscribePrompt.value = true }
 
-    /** New inspection: opens the wizard, or the Subscribe prompt when the trial has ended without a subscription. */
+    /** New inspection: opens the wizard, or the plans screen without access. */
     fun newInspection(nav: androidx.navigation.NavHostController) {
         if (canStartInspection()) nav.navigate(WizardR()) else _subscribePrompt.value = true
     }
@@ -352,7 +403,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (w.sel.splitAddress && w.sel.city.isBlank()) { toast("Enter the city"); _wizard.update { it.copy(step = 1) }; return null }
         if (w.sel.state.isBlank()) { toast("Select the property's state"); _wizard.update { it.copy(step = 1) }; return null }
         if (w.sel.inspType.isBlank()) { toast("Select the type of inspection"); _wizard.update { it.copy(step = 1) }; return null }
-        // Trial ended, no subscription: no new inspection, whatever path reached this button (editing an existing one is fine).
+        // No access: no new inspection, whatever path reached this button (editing an existing one is fine).
         if (w.editingId == null && !canStartInspection()) { _subscribePrompt.value = true; return null }
         if (config.stateRule(w.sel.state)?.docs.orEmpty().isNotEmpty() && !w.sel.stateDocsAck) {
             toast("Confirm the required state notice was given to the client"); _wizard.update { it.copy(step = 1) }; return null
@@ -540,6 +591,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun generateReport(id: String, markDone: Boolean, onDone: (File) -> Unit) = viewModelScope.launch {
         val b = bundle(id) ?: return@launch
+        // Shared reportCredit: the first report with no subscription and no trial uses a credit; none left offers the purchase here.
+        val gate = if (markDone) reportGate(b.inspection) else com.vims.app.services.ReportGate.FREE
+        if (gate == com.vims.app.services.ReportGate.NEEDS_PURCHASE) {
+            toast("This report needs a report credit or a subscription")
+            _subscribePrompt.value = true
+            return@launch
+        }
         _generating.value = true
         try {
             val out = withContext(Dispatchers.IO) {
@@ -549,6 +607,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 it.copy(reportFile = out.file.relativeTo(getApplication<Application>().filesDir).path, reportPages = out.pages,
                     reportGeneratedAt = if (markDone) System.currentTimeMillis() else it.reportGeneratedAt,
                     status = if (markDone) InspStatus.DONE else it.status, pendingSync = true)
+            }
+            // Only after the report exists, so a failed build costs nothing.
+            if (gate == com.vims.app.services.ReportGate.USES_CREDIT && billing.spendCredit()) {
+                val left = billing.status.value.credits
+                toast("1 report credit used · $left left")
             }
             onDone(out.file)
             requestAutoSync()
@@ -611,10 +674,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     /* ---- account deletion / ownership ---- */
     fun deleteAccount(onError: (String) -> Unit, onOk: () -> Unit) = viewModelScope.launch {
-        val wasSoleOwner = session.value?.role == Role.OWNER
         val err = repo.deleteAccount()
         if (err != null) { onError(err); return@launch }
-        if (wasSoleOwner) container.subscriptions.cancelSubscription() // TODO(backend): server-side cancel + deletion request
         _splash.value = false
         toast("Account deleted"); onOk()
     }
@@ -861,39 +922,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     // Subscription / inspectors / plans -------------------------------------
 
-    fun setSeats(n: Int) = repo.updateAccount { it.copy(seats = n.coerceAtMost(com.vims.app.util.Limits.SEATS_MAX).coerceAtLeast(maxOf(1, it.inspectors.size))) }
-
-    /** One billing period's total (plan + additional inspectors at the company's period); 0 for Pay per report. */
-    fun periodTotal(a: AccountState = account.value): Double = pricing().total(a)
-
-    /**
-     * Start / update the subscription. [cardNumber] + [expiry] ("MMYY") are a new card; null = keep the card on file.
-     * Only the card's brand, last 4 and expiry are kept (a stand-in for Square's card-on-file id) — never the number or CVC.
-     */
-    fun startSubscription(planId: String, period: String, cardNumber: String?, expiry: String?, onOk: () -> Unit) = viewModelScope.launch {
-        val a = account.value
-        val onFile = a.cardOnFile
-        if (cardNumber == null && onFile == null) { toast("Add a card"); return@launch }
-        val pricing = pricing()
-        val plan = pricing.plan(planId)
-        if (!plan.selectable) { toast("${plan.name} is coming soon — choose another plan"); return@launch }
-        val billed = pricing.period(plan, period)
-        val r = container.subscriptions.startSubscription(plan, billed, a.seatCount, cardNumber)
-        if (r.ok) {
-            val card = if (cardNumber != null) com.vims.app.data.CardOnFile(
-                brand = com.vims.app.util.CardBrand.of(cardNumber.filter { it.isDigit() }).label.ifEmpty { "Card" },
-                last4 = r.cardLast4 ?: cardNumber.filter { it.isDigit() }.takeLast(4), expMonth = expiry.orEmpty().take(2).toIntOrNull() ?: 0,
-                expYear = expiry.orEmpty().drop(2).take(2).toIntOrNull()?.plus(2000) ?: 0, squareCardId = r.cardId,
-            ) else onFile
-            // A new period (monthly ↔ yearly) starts a new billing cycle today. TODO(backend): Square proration / plan change rules.
-            // Subscribing again after a cancelled plan ended (yearly: on the cancellation date) starts a new period today.
-            repo.updateAccount { it.copy(planId = plan.id, billingPeriod = billed, active = true, cancelled = false, cancelledEpochDay = null, refundAmount = null, cardLast4 = card?.last4, card = card,
-                subscribedEpochDay = if (it.active && !it.subscriptionEnded() && !it.endsOnCancel && it.billingPeriod == billed) it.subscribedEpochDay else LocalDate.now().toEpochDay()) }
-            onOk()
-        } else toast(r.message ?: "Payment failed")
-    }
-
     fun addInspector(name: String, email: String): Boolean {
+        if (!companyJoinEnabled) return false
         if (name.isBlank()) { toast("Enter a name"); return false }
         repo.updateAccount { it.copy(inspectors = it.inspectors + Inspector(UUID.randomUUID().toString(), name.trim(), email.trim()), seats = maxOf(it.seats, it.inspectors.size + 1)) }
         val period = pricing().period(account.value)
@@ -922,7 +952,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /* Plans & pricing — VIMS master admins only (client Oct 28). Platform-level: one set of plans for every company. */
 
     private fun editPlans(f: (List<Plan>) -> List<Plan>) {
-        if (!isPlatformOwner) return
+        if (!isPlatformOwner || !planEditingEnabled) return
         repo.updatePlatform { p -> p.copy(plans = f(p.pricing(config.subscription).plans)) }
     }
 
@@ -949,17 +979,17 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun setExtraRate(v: Double) {
-        if (!isPlatformOwner) return
+        if (!isPlatformOwner || !planEditingEnabled) return
         repo.updatePlatform { it.copy(extraInspectorMonthly = v) }; toast("Additional inspector → ${com.vims.app.util.Fmt.money(v)}/mo")
     }
 
     fun setExtraYearly(v: Double) {
-        if (!isPlatformOwner) return
+        if (!isPlatformOwner || !planEditingEnabled) return
         repo.updatePlatform { it.copy(extraInspectorYearly = v) }; toast("Additional inspector → ${com.vims.app.util.Fmt.money(v)}/yr")
     }
 
     fun addPlan(name: String, price: String, yearly: String, desc: String): Boolean {
-        if (!isPlatformOwner) return false
+        if (!isPlatformOwner || !planEditingEnabled) return false
         val p = com.vims.app.util.Num.parse(price)
         val y = yearly.takeIf { it.isNotBlank() }?.let { com.vims.app.util.Num.parse(it) }
         if (name.isBlank()) { toast("Enter a plan name"); return false }
@@ -980,15 +1010,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Debug-only (trial QA, `--ez trialEnded true`): the signed-in company's free look ended yesterday, no subscription. */
     fun debugEndTrial() {
         if (!com.vims.app.BuildConfig.DEBUG) return
-        repo.updateAccount { it.copy(active = false, cancelled = false, trialStartEpochDay = LocalDate.now().toEpochDay() - it.trialDays - 1) }
-    }
-    /** Debug-only (billing QA, `--es subscribed yearly --ei subscribedDaysAgo 100`): an active subscription started N days ago. */
-    fun debugSubscribe(period: String, daysAgo: Int) {
-        if (!com.vims.app.BuildConfig.DEBUG) return
-        val billed = if (period == com.vims.app.data.BillingPeriod.YEARLY) period else com.vims.app.data.BillingPeriod.MONTHLY
-        repo.updateAccount { it.copy(active = true, cancelled = false, cancelledEpochDay = null, refundAmount = null, billingPeriod = billed,
-            subscribedEpochDay = LocalDate.now().toEpochDay() - daysAgo.coerceAtLeast(0), cardLast4 = it.cardLast4 ?: "4242",
-            card = it.card ?: com.vims.app.data.CardOnFile("Visa", "4242", 8, 2028)) }
+        repo.updateAccount { it.copy(trialStartEpochDay = LocalDate.now().toEpochDay() - it.trialDays - 1) }
     }
     /** Debug-only (testers, `--ez resetDeviceTrial true`): forget this device's free-trial record, so the next new company gets a trial. */
     fun debugResetDeviceTrial() {

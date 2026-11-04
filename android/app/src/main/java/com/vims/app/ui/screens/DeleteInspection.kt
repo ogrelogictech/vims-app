@@ -55,7 +55,7 @@ private fun addressOf(b: InspectionBundle): String = b.inspection.selections.let
 @Composable
 fun DeleteInspectionDialog(vm: AppViewModel, b: InspectionBundle, onDismiss: () -> Unit, onDelete: () -> Unit) {
     val ctx = LocalContext.current
-    val report = remember(b.inspection.reportFile, b.inspection.reportGeneratedAt) { vm.reportFile(b.id) }
+    val report = remember(b.inspection.reportFile, b.inspection.reportGeneratedAt) { vm.exportableReport(b.id) }
     androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(V.paper).verticalScroll(rememberScrollState()).padding(20.dp)) {
             Text("Delete this inspection?", style = T.display(18.sp, FontWeight.Bold, V.ink), modifier = Modifier.padding(bottom = 8.dp))
@@ -90,7 +90,7 @@ fun DeleteInspectionButton(vm: AppViewModel, nav: NavHostController, b: Inspecti
 fun InspectionMoreButton(vm: AppViewModel, b: InspectionBundle, title: String, open: Boolean, onOpenChange: (Boolean) -> Unit) {
     val ctx = LocalContext.current
     var ask by rememberSaveable(b.id) { mutableStateOf(false) }
-    val report = remember(open, b.inspection.reportFile, b.inspection.reportGeneratedAt) { if (open) vm.reportFile(b.id) else null }
+    val report = remember(open, b.inspection.reportFile, b.inspection.reportGeneratedAt) { if (open) vm.exportableReport(b.id) else null }
     Box {
         Box(
             Modifier.size(48.dp).clip(RoundedCornerShape(11.dp)).clickable(role = Role.Button, onClickLabel = "More options") { onOpenChange(true) },

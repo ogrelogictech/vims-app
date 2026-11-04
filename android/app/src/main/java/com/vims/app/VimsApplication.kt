@@ -14,9 +14,7 @@ import com.vims.app.data.db.VimsDatabase
 import com.vims.app.demo.DemoSeed
 import com.vims.app.services.AuthService
 import com.vims.app.services.LocalAuthService
-import com.vims.app.services.LocalSubscriptionService
 import com.vims.app.services.LocalSyncService
-import com.vims.app.services.SubscriptionService
 import com.vims.app.services.SyncService
 import com.vims.app.ui.theme.VIcons
 import com.vims.app.ui.theme.VimsFonts
@@ -42,7 +40,14 @@ class AppContainer(private val app: Application) {
     /** One free trial per device (client Oct 25): app-level record outside every account / company. */
     val deviceTrial = com.vims.app.services.DeviceTrial(app)
     val auth: AuthService = LocalAuthService(db.dao(), config, deviceTrial)
-    val subscriptions: SubscriptionService = LocalSubscriptionService()
+    /** The store: Play in release (src/release); debug builds may switch to a fake store for tests (src/debug). */
+    val backend: com.vims.app.services.StoreBackend = com.vims.app.services.BillingFlavor.backend(app, config.subscription.store.android)
+    val billing = com.vims.app.services.BillingManager(backend, com.vims.app.services.PrefsBillingStore(app), config.subscription.store.android,
+        com.vims.app.services.PurchaseVerifier(BuildConfig.PLAY_LICENSE_KEY), CoroutineScope(SupervisorJob() + Dispatchers.IO))
+    /** Set only by the debug test hook in src/debug (a throwaway hash for testing the code check). */
+    @Volatile var ownerCodeOverride: com.vims.app.data.OwnerCodeDef? = null
+    val ownerCode: com.vims.app.data.OwnerCodeDef get() = ownerCodeOverride ?: config.support.ownerCode
+    val owners = com.vims.app.data.PlatformOwners(config.support.platformOwners)
     val sync: SyncService = LocalSyncService(repo)
 
     fun engine(): ChecklistEngine = ChecklistEngine(config, repo.edits.value)
@@ -57,12 +62,16 @@ class AppContainer(private val app: Application) {
             DemoSeed.ensureDemoLogo(db.dao(), app.filesDir, app.resources)
         }
         // v0.21.0: installs upgraded from earlier builds record their first (non-demo) company's trial start as the device's trial.
-        // v0.22.1: a company owned by a VIMS master admin never counts as the device's trial (master admins are exempt).
-        val owners = com.vims.app.data.PlatformOwners(config.support.platformOwners)
-        if (!deviceTrial.used) deviceTrial.backfill(db.dao().allCompanies().filter { it.id != DemoSeed.DEMO_COMPANY_ID }.mapNotNull { c ->
-            runCatching { ChecklistLoader.json.decodeFromString(com.vims.app.data.AccountState.serializer(), c.accountJson) }.getOrNull()
-                ?.takeIf { a -> a.inspectors.none { it.owner && owners.isOwner(it.email) } }?.trialStartEpochDay
-        })
+        // v0.22.1: a company owned by a VERIFIED master admin never counts as the device's trial (v0.30.0: an owner email alone is a normal user).
+        if (!deviceTrial.used) {
+            val dao = db.dao()
+            suspend fun verifiedOwner(email: String): Boolean =
+                owners.isOwner(email) && dao.userByEmail(email.trim().lowercase())?.let { dao.kv(RoomRepository.ownerKey(it.id)) != null } == true
+            deviceTrial.backfill(dao.allCompanies().filter { it.id != DemoSeed.DEMO_COMPANY_ID }.mapNotNull { c ->
+                runCatching { ChecklistLoader.json.decodeFromString(com.vims.app.data.AccountState.serializer(), c.accountJson) }.getOrNull()
+                    ?.takeIf { a -> a.inspectors.none { it.owner && verifiedOwner(it.email) } }?.trialStartEpochDay
+            })
+        }
         roomRepo.loadPlatform(com.vims.app.data.PlatformSettings(
             feedbackEmail = config.support.feedbackEmail, reportBccOn = config.support.reportBcc.on, reportBccEmail = config.support.reportBcc.email,
         ), config.support.replacedDefaults)

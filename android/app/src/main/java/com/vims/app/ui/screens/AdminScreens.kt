@@ -26,6 +26,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -434,6 +435,8 @@ fun PlansAdminScreen(vm: AppViewModel, nav: NavHostController) {
     // Client Oct 28: VIMS plans and prices belong to the master admins (support.platformOwners), not to company admins.
     val session by vm.session.collectAsState()
     if (session?.platformOwner != true) { OwnerOnly(vm, nav, "Plans & pricing"); return }
+    // features.planEditing false: prices are set in the stores. The editor below stays for when they aren't.
+    if (!vm.planEditingEnabled) { PlansReadOnly(vm, nav); return }
     val platform by vm.platform.collectAsState()
     val pricing = vm.pricing(platform)
     var n by rememberSaveable { mutableStateOf("") }
@@ -475,6 +478,34 @@ fun PlansAdminScreen(vm: AppViewModel, nav: NavHostController) {
             // QA Oct 14: the short description is multi-line (wraps as typed, line breaks kept) and wraps on the plan cards.
             VField("Description", d, { d = it }, placeholder = "Short description", multiline = true, filter = { Filters.base(it, 200, multiline = true) }, bottom = 0.dp)
             VBtn("Add plan", { if (form.submit() && vm.addPlan(n, p, y, d)) { n = ""; p = ""; y = ""; d = ""; form.reset() } }, icon = VIcons.plus, minHeight = 48.dp)
+        }
+    }
+}
+
+/** Master admin, features.planEditing false: what the stores charge, read-only. */
+@Composable
+private fun PlansReadOnly(vm: AppViewModel, nav: NavHostController) {
+    val plans by vm.billing.plans.collectAsState()
+    LaunchedEffect(Unit) { vm.loadPlans() }
+    VScreen("Plans & pricing", "Master admin · VIMS", net(vm), backAction(nav), listOf(homeAction(nav))) {
+        Hint("Prices are set in App Store Connect and Google Play Console.", Modifier.padding(top = 2.dp, bottom = 12.dp))
+        when (val p = plans) {
+            com.vims.app.services.PlansState.Loading -> Hint("Loading store prices…", Modifier.padding(bottom = 12.dp))
+            com.vims.app.services.PlansState.Unavailable -> PlansCantLoad(vm)
+            is com.vims.app.services.PlansState.Loaded -> Column(Modifier.padding(bottom = 11.dp).fillMaxWidth().vCard(13.dp)) {
+                p.options.forEachIndexed { i, o ->
+                    com.vims.app.ui.components.BinfoRow("${o.title} · ${o.length}", o.price, last = i == p.options.lastIndex)
+                }
+            }
+        }
+        vm.pricing().plans.filter { it.comingSoon }.forEach { plan ->
+            Column(Modifier.padding(bottom = 11.dp).fillMaxWidth().vCard(13.dp).padding(horizontal = 14.dp, vertical = 13.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(plan.name, style = T.ui(14.5.sp, FontWeight.Bold), modifier = Modifier.weight(1f, fill = false))
+                    ComingSoonTag()
+                }
+                Text(plan.desc, style = T.ui(12.sp, color = V.ink3, lineHeight = 16.5.sp), softWrap = true, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
+            }
         }
     }
 }

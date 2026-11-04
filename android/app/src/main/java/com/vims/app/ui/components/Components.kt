@@ -681,7 +681,7 @@ fun ListRow(
 @Composable
 fun BinfoRow(label: @Composable RowScope.() -> Unit, value: @Composable () -> Unit, last: Boolean = false) {
     Column {
-        // Team QA Oct 22: a long value ("Square · Visa •••• 4242 (exp 08/28)") squeezed its label into a one-letter column. Both
+        // Team QA Oct 22: a long value squeezed its label into a one-letter column. Both
         // keep their natural width when they fit; otherwise the label keeps up to its full width (at least 40% of the row) and
         // the value wraps in the rest, right-aligned.
         androidx.compose.ui.layout.Layout(

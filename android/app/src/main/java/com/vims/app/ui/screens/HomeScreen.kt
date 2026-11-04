@@ -127,6 +127,7 @@ fun HomeScreen(vm: AppViewModel, nav: NavHostController) {
         scrimColor = V.scrim,
         drawerContent = { HomeMenu(vm, nav) { scope.launch { drawer.close() } } },
     ) {
+    val store by vm.billing.status.collectAsState()
     VScreen(
         "Inspections", companyName(vm), netState,
         left = HdrAction(VIcons.menu, "Menu") { scope.launch { drawer.open() } },
@@ -137,19 +138,23 @@ fun HomeScreen(vm: AppViewModel, nav: NavHostController) {
         if (vm.session.collectAsState().value?.platformOwner == true) {
             Text("Master admin · no subscription needed", style = T.ui(13.sp, FontWeight.SemiBold, V.ink2),
                 modifier = Modifier.padding(bottom = 14.dp).fillMaxWidth().clip(RoundedCornerShape(13.dp)).background(V.paper3).padding(horizontal = 16.dp, vertical = 14.dp))
-        } else if (!account.active || account.subscriptionEnded()) {
+        } else if (!store.active) {
+            val days = vm.trialDaysLeft()
             Row(
                 Modifier.padding(bottom = 14.dp).fillMaxWidth().clip(RoundedCornerShape(13.dp))
                     .background(Brush.horizontalGradient(listOf(V.brand, V.brandBright))).clickable(role = Role.Button) { nav.navigate(SubscribeR) }
                     .padding(horizontal = 16.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                // Client Oct 25: after the free look, new inspections need a subscription.
-                // EULA 12.3: a cancelled subscription that has ended (yearly: on the cancellation date) blocks new inspections too.
-                Text(rich(if (account.subscriptionEnded()) "**Subscription ended** · subscribe to start new inspections"
-                    else if (vm.canStartInspection()) "**Free trial** · ${vm.trialDaysLeft()} days left" else "**Free trial ended** · subscribe to start new inspections"),
-                    style = T.ui(13.5.sp, color = Color.White), modifier = Modifier.weight(1f))
-                Text("Subscribe", style = T.ui(13.5.sp, FontWeight.SemiBold, Color.White))
+                // Shared subscription.store.access: without access, new inspections need a subscription or a report credit.
+                Text(rich(when {
+                    store.onHold -> "**Payment problem** · fix it to start new inspections"
+                    days > 0 -> "**Free trial** · $days days left"
+                    store.credits > 0 -> "**${store.credits} report credit${if (store.credits == 1) "" else "s"}** left"
+                    store.ended -> "**Subscription ended** · choose a plan to start new inspections"
+                    else -> "**Free trial ended** · choose a plan to start new inspections"
+                }), style = T.ui(13.5.sp, color = Color.White), modifier = Modifier.weight(1f))
+                Text("Plans", style = T.ui(13.5.sp, FontWeight.SemiBold, Color.White))
                 Icon(VIcons.chevRight, null, tint = Color.White, modifier = Modifier.padding(start = 3.dp).size(16.dp))
             }
         }
@@ -292,10 +297,13 @@ private fun InspectionRow(vm: AppViewModel, b: InspectionBundle, nav: NavHostCon
 fun TrialSplash(vm: AppViewModel, nav: NavHostController) {
     val show by vm.splash.collectAsState()
     val owner = vm.session.collectAsState().value?.platformOwner == true
-    AnimatedVisibility(show && !owner, enter = fadeIn(), exit = fadeOut()) {
+    // A reinstall starts with no cached status: if the store then reports a subscription, the countdown closes itself.
+    val billing = vm.billing.status.collectAsState().value
+    val subscribed = billing.active || (billing.credits > 0 && vm.trialDaysLeft() == 0)
+    AnimatedVisibility(show && !owner && !subscribed, enter = fadeIn(), exit = fadeOut()) {
         BackHandler { vm.closeSplash() }
         val d = vm.trialDaysLeft()
-        val ended = !vm.canStartInspection()
+        val ended = d == 0
         val usedOnDevice = ended && vm.account.collectAsState().value.trialUsedOnDevice
         val soon = d <= 10
         val plural = if (d == 1) "" else "s"
@@ -328,13 +336,13 @@ fun TrialSplash(vm: AppViewModel, nav: NavHostController) {
                     style = T.display(19.sp, FontWeight.Bold, lineHeight = 23.sp), textAlign = TextAlign.Center)
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    if (usedOnDevice) "This device's 30-day free look has already been used, so a new company starts without one. Subscribe to start inspections."
-                    else if (ended) "Subscribe to start new inspections. Your saved inspections and their reports are still here to open, share or re-send."
-                    else if (soon) "You have $d day$plural left to sign up. Set up your subscription so access continues without interruption when the free look ends."
-                    else "You are on the 30-day free look — $d days left. Subscribe any time to keep access after it ends.",
+                    if (usedOnDevice) "This device's 30-day free look has already been used, so a new company starts without one. Choose a plan to start inspections."
+                    else if (ended) "Choose a plan to start new inspections. Your saved inspections and their reports are still here to open, share or re-send."
+                    else if (soon) "You have $d day$plural left. Choose a plan so access continues without interruption when the free look ends."
+                    else "You are on the 30-day free look — $d days left. Choose a plan any time to keep access after it ends.",
                     style = T.ui(13.sp, color = V.ink2, lineHeight = 19.5.sp), textAlign = TextAlign.Center, modifier = Modifier.padding(bottom = 18.dp),
                 )
-                VBtn(if (ended) "Subscribe" else "Set up subscription", { vm.closeSplash(); nav.navigate(SubscribeR) })
+                VBtn("See plans", { vm.closeSplash(); nav.navigate(SubscribeR) })
                 VBtn("Continue to app", { vm.closeSplash() }, Modifier.padding(top = 10.dp), BtnKind.Ghost)
             }
         }

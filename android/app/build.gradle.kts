@@ -1,3 +1,7 @@
+import java.security.KeyFactory
+import java.security.spec.X509EncodedKeySpec
+import java.util.Base64
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -5,17 +9,31 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
+// Store builds: ./gradlew bundleRelease -PvimsStore=true (shared subscription.store.storeAppID). Every other build keeps
+// subscription.store.testAppID, so installs over the client's test app keep working. `namespace` never changes.
+val vimsStore = providers.gradleProperty("vimsStore").map { it == "true" }.getOrElse(false)
+// Optional: Play Console > Monetization setup > Google Play Billing > Licensing public key (Base64). Absent = signature check skipped.
+val vimsPlayLicenseKey = providers.gradleProperty("vimsPlayLicenseKey").map { it.trim() }.getOrElse("")
+if (vimsPlayLicenseKey.isNotEmpty()) {
+    // A key that can't be read would reject (and so refund) every purchase: fail the build, never the customer.
+    try {
+        KeyFactory.getInstance("RSA").generatePublic(X509EncodedKeySpec(Base64.getDecoder().decode(vimsPlayLicenseKey)))
+    } catch (e: Exception) {
+        throw GradleException("vimsPlayLicenseKey is not a Base64 RSA public key: ${e.message}")
+    }
+}
+
 android {
     namespace = "com.vims.app"
     compileSdk = 37
 
     defaultConfig {
-        // TODO: confirm final application ID with the client before store submission.
-        applicationId = "com.vims.app"
+        applicationId = if (vimsStore) "com.vimsinspect.app" else "com.vims.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 30
-        versionName = "0.29.0"
+        versionCode = 31
+        versionName = "0.30.0"
+        buildConfigField("String", "PLAY_LICENSE_KEY", "\"$vimsPlayLicenseKey\"")
     }
 
     buildTypes {
@@ -34,6 +52,11 @@ android {
         getByName("main") {
             assets.directories.add("../../shared")
         }
+    }
+
+    testOptions {
+        // Pure Kotlin access and billing rules; android.util.Log is a no-op in unit tests.
+        unitTests.isReturnDefaultValues = true
     }
 }
 
@@ -67,6 +90,9 @@ dependencies {
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.ui)
     implementation(libs.core.splashscreen)
+    // Google Play subscriptions and report credits (shared subscription.store)
+    implementation(libs.billing.ktx)
+    testImplementation(libs.junit)
 }
 
 // Fail the build (instead of shipping a blank EULA screen / a dead "View" button / a cover without its artwork) if a

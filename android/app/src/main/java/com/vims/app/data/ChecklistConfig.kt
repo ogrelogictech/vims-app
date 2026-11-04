@@ -85,7 +85,13 @@ data class ChecklistConfig(
  * the row reads "Not active yet", the switch is disabled, stored values are kept and nothing claims a server sends anything.
  */
 @Serializable
-data class FeaturesDef(val sync: Boolean = false, val reportCopy: Boolean = false)
+data class FeaturesDef(
+    val sync: Boolean = false, val reportCopy: Boolean = false,
+    /** Data v1.18: false = no Join a company, no join code to share, no extra-inspector price (accounts already on the device keep working). */
+    val companyJoin: Boolean = false,
+    /** Data v1.18: false = master admin Plans & pricing is read-only; prices are set in Play Console and App Store Connect. */
+    val planEditing: Boolean = false,
+)
 
 /** `features` of the loaded shared data, for UI code without a view model (registered by [ChecklistLoader.load]). */
 object Features {
@@ -487,7 +493,22 @@ data class SubscriptionDef(
     val extraInspectorYearly: Double? = null,
     /** Data v1.11: billing periods offered on Subscribe ("monthly", "yearly"). */
     val billingPeriods: List<String> = listOf("monthly"),
+    /** Data v1.18: `subscription.store`, the in-app purchases. */
+    val store: StoreDef = StoreDef(),
 )
+
+/** `subscription.store`: the prose rules live in [com.vims.app.services.Access] and BillingManager; these are the store's IDs. */
+@Serializable
+data class StoreDef(val android: AndroidStoreDef = AndroidStoreDef())
+
+@Serializable
+data class AndroidStoreDef(
+    val subscription: String = "vims_app", val monthlyBasePlan: String = "monthly", val yearlyBasePlan: String = "yearly", val reportCredit: String = "vims_report_credit",
+)
+
+/** `support.ownerCode` (data v1.18): only the hash of the master admin code; see [com.vims.app.util.OwnerCode]. */
+@Serializable
+data class OwnerCodeDef(val saltHex: String = "", val iterations: Int = 0, val hashHex: String = "")
 
 @Serializable
 data class SupportDef(
@@ -501,6 +522,7 @@ data class SupportDef(
     val replacedDefaults: ReplacedDefaultsDef = ReplacedDefaultsDef(),
     /** Data v1.9.2: the client's vimsinspect.com mailboxes (informational: masterAdmin, admin, support, quality). */
     val domainEmails: Map<String, String> = emptyMap(),
+    val ownerCode: OwnerCodeDef = OwnerCodeDef(),
 ) {
     val ccInspectorOn: Boolean get() = ccInspector != null
 }

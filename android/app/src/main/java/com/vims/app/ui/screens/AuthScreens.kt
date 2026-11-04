@@ -102,7 +102,8 @@ fun LoginScreen(vm: AppViewModel, nav: NavHostController) {
                 PasswordField("Password", pw, { pw = it }, placeholder = "Password", error = pwErr, modifier = Modifier.formField(form, "password"), required = true)
                 VBtn("Sign in", { submit() })
                 VBtn("Create account", { nav.navigate(SignupR) }, Modifier.padding(top = 10.dp), BtnKind.Ghost)
-                VBtn("Join a company with a code", { nav.navigate(JoinR) }, Modifier.padding(top = 10.dp), BtnKind.Ghost, icon = VIcons.userPlus)
+                // features.companyJoin: no server yet, so a code can't reach a company on another device. The screen stays for Phase 2.
+                if (vm.companyJoinEnabled) VBtn("Join a company with a code", { nav.navigate(JoinR) }, Modifier.padding(top = 10.dp), BtnKind.Ghost, icon = VIcons.userPlus)
                 TextLink("Forgot password?", { nav.navigate(ForgotR) }, Modifier.padding(top = 4.dp))
             }
         }

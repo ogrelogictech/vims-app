@@ -55,7 +55,7 @@ import com.vims.app.R
 import com.vims.app.data.CompanyProfile
 import com.vims.app.ui.AdminR
 import com.vims.app.ui.AppViewModel
-import com.vims.app.ui.BillingR
+import com.vims.app.ui.SubscribeR
 import com.vims.app.ui.CompanyR
 import com.vims.app.ui.FeedbackAdminR
 import com.vims.app.ui.InspectorsR
@@ -155,7 +155,16 @@ fun SettingsScreen(vm: AppViewModel, nav: NavHostController) {
         }
 
         Lbl("Subscription & licensing")
-        NavRow(VIcons.card, "Plan & billing", if (session?.platformOwner == true && !account.active) "Master admin · no subscription needed" else "${vm.pricing(vm.platform.collectAsState().value).plan(account).name} · ${if (account.subscriptionEnded()) "subscription ended" else if (account.active) subTotalLabel(vm) else "trial"}") { nav.navigate(BillingR) }
+        val store by vm.billing.status.collectAsState()
+        NavRow(VIcons.card, "Plan & billing", when {
+            session?.platformOwner == true -> "Master admin · no subscription needed"
+            store.active -> vm.planName(store)
+            store.onHold -> "Payment problem · open to fix"
+            vm.trialDaysLeft() > 0 -> "Free trial · ${vm.trialDaysLeft()} days left"
+            store.credits > 0 -> "${store.credits} report credit${if (store.credits == 1) "" else "s"}"
+            store.ended -> "Subscription ended"
+            else -> "Free trial ended"
+        }) { nav.navigate(SubscribeR) }
         NavRow(VIcons.users, "Inspector accounts", "${account.inspectors.size} inspector${if (account.inspectors.size == 1) "" else "s"}") { nav.navigate(InspectorsR) }
 
         if (admin) {
@@ -170,6 +179,14 @@ fun SettingsScreen(vm: AppViewModel, nav: NavHostController) {
             val p = vm.platform.collectAsState().value
             NavRow(VIcons.mailPlus, "Report quality copy", if (vm.reportCopyEnabled) p.activeBcc?.let { "On · $it · sent by the VIMS server" } ?: "Off" else "Not active yet") { nav.navigate(ReportBccR) }
             NavRow(VIcons.mail, "Feedback & support", "Change the feedback contact email") { nav.navigate(FeedbackAdminR) }
+        }
+
+        // Shared support.ownerCode: a platform-owner email that hasn't entered the code yet. Gone once it's verified.
+        if (vm.ownerCodeRowShown(session)) {
+            var codeAsk by remember { mutableStateOf(false) }
+            Lbl("Master admin")
+            NavRow(VIcons.lock, "Master admin code", "Enter it once on this device") { codeAsk = true }
+            if (codeAsk) OwnerCodeDialog(vm) { codeAsk = false }
         }
 
         Lbl("Help & feedback")
@@ -201,14 +218,6 @@ fun SettingsScreen(vm: AppViewModel, nav: NavHostController) {
         ListRow("Report cover", settings.defaultCover.label())
         ListRow("Photo size", "JPG · ~750 KB")
     }
-}
-
-/** "$34.95/mo", "$385.00/yr" or "$5.00 / report" for the company's plan and billing period. */
-fun subTotalLabel(vm: AppViewModel): String {
-    val a = vm.account.value
-    val pr = vm.pricing()
-    val plan = pr.plan(a)
-    return if (plan.perReport) "${Fmt.money(plan.price)} / report" else "${Fmt.money(pr.total(a))}${com.vims.app.data.BillingPeriod.unit(pr.period(a))}"
 }
 
 @Composable
@@ -356,12 +365,13 @@ fun InstructionsScreen(vm: AppViewModel, nav: NavHostController) {
         // Client Oct 25: Phase 1 keeps everything on this device and syncs nothing (cross-device sync is Phase 2).
         com.vims.app.ui.components.Banner(if (vm.syncEnabled) "**Everything saves on your device.** All inspection data and photos are stored locally and work fully offline — they upload automatically the next time you are online."
             else "**Everything saves on this device.** Inspections, photos and reports are stored on this phone or tablet and work fully offline — no internet connection needed.", VIcons.bolt, blue = true)
-        HowCard(VIcons.info, "Getting started", "**New account:** tap **Create account** on sign-in and enter your details, or tap **Join a company with a code** if your company gave you one. New companies start on a **30-day free look** (one per device) — set up your company profile and logo in Settings first.")
+        HowCard(VIcons.info, "Getting started", "**New account:** tap **Create account** on sign-in and enter your details${if (vm.companyJoinEnabled) ", or tap **Join a company with a code** if your company gave you one" else ""}. New companies start on a **30-day free look** (one per device) — set up your company profile and logo in Settings first.")
         HowCard(VIcons.list, "Run an inspection", "Tap **New inspection**, then step through: inspection info → property details → the areas to inspect. On each section, tap the answers that apply, add photos, mark them up, and flag any concern into a category. Use **Save & next section** to move through quickly.")
         HowCard(VIcons.flask, "Checklist depth", "Pick **High Detail**, **Standard**, or **Fast Entry** per inspection (or set a default in Settings). High Detail asks the most; Fast Entry is a quick condition-and-notes pass.")
         HowCard(VIcons.file, "Photos & findings", "Tap **Add** to capture a photo, then tap it to draw on it or add a quick comment. Flagging a photo as a concern adds it to the **Summary** under Category 1 Safety, 2 Functional, or 3 Items to monitor.")
         HowCard(VIcons.file, "Generate the report", "From the Summary tap **Save and generate report**, choose a cover (color → theme → style), and the app builds your branded PDF on this device. ${if (vm.syncEnabled) "It queues to send when you are back online." else "Tap **Email to client** to send it from your email app."}")
-        HowCard(VIcons.bolt, "Subscription & inspectors", "Your free look counts down at every sign-in. Subscribe through **Square** any time. Add inspectors under your company license and share your **company code** so they can join.")
+        if (vm.companyJoinEnabled) HowCard(VIcons.bolt, "Subscription & inspectors", "Your free look counts down at every sign-in. Subscribe through **Google Play** any time. Add inspectors under your company license and share your **company code** so they can join.")
+        else HowCard(VIcons.bolt, "Subscription", "Your free look counts down at every sign-in. Under **Plan & billing** you can subscribe through **Google Play** any time, or buy a **report credit** to pay per report.")
         val ctx = androidx.compose.ui.platform.LocalContext.current
         val supportEmail = supportEmail(vm)
         VCard {
@@ -458,23 +468,46 @@ fun ReportBccScreen(vm: AppViewModel, nav: NavHostController) {
     }
 }
 
+/** Settings > Master admin code (shared support.ownerCode). */
+@Composable
+private fun OwnerCodeDialog(vm: AppViewModel, onDismiss: () -> Unit) {
+    var code by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+    var checking by remember { mutableStateOf(false) }
+    com.vims.app.ui.components.ConfirmDialog(
+        "Master admin code", "Enter the code once on this device to turn on the master admin screens and free access for this account.",
+        "Verify", confirmEnabled = code.isNotBlank() && !checking,
+        onConfirm = {
+            checking = true
+            vm.submitOwnerCode(code) { ok -> checking = false; if (ok) onDismiss() else error = "That code isn't right." }
+        },
+        onDismiss = onDismiss,
+    ) {
+        VInput(code, { code = it; error = null }, Modifier.padding(bottom = 10.dp), placeholder = "Code", caps = KeyboardCapitalization.Characters, error = error)
+    }
+}
+
 /** Delete account (app-store requirement): explains what is removed and requires typing DELETE. */
 @Composable
 fun DeleteAccountDialog(vm: AppViewModel, nav: NavHostController, onDismiss: () -> Unit) {
     var typed by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
     val owner = vm.session.collectAsState().value?.role == com.vims.app.data.Role.OWNER
+    val ctx = LocalContext.current
     com.vims.app.ui.components.ConfirmDialog(
         "Delete your account?",
         "This deletes your account and your inspections, photos and reports on this device." +
-            (if (owner) " As the owner, your company and its subscription are deleted too when nobody else is on it." else "") +
+            (if (owner) " As the owner, your company is deleted too when nobody else is on it." else "") +
             // Phase 1 (features.sync = false): nothing exists off the device, so there is no server deletion to wait for.
             (if (vm.syncEnabled) " VIMS completes the deletion within 10 working days." else " Everything is stored on this device, so once it's deleted it can't be recovered.") +
+            " Deleting your account doesn't cancel your subscription. Cancel it in your Apple or Google account settings." +
             " Type **DELETE** to confirm.",
         "Delete", danger = true, confirmEnabled = typed == "DELETE",
         onConfirm = { vm.deleteAccount(onError = { error = it }) { onDismiss(); nav.navigate(com.vims.app.ui.LoginR) { popUpTo(0) { inclusive = true } } } },
         onDismiss = onDismiss,
     ) {
+        // Shared subscription.store.deleteAccount: the subscription stays with the store account.
+        com.vims.app.ui.components.TextLink("Manage subscription", { openUrl(ctx, vm, vm.manageSubscriptionUrl()) }, Modifier.padding(bottom = 6.dp))
         // TODO(backend): POST the deletion request to the server (10 working days per the EULA).
         VInput(typed, { typed = it.uppercase() }, Modifier.padding(bottom = 10.dp), placeholder = "Type DELETE", caps = KeyboardCapitalization.Characters, error = error)
     }

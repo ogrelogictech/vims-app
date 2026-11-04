@@ -5,7 +5,8 @@ client-approved prototype (`../index.html`, `../report.html`, `../screens/`). Th
 
 - Kotlin + Jetpack Compose + Material3 (themed to `../docs/design-tokens.md`, light only)
 - Single activity, navigation-compose (type-safe routes), one `AppViewModel` exposing `StateFlow`s
-- Offline-first local database: **Room (SQLite)**, scoped per user / per company; no network, no `INTERNET` permission
+- Offline-first local database: **Room (SQLite)**, scoped per user / per company; the app's own code opens no network connection (the Play Billing Library adds `INTERNET` to the merged manifest for its own telemetry)
+- Subscriptions and report credits: **Google Play Billing Library 9.1** (`services/BillingManager.kt`, `PlayBillingBackend.kt`, rules in `Access.kt`; shared `subscription.store`)
   (MySQL is the Phase 2 *server* database behind the Laravel API — it can't run on a phone; Room is the on-device store)
 - Splash video on cold launch, reusable input validation, the prototype's own icon set (`shared/icons`)
 - Checklist content/config is loaded at runtime from the shared `vims-checklists.json` — nothing is hardcoded
@@ -23,9 +24,31 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 adb shell am start -n com.vims.app/.MainActivity
 ```
 
+**Test build or store build:**
+
+| Build | Command | Application ID | Output |
+| --- | --- | --- | --- |
+| Test, debug | `./gradlew assembleDebug` | `com.vims.app` | `app/build/outputs/apk/debug/app-debug.apk` |
+| Test, release | `./gradlew assembleRelease` | `com.vims.app` | unsigned APK, sign it yourself |
+| Store (Play Console) | `./gradlew bundleRelease -PvimsStore=true [-PvimsPlayLicenseKey=<Base64 key>]` | `com.vimsinspect.app` | `app/build/outputs/bundle/release/app-release.aab`, sign with the upload key |
+
+`namespace` stays `com.vims.app`, so on a store build adb needs the full component:
+`adb shell am start -n com.vimsinspect.app/com.vims.app.MainActivity`. The two IDs install side by side and inspections don't move between them.
+`vimsPlayLicenseKey` (optional, Play Console > Monetize > Monetization setup > Licensing) turns on the purchase signature check; a key that can't be parsed fails the build.
+
+**Billing without Play (debug builds only):** `src/debug` holds a fake store, `src/release` doesn't, so a release build has no path to it.
+```bash
+adb shell am start --activity-single-top -n com.vims.app/.MainActivity --es fakeBilling on
+#   comma separated: on off reset unavailable available offline online nextPending nextCancel nextFail completePending
+#                    expire hold unhold failAck failConsume storeOk credit sub:monthly[:daysAgo] sub:yearly[:daysAgo]
+#   --ei fakeCacheExpiryDaysAgo N    the cached expiry is N days ago (the store must be offline to see it hold)
+#   --ez ownerBypass true            the signed-in platform-owner account counts as verified
+#   --es ownerCodeTest <saltHex>:<iterations>:<hashHex>    the code check uses a throwaway hash for this run
+```
+
 **Demo account (debug builds only since v0.29.0; an install that already has it keeps it):** `jeremy@visionpropertyinspections.com` / `inspect2026` (owns the sample inspections and the
-Vision Property Inspections company, join code `VIS-4827`). Create account makes a brand-new, empty user + company;
-Join a company with a code attaches a new user to an existing company. Auth is a local stub (`TODO(backend)`).
+Vision Property Inspections company). Create account makes a brand-new, empty user + company. Join a company with a code
+is off with `features.companyJoin` false (the code stays for Phase 2). Auth is a local stub (`TODO(backend)`).
 
 ### Debug screen jumper (debug builds only)
 `MainActivity` accepts intent extras so any screen can be opened directly (also signs in):
@@ -33,7 +56,7 @@ Join a company with a code attaches a new user to an existing company. Auth is a
 ```bash
 adb shell am start -S -n com.vims.app/.MainActivity --es screen section --es section Roof
 #   screen: login signup forgot join home wizard sections section photos camera markup finding summary report
-#           generated pdf settings company instructions admin editsec plans inspectors subscribe substarted billing feedbackadmin
+#           generated pdf settings company instructions admin editsec plans inspectors subscribe billing feedbackadmin
 #           eula agreement (inspection agreement; add --es state NH to show only that state's disclosures;
 #           --es insp demo-ridgeline instead = filled in from that inspection + Email button — don't combine with --es state,
 #           which rewrites the inspection's state)
@@ -230,8 +253,6 @@ PDF cover + page headers; without a logo an initials badge is used everywhere.
 ## Backend stubs — search for `TODO(backend)`
 - `LocalAuthService` — local users/companies tables with salted PBKDF2 hashes; create account = new user + company (owner);
   join-by-code = new user in that company (Inspector role unless the admin already marked their email as admin).
-- `LocalSubscriptionService` — Square subscription is simulated (always succeeds, keeps last 4 digits only). Replace the
-  card fields on the Subscribe screen with the Square In-App Payments SDK card entry; never send or store a card number.
 - `LocalSyncService` — "Sync now" just marks everything synced; Phase 1 never calls it (`features.sync = false`). Phase 2: upload inspections/photos/findings/reports and pull
   checklist/plan edits from the Laravel API.
 - `DeviceTrial` — one free trial per device is a local record only; the server must enforce it across reinstalls (ANDROID_ID +
@@ -903,3 +924,13 @@ Phase 1 has no network code (no `INTERNET` permission), so nothing may claim a s
   being sent."; On / Off disabled; the stored on value and address are kept. Save writes the address only and toasts "Address saved. No copies are being sent yet."
 - **Sync wording audit (`features.sync` false):** every sync / upload / portal string in the UI code is behind `vm.syncEnabled`, `netState.shown` or `Features.sync`.
 - **Verified** (throwaway emulator, Android 15, PIN lock): see `screenshots/nov4-*`. Test APK `../../VIMS-Android-test-v0.29.0-2026-11-04.apk` (debug key, installs over v0.28.0).
+
+## v0.30.0: in-app subscriptions (shared v1.18.0)
+
+- **Billing:** `services/Access.kt` (the rules, pure Kotlin), `BillingManager.kt` (everything after the store answered: grant, acknowledge, consume, cache), `PlayBillingBackend.kt` (Play Billing Library 9.1), `src/debug/.../BillingFlavor.kt` (fake store), `src/release/.../BillingFlavor.kt` (Play only). Status, credits and credited tokens are one JSON value in the prefs file `vims_billing`, outside Room and outside every account. Unit tests: `./gradlew :app:testDebugUnitTest`.
+- **Play has no expiry or base plan on the client.** The base plan goes to Play as `obfuscatedProfileId` at launch and comes back on the purchase. The cached expiry is the end of the current period counted from the purchase time. A subscription on account hold or paused (`isSuspended`) isn't active, per Google; the plans screen sends the user to Manage subscription.
+- **Simulated subscriptions** from earlier builds: `active`, `card`, `cardLast4`, `subscribedEpochDay`, `cancelled`, `cancelledEpochDay` and `refundAmount` are gone from `AccountState`; the old keys are ignored on decoding and drop off on the next account write.
+- **Owner code:** `Session.platformOwner` now means email matched and verified, so every owner check follows it. The flag is the kv row `ownerVerified.<userId>`: no Room migration, schema stays v4. `util/OwnerCode.kt` compares; only the hash from shared `support.ownerCode` is in the app.
+- **Reports:** the first report without a subscription or trial uses a credit after the PDF exists. A preview uses no credit, so until the report is generated its PDF has no Share and no Save or share report.
+- **Inspectors with `features.companyJoin` false:** no code, price or Add. Accounts on this device keep Make admin and Make owner. A list row with no account on this device (added by an earlier build) shows that and only has Remove. Remove isn't offered on real accounts: it never ended their sign-in.
+- **Auto Backup:** only `vims_device.xml`, in `res/xml/backup_rules.xml` (API 26-30) and `data_extraction_rules.xml` (API 31+, cloud and device transfer).
