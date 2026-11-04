@@ -418,7 +418,7 @@
         <div class="field"><label>Password</label><div class="pwwrap"><input class="txt" id="loginpw" type="password" value="inspect2026"><button type="button" class="pweye" aria-label="Show password" onclick="togglePw('loginpw',this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
         <button class="btn primary" onclick="signIn()">Sign in</button>
         <button class="btn ghost" style="margin-top:10px" onclick="go('s-signup')">Create account</button>
-        <button class="btn ghost" style="margin-top:10px" onclick="go('s-join')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>Join a company with a code</button>
+        <button class="btn ghost" hidden style="margin-top:10px" onclick="go('s-join')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>Join a company with a code</button>
         <p style="text-align:center;font-size:12.5px;color:var(--ink-3);margin-top:16px;cursor:pointer" onclick="go('s-forgot')">Forgot password?</p>
       </div>
     </section>
@@ -601,7 +601,7 @@
       <p class="lbl">Choose your plan</p>
       <div class="chips" data-single data-req data-manual id="subperiod" style="margin-bottom:12px"><button type="button" class="chip on" data-period="monthly">Monthly</button><button type="button" class="chip" data-period="yearly">Yearly</button></div>
       <div id="planwrap"></div>
-      <p class="lbl">Inspector seats</p>
+      <div hidden><p class="lbl">Inspector seats</p>
       <div class="counter"><b>Inspectors on this license</b><div class="cc"><button type="button" onclick="subSeat(-1)">&minus;</button><span id="subcount">1</span><button type="button" onclick="subSeat(1)">+</button></div></div>
       <p style="font-size:12px;color:var(--ink-3);margin:2px 2px 0" id="subextra">First inspector included &middot; each additional <b>$24.95/mo</b></p>
       <div class="card" style="display:flex;justify-content:space-between;align-items:center;margin-top:14px"><b style="font-size:15px" id="subtotallbl">Monthly total</b><b id="subtotal" style="font-family:var(--fm);font-size:22px;color:var(--brand)">$34.95</b></div>
@@ -609,7 +609,10 @@
       <div class="field"><label>Card number</label><input class="txt" placeholder="1234 5678 9012 3456"></div>
       <div class="stat2" style="gap:10px"><div class="field" style="margin:0"><label>Expiry</label><input class="txt" placeholder="MM / YY"></div><div class="field" style="margin:0"><label>CVC</label><input class="txt" placeholder="123"></div></div>
       <div style="display:flex;align-items:center;gap:8px;margin:8px 2px 0;font-size:12px;color:var(--ink-3)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Secured by Square &middot; <span id="subrenew">auto-renews monthly</span> &middot; cancel anytime</div>
-      <button class="btn primary" style="margin-top:16px" onclick="startSub()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Start subscription</button>
+      </div>
+      <p style="font-size:12px;color:var(--ink-3);margin:12px 2px 0;line-height:1.5">Payment is charged to your Apple Account or Google Play account. Subscriptions renew automatically unless canceled at least 24 hours before the end of the current period. Manage or cancel in your account settings. <a href="#" onclick="go('s-eula');return false">License agreement</a> &middot; <a href="https://vimsinspect.com/privacy.html">Privacy Policy</a></p>
+      <button class="btn primary" style="margin-top:16px" onclick="startSub()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Subscribe</button>
+      <button class="btn ghost" style="margin-top:10px" onclick="toast('Restored from your Apple or Google account')">Restore Purchases</button>
     </section>
 
     <!-- SUBSCRIPTION STARTED -->
@@ -617,7 +620,7 @@
       <div class="success">
         <div class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
         <h2>Subscription active</h2>
-        <p>Your <span id="ss-plan">App</span> plan is set up with auto-pay through Square. Access continues after your trial with no interruption.</p>
+        <p>Your <span id="ss-plan">App</span> plan is active. It renews automatically through your Apple or Google account.</p>
         <button class="btn primary" onclick="go('s-billing')">View subscription</button>
         <button class="btn ghost" style="margin-top:10px" onclick="goHome()">Back to inspections</button>
       </div>
@@ -625,7 +628,7 @@
 
     <!-- MANAGE INSPECTORS -->
     <section class="screen" id="s-inspectors" data-title="Inspectors">
-      <p style="font-size:13px;color:var(--ink-3);margin:2px 0 12px" id="inspextra">Add inspector accounts under your company license. First inspector is included; each additional is <b>$24.95/mo</b>.</p>
+      <p style="font-size:13px;color:var(--ink-3);margin:2px 0 12px" id="inspextra">Inspector accounts on this device. An inspector on another phone or tablet creates an account and subscribes there.</p>
       <div id="inspectorlist"></div>
       <div class="addsec" style="border-color:var(--brand)">
         <input id="newinspname" placeholder="Inspector name">
@@ -716,8 +719,8 @@
 
     <!-- ADMIN: subscription plans & pricing -->
     <section class="screen" id="s-plans" data-title="Plans &amp; pricing">
-      <p style="font-size:13px;color:var(--ink-3);margin:2px 0 12px"><b>Master admin (VIMS owner only)</b> &mdash; edit monthly and yearly plan prices, add a plan, or set the per-inspector rate. Changes apply to every company&rsquo;s subscribe screen. Company admins can&rsquo;t see or change these.</p>
-      <div id="plansadminbody"></div>
+      <p style="font-size:13px;color:var(--ink-3);margin:2px 0 12px"><b>Master admin (VIMS owner only)</b> &mdash; prices are set in App Store Connect and Google Play Console.</p>
+      <div id="plansadminbody" inert style="opacity:.75"></div>
     </section>
 
     <!-- COMPANY PROFILE & BRANDING -->
@@ -5106,12 +5109,12 @@ SEC['Wind Mitigation'].itemsHigh=[
     function card(icon,title,body){ return '<div class="card"><div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><span style="width:30px;height:30px;border-radius:8px;background:var(--paper-3);color:var(--brand);display:grid;place-items:center;flex:none">'+ico(icon)+'</span><b style="font-family:var(--fd);font-size:15px">'+title+'</b></div><div style="font-size:13px;color:var(--ink-2);line-height:1.55">'+body+'</div></div>'; }
     host.innerHTML =
       '<div class="banner" style="background:rgba(47,94,201,.08);border-color:#c3d2f2"><svg viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9z"/></svg><div style="color:var(--brand-deep)"><b>Everything saves on your device.</b> All inspection data and photos are stored on this device and work fully offline &mdash; no internet connection is needed to inspect or build the report.</div></div>'
-      + card('info','Getting started','<b>New account:</b> tap <b>Create account</b> on sign-in and enter your details, or tap <b>Join a company with a code</b> if your company gave you one. New companies start on a <b>30-day free look</b> &mdash; set up your company profile and logo in Settings first.')
+      + card('info','Getting started','<b>New account:</b> tap <b>Create account</b> on sign-in and enter your details New companies start on a <b>30-day free look</b> &mdash; set up your company profile and logo in Settings first.')
       + card('list','Run an inspection','Tap <b>New inspection</b>, then step through: inspection info &rarr; property details &rarr; the areas to inspect. On each section, tap the answers that apply, add photos, mark them up, and flag any concern into a category. Use <b>Save &amp; next section</b> to move through quickly.')
       + card('flask','Checklist depth','Pick <b>High Detail</b>, <b>Standard</b>, or <b>Fast Entry</b> per inspection (or set a default in Settings). High Detail asks the most; Fast Entry is a quick condition-and-notes pass.')
       + card('file','Photos &amp; findings','Tap <b>Add</b> to capture a photo, then tap it to draw on it or add a quick comment. Flagging a photo as a concern adds it to the <b>Summary</b> under Category 1 Safety, 2 Functional, or 3 Items to monitor.')
       + card('file','Generate the report','From the Summary tap <b>Save and generate report</b>, choose a cover (color &rarr; theme &rarr; style), and the app builds your branded PDF on this device. Then email it to your client from the <b>Report ready</b> screen.')
-      + card('bolt','Subscription &amp; inspectors','Your free look counts down at every sign-in. Subscribe through <b>Square</b> any time. Add inspectors under your company license and share your <b>company code</b> so they can join.')
+      + card('bolt','Subscription &amp; inspectors','Your free look counts down at every sign-in. Subscribe through your <b>Apple or Google</b> account any time. Each inspector on their own device subscribes on that device.')
       + '<div class="card" style="text-align:center"><div style="font-size:13px;color:var(--ink-3)">Need a hand? Contact VIMS support</div><a href="mailto:'+FEEDBACK_EMAIL+'" style="display:inline-block;font-family:var(--fm);font-size:13px;color:var(--brand-deep);margin-top:4px;padding:10px;text-decoration:underline">'+FEEDBACK_EMAIL+'</a></div>';
   }
 
@@ -5165,7 +5168,6 @@ SEC['Wind Mitigation'].itemsHigh=[
     var w=document.getElementById('inspectorlist'); w.innerHTML='';
     var box=document.createElement('div'); box.className='codebox';
     box.innerHTML='<div class="cl">Company join code</div><div class="cv">'+SUB.companyCode+'<button onclick="copyCode()">'+wrapSvg('<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>')+'Copy</button></div><p>Share this code with an inspector. They download VIMS, tap <b>Join a company with a code</b>, and their account links to your license &amp; billing.</p>';
-    w.appendChild(box);
     var note=document.createElement('p'); note.style.cssText='font-size:12px;color:var(--ink-3);margin:0 2px 12px;line-height:1.5';
     note.innerHTML='You (the account owner) are an <b>admin</b> by default. Tap <b>Make admin</b> to grant any inspector admin access &mdash; admins can manage checklists, inspectors, the company profile, and settings. Plans &amp; pricing are set by the VIMS master admin. Nothing is hard-coded; roles are set here.';
     w.appendChild(note);
@@ -5394,32 +5396,13 @@ SEC['Wind Mitigation'].itemsHigh=[
     h+='<div class="binforow"><span>Plan</span><b>'+PLANS[SUB.plan].name+' · '+money(planPrice(PLANS[SUB.plan]))+(PLANS[SUB.plan].unit||perLabel())+'</b></div>';
     if(!PLANS[SUB.plan].perReport) h+='<div class="binforow"><span>Billing period</span><b>'+(yr?'Yearly':'Monthly')+'</b></div>';
     if(yr&&!PLANS[SUB.plan].perReport) h+='<div class="binforow"><span>Period started</span><b>'+fmtDay(BILL.yearStart)+'</b></div>';
-    if(!PLANS[SUB.plan].perReport) h+='<div class="binforow"><span>Inspectors</span><b>'+SUB.inspectors.length+' ('+Math.max(0,SUB.inspectors.length-1)+' × '+money(extraPrice())+')</b></div>';
     h+='<div class="binforow"><span>'+(PLANS[SUB.plan].perReport?'Billing':totalWord())+'</span><b>'+subTotalLabel()+'</b></div>';
-    h+='<div class="binforow"><span>Payment</span><b>'+(SUB.active?'Square · '+BILL.card:'Not set up')+'</b></div>';
-    if(yc) h+='<div class="binforow"><span>Refund</span><b>'+money(rf.amount)+' to '+BILL.card+'</b></div>';
-    else h+='<div class="binforow"><span>'+(SUB.active?(yr?'Renews':'Next billing'):'Trial ends')+'</span><b>'+(SUB.active?(yr?fmtDay(BILL.yearRenew):fmtDay(BILL.nextMonthly)):'in '+SUB.trialDays+' days')+'</b></div>';
-    if(SUB.active&&!SUB.cancelled&&yr) h+='<div class="binforow"><span>Refund if cancelled today</span><b>'+money(rf.amount)+'</b></div>';
+    h+='<div class="binforow"><span>Payment</span><b>'+(SUB.active?'Apple or Google account':'Not set up')+'</b></div>';
+    h+='<div class="binforow"><span>'+(SUB.active?(yr?'Renews':'Next billing'):'Trial ends')+'</span><b>'+(SUB.active?(yr?fmtDay(BILL.yearRenew):fmtDay(BILL.nextMonthly)):'in '+SUB.trialDays+' days')+'</b></div>';
     h+='</div>';
     h+='<button class="btn ghost" onclick="go(\'s-inspectors\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>Manage inspectors</button>';
-    if(!yc) h+='<button class="btn '+(SUB.active?'ghost':'primary')+'" style="margin-top:10px" onclick="go(\'s-subscribe\')">'+(SUB.active?'Change plan / payment':'Set up subscription')+'</button>';
-    var CARD='<div class="card" style="margin-top:14px;font-size:13px;color:var(--ink-2);background:var(--paper);line-height:1.5';
-    if(SUB.active){
-      if(yc){
-        h+=CARD+'">Your yearly subscription was cancelled on <b>'+fmtDay(BILL.today)+'</b> and access ended that day. A pro-rated refund of <b>'+money(rf.amount)+'</b> for the unused days ('+refundMath(rf)+') will be refunded to your card ('+BILL.card+'). Download anything you need within 30 days.</div>';
-        h+='<button class="btn primary" style="margin-top:10px" onclick="resubscribe()">Subscribe again</button>';
-      } else if(SUB.cancelled){
-        h+=CARD+'">Your subscription is cancelled and stays active until <b>'+fmtDay(BILL.nextMonthly)+'</b>, your next billing date. Added inspectors end on the same date. Download anything you need within 30 days after it ends.</div>';
-        h+='<button class="btn ghost" style="margin-top:10px" onclick="resumeSub()">Undo cancellation</button>';
-      } else if(SUB.confirmCancel){
-        if(yr) h+=CARD+';border-color:var(--c1)"><b style="color:var(--ink)">Cancel your yearly subscription?</b><br>Yearly plans end on the cancellation date, so your access ends <b>today ('+fmtDay(BILL.today)+')</b>, including added inspectors. The unused days are refunded pro rata: '+refundMath(rf)+' = <b>'+money(rf.amount)+'</b> will be refunded to your card ('+BILL.card+'). Download anything you need within 30 days.</div>';
-        else h+=CARD+';border-color:var(--c1)"><b style="color:var(--ink)">Cancel your subscription?</b><br>Monthly plans stay active until the next billing date (<b>'+fmtDay(BILL.nextMonthly)+'</b>), then stop renewing. Added inspectors end on the same date. Monthly plans are not refunded or prorated. Download anything you need within 30 days after it ends.</div>';
-        h+='<div class="btnrow" style="margin-top:10px"><button class="btn ghost" onclick="askCancelSub(false)">Keep subscription</button><button class="btn primary" style="background:var(--c1);box-shadow:none" onclick="cancelSub()">Yes, cancel</button></div>';
-      } else {
-        h+='<button class="btn ghost" style="margin-top:10px;color:var(--c1)" onclick="askCancelSub(true)">Cancel subscription</button>';
-        h+='<p style="font-size:12px;color:var(--ink-3);margin:8px 2px 0;line-height:1.5">'+(yr?'Yearly plans end when you cancel, and the unused days are refunded to your card.':'Monthly plans stay active until the next billing date after you cancel.')+'</p>';
-      }
-    }
+    h+='<button class="btn '+(SUB.active?'ghost':'primary')+'" style="margin-top:10px" onclick="go(\'s-subscribe\')">'+(SUB.active?'Change plan':'Set up subscription')+'</button>';
+    if(SUB.active) h+='<button class="btn ghost" style="margin-top:10px" onclick="toast(\'Opens your Apple or Google subscription settings\')">Manage subscription</button><p style="font-size:12px;color:var(--ink-3);margin:8px 2px 0;line-height:1.5">Cancel in your Apple or Google account settings. Refunds follow Apple\'s and Google\'s rules.</p>';
     b.innerHTML=h;
   }
   function renderPlansAdmin(){
