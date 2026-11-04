@@ -1,6 +1,6 @@
 {
  "_about": "VIMS shared checklist + configuration data. Single source of truth for the native iOS (SwiftUI) and Android (Kotlin/Compose) apps. Extracted from the client-approved prototype (index.html, approved Sep 15, 2026). Edit here, not in app code.",
- "version": "1.17.0",
+ "version": "1.18.0",
  "generated": "2026-11-04",
  "depths": [
   {
@@ -32857,13 +32857,37 @@
   ],
   "_extraInspectorAbout": "Client Oct 28: the Additional inspector rate is not a plan; it applies to every plan, so Plans & pricing shows it with monthly + yearly prices but no Delete (card note: 'Applies to every plan, so it can't be deleted.').",
   "extraInspectorMonthly": 24.95,
-  "note": "Company subscription billed through Square (Phase 1). Client inspection-fee payment is a separate add-on, NOT Phase 1.",
+  "note": "Phase 1 subscriptions are Apple and Google in-app purchases (Gaurav, Nov 4 2026; replaces Square, pending the client's signed amendment VIMS-AGR-002-A1). Client inspection-fee payment is a separate add-on, NOT Phase 1.",
   "extraInspectorYearly": 275,
   "billingPeriods": [
    "monthly",
    "yearly"
   ],
-  "_pricingAbout": "Client Oct 28 2026 pricing: App only $34.95/month or $385/year (includes the first inspector); each additional inspector $24.95/month or $275/year; Pay per report $5.00 (no monthly fee, no yearly option); Portal + App $74.95/month or $825/year, marked comingSoon (Phase 2: inspection business management suite — employees, inspectors, clients, networking, inspections, reports and follow-ups from a computer, with two-way sync): shown but not selectable until Phase 2. Subscribe offers Monthly / Yearly for plans with priceYearly; extra inspectors follow the company's billing period. Only VIMS master admins (support.platformOwners) can edit plans and prices."
+  "_pricingAbout": "Client Oct 28 2026 pricing: App only $34.95/month or $385/year (includes the first inspector); each additional inspector $24.95/month or $275/year; Pay per report $5.00 (no monthly fee, no yearly option); Portal + App $74.95/month or $825/year, marked comingSoon (Phase 2: inspection business management suite — employees, inspectors, clients, networking, inspections, reports and follow-ups from a computer, with two-way sync): shown but not selectable until Phase 2. Subscribe offers Monthly / Yearly for plans with priceYearly; extra inspectors follow the company's billing period. Only VIMS master admins (support.platformOwners) can edit plans and prices.",
+  "store": {
+   "_about": "No server in Phase 1, so the stores bill and report status. Prices come from the store at runtime; the price fields above are reference only and are never charged or displayed when a store price is available.",
+   "ios": {
+    "subscriptionGroup": "VIMS App",
+    "monthly": "vims.app.monthly",
+    "yearly": "vims.app.yearly",
+    "reportCredit": "vims.report.credit"
+   },
+   "android": {
+    "subscription": "vims_app",
+    "monthlyBasePlan": "monthly",
+    "yearlyBasePlan": "yearly",
+    "reportCredit": "vims_report_credit"
+   },
+   "storeAppID": "com.vimsinspect.app",
+   "testAppID": "com.vims.app",
+   "_appIDAbout": "Store builds use storeAppID; test builds keep testAppID so installs over the client's test app keep working. The two can sit side by side. Inspections do not move between them.",
+   "access": "Allowed when any is true: verified owner code; device trial still running (30 days, no card, one per device, as today); active store subscription including any grace or billing-retry period the store reports; for a new inspection after the trial, at least one report credit. Otherwise block NEW inspections and show the plans screen. Never block opening, editing, exporting or emailing what is already saved. Locally stored simulated subscriptions from earlier test builds count for nothing.",
+   "reportCredit": "Consumable. Buying adds one credit on this device, finished or consumed with the store only after the credit is saved. Generating an inspection's first report with no subscription and no trial uses one credit; regenerating that inspection's report is free. If none, offer the purchase at that point.",
+   "offline": "The last verified status and expiry are cached on the device. If the store can't be reached, the cached status holds until expiry plus 7 days. A store that answers overrides the cache.",
+   "plansScreen": "App only: Monthly and Yearly at store prices; Pay per report at the store price; Portal + App stays Coming soon and not purchasable. Each purchasable option shows title, length and price before buying, plus: 'Payment is charged to your Apple Account / Google Play account. Subscriptions renew automatically unless canceled at least 24 hours before the end of the current period. Manage or cancel in your account settings.' Includes Restore Purchases, Manage subscription (store's own screen), and links to the License agreement (in-app) and Privacy Policy (https://vimsinspect.com/privacy.html). If prices can't load: 'Plans can't load right now. Check your connection and try again.' with Try again.",
+   "removed": "Card form, card on file, seats and extra-inspector pricing on Subscribe, in-app cancel and undo, pro-rated refund text, and any wording that names Square. Keep them out of reach rather than leaving dead screens.",
+   "deleteAccount": "Replace 'Your subscription is cancelled (no further charges)' with: 'Deleting your account doesn't cancel your subscription. Cancel it in your Apple or Google account settings.' plus a Manage subscription link."
+  }
  },
  "support": {
   "feedbackEmail": "support@vimsinspect.com",
@@ -32896,7 +32920,13 @@
    "quality": "quality@vimsinspect.com"
   },
   "_domainEmailsAbout": "Client's vimsinspect.com mailboxes (Oct 22 2026): masteradmin + admin = VIMS platform owners (system admins), support = Feedback & support / store contact / privacy contact, quality = report quality copy (BCC).",
-  "_masterAdminAbout": "Client Oct 28: accounts in platformOwners are 'Master admin' (client's term). They see a clearly labeled 'Master admin' section (side menu + Settings) and a 'Master admin' badge on their account: Plans & pricing (VIMS subscription plans and prices — master admin only, no longer shown to company admins), Report quality copy (BCC), Feedback & support. Company admins keep Manage checklist and Inspectors."
+  "_masterAdminAbout": "Client Oct 28: accounts in platformOwners are 'Master admin' (client's term). They see a clearly labeled 'Master admin' section (side menu + Settings) and a 'Master admin' badge on their account: Plans & pricing (VIMS subscription plans and prices — master admin only, no longer shown to company admins), Report quality copy (BCC), Feedback & support. Company admins keep Manage checklist and Inspectors.",
+  "ownerCode": {
+   "_about": "The platformOwners emails are public, so an account with one of those emails is a normal user until this code is entered once on that device (Settings > Master admin code). Only then does it get master admin screens and free access. Compare: strip everything but letters and digits, uppercase, PBKDF2-HMAC-SHA256 over the UTF-8 result. The code itself is never stored in the repo or the app; only this hash.",
+   "saltHex": "680a49b31b9fc1cc7a78c3115878865a",
+   "iterations": 200000,
+   "hashHex": "c73584a7b1f06f7e721caf35bbc7bb6c817aa21c9121763e1eef353388e0cb89"
+  }
  },
  "sample": {
   "_about": "Demo data used by the prototype; for previews/tests only.",
@@ -33241,7 +33271,11 @@
   "reportCopy": false,
   "_reportCopyAbout": "Phase 1 is app-only: the app makes no network calls, so nothing can send a report quality copy (client accepted Oct 30: keep it off until the server sends it). With reportCopy false the Report quality copy row reads 'Not active yet', the switch is disabled with a note that no copies are being sent, stored values are kept, and no wording claims a VIMS server sends anything.",
   "passwordReset": "device",
-  "_passwordResetAbout": "Phase 1 passwords exist only on the device, so no reset email can be sent. Reset password: enter the email; an account for it must be on this device; confirm with the device's own passcode / Face ID / fingerprint; then choose a new password (same rules as Create account). A device with no screen lock is told to set one first. Inspections and settings are untouched."
+  "_passwordResetAbout": "Phase 1 passwords exist only on the device, so no reset email can be sent. Reset password: enter the email; an account for it must be on this device; confirm with the device's own passcode / Face ID / fingerprint; then choose a new password (same rules as Create account). A device with no screen lock is told to set one first. Inspections and settings are untouched.",
+  "companyJoin": false,
+  "_companyJoinAbout": "No server, so a code can't reach a company on another device. With companyJoin false: no Join a company on sign-in, no join code to copy or share, no extra-inspector price. Accounts already on the device keep working. Keep the code behind the flag for Phase 2.",
+  "planEditing": false,
+  "_planEditingAbout": "Prices are set in App Store Connect and Google Play Console. With planEditing false, master admin Plans & pricing is read-only, shows store prices, and says: 'Prices are set in App Store Connect and Google Play Console.'"
  },
  "agreementPrefill": {
   "_about": "Client Oct 30: the inspection agreement fills in the client and inspection details the inspector already entered, and has an 'Email inspection agreement' button at the bottom so it can be emailed to the client from the app. Applies to the VIMS agreement (shared/legal/inspection-agreement.json) and to a company's edited version of it. Electronic signing is NOT part of this (separate add-on, quoted Oct 5): the client reads, signs and sends it back. Settings / Company profile still show the blank agreement with no Email button.",
