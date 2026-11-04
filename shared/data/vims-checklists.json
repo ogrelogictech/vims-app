@@ -33269,7 +33269,7 @@
   "sync": false,
   "_about": "Client Oct 25: Phase 1 does not sync inspections anywhere (cross-device sync is Phase 2). With sync false: no sync status pill/badges (e.g. 'Offline · 3 queued'), no Settings 'Sync' section or 'Sync now', no automatic sync stub, and no wording about syncing anywhere in the app (How VIMS works, help text, toasts). Keep the code behind this flag for Phase 2.",
   "reportCopy": false,
-  "_reportCopyAbout": "Phase 1 is app-only: the app makes no network calls, so nothing can send a report quality copy (client accepted Oct 30: keep it off until the server sends it). With reportCopy false the Report quality copy row reads 'Not active yet', the switch is disabled with a note that no copies are being sent, stored values are kept, and no wording claims a VIMS server sends anything.",
+  "_reportCopyAbout": "Phase 1 is app-only: the app's own code talks to no server (Google Play Billing and Apple's store handle purchases), so nothing can send a report quality copy (client accepted Oct 30: keep it off until the server sends it). With reportCopy false the Report quality copy row reads 'Not active yet', the switch is disabled with a note that no copies are being sent, stored values are kept, and no wording claims a VIMS server sends anything.",
   "passwordReset": "device",
   "_passwordResetAbout": "Phase 1 passwords exist only on the device, so no reset email can be sent. Reset password: enter the email; an account for it must be on this device; confirm with the device's own passcode / Face ID / fingerprint; then choose a new password (same rules as Create account). A device with no screen lock is told to set one first. Inspections and settings are untouched.",
   "companyJoin": false,

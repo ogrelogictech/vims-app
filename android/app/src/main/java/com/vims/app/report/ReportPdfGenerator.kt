@@ -1307,7 +1307,7 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
                         val st = sb.length; sb.append(" $v ")
                         sb.setSpan(android.text.style.UnderlineSpan(), st, sb.length, 0)
                         sb.setSpan(android.text.style.ForegroundColorSpan(valueColor), st, sb.length, 0)
-                        sb.setSpan(android.text.style.TypefaceSpan(plex600), st, sb.length, 0)
+                        sb.setSpan(if (android.os.Build.VERSION.SDK_INT >= 28) android.text.style.TypefaceSpan(plex600) else android.text.style.StyleSpan(android.graphics.Typeface.BOLD), st, sb.length, 0)
                     }
                     i = end + 1
                 }
