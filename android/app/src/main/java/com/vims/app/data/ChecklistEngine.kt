@@ -72,10 +72,15 @@ class ChecklistEngine(val config: ChecklistConfig, val edits: ChecklistEdits) {
             }
         }
         g.optional?.let { key ->
+            // Client Nov 4 (`checklistBuilder._wizardVsChecklistOrder`): only the wizard's chips moved. `checklistOrder` keeps the checklist
+            // and report order, so Chimney stays first among the optional Property Exterior sections, whether it was saved under
+            // exterior (before v1.19.0) or utilOpt, and Testing keeps its order, also for Tests Only (its layout still names testOptions).
+            val order = config.checklistBuilder.checklistOrder
+            val chimney = sel.utilOpt.filter { it == WizardSelections.CHIMNEY }
             val (options, chosen) = when (key) {
-                "exteriorOptions" -> config.wizard.exteriorOptions to sel.exterior
-                "utilityOptions" -> config.wizard.utilityOptions to sel.utilOpt
-                "testOptions" -> config.wizard.testOptions to sel.tests
+                "checklistOrder.exterior", "exteriorOptions" -> order.exterior to sel.exterior + chimney
+                "checklistOrder.utility", "utilityOptions" -> order.utility to sel.utilOpt
+                "checklistOrder.tests", "testOptions" -> order.tests to sel.tests
                 "roomOptions" -> config.wizard.roomOptions to sel.rooms
                 else -> emptyList<String>() to emptyList()
             }

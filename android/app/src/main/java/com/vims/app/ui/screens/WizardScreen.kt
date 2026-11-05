@@ -112,12 +112,12 @@ fun WizardScreen(vm: AppViewModel, nav: NavHostController, inspId: String?) {
                 }
                 2 -> WizardFields(vm, nav, cfg.step2, w.sel, step2 = true, form = form)
                 3 -> {
-                    // Client Oct 25 (`wizard.areasLockedTypes`): Phase 1 / Phase 2 / Tests Only / 4 Point don't use the exterior,
-                    // interior room or utility options — shown disabled under one short note; the room counts stay editable.
+                    // Client Oct 25 (`wizard.areasLockedTypes`): Phase 1 / Phase 2 / Tests Only / 4 Point don't use the exterior or
+                    // interior room options (nor utilities, step 4) — shown disabled under one short note; the room counts stay editable.
                     // The earlier choices are kept (another type unlocks them as they were) but add no sections while locked.
                     val locked = cfg.areasLocked(w.sel.inspType)
                     Hint("Choose every area to inspect — add or remove anything. This builds the checklist.", Modifier.padding(top = 2.dp, bottom = if (locked) 8.dp else 12.dp))
-                    if (locked) com.vims.app.ui.components.LockedNote("Exterior, room and utility areas aren't used for a ${inspectionNoun(w.sel.inspType)}.", Modifier.padding(bottom = 12.dp))
+                    if (locked) com.vims.app.ui.components.LockedNote("Exterior and room areas aren't used for a ${inspectionNoun(w.sel.inspType)}.", Modifier.padding(bottom = 12.dp))
                     Lbl("Exterior areas", first = true)
                     MultiChips(cfg.exteriorOptions, w.sel.exterior, { o -> vm.updateSel { it.copy(exterior = it.exterior.toggle(o)) } }, label = ::sectionTitle, enabled = !locked)
                     Lbl("Room counts")
@@ -129,17 +129,14 @@ fun WizardScreen(vm: AppViewModel, nav: NavHostController, inspId: String?) {
                     }
                     Lbl("Interior rooms")
                     MultiChips(cfg.roomOptions, w.sel.rooms, { o -> vm.updateSel { it.copy(rooms = it.rooms.toggle(o)) } }, enabled = !locked)
-                    Lbl("Utility & systems")
-                    MultiChips(cfg.utilityOptions, w.sel.utilOpt, { o -> vm.updateSel { it.copy(utilOpt = it.utilOpt.toggle(o)) } }, label = ::sectionTitle, enabled = !locked)
                 }
-                else -> {
-                    Hint("Add any secondary testing for this inspection.", Modifier.padding(top = 2.dp, bottom = 12.dp))
-                    MultiChips(cfg.testOptions, w.sel.tests, { o -> vm.updateSel { it.copy(tests = it.tests.toggle(o)) } }, label = ::sectionTitle)
-                }
+                else -> WizardFeesStep(vm, nav, w.sel)
             }
             BtnRow(Modifier.padding(top = 10.dp)) {
                 VBtn("Back", { vm.wizardStep(w.step - 1) }, Modifier.weight(1f).alpha(if (w.step == 1) 0f else 1f), BtnKind.Ghost, enabled = w.step > 1)
-                VBtn(if (w.step == 4) (if (editing) "Update checklist" else "Build checklist") else "Next", { next() }, Modifier.weight(1f), icon = if (w.step == 4) VIcons.arrowRight else null)
+                VBtn(if (w.step == 4) (if (editing) "Update checklist" else "Build checklist") else "Next", { next() }, Modifier.weight(1f),
+                    // The arrow only where half a row has room for it, so "Update checklist" never breaks inside a word.
+                    icon = if (w.step == 4 && androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp >= 360 * androidx.compose.ui.platform.LocalDensity.current.fontScale) VIcons.arrowRight else null)
             }
         }
     } }
@@ -148,7 +145,7 @@ fun WizardScreen(vm: AppViewModel, nav: NavHostController, inspId: String?) {
 private fun List<String>.toggle(o: String) = if (o in this) this - o else this + o
 
 /** "Tests Only" → "Tests Only inspection"; "4 Point Inspection" stays as it is. */
-private fun inspectionNoun(type: String) = if (type.endsWith("inspection", ignoreCase = true)) type else "$type inspection"
+internal fun inspectionNoun(type: String) = if (type.endsWith("inspection", ignoreCase = true)) type else "$type inspection"
 
 /** Form key of the required Type of inspection chips (step 1). */
 private const val TYPE_KEY = "Type of inspection"
@@ -184,8 +181,14 @@ private fun WizardFields(vm: AppViewModel, nav: NavHostController, defs: List<Wi
         val nextDef = defs.getOrNull(i + 1)
         when (f.kind) {
             "field" -> {
-                val pair = nextDef?.takeIf { n -> (f.type == "date" && n.type == "time") || (step2 && f.type == "text" && n.kind == "field" && n.type == "text") }
+                val pair = nextDef?.takeIf { n -> (f.type == "date" && n.type == "time") || (step2 && f.type == "text" && n.kind == "field" && n.type == "text") ||
+                    (f.label == WizardSelections.F_LICENSE && n.label == WizardSelections.F_LICENSE_STATE) }
                 if (step2 && !shownDetailsLbl) { Lbl("Property details"); shownDetailsLbl = true }
+                if (f.label == WizardSelections.F_WALK_THROUGH) {
+                    // Client Nov 4: under Time.
+                    com.vims.app.ui.components.FieldUnderSecond(Modifier.padding(bottom = 11.dp)) { m -> FieldCell(vm, f, sel, m, step2, form) }
+                    i++; continue
+                }
                 if (pair != null) {
                     com.vims.app.ui.components.FieldPair(Modifier.padding(bottom = 11.dp),
                         first = { m -> FieldCell(vm, f, sel, m, step2, form) }, second = { m -> FieldCell(vm, pair, sel, m, step2, form) })
@@ -282,7 +285,8 @@ private fun WizardFields(vm: AppViewModel, nav: NavHostController, defs: List<Wi
                         }
                     }
                     "wstruct" -> {
-                        SingleChips(cfg.structureTypes, sel.structure, { v ->
+                        // `wizard._structureLegacyAbout`: a saved "Mobile / Manufactured" keeps its value until someone taps a type (also the highlighted Mobile Home).
+                        SingleChips(cfg.structureTypes, if (sel.structure == WizardSelections.STRUCTURE_LEGACY_MOBILE) WizardSelections.STRUCTURE_MOBILE else sel.structure, { v ->
                             if (v != null) vm.updateSel { s ->
                                 val add = cfg.structureSideEffects[v]?.get("exterior")
                                 s.copy(structure = v, exterior = if (add != null && add !in s.exterior) s.exterior + add else s.exterior)
@@ -323,7 +327,13 @@ private fun FieldCell(vm: AppViewModel, f: WizardFieldDef, sel: WizardSelections
         FieldLabel(f.label, required = isWizardRequired(f.label))
         when (f.type) {
             "date" -> PickerField(if (v.isBlank()) "" else Fmt.date(v), "Select date", VIcons.calendar, { pickDate(ctx, v, minDate, set) }, error = err)
-            "time" -> PickerField(if (v.isBlank()) "" else Fmt.time(v), "Select time", VIcons.clock, { pickTime(ctx, v, set) }, error = err)
+            "time" -> if (f.label == WizardSelections.F_WALK_THROUGH) {
+                // Optional, empty by default; the picker opens on the inspection's Time, and nothing is stored until a time is picked.
+                PickerField(if (v.isBlank()) "" else Fmt.time(v), "Select time", VIcons.clock, { pickTime(ctx, v.ifBlank { sel.time }, set) }, error = err,
+                    onClear = { set("") }, clearLabel = "Clear ${f.label.lowercase()}")
+            } else PickerField(if (v.isBlank()) "" else Fmt.time(v), "Select time", VIcons.clock, { pickTime(ctx, v, set) }, error = err)
+            "state" -> com.vims.app.ui.components.SelectBox("Select state", vm.config.states.map { it.name }, { name -> set(vm.config.states.firstOrNull { it.name == name }?.code.orEmpty()) },
+                Modifier.fillMaxWidth(), selected = vm.config.stateName(v), clearLabel = "No state")
             "textarea" -> VInput(v, set, placeholder = f.placeholder.orEmpty(), multiline = true, filter = { Filters.base(it, 1000, multiline = true) }, error = err)
             else -> VInput(v, set, placeholder = placeholderFor(f), keyboard = if (f.label == WizardSelections.F_ZIP) KeyboardType.Number else keyboardFor(f, step2), error = err, filter = wizardFilter(f.label),
                 visual = if (f.type == "tel") PhoneTransform else if (f.label in groupedFields) GroupedNumberTransform else androidx.compose.ui.text.input.VisualTransformation.None,

@@ -579,7 +579,7 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
         if (s.structure == "Multi-Unit") s.unitMix.filter { it.value > 0 }.forEach { (k, v) -> rows += "Units · $k" to v.toString() }
         infoGrid(rows)
         blockLabel("Additional inspection services")
-        note(config.wizard.testOptions.filter { it in s.tests }.joinToString(" · ").ifEmpty { "None" })
+        note(config.checklistBuilder.checklistOrder.tests.filter { it in s.tests }.joinToString(" · ").ifEmpty { "None" })
         val contact = listOf(s.clientName, s.field("Client phone"), s.clientEmail).filter { it.isNotBlank() }
         if (contact.isNotEmpty()) { blockLabel("Client"); note(contact.joinToString(" · ")) }
     }
@@ -1138,12 +1138,13 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
         sb.append("${it.q}: ")
         if (it.isChoice) {
             val sel = a.values[key].orEmpty()
-            it.options.orEmpty().forEachIndexed { i, o -> if (i > 0) sb.append("   "); if (o in sel) { sb.append("☑ "); bold(o) } else sb.append("☐ $o") }
+            // ☑ / ☐ mark where vectorBoxes draws its shapes: the form never prints these characters from a font (client Nov 4).
+            it.options.orEmpty().forEachIndexed { i, o -> if (i > 0) sb.append("   "); if (o in sel) { sb.append("${com.vims.app.data.AgreementBoxes.CHECK} "); bold(o) } else sb.append("${com.vims.app.data.AgreementBoxes.BOX} $o") }
         } else {
             val v = answerText(key, it, a, false)
             if (v.isNullOrBlank()) sb.append("__________") else bold(v)
         }
-        return sb
+        return vectorBoxes(sb, Color.BLACK, Color.BLACK)
     }
 
     /** Lays out one box (or two boxes side by side) and returns its height and a draw function. */

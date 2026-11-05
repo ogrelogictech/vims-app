@@ -342,10 +342,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             val time = String.format(Locale.US, "%02d:%02d", mins / 60, mins % 60)
             // Inspector License # defaults to the lead inspector's license from the Company profile.
             val license = company.value.license.trim()
+            // Client Nov 4: so does License state, from the same place (`wizard._licenseStateAbout`).
+            val licenseState = company.value.licenseState.trim().uppercase()
             // City / ZIP keys present = the split address (client Oct 17), see WizardSelections.splitAddress.
             val prefill = mapOf(WizardSelections.F_DATE to LocalDate.now().toString(), WizardSelections.F_TIME to time,
                 WizardSelections.F_CITY to "", WizardSelections.F_ZIP to "") +
-                (if (license.isNotEmpty()) mapOf(WizardSelections.F_LICENSE to license) else emptyMap())
+                (if (license.isNotEmpty()) mapOf(WizardSelections.F_LICENSE to license) else emptyMap()) +
+                (if (licenseState.isNotEmpty()) mapOf(WizardSelections.F_LICENSE_STATE to licenseState) else emptyMap())
             WizardState(1, sel.copy(fields = sel.fields + prefill), null)
         }
         if (debugWizardStep > 1) { _wizard.update { it.copy(step = debugWizardStep) }; debugWizardStep = 1 }
@@ -354,7 +357,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /**
      * Edit wizard: an inspection made before the split address shows its "Street, City, ZIP" text in the new Inspection address /
      * City / ZIP code fields (saved only on Update checklist; until then the inspection keeps its text as it was). A phone saved
-     * formatted ("(801) 555-0134") is shown from its digits.
+     * formatted ("(801) 555-0134") is shown from its digits. Chimney saved under exterior shows under Utility & systems.
      */
     private fun editSelections(sel: WizardSelections): WizardSelections {
         var f = sel.fields
@@ -363,7 +366,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             f = f + mapOf(WizardSelections.F_ADDRESS to street, WizardSelections.F_CITY to city, WizardSelections.F_ZIP to zip)
         }
         f[WizardSelections.F_CLIENT_PHONE]?.let { p -> f = f + (WizardSelections.F_CLIENT_PHONE to com.vims.app.util.Filters.phone(p)) }
-        return sel.copy(fields = f)
+        return sel.copy(fields = f).chimneyMovedToUtilities()
     }
 
     /** Debug-only (screenshots): open the wizard / cover picker at a given step. */
@@ -789,7 +792,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      * current (unsaved) ones. Inspector = the signed-in account's full name.
      */
     fun agreementFillInput(sel: WizardSelections): com.vims.app.data.AgreementFillInput =
-        com.vims.app.data.AgreementFill.input(sel, session.value?.name?.takeIf { it.isNotBlank() } ?: company.value.inspectorName, config.wizard.unitMixDefault)
+        com.vims.app.data.AgreementFill.input(sel, session.value?.name?.takeIf { it.isNotBlank() } ?: company.value.inspectorName, config.wizard.unitMixDefault, config.wizard.areasLocked(sel.inspType))
 
     /** The locked form block (read-only in Edit agreement; the same lines the viewer boxes). */
     fun agreementFormLines(): List<String> = agreement.formLines(company.value.name)

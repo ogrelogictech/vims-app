@@ -96,9 +96,9 @@ import kotlinx.serialization.Serializable
 @Serializable object ReportBccR
 @Serializable object EulaR
 /**
- * Inspection agreement viewer: `state` = "" shows every state's disclosures (Company profile); a code shows only that state's (wizard).
+ * Inspection agreement viewer: `state` = "" shows every state's disclosures (Company profile); a code shows only that state's.
  * Data v1.15 agreementPrefill: [inspId] = filled in from that saved inspection (inspection screen row); [wizard] = filled in
- * from the wizard's current, unsaved values (step 1 View link). Either one also shows "Email inspection agreement".
+ * from the wizard's current, unsaved values (step 4's View Pre-filled Inspection Agreement). Either one also shows "Email inspection agreement".
  */
 @Serializable data class AgreementR(val state: String = "", val inspId: String? = null, val wizard: Boolean = false)
 /** Edit agreement (company admins): the company's own copy of the VIMS agreement as plain text. */

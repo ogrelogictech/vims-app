@@ -54,9 +54,12 @@ class AgreementPdf(context: Context) {
     private val formP = tp(mono, 8.6f, INK2)
     private val footP = tp(plex400, 8f, INK3)
 
-    private fun layout(text: CharSequence, paint: TextPaint, width: Float, spacing: Float = 1.3f): StaticLayout =
-        StaticLayout.Builder.obtain(text, 0, text.length, paint, width.toInt().coerceAtLeast(10))
+    /** Every piece of the agreement goes through here, so a ☐ / ☒ is always drawn as a shape ([vectorBoxes]), never from a font. */
+    private fun layout(text: CharSequence, paint: TextPaint, width: Float, spacing: Float = 1.3f): StaticLayout {
+        val t = vectorBoxes(text, INK2, BRAND_DEEP)
+        return StaticLayout.Builder.obtain(t, 0, t.length, paint, width.toInt().coerceAtLeast(10))
             .setAlignment(Layout.Alignment.ALIGN_NORMAL).setLineSpacing(0f, spacing).setIncludePad(false).build()
+    }
 
     /** Bold run inside a paragraph (the state name of a disclosure). */
     private class Bold(private val tf: Typeface) : MetricAffectingSpan() {
@@ -120,8 +123,7 @@ class AgreementPdf(context: Context) {
     }
 
     /**
-     * [lines] joined with line breaks, the filled-in ranges ([bold], per line) in [boldFace] and the darker ink. ☐ / ☒ aren't in
-     * the shipped fonts: StaticLayout draws both with the system fallback font (Noto Sans Symbols), the same face for both.
+     * [lines] joined with line breaks, the filled-in ranges ([bold], per line) in [boldFace] and the darker ink.
      */
     private fun filled(lines: List<String>, bold: Map<Int, List<IntRange>>, boldFace: Typeface): CharSequence {
         if (bold.isEmpty()) return lines.joinToString("\n")

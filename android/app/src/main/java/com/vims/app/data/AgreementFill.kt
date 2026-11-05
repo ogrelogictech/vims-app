@@ -7,7 +7,8 @@ import kotlinx.serialization.Serializable
  * already entered — header form lines and some closing lines get their blank (`____`) replaced by the value (drawn bold in
  * the viewer and the PDF), and ☐ boxes become ☒ for the property type, inspection type, components, tests, utilities and
  * "NO Report to Real Estate Agent." when sending to the agent is off. Everything here is pure Kotlin (no Android), so it
- * can be unit-tested on the JVM.
+ * can be unit-tested on the JVM. ☐ / ☒ here are markers in the text only: the viewer and the PDF draw them as shapes, never
+ * from a font ([AgreementBoxes]).
  */
 
 /** `agreementPrefill` in vims-checklists.json. Labels / boxes come from the data; the values are resolved in [AgreementFill.value]. */
@@ -18,9 +19,12 @@ data class AgreementPrefillDef(
     val emailButton: PrefillEmailDef = PrefillEmailDef(),
 )
 
-/** One fill-in line: [part] "header" (the boxed form lines) or "closing"; [occurrence] = n-th header line containing [label]. */
+/**
+ * One fill-in line: [part] "header" (the boxed form lines) or "closing"; [occurrence] = n-th header line containing [label];
+ * [fee] = the `wizard.fees` option whose amount goes here (labels end in " $", so "Chimney $" can't match "Chimney ☐").
+ */
 @Serializable
-data class PrefillLine(val part: String = "header", val label: String = "", val occurrence: Int = 1, val value: String = "")
+data class PrefillLine(val part: String = "header", val label: String = "", val occurrence: Int = 1, val value: String = "", val fee: String? = null)
 
 /**
  * One box mapping. Exactly one of [structure] / [type] / [component] / [test] / [utility] names the app value; [box] is the
@@ -50,6 +54,37 @@ data class PrefillCheckboxes(
 @Serializable
 data class PrefillEmailDef(val label: String = "Email inspection agreement")
 
+/**
+ * Client Nov 4 (`agreementPrefill.checkboxes._boxDrawing`): on the client's Samsung tablet the font behind ☐ / ☒ drew small picture
+ * icons, and a tick was a red speck. These characters mark where a box goes and never reach a text layout: the viewer draws
+ * them as inline shapes (LegalScreens) and every PDF as a span ([com.vims.app.report.VectorBoxSpan]).
+ */
+object AgreementBoxes {
+    const val BOX = '☐'
+    const val TICK = '☒'
+    /** The 4-Point form's selected answer: a check mark instead of an X. */
+    const val CHECK = '☑'
+    const val NBSP = '\u00A0'
+
+    fun isBox(c: Char): Boolean = c == BOX || c == TICK || c == CHECK
+    fun isTicked(c: Char): Boolean = c == TICK || c == CHECK
+    fun hasBoxes(text: CharSequence): Boolean = text.any(::isBox)
+
+    /**
+     * Same length, so ranges stay valid. Holds a box to its label when a line wraps, so it can't read as belonging to the next
+     * label: lines that start with a box have their label after it ("☐ Radon Testing"), the others before it ("Condo ☐").
+     */
+    fun glued(text: String): String = text.split('\n').joinToString("\n") { line ->
+        val before = line.trimStart().firstOrNull()?.let(::isBox) == true
+        buildString(line.length) {
+            line.forEachIndexed { i, c ->
+                val joins = c == ' ' && (if (before) line.getOrNull(i - 1)?.let(::isBox) == true else line.getOrNull(i + 1)?.let(::isBox) == true)
+                append(if (joins) NBSP else c)
+            }
+        }
+    }
+}
+
 /** The inspection values the agreement is filled from (a saved inspection, or the wizard's current, unsaved values). */
 data class AgreementFillInput(
     val clientName: String = "",
@@ -57,9 +92,11 @@ data class AgreementFillInput(
     val clientEmail: String = "",
     val inspectorName: String = "",
     val license: String = "",
-    val state: String = "",
+    /** The State after License/Reg #: the inspector's license state, never the inspection state (`wizard._licenseStateAbout`). */
+    val licenseState: String = "",
     /** "Nov 3, 2026 9:00 AM" (date only without a time). */
     val dateTime: String = "",
+    val walkThrough: String = "",
     /** "<street>, <city>, <state> <zip>" (empty parts skipped). */
     val address: String = "",
     val street: String = "",
@@ -73,18 +110,24 @@ data class AgreementFillInput(
     val tests: List<String> = emptyList(),
     val utilities: List<String> = emptyList(),
     val sendToAgent: Boolean = true,
+    /** `wizard.fees` option -> amount with 2 decimals; options without an amount above 0 aren't listed. */
+    val feeAmounts: Map<String, String> = emptyMap(),
+    val inspectionFee: String = "",
+    val bundled: String = "",
+    val total: String = "",
 )
 
 object AgreementFill {
-    const val BOX = '☐'
-    const val TICK = '☒'
+    const val BOX = AgreementBoxes.BOX
+    const val TICK = AgreementBoxes.TICK
     private val blankRun = Regex("_+")
 
     /**
      * The fill input from wizard selections. [inspectorName] = the signed-in account's full name; [unitMixDefault] = the
-     * wizard's default unit mix (an untouched Multi-Unit mix is the default, as the wizard shows it).
+     * wizard's default unit mix (an untouched Multi-Unit mix is the default, as the wizard shows it). With [areasLocked]
+     * (`wizard.areasLockedTypes`) the utility options aren't used: no ticks and no amounts, like their checklist sections.
      */
-    fun input(sel: WizardSelections, inspectorName: String, unitMixDefault: Map<String, Int>): AgreementFillInput {
+    fun input(sel: WizardSelections, inspectorName: String, unitMixDefault: Map<String, Int>, areasLocked: Boolean = false): AgreementFillInput {
         val date = com.vims.app.util.Fmt.parseDate(sel.date)?.let { com.vims.app.util.Fmt.date(it) } ?: sel.date
         val time = sel.time.takeIf { it.isNotBlank() }?.let { com.vims.app.util.Fmt.time(it) }.orEmpty()
         val units = when (sel.structure) {
@@ -93,14 +136,16 @@ object AgreementFill {
             else -> ""
         }
         val phoneDigits = sel.field(WizardSelections.F_CLIENT_PHONE).filter { it.isDigit() }
+        val totals = Fees.totals(sel, areasLocked)
         return AgreementFillInput(
             clientName = sel.clientName,
             clientPhone = if (phoneDigits.length == 10) com.vims.app.util.formatPhone(phoneDigits) else sel.field(WizardSelections.F_CLIENT_PHONE),
             clientEmail = sel.clientEmail,
             inspectorName = inspectorName.trim(),
             license = sel.license,
-            state = sel.state.trim().uppercase(),
+            licenseState = sel.licenseState,
             dateTime = listOf(date, time).filter { it.isNotBlank() }.joinToString(" "),
+            walkThrough = sel.walkThrough.takeIf { it.isNotBlank() }?.let { com.vims.app.util.Fmt.time(it) }.orEmpty(),
             address = sel.fullAddress,
             street = sel.street,
             units = units,
@@ -111,8 +156,12 @@ object AgreementFill {
             inspType = sel.inspType,
             components = sel.component,
             tests = sel.tests,
-            utilities = sel.utilOpt,
+            utilities = if (areasLocked) emptyList() else sel.utilities,
             sendToAgent = sel.sendToAgent,
+            feeAmounts = totals.options.mapValues { Fees.format(it.value) },
+            inspectionFee = Fees.agreementValue(totals.inspection),
+            bundled = Fees.agreementValue(totals.bundled),
+            total = Fees.agreementValue(totals.total),
         )
     }
 
@@ -123,15 +172,22 @@ object AgreementFill {
         "Email" -> i.clientEmail
         "Inspectors Name" -> i.inspectorName
         "License/Reg #" -> i.license
-        "State" -> i.state
+        "State" -> i.licenseState
         "Date and Time of Inspection" -> i.dateTime
+        "Time of walk through" -> i.walkThrough
         "Address of Property to be inspected" -> i.address
         "# Units" -> i.units
         "Total Sqft" -> i.sqft
         "Real Estate Agents Name" -> i.agentName
         "Agents Email" -> i.agentEmail
+        "Inspection Fee $" -> i.inspectionFee
+        "Bundled Services $" -> i.bundled
+        "Total Amount Due $" -> i.total
         else -> ""
     }.trim()
+
+    /** A spec line's value: its `fee` option's amount, else by label. */
+    fun value(line: PrefillLine, i: AgreementFillInput): String = line.fee?.let { i.feeAmounts[it].orEmpty() } ?: value(line.label, i)
 
     /** Boxes to tick (each with its side) for [i]. Component ticks the chosen components (only for the Component type). */
     fun ticks(def: PrefillCheckboxes, i: AgreementFillInput): List<PrefillBox> = buildList {
@@ -150,7 +206,8 @@ object AgreementFill {
 
     /**
      * Replaces the first underscore run after [label] (starting at [labelAt]) in [f] with the value: the run becomes the value,
-     * with one space between it and the text before it ("Date and Time of Inspection__" → "… Inspection Nov 3, 2026").
+     * with one space between it and the text before it ("Date and Time of Inspection__" → "… Inspection Nov 3, 2026"), except
+     * after a "$" ("Radon Testing $150.00").
      * Returns null when there's no blank after the label or the blank is already filled.
      */
     fun fillAt(f: Filled, labelAt: Int, label: String, value: String): Filled? {
@@ -158,7 +215,7 @@ object AgreementFill {
         if (v.isEmpty()) return null
         val m = blankRun.find(f.text, labelAt + label.length) ?: return null
         if (f.bold.any { m.range.first in it }) return null
-        val needsSpace = m.range.first > 0 && !f.text[m.range.first - 1].isWhitespace()
+        val needsSpace = m.range.first > 0 && !f.text[m.range.first - 1].isWhitespace() && f.text[m.range.first - 1] != '$'
         val insert = (if (needsSpace) " " else "") + v
         val text = f.text.substring(0, m.range.first) + insert + f.text.substring(m.range.last + 1)
         val delta = insert.length - (m.range.last + 1 - m.range.first)
@@ -207,7 +264,7 @@ object AgreementFill {
                 idx?.let { Triple(it, form.lines[it].indexOf(spec.label), spec) }
             }
             targets.sortedWith(compareBy<Triple<Int, Int, PrefillLine>> { it.first }.thenByDescending { it.second }).forEach { (idx, at, spec) ->
-                fillAt(lines[idx], at, spec.label, value(spec.label, i))?.let { lines[idx] = it }
+                fillAt(lines[idx], at, spec.label, value(spec, i))?.let { lines[idx] = it }
             }
             val ticks = ticks(def.checkboxes, i)
             val pending = ticks.toMutableList()
@@ -221,7 +278,7 @@ object AgreementFill {
         }
         // --- closing lines (first paragraph with the label followed by a blank)
         def.lines.filter { it.part == "closing" && it.label.isNotEmpty() }.forEach { spec ->
-            val v = value(spec.label, i)
+            val v = value(spec, i)
             for (k in out.indices) {
                 val p = out[k] as? AgreementPiece.Para ?: continue
                 val at = p.text.indexOf(spec.label).takeIf { it >= 0 } ?: continue

@@ -301,6 +301,18 @@ data class VisibleIf(val q: String, val atLeast: Double? = null, val includes: S
 data class ChecklistBuilderDef(
     val phaseTypes: Map<String, List<LayoutGroupDef>> = emptyMap(),
     val standardLayout: List<LayoutGroupDef> = emptyList(),
+    val checklistOrder: ChecklistOrderDef = ChecklistOrderDef(),
+)
+
+/**
+ * `checklistBuilder.checklistOrder` (client Nov 4, `_wizardVsChecklistOrder`): the order of the optional sections in the checklist and
+ * report. The wizard's `utilityOptions` / `testOptions` only set the order of its step 4 chips.
+ */
+@Serializable
+data class ChecklistOrderDef(
+    val exterior: List<String> = emptyList(),
+    val utility: List<String> = emptyList(),
+    val tests: List<String> = emptyList(),
 )
 
 @Serializable

@@ -405,6 +405,8 @@ fun VInput(
     wholeNumberMax: Double? = null,
     /** Spoken label for a field without a visible label (countChoice count boxes: "Number of GFCI receptacles"). */
     contentDescription: String? = null,
+    /** false (client Nov 4, locked wizard $ boxes): dimmed, no typing. */
+    enabled: Boolean = true,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val noAutofill = LocalNoAutofill.current
@@ -428,13 +430,13 @@ fun VInput(
                 capitalization = if (noAuto) KeyboardCapitalization.None else if (keyboard == KeyboardType.Text && caps == KeyboardCapitalization.None && !mono) KeyboardCapitalization.Sentences else caps,
                 imeAction = imeAction,
             ),
-            visualTransformation = visual, cursorBrush = SolidColor(V.brand),
+            visualTransformation = visual, cursorBrush = SolidColor(V.brand), enabled = enabled,
             modifier = Modifier.fillMaxWidth().keepsKeyboard().onFocusChanged { field.focus(it.isFocused, value); whole?.reset(value) }
                 .then(if (noAutofill) Modifier.semantics { contentDataType = ContentDataType.None } else Modifier)
                 .then(if (contentDescription != null) Modifier.semantics { this.contentDescription = contentDescription } else Modifier),
             decorationBox = { inner ->
                 Row(
-                    Modifier.fillMaxWidth().heightIn(min = minHeight).clip(shape).background(V.paper)
+                    Modifier.fillMaxWidth().heightIn(min = minHeight).alpha(if (enabled) 1f else .45f).clip(shape).background(if (enabled) V.paper else V.paper3)
                         .border(if (focused || error != null) (if (error != null && !focused) 1.5.dp else 2.dp) else 1.dp, if (error != null) V.c1 else if (focused) V.brand else V.line, shape)
                         .padding(start = 14.dp, end = if (trailing != null) 2.dp else 14.dp, top = if (trailing != null) 2.dp else 12.dp, bottom = if (trailing != null) 2.dp else 12.dp),
                     verticalAlignment = if (multiline) Alignment.Top else Alignment.CenterVertically,
@@ -487,18 +489,27 @@ fun PasswordField(label: String, value: String, onChange: (String) -> Unit, plac
 
 /** Read-only field that opens a picker (date / time). */
 @Composable
-fun PickerField(value: String, placeholder: String, icon: ImageVector, onClick: () -> Unit, modifier: Modifier = Modifier, minHeight: Dp = 48.dp, error: String? = null) {
+fun PickerField(
+    value: String, placeholder: String, icon: ImageVector, onClick: () -> Unit, modifier: Modifier = Modifier, minHeight: Dp = 48.dp, error: String? = null,
+    /** Optional field (client Nov 4, Time of walk through): an X replaces [icon] once there's a value. */
+    onClear: (() -> Unit)? = null, clearLabel: String = "Clear",
+) {
+    val clearable = onClear != null && value.isNotEmpty()
     val shape = RoundedCornerShape(11.dp)
     // Opens its picker directly: drop focus first so a text field typed in before doesn't keep the keyboard up.
     val focus = LocalFocusManager.current
     Column(modifier.fillMaxWidth()) {
     Row(
         Modifier.fillMaxWidth().heightIn(min = minHeight).clip(shape).background(V.paper).border(if (error != null) 1.5.dp else 1.dp, if (error != null) V.c1 else V.line, shape)
-            .clickable(role = Role.Button) { focus.clearFocus(); onClick() }.padding(horizontal = 14.dp, vertical = 12.dp),
+            .clickable(role = Role.Button) { focus.clearFocus(); onClick() }.padding(start = 14.dp, end = if (clearable) 2.dp else 14.dp, top = if (clearable) 2.dp else 12.dp, bottom = if (clearable) 2.dp else 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(value.ifEmpty { placeholder }, style = T.ui(15.sp, color = if (value.isEmpty()) V.placeholder else V.ink), modifier = Modifier.weight(1f))
-        Icon(icon, null, tint = V.ink, modifier = Modifier.size(18.dp))
+        if (clearable) {
+            Box(Modifier.size(44.dp).clip(RoundedCornerShape(9.dp)).clickable(role = Role.Button, onClickLabel = clearLabel) { onClear?.invoke() }.semantics { contentDescription = clearLabel }, contentAlignment = Alignment.Center) {
+                Icon(VIcons.close, null, tint = V.ink2, modifier = Modifier.size(16.dp))
+            }
+        } else Icon(icon, null, tint = V.ink, modifier = Modifier.size(18.dp))
     }
     FieldError(error)
     }
@@ -719,6 +730,16 @@ fun FieldPair(modifier: Modifier = Modifier, gap: Dp = 10.dp, minEach: Dp = 150.
         val fs = LocalDensity.current.fontScale.coerceAtLeast(1f)
         if ((maxWidth - gap) / 2 >= minEach * fs) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(gap)) { first(Modifier.weight(1f)); second(Modifier.weight(1f)) }
         else Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(11.dp)) { first(Modifier); second(Modifier) }
+    }
+}
+
+/** One field under the second column of a [FieldPair] (same widths); on its own when the pair stacks. */
+@Composable
+fun FieldUnderSecond(modifier: Modifier = Modifier, gap: Dp = 10.dp, minEach: Dp = 150.dp, content: @Composable (Modifier) -> Unit) {
+    androidx.compose.foundation.layout.BoxWithConstraints(modifier.fillMaxWidth()) {
+        val fs = LocalDensity.current.fontScale.coerceAtLeast(1f)
+        if ((maxWidth - gap) / 2 >= minEach * fs) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(gap)) { Spacer(Modifier.weight(1f)); content(Modifier.weight(1f)) }
+        else content(Modifier)
     }
 }
 

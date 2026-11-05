@@ -91,7 +91,8 @@ import java.time.LocalDate
 
 fun propertyLabel(structure: String): String = when (structure) {
     "Single Family" -> "Standalone"
-    "Mobile / Manufactured" -> "Mobile home"
+    com.vims.app.data.WizardSelections.STRUCTURE_LEGACY_MOBILE, com.vims.app.data.WizardSelections.STRUCTURE_MOBILE -> "Mobile home"
+    com.vims.app.data.WizardSelections.STRUCTURE_MANUFACTURED -> "Manufactured home"
     else -> structure
 }
 

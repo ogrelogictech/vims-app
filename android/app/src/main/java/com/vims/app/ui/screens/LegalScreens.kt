@@ -14,6 +14,18 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.window.Dialog
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.text.InlineTextContent
+import androidx.compose.foundation.text.appendInlineContent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.Placeholder
+import androidx.compose.ui.text.PlaceholderVerticalAlign
+import androidx.compose.ui.unit.em
+import com.vims.app.data.AgreementBoxes
 import com.vims.app.data.AgreementPiece
 import com.vims.app.data.AgreementText
 import com.vims.app.data.AgreementBlocks
@@ -192,7 +204,7 @@ fun AgreementScreen(vm: AppViewModel, nav: NavHostController, routeState: String
     val scope = rememberCoroutineScope()
     val a = vm.agreement
     val edited = company.editedAgreement
-    // Data v1.15 agreementPrefill: from an inspection (inspection screen) or the wizard (step 1 View) the agreement is filled
+    // Data v1.15 agreementPrefill: from an inspection (inspection screen) or the wizard (step 4 button) the agreement is filled
     // in from those values and ends with "Email inspection agreement". Settings / Company profile: blank, no button.
     val inspections by vm.inspections.collectAsState()
     val wizardSel = vm.wizard.collectAsState().value.sel
@@ -335,41 +347,90 @@ suspend fun emailAgreement(ctx: Context, vm: AppViewModel, fill: com.vims.app.da
 @Composable
 private fun AgreementPieceView(p: AgreementPiece) {
     when (p) {
-        is AgreementPiece.Title -> Text(p.text, style = T.display(18.sp, FontWeight.ExtraBold, lineHeight = 22.sp), modifier = Modifier.padding(bottom = 10.dp))
-        is AgreementPiece.Form -> Text(filledText(p.lines, p.bold), style = T.mono(11.5.sp, color = V.ink2).copy(lineHeight = 20.sp),
-            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp).clip(RoundedCornerShape(9.dp)).background(V.paper2)
+        is AgreementPiece.Title -> BoxedText(filledText(p.text), T.display(18.sp, FontWeight.ExtraBold, lineHeight = 22.sp), Modifier.padding(bottom = 10.dp))
+        is AgreementPiece.Form -> BoxedText(filledText(p.lines, p.bold), T.mono(11.5.sp, color = V.ink2).copy(lineHeight = 20.sp),
+            Modifier.fillMaxWidth().padding(bottom = 12.dp).clip(RoundedCornerShape(9.dp)).background(V.paper2)
                 .border(1.dp, V.line, RoundedCornerShape(9.dp)).padding(horizontal = 12.dp, vertical = 10.dp))
-        is AgreementPiece.Para -> if (p.bold.isEmpty()) AgreementPara(p.text, if (p.lead) V.ink else if (p.muted) V.ink3 else V.ink2, if (p.lead) FontWeight.SemiBold else FontWeight.Normal)
-            else Text(filledText(listOf(p.text), mapOf(0 to p.bold)), style = T.ui(13.sp, if (p.lead) FontWeight.SemiBold else FontWeight.Normal, if (p.lead) V.ink else V.ink2, lineHeight = 20.sp),
-                modifier = Modifier.padding(bottom = 9.dp))
+        is AgreementPiece.Para -> BoxedText(filledText(listOf(p.text), mapOf(0 to p.bold)),
+            T.ui(13.sp, if (p.lead) FontWeight.SemiBold else FontWeight.Normal, if (p.lead) V.ink else if (p.muted) V.ink3 else V.ink2, lineHeight = 20.sp), Modifier.padding(bottom = 9.dp))
         is AgreementPiece.Bullet -> Row(Modifier.padding(start = 4.dp, bottom = 9.dp)) {
             Text("•", style = T.ui(13.sp, color = V.ink2, lineHeight = 20.sp), modifier = Modifier.width(12.dp))
-            Text(p.text, style = T.ui(13.sp, color = V.ink2, lineHeight = 20.sp), modifier = Modifier.weight(1f))
+            BoxedText(filledText(p.text), T.ui(13.sp, color = V.ink2, lineHeight = 20.sp), Modifier.weight(1f))
         }
-        is AgreementPiece.Heading -> Text(p.text, style = T.display(14.sp, FontWeight.Bold, V.brandDeep), modifier = Modifier.padding(top = 14.dp, bottom = 8.dp))
-        is AgreementPiece.Disclosure -> Text(buildAnnotatedString {
+        is AgreementPiece.Heading -> BoxedText(filledText(p.text), T.display(14.sp, FontWeight.Bold, V.brandDeep), Modifier.padding(top = 14.dp, bottom = 8.dp))
+        is AgreementPiece.Disclosure -> BoxedText(buildAnnotatedString {
             withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = V.ink)) { append("${p.state}:") }
-            append(" "); append(p.text)
-        }, style = T.ui(13.sp, color = V.ink2, lineHeight = 20.sp), modifier = Modifier.padding(bottom = 9.dp))
+            append(" "); append(filledText(p.text))
+        }, T.ui(13.sp, color = V.ink2, lineHeight = 20.sp), Modifier.padding(bottom = 9.dp))
         is AgreementPiece.Note -> Text(p.text, style = T.ui(11.5.sp, color = V.ink3, lineHeight = 16.sp), modifier = Modifier.padding(bottom = 9.dp))
     }
 }
 
-/** Lines joined with line breaks; the values filled in from the inspection (data v1.15) in bold, darker ink. */
-private fun filledText(lines: List<String>, bold: Map<Int, List<IntRange>>) = buildAnnotatedString {
-    lines.forEachIndexed { k, line ->
-        if (k > 0) append("\n")
-        val base = length
-        append(line)
-        bold[k].orEmpty().forEach { r ->
-            if (r.first >= 0 && r.last < line.length) addStyle(SpanStyle(fontWeight = FontWeight.Bold, color = V.ink), base + r.first, base + r.last + 1)
+private const val BOX_EMPTY = "box-empty"
+private const val BOX_TICKED = "box-ticked"
+
+/**
+ * Client Nov 4 (`agreementPrefill.checkboxes._boxDrawing`): the agreement's ☐ / ☒ as shapes. Compose never shapes the marker's
+ * text, [filledText] gives it an [InlineTextContent] placeholder, and the alternate text is only read out by TalkBack.
+ */
+private val agreementBoxes: Map<String, InlineTextContent> = listOf(BOX_EMPTY to false, BOX_TICKED to true).associate { (id, ticked) ->
+    id to InlineTextContent(Placeholder(1.32.em, 1.2.em, PlaceholderVerticalAlign.TextCenter)) { AgreementBoxShape(ticked) }
+}
+
+/** Empty: an outlined square. Ticked: a solid square with a white X, obvious at a glance. */
+@Composable
+private fun AgreementBoxShape(ticked: Boolean) {
+    val outline = V.ink2
+    val fill = V.brand
+    Canvas(Modifier.fillMaxSize()) {
+        val side = minOf(size.width, size.height) * .9f
+        val tl = Offset((size.width - side) / 2f, (size.height - side) / 2f)
+        val box = Size(side, side)
+        if (ticked) {
+            drawRect(fill, tl, box)
+            val i = side * .24f
+            val w = side * .17f
+            drawLine(Color.White, tl + Offset(i, i), tl + Offset(side - i, side - i), w, StrokeCap.Round)
+            drawLine(Color.White, tl + Offset(side - i, i), tl + Offset(i, side - i), w, StrokeCap.Round)
+        } else {
+            drawRect(outline, tl, box, style = Stroke(1.dp.toPx().coerceAtLeast(side * .09f)))
         }
     }
 }
 
+/** [Text] that draws the agreement's boxes; build [text] with [filledText]. */
 @Composable
-private fun AgreementPara(t: String, color: Color = V.ink2, weight: FontWeight = FontWeight.Normal) {
-    Text(t, style = T.ui(13.sp, weight, color, lineHeight = 20.sp), modifier = Modifier.padding(bottom = 9.dp))
+private fun BoxedText(text: AnnotatedString, style: androidx.compose.ui.text.TextStyle, modifier: Modifier = Modifier) {
+    Text(text, style = style, modifier = modifier, inlineContent = agreementBoxes)
+}
+
+private fun filledText(text: String) = filledText(listOf(text), emptyMap())
+
+/**
+ * Lines joined with line breaks; the values filled in from the inspection (data v1.15) in bold, darker ink; each ☐ / ☒ an inline
+ * placeholder (see [agreementBoxes]), so those characters never reach the text layout.
+ */
+private fun filledText(lines: List<String>, bold: Map<Int, List<IntRange>>) = buildAnnotatedString {
+    val boldStyle = SpanStyle(fontWeight = FontWeight.Bold, color = V.ink)
+    lines.forEachIndexed { k, raw ->
+        if (k > 0) append("\n")
+        val line = AgreementBoxes.glued(raw)
+        val ranges = bold[k].orEmpty().filter { it.first >= 0 && it.last < line.length }
+        var i = 0
+        while (i < line.length) {
+            val c = line[i]
+            if (AgreementBoxes.isBox(c)) {
+                appendInlineContent(if (AgreementBoxes.isTicked(c)) BOX_TICKED else BOX_EMPTY, if (AgreementBoxes.isTicked(c)) "ticked box" else "empty box")
+                i++
+                continue
+            }
+            val isBold = ranges.any { i in it }
+            var end = i + 1
+            while (end < line.length && !AgreementBoxes.isBox(line[end]) && ranges.any { end in it } == isBold) end++
+            if (isBold) withStyle(boldStyle) { append(line.substring(i, end)) } else append(line.substring(i, end))
+            i = end
+        }
+    }
 }
 
 /** Download → Share PDF: ACTION_SEND with the generated agreement PDF (FileProvider, cache/agreement/). */
@@ -515,7 +576,7 @@ private fun AgreementBlockCard(b: AgreementDocBlock, error: String?, onChange: (
         }
         Box(Modifier.padding(end = 6.dp, top = 2.dp)) {
             if (b.locked) {
-                Text(b.text, style = T.ui(13.sp, color = V.ink2, lineHeight = 20.sp), modifier = Modifier.fillMaxWidth())
+                BoxedText(filledText(b.text), T.ui(13.sp, color = V.ink2, lineHeight = 20.sp), Modifier.fillMaxWidth())
             } else {
                 VInput(b.text, onChange, placeholder = if (b.isTitle) "Agreement title" else "Paragraph text", multiline = true, minHeight = 48.dp, textSize = 14f,
                     mono = false, filter = { Filters.agreement(it, AgreementText.MAX_CHARS) }, error = error)
@@ -546,9 +607,9 @@ private fun LockedFormBlock(lines: List<String>) {
             }
         }
         Text("Printed after the title on every agreement. Filled in when the client signs.", style = T.ui(11.5.sp, color = V.ink3, lineHeight = 15.sp), modifier = Modifier.padding(bottom = 8.dp))
-        Text(lines.joinToString("\n"), style = T.mono(11.sp, color = V.ink2).copy(lineHeight = 18.sp),
-            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(9.dp)).background(V.paper).border(1.dp, V.line, RoundedCornerShape(9.dp))
-                .padding(horizontal = 12.dp, vertical = 9.dp).semantics { contentDescription = "Locked form lines: " + lines.joinToString(". ") })
+        BoxedText(filledText(lines, emptyMap()), T.mono(11.sp, color = V.ink2).copy(lineHeight = 18.sp),
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(9.dp)).background(V.paper).border(1.dp, V.line, RoundedCornerShape(9.dp))
+                .padding(horizontal = 12.dp, vertical = 9.dp).semantics { contentDescription = "Locked form lines: " + lines.joinToString(". ") { it.replace(AgreementBoxes.BOX.toString(), "empty box") } })
     }
 }
 

@@ -129,7 +129,7 @@ object DemoSeed {
         repo.putBundle(ridge.copy(answers = answers, findings = findings, photos = photos))
 
         repo.putBundle(newBundle(engine, "demo-canyon", sel("82 Canyon Crest #4, Layton, UT 84041", "Marcus Webb", "13:00", today, "Condo", extra = listOf("Condo")), InspStatus.QUEUED, pending = false))
-        repo.putBundle(newBundle(engine, "demo-willow", sel("210 Willow Park, Lot 17, Roy, UT 84067", "Dana Whitaker", "15:30", today, "Mobile / Manufactured", extra = listOf("Mobile Home Undercarriage")), InspStatus.SCHEDULED, pending = false))
+        repo.putBundle(newBundle(engine, "demo-willow", sel("210 Willow Park, Lot 17, Roy, UT 84067", "Dana Whitaker", "15:30", today, "Mobile Home", extra = listOf("Mobile Home Undercarriage")), InspStatus.SCHEDULED, pending = false))
         val harrison = newBundle(engine, "demo-harrison", sel("640 Harrison Blvd, Ogden, UT 84404", "Priya Raman", "10:00", today.minusDays(1), "Single Family"), InspStatus.DONE, pending = false)
         repo.putBundle(harrison.copy(
             inspection = harrison.inspection.copy(reportGeneratedAt = System.currentTimeMillis() - 86_400_000L),

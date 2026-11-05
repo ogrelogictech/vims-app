@@ -48,10 +48,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -77,7 +74,6 @@ import com.vims.app.data.StateDoc
 import com.vims.app.data.WizardSelections
 import com.vims.app.ui.AppViewModel
 import com.vims.app.ui.components.keepsKeyboard
-import com.vims.app.ui.AgreementR
 import com.vims.app.ui.StateDocR
 import com.vims.app.ui.components.FieldError
 import com.vims.app.ui.components.FieldLabel
@@ -210,18 +206,6 @@ fun StateField(vm: AppViewModel, nav: NavHostController, sel: WizardSelections, 
     // A rule whose note is about the agent copy (agentCopyDefault false, e.g. NH) shows it under the agent checkbox instead.
     val note = rule?.note?.takeIf { rule.agentCopy }
     if (note != null || rule?.docs?.isNotEmpty() == true) StateNoteCard(vm, nav, sel, note, rule.docs, ackErr, Modifier.formField(form, STATE_ACK_KEY))
-    // "Inspection agreement: View (shows the selected state's section)" — the VIMS agreement with only this state's disclosures.
-    Row(
-        Modifier.fillMaxWidth().padding(bottom = 6.dp).heightIn(min = 44.dp).clip(RoundedCornerShape(8.dp))
-            .clickable(role = Role.Button, onClickLabel = "View inspection agreement") { nav.navigate(AgreementR(sel.state, wizard = true)) }.padding(horizontal = 2.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(buildAnnotatedString {
-            append("Inspection agreement: ")
-            withStyle(SpanStyle(color = V.brand, fontWeight = FontWeight.SemiBold)) { append("View") }
-            append(" (shows the selected state’s section)")
-        }, style = T.ui(12.5.sp, color = V.ink3, lineHeight = 17.sp))
-    }
 }
 
 /** Type-ahead order: 2-letter code, then names starting with the text, then any word of the name ("York", "Dakota"). */

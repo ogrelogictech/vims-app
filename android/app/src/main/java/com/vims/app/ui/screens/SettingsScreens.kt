@@ -273,10 +273,16 @@ fun CompanyScreen(vm: AppViewModel, nav: NavHostController) {
         VField("Inspector name", p.inspectorName, { v -> set { it.copy(inspectorName = v) } }, caps = KeyboardCapitalization.Words, filter = Filters::personName)
         com.vims.app.ui.components.FieldPair(
             first = { m -> VField("License #", p.license, { v -> set { it.copy(license = v) } }, m, placeholder = "e.g. UT-12345", caps = KeyboardCapitalization.Characters, bottom = 0.dp, filter = Filters::license) },
-            second = { m -> VField("Phone", p.phone, { v -> set { it.copy(phone = v) } }, m.formField(form, "phone"), placeholder = "(801) 555-0134", keyboard = KeyboardType.Phone, bottom = 0.dp,
-                filter = Filters::phone, visual = PhoneTransform, error = phoneErr) },
+            // Client Nov 4 (`wizard._licenseStateAbout`): optional, prefills the wizard's License state.
+            second = { m -> Column(m) {
+                com.vims.app.ui.components.FieldLabel("License state")
+                com.vims.app.ui.components.SelectBox("Select state", vm.config.states.map { it.name }, { name -> set { it.copy(licenseState = vm.config.states.firstOrNull { st -> st.name == name }?.code.orEmpty()) } },
+                    Modifier.fillMaxWidth(), selected = vm.config.stateName(p.licenseState), clearLabel = "No state")
+            } },
         )
-        VField("Email", p.email, { v -> set { it.copy(email = v) } }, Modifier.padding(top = 11.dp).formField(form, "email"), placeholder = "you@company.com", keyboard = KeyboardType.Email, error = emailErr)
+        VField("Phone", p.phone, { v -> set { it.copy(phone = v) } }, Modifier.padding(top = 11.dp).formField(form, "phone"), placeholder = "(801) 555-0134", keyboard = KeyboardType.Phone,
+            filter = Filters::phone, visual = PhoneTransform, error = phoneErr)
+        VField("Email", p.email, { v -> set { it.copy(email = v) } }, Modifier.formField(form, "email"), placeholder = "you@company.com", keyboard = KeyboardType.Email, error = emailErr)
         Lbl("Online review link")
         Text("Add the URL where clients can leave a review of the inspection. It's included with the report so clients can rate you.", style = T.ui(12.sp, color = V.ink3, lineHeight = 16.sp), modifier = Modifier.padding(start = 2.dp, bottom = 9.dp))
         VField("Review URL", p.reviewUrl, { v -> set { it.copy(reviewUrl = v) } }, Modifier.formField(form, "url"), placeholder = "https://g.page/r/your-review-link", keyboard = KeyboardType.Uri, error = urlErr)
@@ -339,7 +345,7 @@ private fun CompanyReadOnly(vm: AppViewModel, nav: NavHostController, c: Company
         }
         Lbl("Company details")
         Column(Modifier.padding(bottom = 12.dp).fillMaxWidth().vCard()) {
-            val rows = listOf("Company name" to c.name, "Address" to c.address, "Lead inspector" to c.inspectorName, "License #" to c.license,
+            val rows = listOf("Company name" to c.name, "Address" to c.address, "Lead inspector" to c.inspectorName, "License #" to c.license, "License state" to vm.config.stateName(c.licenseState),
                 "Phone" to com.vims.app.util.formatPhone(c.phone.filter { it.isDigit() }).ifBlank { c.phone }, "Email" to c.email, "Review URL" to c.reviewUrl)
             rows.forEachIndexed { i, (k, v) ->
                 com.vims.app.ui.components.BinfoRow(label = { Text(k, style = T.ui(13.5.sp, color = V.ink3)) },

@@ -178,6 +178,8 @@ data class CompanyProfile(
     val address: String = "",
     val inspectorName: String = "",
     val license: String = "",
+    /** Client Nov 4 (`wizard._licenseStateAbout`): the state code of [license], optional. Prefills wizard step 1, like [license]. */
+    val licenseState: String = "",
     val phone: String = "",
     val email: String = "",
     val reviewUrl: String = "",
@@ -255,6 +257,13 @@ data class WizardSelections(
     val stateDocsAckAt: Long? = null,
     /** "Send the report to the real estate agent" (step 1, data v1.4). Set to the state's `agentCopyDefault` when the state changes. */
     val sendToAgent: Boolean = true,
+    /**
+     * Client Nov 4 (`wizard.fees`): option key (a `utilityOptions` / `testOptions` entry) -> amount as typed, e.g. "150.5". Only
+     * the inspection agreement reads these, the report doesn't. Empty on inspections saved before v0.31.0.
+     */
+    val fees: Map<String, String> = emptyMap(),
+    /** `wizard.fees.inspectionFee`, as typed. */
+    val inspectionFee: String = "",
 ) {
     fun field(label: String): String = fields[label].orEmpty().trim()
     fun chip(label: String): String = chips[label].orEmpty()
@@ -281,8 +290,43 @@ data class WizardSelections(
     val date: String get() = field(F_DATE)
     val time: String get() = field(F_TIME)
     val license: String get() = field(F_LICENSE)
+    /** Inspector's license state code (step 1); never taken from the inspection [state]. */
+    val licenseState: String get() = field(F_LICENSE_STATE).uppercase()
+    val walkThrough: String get() = field(F_WALK_THROUGH)
+
+    /**
+     * What Utility & systems shows as selected. Before shared v1.19.0 Chimney was an exterior area, so a saved inspection keeps
+     * it in [exterior] (`wizard._chimneyAbout`) until the wizard saves it again.
+     */
+    val utilities: List<String> get() = (utilOpt + exterior.filter { it == CHIMNEY }).distinct()
+
+    /** The edit wizard's form of a saved inspection: Chimney saved under exterior moves to [utilOpt]. Only stored on Update checklist. */
+    fun chimneyMovedToUtilities(): WizardSelections =
+        if (CHIMNEY !in exterior) this else copy(exterior = exterior - CHIMNEY, utilOpt = (utilOpt + CHIMNEY).distinct())
+
+    /** Tap on a step 4 chip: deselecting clears its amount (`wizard.fees.amounts`). */
+    fun toggleFeeOption(option: String, utility: Boolean): WizardSelections {
+        val list = if (utility) utilOpt else tests
+        return if (option in list) withList(utility, list - option).copy(fees = fees - option) else withList(utility, list + option)
+    }
+
+    /** An amount typed in a step 4 $ box: above 0 selects its option; clearing it leaves the option as it is. */
+    fun withFeeAmount(option: String, utility: Boolean, amount: String): WizardSelections {
+        val next = copy(fees = if (amount.isEmpty()) fees - option else fees + (option to amount))
+        val list = if (utility) utilOpt else tests
+        return if (Fees.cents(amount) > 0 && option !in list) next.withList(utility, list + option) else next
+    }
+
+    private fun withList(utility: Boolean, list: List<String>) = if (utility) copy(utilOpt = list) else copy(tests = list)
 
     companion object {
+        /** The one option whose chip (Utility & systems) and checklist place (Property Exterior) differ, see [ChecklistEngine]. */
+        const val CHIMNEY = "Chimney"
+        /** Stored value before Mobile Home / Manufactured Home split (`wizard._structureLegacyAbout`); the wizard highlights Mobile Home for it. */
+        const val STRUCTURE_LEGACY_MOBILE = "Mobile / Manufactured"
+        const val STRUCTURE_MOBILE = "Mobile Home"
+        const val STRUCTURE_MANUFACTURED = "Manufactured Home"
+
         // Labels from wizard.step1 in vims-checklists.json (used as keys).
         const val F_CLIENT = "Client name"
         const val F_CLIENT_PHONE = "Client phone"
@@ -296,6 +340,8 @@ data class WizardSelections(
         const val F_DATE = "Date"
         const val F_TIME = "Time"
         const val F_LICENSE = "Inspector License #"
+        const val F_LICENSE_STATE = "License state"
+        const val F_WALK_THROUGH = "Time of walk through"
 
         val ZIP = Regex("^\\d{5}(-\\d{4})?$")
 
