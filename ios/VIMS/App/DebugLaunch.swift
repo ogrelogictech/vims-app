@@ -120,7 +120,8 @@ struct DebugDisplayScale: ViewModifier {
 ///   -cover "C|Cat|Opt|Style"   set the chosen inspection's report cover (e.g. "Blue|Holidays|4th of July|Shaded")
 ///   -wizState TX[,UT]          pick those states in order when the wizard opens (prints STATETEST lines)
 ///   -ackStateDocs              with -wizState: tick "Provided to the client with the inspection agreement"
-///   -wizScroll ID              scroll wizard step 1 to a block (sendToAgent, agreementLine, State)
+///   -wizScroll ID              scroll the wizard to a block (sendToAgent, State, fee-Radon)
+///   -nov5Wizard / -nov5Agreement / -nov5Status / -nov5WritePDF  client Nov 4 checks, see DebugNov5.swift
 ///   -ownAgreement NAME         use bundled NAME.pdf as the company's own uploaded agreement (same path as Upload your own)
 ///   -useVimsAgreement          revert the company to the VIMS agreement
 ///   -editedAgreement           give the company an edited copy of the VIMS agreement (same path as Edit → Save)
@@ -1013,6 +1014,8 @@ enum DebugLaunch {
         seedOct30b(store, id)
         id = seedOct30c(store, id)
         oct30cStatus(store, id)
+        id = nov5Seed(store, id)
+        nov5Status(store, id)
         let depth = store.inspection(id)?.depth ?? .standard
         let section = value("-section") ?? (ridge.leafSections.contains("Roof") ? (depth == .high ? "Outside Utilities" : "Roof") : (ridge.leafSections.first ?? "Roof"))
 

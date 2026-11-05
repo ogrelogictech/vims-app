@@ -29,6 +29,8 @@ enum ProtoIconSet {
         "trash": ["M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"],
         "copy": ["M11 9h11v13H11z", "M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"],
         "minus": ["M5 12h14"],
+        "clear": ["M18 6 6 18", "m6 6 12 12"],
+        "clock": ["M12 3a9 9 0 1 1 0 18a9 9 0 1 1 0-18z", "M12 7v5l3 2"],
         // index.html s-settings "Report quality copy (BCC)" row: envelope + plus.
         "check": ["M20 6 9 17l-5-5"],
         "legal-document": ["M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z", "M14 2v6h6M8 13h8M8 17h5"],

@@ -105,46 +105,7 @@ struct StateFieldBlock: View {
                     .ignoresSafeArea()
                 }
         }
-        agreementLine
         }
-    }
-
-    /// v1.4: "Inspection agreement: View (shows the selected state's section)" → the VIMS agreement viewer,
-    /// filtered to the picked state (every state when none is picked yet), filled in from the wizard (v1.15).
-    private var agreementLine: some View {
-        var text = AttributedString("Inspection agreement: ")
-        var link = AttributedString("View")
-        link.link = URL(string: "vims://agreement")
-        link.foregroundColor = VC.brand
-        link.font = VFont.ui(12.5, .semibold)
-        text += link
-        // An edited agreement can't be filtered by state, so don't promise the state's section then.
-        let edited = store.agreementInUse == .edited
-        text += AttributedString(edited ? " (your company\u{2019}s edited version)" : " (shows the selected state\u{2019}s section)")
-        return Text(text)
-            .font(VFont.ui(12.5)).foregroundStyle(VC.ink3)
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
-            .contentShape(Rectangle())
-            .onTapGesture { openAgreement() }
-            .environment(\.openURL, OpenURLAction { _ in
-                openAgreement()
-                return .handled
-            })
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Inspection agreement: View")
-            .accessibilityHint(store.agreementInUse == .edited ? "Shows your company's edited agreement"
-                               : draft.state == nil ? "Shows every state's section" : "Shows the selected state's section")
-            .accessibilityAddTraits(.isLink)
-            .padding(.horizontal, 2).padding(.top, -4).padding(.bottom, 14)
-            .id("agreementLine")
-    }
-
-    /// Data v1.15: the agreement opens filled in from what's entered in the wizard so far (every step's current values,
-    /// nothing saved), with "Email inspection agreement" at the bottom.
-    private func openAgreement() {
-        endEditing()
-        store.push(.agreement(state: draft.state, fill: store.agreementFill(draft)))
     }
 
     @ViewBuilder
@@ -369,6 +330,71 @@ struct StatePickerSheet: View {
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
             .background(VC.paper)
+    }
+}
+
+/// Client Nov 4 (`_licenseStateAbout`): optional state picker for an inspector's license (wizard step 1, Company profile).
+/// Holds a USPS code; separate from the inspection's State, because a license state can differ. Clearable.
+struct LicenseStateField: View {
+    let states: [StateDef]
+    @Binding var code: String
+    var bottom: CGFloat = 0
+    @State private var picking = false
+
+    private var name: String? { states.first { $0.code == code }?.name }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            FieldLabel(text: "License state")
+            FieldBox(focused: false) {
+                HStack(spacing: 6) {
+                    Button { endEditing(); picking = true } label: {
+                        HStack(spacing: 6) {
+                            Text(name ?? "Select\u{2026}")
+                                .foregroundStyle(name == nil ? VC.placeholder : VC.ink)
+                                .lineLimit(1).minimumScaleFactor(0.8)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            if name == nil { ProtoIcon("chevron-right", size: 17).foregroundStyle(VC.ink3).rotationEffect(.degrees(90)) }
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("License state")
+                    .accessibilityValue(name ?? "Not selected")
+                    .accessibilityHint("Opens the list of states")
+                    if name != nil {
+                        OptionalFieldClear(label: "Clear license state") { code = "" }
+                    }
+                }
+            }
+            .pickerPresentation(isPresented: $picking) {
+                StatePickerSheet(states: states, selected: code.isEmpty ? nil : code) { picked in
+                    code = picked
+                    picking = false
+                }
+            }
+        }
+        .padding(.bottom, bottom)
+    }
+
+    private func endEditing() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    }
+}
+
+/// The small x that empties an optional field. The tap area fills the field's height.
+struct OptionalFieldClear: View {
+    let label: String
+    let action: () -> Void
+    var body: some View {
+        Button(action: action) {
+            ProtoIcon("clear", size: 15).foregroundStyle(VC.ink3)
+                .frame(width: 30, height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.vertical, -10).padding(.trailing, -8)
+        .accessibilityLabel(label)
     }
 }
 

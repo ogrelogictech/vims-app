@@ -19,7 +19,7 @@ xcrun simctl install "iPhone 17" build/DerivedData/Build/Products/Debug-iphonesi
 xcrun simctl launch "iPhone 17" com.vims.app
 ```
 
-### Which build is which (0.30.0)
+### Which build is which (since 0.30.0)
 
 | Build | App ID | How | Purchases |
 |---|---|---|---|
@@ -390,7 +390,7 @@ payment" button are a confirmed add-on and are not built. The report therefore h
 - **VIMS default agreement** (`shared/legal/inspection-agreement.json`, bundled by the `SharedLegal` group; `Data/Legal/InspectionAgreement.swift`). Rendered verbatim; `{companyName}` is filled with the signed-in company's name. No in-app e-signature in Phase 1.
 - **Company profile → Inspection agreement:** "VIMS agreement · All 50 states · in use · View" with **Upload your own** (file importer, PDF/Word). After an upload the card shows the file name, "Your agreement · in use · **Use VIMS agreement**" (reverts and deletes the stored file) and **Replace**. Stored per company (`CompanyProfile.agreementFile/agreementName`, `companies/<id>/`).
 - **Viewer** (`Views/Legal/AgreementViews.swift`, route `.agreement(state:)`, title "Inspection agreement"): title, header form lines in a boxed mono block, body paragraphs/bullets, "State Specific required disclosures." and closing. From Company profile it lists all 20 states; from the wizard only the inspection's state, with "Showing <State> only. The full agreement lists 20 states." or "No additional disclosures for <State>." When the company uses its own file, a note says so (VIMS text shown for reference) with **Open your agreement** (Quick Look).
-- **Wizard step 1:** "Inspection agreement: View (shows the selected state's section)" under the State notes, and **Send the report to the real estate agent** under Real estate agent email (on by default; reset to `stateRules[state].agentCopyDefault` when the state changes — off for NH, whose note shows under it). Stored as `Inspection.sendToAgent` (nil on older inspections = on).
+- **Wizard step 1:** "Inspection agreement: View (shows the selected state's section)" under the State notes (moved to step 4 in 0.31.0), and **Send the report to the real estate agent** under Real estate agent email (on by default; reset to `stateRules[state].agentCopyDefault` when the state changes — off for NH, whose note shows under it). Stored as `Inspection.sendToAgent` (nil on older inspections = on).
 - **Emailed reports:** with send-to-agent off, To = client only (CC inspector unchanged; no Bcc); the Report ready note says "client only".
 - DEBUG: `-screen agreement [-agreementState XX] [-agreementScroll disclosures]`, `-ownAgreement NAME` (bundled NAME.pdf through the same upload path), `-useVimsAgreement`, `-agreementStatus`, `-wizScroll sendToAgent|agreementLine`; `-mailSelfTest` also prints the NH/UT recipient check. Screenshots: `screenshots/qa-12x-*.png`.
 
@@ -1005,7 +1005,7 @@ Screenshots: `screenshots/oct12-*.png` — `ipad-01…18` 13" (landscape 01–13
   has both glyphs (`BoxGlyphFont`: the system fallback for ☐ when it also has ☒ — Menlo for the mono block, Apple Symbols
   for body text), 1.3× the text size so a tick is easy to see; the PDF form block keeps a fixed line height.
 - **Entry points**: route `.agreement(state:fill:)` (`fill` nil = blank, as from Settings / Company profile, which stay
-  blank with no button). Wizard step 1 "Inspection agreement: View" passes `store.agreementFill(draft)` — every step's
+  blank with no button). Wizard step 4 "View Pre-filled Inspection Agreement" (step 1's View until 0.31.0) passes `store.agreementFill(draft)` — every step's
   current values, nothing saved. New **Inspection agreement** row on the inspection screen (`SectionsOverviewView
   .agreementRow`, file icon, "Filled in for <client> · Email to client" / "Filled in · Email to client"), right under the
   progress card above "Checklist · tap a group" (iPad landscape: under the progress card in the right column), for every
@@ -1143,3 +1143,26 @@ StoreKit 2 replaces the simulated Square subscription. No server: the App Store 
 
   Once a session has run on a simulator, `storekitd` keeps using its configuration for that bundle ID, even with no lab. To see the no-products state,
   use an erased simulator. Transaction IDs restart after `-storeKitClear`, so also pass `-resetStoreVault` or the credit ledger treats them as seen.
+
+### iOS 0.31.0 (32) — client Nov 4 (shared v1.19.0)
+
+- **Step 1**: the "Inspection agreement: View" row is gone (the state's rule card stays). `OptionalTimeField` "Time of walk through" under Time: "Not set" until
+  chosen (wheel in a sheet / iPad popover, Cancel sets nothing, x clears), stored in `fields` only when set. `LicenseStateField` "License state" beside Inspector License #,
+  clearable, a USPS code in `fields`. A new draft takes it from Company profile > License state (`CompanyProfile.licenseState`, optional so an older company decodes).
+- **Step 2**: chips per `structureTypes`. `Inspection.wizardStructure` shows a saved 'Mobile / Manufactured' on the Mobile Home chip; the stored value stays until someone picks a
+  type, and tapping the highlighted Mobile Home counts as picking it (`ChipGroup.onReselect`).
+- **Step 3**: Exterior areas without Chimney, no Utility & systems.
+- **Step 4** (`Views/Inspection/FeesStepView.swift`, `wizard.fees`): chip + $ box pairs, one per row on phones, two on tablets; a chip too long for half the column takes its own
+  row. `InspectionFees` (optional on `Inspection`, nil unless something is typed): strings as typed, summed as `Decimal`. Above 0 selects; deselect clears; a locked utility's box
+  is empty and disabled, its amount kept but not counted or printed, and it comes back on unlock. The keystroke filter can't exceed 99,999.99 or 2 decimals, so amounts never
+  block; a lone "." is dropped on Next / Build.
+- **Chimney** (`_chimneyAbout`, `_wizardVsChecklistOrder`): `Inspection.hasChimney` reads `exterior` or `utilities`; new ones go in `utilities`, saved ones stay in `exterior`.
+  `ChecklistCatalog.selected` builds from `checklistBuilder.checklistOrder` (Tests Only too), so moving chips moves no section and Chimney appears once under Property Exterior.
+- **AgreementFill** per `agreementPrefill`: license state, never the inspection state; walk-through; fee lines by `fee` key; blanks stay at zero (an option selected at 0 is ticked
+  with its amount blank); locked utilities neither ticked nor printed; a saved exterior Chimney ticks Chimney $. A label ending in "$" owns only the blank right after it, so
+  `Chimney $` can't touch "Component Roof ☐ Chimney ☐" and a company text that lost a blank can't fill the next fee's.
+- **Agreement boxes** (`_boxDrawing`): the ☒ font character was thin at 8.6 pt beside ☐, so both are now shapes: SF Symbols in the viewer (VoiceOver says "checked" / "not
+  checked"), `AgreementPDF.drawBoxes` in the PDF over invisible ☐ / ☒ characters, so copy and search still work. Ticked = solid dark square with a white X.
+- **Entry point**: wizard step 4 "View Pre-filled Inspection Agreement"; the inspection-screen row stays.
+- **Testing**: `VIMSUITests/Nov5WizardUITests`; DEBUG `-nov5Wizard`, `-nov5Agreement`, `-nov5Struct S`, `-nov5Status` (NOV5TEST lines), `-nov5WritePDF` (`App/DebugNov5.swift`). Build the
+  Debug app with normal signing for store tests: `CODE_SIGNING_ALLOWED=NO` drops `get-task-allow` and the lab's products won't load.

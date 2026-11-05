@@ -56,11 +56,54 @@ enum AgreementPDF {
                 let range = layout.glyphRange(for: tc)
                 layout.drawBackground(forGlyphRange: range, at: textRect.origin)
                 layout.drawGlyphs(forGlyphRange: range, at: textRect.origin)
+                drawBoxes(layout: layout, storage: storage, glyphs: range, origin: textRect.origin)
                 footer(page: i + 1, of: total, company: company)
             }
         }
         return (data, total)
     }
+
+    /// Client Nov 4 (`_boxDrawing`): the ☐ / ☒ characters stay in the text (invisible, so copy and search still find them) and
+    /// each box is drawn as a shape over its place: outlined when empty, a solid dark square with a white X when ticked, so a
+    /// tick is obvious at a glance and in a black-and-white print.
+    private static func drawBoxes(layout: NSLayoutManager, storage: NSTextStorage, glyphs: NSRange, origin: CGPoint) {
+        guard let cg = UIGraphicsGetCurrentContext() else { return }
+        let chars = layout.characterRange(forGlyphRange: glyphs, actualGlyphRange: nil)
+        storage.enumerateAttribute(boxSizeKey, in: chars) { value, range, _ in
+            guard let textSize = (value as? NSNumber).map({ CGFloat($0.doubleValue) }) else { return }
+            let glyph = layout.glyphIndexForCharacter(at: range.location)
+            let fragment = layout.lineFragmentRect(forGlyphAt: glyph, effectiveRange: nil)
+            let place = layout.location(forGlyphAt: glyph)
+            let baseline = fragment.minY + place.y
+            let side = boxSide(textSize)
+            let box = CGRect(x: origin.x + fragment.minX + place.x, y: origin.y + baseline - textSize * 0.36 - side / 2, width: side, height: side)
+            let ticked = (storage.string as NSString).character(at: range.location) == 0x2612
+            let path = UIBezierPath(roundedRect: box, cornerRadius: side * 0.14)
+            cg.saveGState()
+            if ticked {
+                ink.setFill()
+                path.fill()
+                let x = box.insetBy(dx: side * 0.24, dy: side * 0.24)
+                let cross = UIBezierPath()
+                cross.move(to: CGPoint(x: x.minX, y: x.minY)); cross.addLine(to: CGPoint(x: x.maxX, y: x.maxY))
+                cross.move(to: CGPoint(x: x.maxX, y: x.minY)); cross.addLine(to: CGPoint(x: x.minX, y: x.maxY))
+                cross.lineWidth = max(1, side * 0.15)
+                cross.lineCapStyle = .round
+                UIColor.white.setStroke()
+                cross.stroke()
+            } else {
+                ink2.setStroke()
+                path.lineWidth = 0.75
+                path.stroke()
+            }
+            cg.restoreGState()
+        }
+    }
+
+    private static func boxSide(_ textSize: CGFloat) -> CGFloat { textSize * 1.1 }
+
+    /// Marks a box character in the text, with the size of the text around it.
+    private static let boxSizeKey = NSAttributedString.Key("vimsBoxTextSize")
 
     private static func footer(page: Int, of total: Int, company: String) {
         let y = pageSize.height - margin + 4
@@ -88,14 +131,19 @@ enum AgreementPDF {
             if indent > 0 { p.tabStops = [NSTextTab(textAlignment: .left, location: indent)]; p.defaultTabInterval = indent }
             return p
         }
-        // Filled-in values (data v1.15) are bold in ink; ☐ / ☒ use one font that has both glyphs (BoxGlyphFont).
+        // Filled-in values (data v1.15) are bold in ink; ☐ / ☒ only hold the place of the drawn boxes (`drawBoxes`).
         func add(_ s: String, _ font: UIFont, _ color: UIColor, _ p: NSParagraphStyle, bold: UIFont? = nil) {
             let line = NSMutableAttributedString()
             for seg in AgreementFill.segments(s + "\n") {
                 switch seg.kind {
                 case .plain: line.append(NSAttributedString(string: seg.text, attributes: [.font: font, .foregroundColor: color]))
                 case .bold: line.append(NSAttributedString(string: seg.text, attributes: [.font: bold ?? font, .foregroundColor: ink]))
-                case .box: line.append(NSAttributedString(string: seg.text, attributes: [.font: BoxGlyphFont.font(for: font), .foregroundColor: color]))
+                case .box:
+                    // Kerned so the character's width is the drawn box plus a hair, keeping the spaces around it clear.
+                    let f = BoxGlyphFont.font(for: font)
+                    let width = (seg.text as NSString).size(withAttributes: [.font: f]).width
+                    line.append(NSAttributedString(string: seg.text, attributes: [.font: f, .foregroundColor: UIColor.clear, .kern: boxSide(font.pointSize) + 0.5 - width,
+                                                                                  boxSizeKey: NSNumber(value: Double(font.pointSize))]))
                 }
             }
             line.addAttribute(.paragraphStyle, value: p, range: NSRange(location: 0, length: line.length))
@@ -108,7 +156,7 @@ enum AgreementPDF {
                 add(t, VFont.uDisplay(19, .heavy), ink, style(after: 12, lineSpacing: 1))
             case .form(let lines):
                 // Form lines keep their own line breaks (line separators, so they stay one block).
-                // Fixed line height, so lines with the (slightly larger) ☐ / ☒ keep the same rhythm as the others.
+                // Fixed line height, so lines with the (slightly larger) boxes keep the same rhythm as the others.
                 let p = style(before: 2, after: 12, lineSpacing: 4.5)
                 p.minimumLineHeight = ceil(VFont.uMono(8.6).lineHeight); p.maximumLineHeight = p.minimumLineHeight
                 add(lines.joined(separator: "\u{2028}"), VFont.uMono(8.6), ink2, p, bold: VFont.uMono(8.6, .semibold))
@@ -132,15 +180,14 @@ enum AgreementPDF {
     }
 }
 
-/// ☐ and ☒ (data v1.15 ticked boxes) drawn with one font that has both glyphs, so a ticked box never prints as a
-/// missing-glyph box and matches the empty ones: the text font itself when it has both, else the font the system
+/// The font of the invisible ☐ / ☒ characters under the PDF's drawn boxes: one font that has both, so their width matches and
+/// a character never falls back to a missing glyph: the text font itself when it has both, else the font the system
 /// falls back to for ☐ when that one has ☒ too, else the first of a few system fonts that have both.
 enum BoxGlyphFont {
     private static var cache: [String: UIFont] = [:]
     private static let lock = NSLock()
 
-    /// The fallback fonts draw the boxes at about x-height, so they're drawn a little larger than the text
-    /// (`scale`) to keep a ticked ☒ easy to tell from ☐ in the viewer and in print.
+    /// The fallback fonts are drawn a little larger than the text (`scale`), which leaves room for the drawn box.
     static let scale: CGFloat = 1.3
 
     static func font(for base: UIFont) -> UIFont {

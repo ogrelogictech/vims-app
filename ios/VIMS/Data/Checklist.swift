@@ -315,7 +315,7 @@ struct ChecklistCatalog {
 
     /// `phaseTypes[type]` when the type has its own layout (Phase 1 / Phase 2 / Texas / 4 Point / Tests Only), else
     /// `standardLayout`. Both use the same entry forms: `link`, fixed `sections`, `always`, `optional` (the options
-    /// chosen in the wizard, e.g. Tests Only's `"optional": "testOptions"`), `order` tokens and `sub`. Admin custom
+    /// chosen in the wizard, e.g. Tests Only's `"optional": "testOptions"`, in `checklistOrder`), `order` tokens and `sub`. Admin custom
     /// sections are appended to their group in the standard layout, and to a phase layout's `optional` groups (Tests
     /// Only → Testing). Data v1.10 `areasLockedTypes`: the exterior / room / utility choices never add sections.
     func buildGroups(for insp: Inspection) -> [ChecklistGroup] {
@@ -350,9 +350,9 @@ struct ChecklistCatalog {
 
     private func customGroup(for e: LayoutEntry) -> String {
         switch e.optional {
-        case "exteriorOptions": return "Exterior"
-        case "testOptions": return "Testing"
-        case "utilityOptions": return "Utility"
+        case "checklistOrder.exterior", "exteriorOptions": return "Exterior"
+        case "checklistOrder.tests", "testOptions": return "Testing"
+        case "checklistOrder.utility", "utilityOptions": return "Utility"
         default: return e.order != nil ? "Interior" : e.heading
         }
     }
@@ -361,11 +361,17 @@ struct ChecklistCatalog {
     /// choices are kept on the inspection but add nothing; tests always count.
     private func selected(optionKey: String, _ insp: Inspection, locked: Bool = false) -> [String] {
         let w = config.wizard
-        if locked, optionKey != "testOptions" { return [] }
+        let order = config.checklistBuilder.checklistOrder
+        let isTests = optionKey == "checklistOrder.tests" || optionKey == "testOptions"
+        if locked, !isTests { return [] }
+        // v1.19 `_wizardVsChecklistOrder`: sections follow `checklistOrder`, never the wizard's chips (Tests Only too).
+        if isTests { return order.tests.filter { insp.tests.contains($0) } }
         switch optionKey {
-        case "exteriorOptions": return w.exteriorOptions.filter { insp.exterior.contains($0) }
-        case "utilityOptions": return w.utilityOptions.filter { insp.utilities.contains($0) }
-        case "testOptions": return w.testOptions.filter { insp.tests.contains($0) }
+        // Client Nov 4 (`_chimneyAbout`): Chimney stays in `checklistOrder.exterior`, once, whether it was saved under
+        // `exterior` or chosen under Utility & systems.
+        case "checklistOrder.exterior", "exteriorOptions":
+            return order.exterior.filter { $0 == Inspection.chimneyOption ? insp.hasChimney : insp.exterior.contains($0) }
+        case "checklistOrder.utility", "utilityOptions": return order.utility.filter { insp.utilities.contains($0) }
         case "roomOptions": return w.roomOptions.filter { insp.rooms.contains($0) }
         default: return []
         }

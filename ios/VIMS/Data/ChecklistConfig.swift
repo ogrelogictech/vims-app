@@ -307,7 +307,15 @@ struct AirQualityDef: Codable, Hashable {
 
 struct BuilderDef: Decodable {
     let phaseTypes: [String: [LayoutEntry]]
+    /// v1.19 `_wizardVsChecklistOrder`: the order of the optional sections, separate from the wizard's chip order.
+    let checklistOrder: ChecklistOrderDef
     let standardLayout: [LayoutEntry]
+}
+
+struct ChecklistOrderDef: Decodable {
+    let exterior: [String]
+    let utility: [String]
+    let tests: [String]
 }
 
 struct LayoutEntry: Decodable {
@@ -393,6 +401,8 @@ struct WizardEntry: Decodable, Hashable {
     let `default`: String?
     /// v1.9.1: "Type of inspection" (`wtype`) must be chosen — nothing is preselected.
     var required: Bool? = nil
+    /// v1.19: License state and Time of walk through start empty and can be cleared.
+    var optional: Bool? = nil
 }
 
 struct RoomCountDef: Decodable { let key: String; let label: String }

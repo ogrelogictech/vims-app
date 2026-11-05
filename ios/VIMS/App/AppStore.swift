@@ -16,8 +16,8 @@ enum Route: Hashable {
     case plans, inspectors, subscribe, subscriptionStarted, billing, feedbackAdmin, reportBcc, ownerCode
     case eula, deleteAccount
     /// VIMS default inspection agreement viewer: nil = every state's disclosures (Company profile),
-    /// a code = only that state's section (wizard step 1). `fill` (client Oct 30 (3), data v1.15): opened from an inspection
-    /// (wizard step 1 or the inspection screen) — the agreement is filled in from it and has "Email inspection agreement".
+    /// a code = only that state's section (wizard). `fill` (client Oct 30 (3), data v1.15): opened from an inspection
+    /// (wizard step 4 or the inspection screen) — the agreement is filled in from it and has "Email inspection agreement".
     case agreement(state: String?, fill: AgreementFill? = nil)
     /// Company admins: edit this company's copy of the VIMS agreement.
     case agreementEditor
@@ -483,6 +483,7 @@ final class AppStore {
         }
         let lic = state.company.license.trimmingCharacters(in: .whitespaces)
         if !lic.isEmpty { fields[Inspection.licenseField] = lic }
+        if let st = state.company.licenseState, !st.isEmpty { fields[Inspection.licenseStateField] = st }
         fields["Date"] = Fmt.date(Date(), "yyyy-MM-dd")
         fields["Time"] = Fmt.date(Calendar.current.date(bySetting: .minute, value: 0, of: Date().addingTimeInterval(3600)) ?? Date(), "HH:mm")
         return Inspection(

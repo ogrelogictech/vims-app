@@ -163,7 +163,7 @@ enum DemoSeed {
         canyon.needsSync = true
 
         // 3) 210 Willow Park, Lot 17 — mobile home; scheduled, synced from the office
-        var willow = base("210 Willow Park, Lot 17, Roy, UT 84067", client: "Alicia Moreno", date: today, time: "15:30", structure: "Mobile / Manufactured")
+        var willow = base("210 Willow Park, Lot 17, Roy, UT 84067", client: "Alicia Moreno", date: today, time: "15:30", structure: "Mobile Home")
         build(&willow)
         willow.needsSync = false
         willow.syncedAt = today

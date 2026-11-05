@@ -207,7 +207,7 @@ struct ChipButton: View {
     }
 }
 
-/// The single note above wizard step 3's locked options ("Not used for a Tests Only inspection").
+/// The single note above wizard steps 3 and 4's locked options ("Not used for a Tests Only inspection").
 struct AreasLockedNote: View {
     let text: String
     var body: some View {
@@ -245,9 +245,12 @@ struct ChipGroup: View {
     var required = false
     /// Shown text for an option (stored values stay the option keys), e.g. section keys → their display titles.
     var display: (String) -> String = { $0 }
-    /// Every chip locked (wizard step 3 for `areasLockedTypes`); the selection is kept as it is.
+    /// Every chip locked (wizard steps 3 and 4 for `areasLockedTypes`); the selection is kept as it is.
     var disabled = false
     var disabledHint: String? = nil
+    /// Tapping the chip that's already on in a required single choice. Normally nothing happens; a saved legacy value shown
+    /// on this chip (wizard Mobile Home) becomes this choice.
+    var onReselect: ((String) -> Void)? = nil
 
     var body: some View {
         FlowLayout(spacing: 8, lineSpacing: 8) {
@@ -261,7 +264,7 @@ struct ChipGroup: View {
         guard !disabled else { return }
         if single {
             if selection.contains(opt) {
-                if !required { selection = [] }
+                if !required { selection = [] } else { onReselect?(opt) }
             } else {
                 selection = [opt]
             }

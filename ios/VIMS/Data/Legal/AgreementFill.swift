@@ -11,6 +11,7 @@ struct AgreementPrefillDef: Decodable {
         var part: String           // "header" (the boxed form lines) | "closing"
         var label: String
         var occurrence: Int        // n-th line of that part containing the label (1 = first)
+        var fee: String? = nil     // data v1.19: the wizard.fees option this line prints the amount of
     }
     /// A box to tick: `box` is the agreement text beside it; `side` "after" = "Purchase ☐", "before" = "☐ Radon Testing",
     /// "none" = nothing to tick (Component: its components are ticked instead). `key` = the app value it stands for.
@@ -51,7 +52,7 @@ struct AgreementPrefillDef: Decodable {
                 guard let label = try? o.decode(String.self, forKey: AnyKey("label")), !label.isEmpty else { continue }
                 let part = (try? o.decode(String.self, forKey: AnyKey("part"))) ?? "header"
                 let occ = (try? o.decode(Int.self, forKey: AnyKey("occurrence"))) ?? 1
-                lines.append(Line(part: part, label: label, occurrence: max(occ, 1)))
+                lines.append(Line(part: part, label: label, occurrence: max(occ, 1), fee: try? o.decode(String.self, forKey: AnyKey("fee"))))
             }
         }
         if let cb = try? c.nestedContainer(keyedBy: AnyKey.self, forKey: AnyKey("checkboxes")) {
@@ -114,11 +115,12 @@ struct AgreementFill: Hashable {
     var emailLabel = "Email inspection agreement"
 
     /// Which app value each agreement label is filled with (the JSON's `value` describes it in words).
-    enum Source { case clientName, clientPhone, clientEmail, inspectorName, license, state, dateTime, address, units, sqft, agentName, agentEmail }
+    enum Source { case clientName, clientPhone, clientEmail, inspectorName, license, licenseState, dateTime, walkThrough, address, units, sqft, agentName, agentEmail, inspectionFee, bundled, total }
     static let sources: [String: Source] = [
         "Clients Name": .clientName, "Phone #": .clientPhone, "Email": .clientEmail, "Inspectors Name": .inspectorName,
-        "License/Reg #": .license, "State": .state, "Date and Time of Inspection": .dateTime,
-        "Address of Property to be inspected": .address, "# Units": .units, "Total Sqft": .sqft,
+        "License/Reg #": .license, "State": .licenseState, "Date and Time of Inspection": .dateTime,
+        "Time of walk through": .walkThrough, "Address of Property to be inspected": .address, "# Units": .units, "Total Sqft": .sqft,
+        "Inspection Fee $": .inspectionFee, "Bundled Services $": .bundled, "Total Amount Due $": .total,
         "Real Estate Agents Name": .agentName, "Agents Email": .agentEmail, "Printed Name of Client:": .clientName
     ]
 
@@ -144,6 +146,11 @@ struct AgreementFill: Hashable {
             default: return ""
             }
         }()
+        // v1.19 fees: blanks stay empty at zero.
+        func nonZero(_ d: Decimal?) -> String {
+            guard let d, d > 0 else { return "" }
+            return InspectionFees.text(d)
+        }
         func value(_ s: Source) -> String {
             switch s {
             case .clientName: return f.clientName
@@ -151,16 +158,28 @@ struct AgreementFill: Hashable {
             case .clientEmail: return f.clientEmail
             case .inspectorName: return t(inspectorName)
             case .license: return t(insp.inspectorLicense)
-            case .state: return f.stateCode
+            // Client Nov 4 (`_licenseStateAbout`): the license's state, never the inspection's. Blank stays blank.
+            case .licenseState: return t(insp.licenseState)
             case .dateTime: return f.dateTime
+            case .walkThrough: return Fmt.parse(t(insp.walkThroughTime), "HH:mm").map { Fmt.date($0, "h:mm a") } ?? ""
             case .address: return f.fullAddress
             case .units: return units
             case .sqft: return t(insp.field("Total sq ft"))
             case .agentName: return t(insp.field("Real estate agent name"))
             case .agentEmail: return t(insp.field("Real estate agent email"))
+            case .inspectionFee: return wizard == nil ? "" : nonZero(InspectionFees.value(insp.fees?.inspectionFee))
+            case .bundled: return wizard.map { nonZero(insp.bundledFees(wizard: $0)) } ?? ""
+            case .total: return wizard.map { nonZero(insp.totalFees(wizard: $0)) } ?? ""
             }
         }
+        // An option's amount prints only when the option counts (selected, not locked). Selected at 0: ticked, blank left.
+        func feeValue(_ option: String) -> String {
+            guard let wizard else { return "" }
+            let group: Inspection.FeeGroup = wizard.utilityOptions.contains(option) ? .utility : .test
+            return nonZero(insp.countedFee(option, in: group, wizard: wizard))
+        }
         f.lines = (spec?.lines ?? []).compactMap { l in
+            if let option = l.fee { return Line(part: l.part, label: l.label, occurrence: l.occurrence, value: feeValue(option)) }
             guard let s = sources[l.label] else { return nil }
             return Line(part: l.part, label: l.label, occurrence: l.occurrence, value: value(s))
         }
@@ -169,14 +188,14 @@ struct AgreementFill: Hashable {
         func tick(_ list: [AgreementPrefillDef.Box], _ picked: [String]) {
             for b in list where picked.contains(b.key) && b.side != "none" { f.ticks.append(Tick(box: b.box, side: b.side)) }
         }
-        // Property type ("Mobile / Manufactured" isn't mapped: the agreement can't tell Mobile Home from Manufactured).
+        // Property type (a saved 'Mobile / Manufactured' isn't mapped: the app doesn't know which of the two boxes it was).
         tick(spec.propertyType, [insp.structure])
         // Type of inspection (Texas, Tests Only and retired types aren't mapped); Component ticks its components.
         tick(spec.inspectionType, [insp.inspType])
         if insp.inspType == "Component" { tick(spec.components, insp.components) }
         tick(spec.tests, insp.tests)
         // Utilities only count when the type uses them (data v1.10 areasLockedTypes keep the choices but ignore them).
-        if !(wizard?.areasLocked(insp.inspType) ?? false) { tick(spec.utilities, insp.utilities) }
+        if !(wizard?.areasLocked(insp.inspType) ?? false) { tick(spec.utilities, insp.selectedUtilities) }
         if !insp.sendsReportToAgent, let b = spec.noAgentReport { f.ticks.append(Tick(box: b.box, side: b.side)) }
         return f
     }
@@ -253,6 +272,8 @@ struct AgreementFill: Hashable {
     /// blank isn't there, or the value is empty (the underscores stay). A single space separates label and value:
     /// "Clients Name ____" → "Clients Name Jane Doe", "Date and Time of Inspection____" → "… Inspection Nov 3, 2026".
     /// Text already filled in (between the markers) is never searched, so a value can't be mistaken for a label.
+    /// A label ending in "$" (data v1.19 fees) owns only the blank right after it: if a company's edited text has lost that
+    /// blank, nothing is filled rather than the next fee's blank on the line.
     static func fillLine(_ line: String, label: String, value: String) -> String? {
         let v = value.trimmingCharacters(in: .whitespacesAndNewlines)
             .replacingOccurrences(of: "\n", with: " ")
@@ -260,7 +281,12 @@ struct AgreementFill: Hashable {
         guard !v.isEmpty else { return nil }
         let chars = Array(line), masked = mask(chars)
         guard let at = find(Array(label), in: masked, from: 0) else { return nil }
-        guard let start = masked[(at + label.count)...].firstIndex(of: "_") else { return nil }
+        let afterLabel = at + label.count
+        guard let start = masked[afterLabel...].firstIndex(of: "_") else { return nil }
+        if label.hasSuffix("$") {
+            if at > 0, masked[at - 1].isLetter { return nil }
+            guard masked[afterLabel..<start].allSatisfy({ $0 == " " }) else { return nil }
+        }
         var end = start
         while end < masked.count, masked[end] == "_" { end += 1 }
         let lead = start > 0 && chars[start - 1].isWhitespace ? "" : " "
@@ -315,8 +341,7 @@ struct AgreementFill: Hashable {
         return nil
     }
 
-    /// A text split for drawing: plain runs, bold (filled) runs, and single box glyphs (drawn with a font that has
-    /// both ☐ and ☒).
+    /// A text split for drawing: plain runs, bold (filled) runs, and single boxes (drawn as shapes by the viewer and the PDF).
     struct Segment: Equatable {
         enum Kind: Equatable { case plain, bold, box }
         var text: String
@@ -338,6 +363,12 @@ struct AgreementFill: Hashable {
         }
         flush()
         return out
+    }
+
+    /// What VoiceOver reads: the boxes are drawn, so they're said in words.
+    static func spoken(_ s: String) -> String {
+        plain(s).replacingOccurrences(of: String(tickedBox), with: "checked")
+            .replacingOccurrences(of: String(emptyBox), with: "not checked")
     }
 
     /// The text without the bold markers (plain copies, accessibility).

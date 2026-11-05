@@ -33,7 +33,7 @@ struct WizardView: View {
                             case 1: EntryList(entries: WizardRules.step1(store.config), draft: draftBinding, errors: errors, focus: focus, pairText: false, minDate: minDate, wide: wide.isWide, keptType: keptType)
                             case 2: EntryList(entries: w.step2, draft: draftBinding, errors: errors, focus: focus, pairText: true, minDate: minDate, wide: wide.isWide)
                             case 3: areas
-                            default: tests
+                            default: FeesStepView(draft: draftBinding, viewAgreement: viewAgreement)
                             }
                         }
                         HStack(spacing: 10) {
@@ -58,7 +58,7 @@ struct WizardView: View {
                 .scrollDismissesKeyboard(.interactively)
                 #if DEBUG
                 .task {
-                    // -wizScroll ID: scroll step 1 to a block (e.g. sendToAgent, agreementLine) for review screenshots.
+                    // -wizScroll ID: scroll to a block (e.g. sendToAgent, fee-Radon) for review screenshots.
                     guard let target = DebugLaunch.value("-wizScroll") else { return }
                     try? await Task.sleep(nanoseconds: 700_000_000)
                     proxy.scrollTo(target, anchor: .center)
@@ -84,6 +84,10 @@ struct WizardView: View {
             // -oct30cWizard: every step filled with the Oct 30 agreement sample values (data v1.15 View check).
             if DebugLaunch.has("-oct30cWizard"), editingID == nil, var d = draft {
                 DebugLaunch.oct30cValues(&d, config: store.config, blank: DebugLaunch.has("-oct30cBlank"))
+                draft = d
+            }
+            if DebugLaunch.has("-nov5Wizard"), editingID == nil, var d = draft {
+                DebugLaunch.nov5Values(&d, config: store.config)
                 draft = d
             }
             // -wizState TX[,UT…]: pick those states in order through the same setter as the picker.
@@ -142,16 +146,14 @@ struct WizardView: View {
         SectionLabel(text: "Interior rooms", top: 11)
         ChipGroup(options: w.roomOptions, selection: draftBinding.rooms, single: false, display: store.catalog.title,
                   disabled: locked, disabledHint: note)
-        SectionLabel(text: "Utility & systems")
-        ChipGroup(options: w.utilityOptions, selection: draftBinding.utilities, single: false, display: store.catalog.title,
-                  disabled: locked, disabledHint: note)
     }
 
-    // Step 4 — secondary testing
-    @ViewBuilder private var tests: some View {
-        HintText(text: "Add any secondary testing for this inspection.").padding(.top, 2).padding(.bottom, 12)
-        // Section keys stay stored ("Termite", "Septic"); the chips show the v1.8 titles.
-        ChipGroup(options: store.config.wizard.testOptions, selection: draftBinding.tests, single: false, display: store.catalog.title)
+    /// Client Nov 4 (`wizard.fees`, replaces the step 1 View link): the agreement filled in from what's entered in the wizard
+    /// so far (every step's current values, nothing saved), with "Email inspection agreement" at the bottom.
+    private func viewAgreement() {
+        guard let d = draft else { return }
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        store.push(.agreement(state: d.state, fill: store.agreementFill(d)))
     }
 
     private func go(_ s: Int, _ proxy: ScrollViewProxy) {
@@ -195,6 +197,7 @@ struct WizardView: View {
             return
         }
         for (id, value, _) in fields { d.fields[id] = Validator.trimmed(value) }
+        d.fees = d.fees?.normalized()       // a lone "." never gets stored; fees never block
         draft = d
         if step < store.config.wizard.steps.count { go(step + 1, proxy); return }
         if d.field("Inspector").isEmpty { d.fields["Inspector"] = store.session?.name ?? store.company.inspectorName }
@@ -392,7 +395,9 @@ private struct EntryList: View {
         case labelThenField(String, WizardEntry)   // e.g. "Weather & site conditions" label before Temperature
         /// Wide layout: up to four fields in one row; `nil` is the State picker (data v1.3), placed after the address.
         case row([WizardEntry?])
-        case stateDetails                           // the State rule card + agreement line under its row
+        case stateDetails                           // the State rule card under its row
+        /// Client Nov 4: Time of walk through, in the right-hand column under Time.
+        case underTime(WizardEntry)
     }
 
     private func grouped() -> [Block] {
@@ -405,6 +410,11 @@ private struct EntryList: View {
             if e.kind == "field", e.type == "date", let n = next, n.type == "time" {
                 out.append(.pair(e, n)); i += 2; continue
             }
+            if Self.isOptionalTime(e) { out.append(.underTime(e)); i += 1; continue }
+            // Client Nov 4: License state beside Inspector License #.
+            if e.label == Inspection.licenseField, let n = next, n.type == "state" {
+                out.append(.pair(e, n)); i += 2; continue
+            }
             if pairText, e.kind == "field", (e.type ?? "text") == "text", let n = next, n.kind == "field", (n.type ?? "text") == "text" {
                 out.append(.pair(e, n)); i += 2; continue
             }
@@ -415,6 +425,8 @@ private struct EntryList: View {
         }
         return out
     }
+
+    private static func isOptionalTime(_ e: WizardEntry) -> Bool { e.kind == "field" && e.type == "time" && e.optional == true }
 
     private func isLine(_ e: WizardEntry) -> Bool {
         e.kind == "field" && ["text", "email", "tel"].contains(e.type ?? "text") && !e.label.hasPrefix("Temperature")
@@ -441,6 +453,11 @@ private struct EntryList: View {
         while i < entries.count {
             let e = entries[i]
             let next = i + 1 < entries.count ? entries[i + 1] : nil
+            // Client Nov 4: License state beside Inspector License #, on a row of their own.
+            if e.label == Inspection.licenseField, let n = next, n.type == "state" {
+                flush()
+                out.append(.pair(e, n)); i += 2; continue
+            }
             if isLine(e) {
                 pending.append(e)
                 if pending.count == perRow { flush() }
@@ -454,6 +471,7 @@ private struct EntryList: View {
             if e.kind == "field", e.type == "date", let n = next, n.type == "time" {
                 out.append(.pair(e, n)); i += 2; continue
             }
+            if Self.isOptionalTime(e) { out.append(.underTime(e)); i += 1; continue }
             if e.kind == "field", e.type == "textarea", let n = next, n.kind == "field", n.type == "textarea" {
                 out.append(.pair(e, n)); i += 2; continue
             }
@@ -496,6 +514,12 @@ private struct EntryList: View {
             .padding(.bottom, 11)
         case .stateDetails:
             StateFieldBlock(draft: $draft, errors: errors, focus: focus, nextField: nil, part: .details)
+        case .underTime(let e):
+            HStack(alignment: .top, spacing: 10) {
+                Color.clear.frame(maxWidth: .infinity, maxHeight: 1)
+                field(e, bottom: 0)
+            }
+            .padding(.bottom, 11)
         case .labelThenField(let lbl, let e):
             SectionLabel(text: lbl)
             field(e, bottom: 11).frame(maxWidth: 140, alignment: .leading)
@@ -504,7 +528,7 @@ private struct EntryList: View {
             case "field":
                 field(e, bottom: 13)
                 // v1.3: required State right after Inspection address (list + rules from the shared JSON); since Oct 17
-                // after City, with ZIP code next and the state's rule card + agreement line under the ZIP code
+                // after City, with ZIP code next and the state's rule card under the ZIP code
                 // (street → City → State → ZIP code → notes, as in the prototype).
                 if e.label == stateAnchor, WizardRules.hasStateField(store.config) {
                     let split = stateAnchor == Inspection.cityField && entries.contains { $0.label == Inspection.zipField }
@@ -533,7 +557,22 @@ private struct EntryList: View {
                          required: WizardRules.rule(for: e.label, type: e.type)?.required ?? false).padding(.bottom, bottom)
                 .id(e.label)
         case "time":
-            DateFieldBox(label: e.label, value: text(e.label), format: "HH:mm", components: .hourAndMinute).padding(.bottom, bottom)
+            if e.optional == true {
+                // Stays out of `fields` until a time is set, and leaves it again when cleared.
+                OptionalTimeField(label: e.label, value: Binding(
+                    get: { draft.fields[e.label] ?? "" },
+                    set: { draft.fields[e.label] = $0.isEmpty ? nil : $0 }),
+                    suggested: draft.field("Time"))
+                    .padding(.bottom, bottom)
+                    .id(e.label)
+            } else {
+                DateFieldBox(label: e.label, value: text(e.label), format: "HH:mm", components: .hourAndMinute).padding(.bottom, bottom)
+            }
+        case "state":
+            LicenseStateField(states: store.config.states ?? [], code: Binding(
+                get: { draft.fields[e.label] ?? "" },
+                set: { draft.fields[e.label] = $0.isEmpty ? nil : $0 }), bottom: bottom)
+                .id(e.label)
         case "textarea":
             VTextArea(label: e.label, text: text(e.label), placeholder: e.placeholder ?? "")
         default:
@@ -698,12 +737,16 @@ private struct EntryList: View {
             }
         } else if e.id == "wstruct" {
             SectionLabel(text: e.label, top: 2)
-            ChipGroup(options: w.structureTypes, selection: Binding(get: { [draft.structure] }, set: { v in
-                guard let f = v.first else { return }
+            // A saved 'Mobile / Manufactured' shows on the Mobile Home chip and keeps its stored value until someone picks a
+            // type (tapping Mobile Home counts as picking it).
+            let pick = { (f: String) in
                 draft.structure = f
                 if let ext = w.structureSideEffects[f]?["exterior"], !draft.exterior.contains(ext) { draft.exterior.append(ext) }
                 if f == "Multi-Unit", draft.unitMix.isEmpty { draft.unitMix = w.unitMixDefault }
-            }), single: true, required: true)
+            }
+            ChipGroup(options: w.structureTypes, selection: Binding(get: { [draft.wizardStructure] }, set: { v in
+                if let f = v.first { pick(f) }
+            }), single: true, required: true, onReselect: pick)
             if draft.structure == "Multi-Unit" {
                 SectionLabel(text: "Unit mix")
                 ForEach(store.config.unitMixOrder, id: \.self) { k in

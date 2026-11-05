@@ -232,10 +232,11 @@ struct CompanyProfileView: View {
                 VTextField(label: "Inspector name", text: bind(\.inspectorName), contentType: .name, capitalization: .words,
                            kind: .personName, fieldID: "inspector", errors: errors)
                 ViewThatFits(in: .horizontal) {
-                    HStack(alignment: .top, spacing: 10) { licenseField(bottom: 0); phoneField(bottom: 0) }
-                    VStack(spacing: 0) { licenseField(bottom: 13); phoneField(bottom: 0) }
+                    HStack(alignment: .top, spacing: 10) { licenseField(bottom: 0); licenseStateField(bottom: 0) }
+                    VStack(spacing: 0) { licenseField(bottom: 13); licenseStateField(bottom: 0) }
                 }
-                .padding(.bottom, 11)
+                .padding(.bottom, 13)
+                phoneField(bottom: 13)
                 VTextField(label: "Email", text: bind(\.email), keyboard: .emailAddress, contentType: .emailAddress, capitalization: .never,
                            kind: .email, fieldID: "email", errors: errors)
                 SectionLabel(text: "Online review link")
@@ -295,7 +296,7 @@ struct CompanyProfileView: View {
         SectionLabel(text: "Company details")
         VStack(spacing: 0) {
             let rows: [(String, String)] = [("Company name", c.name), ("Address", c.address), ("Lead inspector", c.inspectorName),
-                                            ("License #", c.license), ("Phone", c.phone), ("Email", c.email), ("Review URL", c.reviewURL)]
+                                            ("License #", c.license), ("License state", store.config.stateName(c.licenseState) ?? ""), ("Phone", c.phone), ("Email", c.email), ("Review URL", c.reviewURL)]
             ForEach(Array(rows.enumerated()), id: \.offset) { i, r in
                 VStack(alignment: .leading, spacing: 3) {
                     Text(r.0).font(VFont.ui(12, .semibold)).foregroundStyle(VC.ink3)
@@ -330,6 +331,13 @@ struct CompanyProfileView: View {
     private func licenseField(bottom: CGFloat) -> some View {
         VTextField(label: "License #", text: bind(\.license), placeholder: "e.g. UT-12345", capitalization: .characters,
                    bottom: bottom, kind: .license, fieldID: "license", errors: errors)
+    }
+
+    /// Client Nov 4: optional, prefills License state on a new inspection (same pattern as License #).
+    private func licenseStateField(bottom: CGFloat) -> some View {
+        LicenseStateField(states: store.config.states ?? [],
+                          code: Binding(get: { draft?.licenseState ?? "" }, set: { draft?.licenseState = $0.isEmpty ? nil : $0 }),
+                          bottom: bottom)
     }
 
     private func phoneField(bottom: CGFloat) -> some View {

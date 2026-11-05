@@ -394,6 +394,105 @@ struct StateDocsAck: Codable, Hashable {
     var acknowledgedAt: Date
 }
 
+/// Client Nov 4 (data v1.19 `wizard.fees`): one inspection's step 4 amounts, as typed ("1,250.5"). Keyed by option key
+/// ("Termite", "Chimney"). Optional on `Inspection`, so older inspections decode and encode exactly as before.
+struct InspectionFees: Codable, Hashable {
+    var amounts: [String: String] = [:]
+    var inspectionFee: String?
+
+    /// `limits` for every $ box: 0 to 99,999.99, up to 2 decimals (grouping commas shown, ignored when read).
+    static let limits = NumberLimits(min: 0, max: 99_999.99, grouping: true, maxDecimals: 2)
+
+    var isEmpty: Bool { amounts.isEmpty && (inspectionFee ?? "").isEmpty }
+
+    /// A typed amount as an exact decimal; nil when empty or not a number ("."). Decimal, so cents always add up exactly.
+    static func value(_ text: String?) -> Decimal? {
+        guard let text else { return nil }
+        let t = text.replacingOccurrences(of: ",", with: "").trimmingCharacters(in: .whitespaces)
+        guard !t.isEmpty, t.contains(where: \.isNumber) else { return nil }
+        return Decimal(string: t, locale: Locale(identifier: "en_US_POSIX"))
+    }
+
+    /// "1,250.00": always two decimals.
+    static func text(_ value: Decimal) -> String {
+        let f = NumberFormatter()
+        f.locale = Locale(identifier: "en_US")
+        f.numberStyle = .decimal
+        f.minimumFractionDigits = 2
+        f.maximumFractionDigits = 2
+        return f.string(from: value as NSDecimalNumber) ?? "\(value)"
+    }
+
+    /// Drops what can't be read as a number (a lone "."), so nothing but real amounts is stored.
+    func normalized() -> InspectionFees? {
+        var out = self
+        out.amounts = amounts.filter { Self.value($0.value) != nil }
+        if Self.value(inspectionFee) == nil { out.inspectionFee = nil }
+        return out.isEmpty ? nil : out
+    }
+}
+
+extension Inspection {
+    enum FeeGroup { case utility, test }
+
+    func isSelected(_ option: String, in group: FeeGroup) -> Bool {
+        group == .utility ? selectedUtilities.contains(option) : tests.contains(option)
+    }
+
+    /// Chip tap: selects or clears. Deselecting clears the option's amount.
+    mutating func setFeeOption(_ option: String, in group: FeeGroup, selected: Bool) {
+        switch group {
+        case .utility: setUtility(option, selected: selected)
+        case .test:
+            if selected { if !tests.contains(option) { tests.append(option) } }
+            else { tests.removeAll { $0 == option } }
+        }
+        if !selected { setStoredAmount(nil, for: option) }
+    }
+
+    /// $ box edit: typing an amount above 0 selects the option; clearing the box leaves the chip as it is.
+    mutating func setFeeAmount(_ text: String, for option: String, in group: FeeGroup) {
+        setStoredAmount(text.isEmpty ? nil : text, for: option)
+        if let v = InspectionFees.value(text), v > 0, !isSelected(option, in: group) {
+            switch group {
+            case .utility: setUtility(option, selected: true)
+            case .test: tests.append(option)
+            }
+        }
+    }
+
+    mutating func setInspectionFee(_ text: String) {
+        var f = fees ?? InspectionFees()
+        f.inspectionFee = text.isEmpty ? nil : text
+        fees = f.isEmpty ? nil : f
+    }
+
+    private mutating func setStoredAmount(_ text: String?, for option: String) {
+        var f = fees ?? InspectionFees()
+        f.amounts[option] = text
+        fees = f.isEmpty ? nil : f
+    }
+
+    /// The amount that counts for an option: selected, typed, and not locked (`areasLockedTypes` lock the utilities and they
+    /// add nothing, like their checklist sections; the amount is kept and comes back when another type unlocks them).
+    func countedFee(_ option: String, in group: FeeGroup, wizard: WizardDef) -> Decimal? {
+        guard isSelected(option, in: group), !(group == .utility && wizard.areasLocked(inspType)) else { return nil }
+        return InspectionFees.value(fees?.amounts[option])
+    }
+
+    /// Bundled Secondary Testing: the options on step 4, utilities and testing together.
+    func bundledFees(wizard: WizardDef) -> Decimal {
+        let utilities = wizard.utilityOptions.compactMap { countedFee($0, in: .utility, wizard: wizard) }
+        let tests = wizard.testOptions.compactMap { countedFee($0, in: .test, wizard: wizard) }
+        return (utilities + tests).reduce(0, +)
+    }
+
+    /// Total Cost of Inspection: Inspection Fee + Bundled Secondary Testing.
+    func totalFees(wizard: WizardDef) -> Decimal {
+        (InspectionFees.value(fees?.inspectionFee) ?? 0) + bundledFees(wizard: wizard)
+    }
+}
+
 struct ReportInfo: Codable, Hashable {
     var generatedAt: Date
     var pageCount: Int
@@ -422,6 +521,9 @@ struct Inspection: Codable, Hashable, Identifiable {
     /// Step 1 "Send the report to the real estate agent" (data v1.4). nil (inspections saved before v1.4) = on.
     /// Reset to the state's `agentCopyDefault` whenever the state changes (off for New Hampshire).
     var sendToAgent: Bool?
+    /// Client Nov 4 (data v1.19 `wizard.fees`): step 4's amounts. nil (older inspections, or nothing typed) = no amounts.
+    /// They appear only on the inspection agreement, not in the report.
+    var fees: InspectionFees?
 
     // Areas to inspect
     var exterior: [String]
@@ -619,12 +721,42 @@ struct Inspection: Codable, Hashable, Identifiable {
 
     static let licenseField = "Inspector License #"
     var inspectorLicense: String { field(Inspection.licenseField) }
+    /// Client Nov 4 (`_licenseStateAbout`): USPS code in `fields`; the agreement's State after License/Reg #, never `state`.
+    static let licenseStateField = "License state"
+    var licenseState: String { field(Inspection.licenseStateField) }
+    /// Client Nov 4 (`_timeOfWalkThroughAbout`): optional "HH:mm" in `fields`, empty by default.
+    static let walkThroughField = "Time of walk through"
+    var walkThroughTime: String { field(Inspection.walkThroughField) }
+
+    // Client Nov 4 (`_structureLegacyAbout`): 'Mobile / Manufactured' split into Mobile Home and Manufactured Home.
+    static let legacyMobileStructure = "Mobile / Manufactured"
+    /// The chip the wizard highlights: a saved legacy value keeps its stored text until someone picks a type.
+    var wizardStructure: String { structure == Self.legacyMobileStructure ? "Mobile Home" : structure }
+
+    // Client Nov 4 (`_chimneyAbout`): the Chimney chip moved to Utility & systems (`utilities`). A saved inspection keeps it in
+    // `exterior`; either way it reads as selected there, and the checklist builder keeps its section under Property Exterior.
+    static let chimneyOption = "Chimney"
+    var hasChimney: Bool { exterior.contains(Self.chimneyOption) || utilities.contains(Self.chimneyOption) }
+    /// The Utility & systems selection, a Chimney saved under `exterior` included.
+    var selectedUtilities: [String] {
+        hasChimney && !utilities.contains(Self.chimneyOption) ? [Self.chimneyOption] + utilities : utilities
+    }
+    /// Selects or clears a Utility & systems option; clearing Chimney clears it wherever it was saved.
+    mutating func setUtility(_ option: String, selected: Bool) {
+        if selected {
+            if !selectedUtilities.contains(option) { utilities.append(option) }
+        } else {
+            utilities.removeAll { $0 == option }
+            if option == Self.chimneyOption { exterior.removeAll { $0 == option } }
+        }
+    }
 
     var photoCount: Int { photos.values.reduce(0) { $0 + $1.values.reduce(0) { $0 + $1.count } } }
 
     var structureShort: String {
         switch structure {
-        case "Mobile / Manufactured": return "Mobile home"
+        case Self.legacyMobileStructure, "Mobile Home": return "Mobile home"
+        case "Manufactured Home": return "Manufactured home"
         default: return structure
         }
     }
@@ -649,6 +781,9 @@ struct CompanyProfile: Codable, Hashable {
     var joinCode: String
     var inspectorName: String
     var license: String = ""
+    /// Client Nov 4 (`_licenseStateAbout`): USPS code that prefills a new inspection's License state. Optional, so a company
+    /// saved before it still decodes.
+    var licenseState: String?
     var phone: String = ""
     var email: String
     var reviewURL: String = ""

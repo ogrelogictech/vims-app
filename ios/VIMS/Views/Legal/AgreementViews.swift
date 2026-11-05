@@ -6,10 +6,10 @@ import MessageUI
 // #s-agreementdoc (renderAgreement). Text is rendered verbatim; `{companyName}` → the signed-in company's name.
 
 /// "Inspection agreement" screen. `stateCode == nil` (Company profile) lists every state's disclosure;
-/// a code (wizard step 1) shows only that state's entry, or "No additional disclosures for <State>."
+/// a code (the wizard) shows only that state's entry, or "No additional disclosures for <State>."
 /// A company using its edited copy sees that text instead (in full — it can't be filtered by state).
 /// The header's share button downloads exactly what's shown as a PDF (every user).
-/// `fill` (client Oct 30 (3), data v1.15 `agreementPrefill`): opened from an inspection (wizard step 1's View, or the
+/// `fill` (client Oct 30 (3), data v1.15 `agreementPrefill`): opened from an inspection (wizard step 4's "View Pre-filled Inspection Agreement", or the
 /// inspection screen's "Inspection agreement" row) — the form and closing lines are filled in (bold), the mapped boxes
 /// ticked, and "Email inspection agreement" sits at the very bottom. Settings / Company profile pass no fill (blank, no
 /// button). A company's own uploaded agreement can't be filled: the VIMS text stays blank for reference and the
@@ -189,9 +189,10 @@ struct InspectionAgreementView: View {
                 .accessibilityAddTraits(.isHeader)
                 .padding(.bottom, 10)
         case .form(let lines):
-            Text(Self.rich(lines.joined(separator: "\n"), size: 11.5, mono: true))
+            Self.rich(lines.joined(separator: "\n"), size: 11.5, mono: true)
                 .font(VFont.mono(11.5)).foregroundStyle(VC.ink2)
                 .lineSpacing(5)
+                .accessibilityLabel(AgreementFill.spoken(lines.joined(separator: "\n")))
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 12).padding(.vertical, 10)
@@ -227,30 +228,32 @@ struct InspectionAgreementView: View {
     }
 
     private func paragraph(_ text: String, color: Color, weight: VWeight = .regular, bottom: CGFloat = 9) -> some View {
-        Text(Self.rich(text, size: 13, mono: false))
+        Self.rich(text, size: 13, mono: false)
             .font(VFont.ui(13, weight)).foregroundStyle(color).lineSpacing(4)
+            .accessibilityLabel(AgreementFill.spoken(text))
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.bottom, bottom)
     }
 
-    /// Agreement text with the filled-in values (data v1.15 markers) bold in ink and ☐ / ☒ drawn with one font that has
-    /// both glyphs (`BoxGlyphFont`, the same as the PDF). Plain text comes through unchanged.
-    static func rich(_ s: String, size: CGFloat, mono: Bool) -> AttributedString {
-        let style: Font.TextStyle = size < 12.8 ? .caption : .footnote
-        var out = AttributedString()
+    /// Agreement text with the filled-in values (data v1.15 markers) bold in ink. Client Nov 4 (`_boxDrawing`): boxes are
+    /// SF Symbols, not font characters, and a ticked one is a solid dark square with a white X, obvious at a glance beside the
+    /// outlined empty ones on any device. Plain text comes through unchanged.
+    static func rich(_ s: String, size: CGFloat, mono: Bool) -> Text {
+        var out = Text(verbatim: "")
         for seg in AgreementFill.segments(s) {
-            var run = AttributedString(seg.text)
             switch seg.kind {
-            case .plain: break
+            case .plain:
+                out = out + Text(verbatim: seg.text)
             case .bold:
-                run.font = mono ? VFont.mono(size, .semibold) : VFont.ui(size, .bold)
-                run.foregroundColor = VC.ink
+                out = out + Text(verbatim: seg.text).font(mono ? VFont.mono(size, .semibold) : VFont.ui(size, .bold)).foregroundColor(VC.ink)
             case .box:
-                let f = BoxGlyphFont.font(for: mono ? VFont.uMono(size) : VFont.uUI(size))
-                run.font = f.fontName.hasPrefix(".") ? Font(f as CTFont) : .custom(f.fontName, size: f.pointSize, relativeTo: style)
+                let ticked = seg.text.first == AgreementFill.tickedBox
+                out = out + Text(Image(systemName: ticked ? "xmark.square.fill" : "square"))
+                    .font(.custom(VFont.uiName(.regular), size: size * 1.3, relativeTo: size < 12.8 ? .caption : .footnote))
+                    .fontWeight(ticked ? .bold : .regular)
+                    .foregroundColor(ticked ? VC.ink : VC.ink2)
             }
-            out += run
         }
         return out
     }
