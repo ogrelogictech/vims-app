@@ -108,6 +108,7 @@ class WizardNov4Test {
         assertEquals("0.05", Fees.format(5))
         assertEquals("1,399,999.86", Fees.grouped(139_999_986))
         assertEquals("", Fees.agreementValue(0))
+        assertEquals("2,281.25", Fees.agreementValue(228_125))
     }
 
     @Test fun totals_addUp_withoutFloatingPointDrift() {

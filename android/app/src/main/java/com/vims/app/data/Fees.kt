@@ -23,11 +23,11 @@ object Fees {
     /** "150.00". */
     fun format(cents: Long): String = String.format(Locale.US, "%d.%02d", cents / 100, cents % 100)
 
-    /** "1,500.00", for the wizard's read-only boxes. */
+    /** "1,500.00", for the wizard's read-only boxes and the agreement. */
     fun grouped(cents: Long): String = String.format(Locale.US, "%,d.%02d", cents / 100, cents % 100)
 
     /** Agreement lines stay blank at zero. */
-    fun agreementValue(cents: Long): String = if (cents > 0) format(cents) else ""
+    fun agreementValue(cents: Long): String = if (cents > 0) grouped(cents) else ""
 
     /**
      * The totals for [sel]. With [areasLocked] (`wizard.areasLockedTypes`) the utility options aren't in use, so their kept

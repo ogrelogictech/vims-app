@@ -435,7 +435,7 @@ payment" button are a confirmed add-on and are not built. The report therefore h
   4th of July), like the prototype's `.coverprev`; Theme → Image options show a small thumbnail of each artwork.
 - DEBUG: `-cover "Color|Category|Option|Style"` sets the inspection's cover (e.g. with `-screen reportReady -generate`).
 - Screenshots: `screenshots/oct9-cover-*.png` (client Word cover / prototype / iOS PDF page 1 side by side;
-  picker; iPad preview). Summer, Christmas and Spring artwork still carry stock-site watermarks (`themeArtNote`).
+  picker; iPad preview). The client replaced the watermarked Summer, Christmas and Spring artwork (`themeArtNote`).
 
 ## Deleting inspections (client feedback Oct 11)
 

@@ -5323,7 +5323,7 @@ SEC['Wind Mitigation'].itemsHigh=[
     var FEE_LINES=[['utilOpt','Chimney','Chimney $'],['utilOpt','Heating Oil Tank','Heating Oil Tank $'],['utilOpt','Propane Tank','Propane Tank $'],['utilOpt','Boiler','Boiler System $'],
       ['tests','Radon','Radon Testing $'],['tests','Indoor Air Quality','Indoor Air Quality Testing $'],['tests','Lead','Lead Testing $'],['tests','Asbestos','Asbestos Testing $'],['tests','Meth Test','Meth Testing $'],
       ['tests','Thermal Audit','Thermal Energy Efficiency $'],['tests','Sewer Scope','Sewer Scope $'],['tests','Wind Mitigation','Wind Mitigation Inspection $'],['tests','Septic','Septic System $'],['tests','Termite','Termite/Pest Inspection $']];
-    function money(c){ return c? feeMoney(c) : ''; } // zero leaves the blank
+    function money(c){ return c? feeMoney(c).replace(/\B(?=(\d{3})+\.)/g,',') : ''; } // zero leaves the blank; commas like the apps
     var bundled=feeBundledCents(), inspFee=feeCents(sel.inspectionFee);
     var lines=[
       {part:'header',label:'Clients Name',value:r.client},

@@ -158,7 +158,7 @@ object AgreementFill {
             tests = sel.tests,
             utilities = if (areasLocked) emptyList() else sel.utilities,
             sendToAgent = sel.sendToAgent,
-            feeAmounts = totals.options.mapValues { Fees.format(it.value) },
+            feeAmounts = totals.options.mapValues { Fees.grouped(it.value) },
             inspectionFee = Fees.agreementValue(totals.inspection),
             bundled = Fees.agreementValue(totals.bundled),
             total = Fees.agreementValue(totals.total),
