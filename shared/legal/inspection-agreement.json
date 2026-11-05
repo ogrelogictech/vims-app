@@ -1,7 +1,7 @@
 {
  "_about": "Client-supplied VIMS default Home Inspection Agreement for all 50 states ('VIMS Home Inspection Agreement - App for all 50 states.docx', final version received Oct 25, 2026; first draft Oct 5), reproduced verbatim except '{companyName}' replaces the hard-coded 'Vision Property Inspections' (filled with the company's name at display time). Used as the default inspection agreement for every company unless they upload their own (Company profile). 'stateDisclosures' is keyed by state code; when shown for a specific inspection, display only that state's entry (all states when viewed from Company profile). No in-app e-signature in Phase 1 (deferred add-on).",
  "title": "Inspection Agreement",
- "version": "2026-10-25",
+ "version": "2026-11-04",
  "status": "final — client approved Oct 25, 2026",
  "header": [
   "Company Name Company Logo",
@@ -20,7 +20,7 @@
   "Current Address _________________________________________________________________",
   "Address of Property to be inspected __________________________________________________",
   "Property Type Mobile Home ☐ Manufactured Home ☐ Town House ☐ Condo ☐",
-  "Single Family ☐ Multi-Unit ☐ # Units _____ Total Sqft __________",
+  "Single Family ☐ Multi-Unit ☐ # Units _____ Total Sqft __________ Duplex ☐",
   "Type of Inspection Purchase ☐ New Construction ☐ Warranty ☐",
   "Wind Mitigation ☐ Pre-listing/Maintenance ☐ 4 Point or 4 Way Inspection ☐",
   "Phase 1 Foundation pre-pour ☐ Phase 2 Pre-Dry wall ☐ Phase 3 Final ☐",
@@ -31,6 +31,8 @@
   "☐ Meth Testing $__________ ☐ Termite/Pest Inspection $__________",
   "☐ Sewer Scope $__________ ☐ Heating Oil Tank $__________",
   "☐ Boiler System $__________ ☐ Wind Mitigation Inspection $__________",
+  "☐ Asbestos Testing $__________ ☐ Septic System $__________",
+  "☐ Chimney $__________ ☐ Propane Tank $__________",
   "Inspection Fee $__________ Bundled Services $__________ Total Amount Due $__________",
   "The inspection fee is due upon completion of the inspection. The inspection report will be provided upon payment of the inspection."
  ],

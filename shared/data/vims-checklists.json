@@ -1,6 +1,6 @@
 {
  "_about": "VIMS shared checklist + configuration data. Single source of truth for the native iOS (SwiftUI) and Android (Kotlin/Compose) apps. Extracted from the client-approved prototype (index.html, approved Sep 15, 2026). Edit here, not in app code.",
- "version": "1.18.0",
+ "version": "1.19.0",
  "generated": "2026-11-04",
  "depths": [
   {
@@ -31990,7 +31990,7 @@
    "Client & inspection",
    "Property",
    "Areas to inspect",
-   "Testing"
+   "Utilities, testing & fees"
   ],
   "inspectionTypes": [
    "Real Estate Sale",
@@ -32017,13 +32017,17 @@
    "Multi-Unit",
    "Townhouse",
    "Condo",
-   "Mobile / Manufactured"
+   "Mobile Home",
+   "Manufactured Home"
   ],
   "structureSideEffects": {
    "Condo": {
     "exterior": "Condo"
    },
-   "Mobile / Manufactured": {
+   "Mobile Home": {
+    "exterior": "Mobile Home Undercarriage"
+   },
+   "Manufactured Home": {
     "exterior": "Mobile Home Undercarriage"
    }
   },
@@ -32080,6 +32084,13 @@
    },
    {
     "kind": "field",
+    "label": "License state",
+    "type": "state",
+    "placeholder": "",
+    "optional": true
+   },
+   {
+    "kind": "field",
     "label": "Date",
     "type": "date",
     "placeholder": ""
@@ -32089,6 +32100,13 @@
     "label": "Time",
     "type": "time",
     "placeholder": ""
+   },
+   {
+    "kind": "field",
+    "label": "Time of walk through",
+    "type": "time",
+    "placeholder": "",
+    "optional": true
    },
    {
     "kind": "chips",
@@ -32321,7 +32339,6 @@
    }
   ],
   "exteriorOptions": [
-   "Chimney",
    "Pool House & Pool",
    "Outbuilding – Shed",
    "Outbuilding – Car Port",
@@ -32346,21 +32363,22 @@
    "Additional Living Space"
   ],
   "utilityOptions": [
-   "Boiler",
+   "Chimney",
    "Heating Oil Tank",
-   "Propane Tank"
+   "Propane Tank",
+   "Boiler"
   ],
   "testOptions": [
    "Radon",
+   "Indoor Air Quality",
+   "Lead",
+   "Asbestos",
    "Meth Test",
    "Thermal Audit",
-   "Termite",
-   "Lead",
-   "Indoor Air Quality",
-   "Septic",
    "Sewer Scope",
-   "Asbestos",
-   "Wind Mitigation"
+   "Wind Mitigation",
+   "Septic",
+   "Termite"
   ],
   "roomCounts": [
    {
@@ -32398,7 +32416,6 @@
     "Additional Living Space": 0
    },
    "exterior": {
-    "Chimney": 1,
     "Pool House & Pool": 0,
     "Outbuilding – Shed": 0,
     "Outbuilding – Car Port": 0,
@@ -32410,6 +32427,7 @@
     "Mobile Home Undercarriage": 0
    },
    "utilOpt": {
+    "Chimney": 1,
     "Boiler": 0,
     "Heating Oil Tank": 0,
     "Propane Tank": 0
@@ -32464,7 +32482,20 @@
    "Tests Only",
    "4 Point Inspection"
   ],
-  "_areasLockedAbout": "Client Oct 25: when Type of inspection is one of these, wizard step 3 'Areas to inspect' locks the exterior options, the interior room options and the utility options (shown disabled with a short note, e.g. 'Not used for a Phase 2 Pre-Dry Wall inspection'), and they do not add sections to the checklist. The room counts (Bedrooms, Bathrooms, Hallways) stay editable. Choosing another type unlocks them with the earlier choices intact."
+  "_areasLockedAbout": "Client Oct 25: when Type of inspection is one of these, wizard step 3 'Areas to inspect' locks the exterior options, the interior room options and the utility options (shown disabled with a short note, e.g. 'Not used for a Phase 2 Pre-Dry Wall inspection'), and they do not add sections to the checklist. The room counts (Bedrooms, Bathrooms, Hallways) stay editable. Choosing another type unlocks them with the earlier choices intact.",
+  "_structureLegacyAbout": "Client Nov 4: 'Mobile / Manufactured' split into Mobile Home and Manufactured Home. A saved inspection keeps its stored value until someone picks a type; the wizard highlights Mobile Home for it, and its agreement ticks neither box because the app doesn't know which it was.",
+  "_licenseStateAbout": "Client Nov 4: the state after License/Reg # on the agreement must not come from the inspection address, because an inspector's license state can differ. Optional state picker beside Inspector License # in step 1, prefilled from Company profile > License state if set (new optional profile field, same pattern as License #). Blank leaves the agreement's State blank.",
+  "_timeOfWalkThroughAbout": "Client Nov 4: optional time under Time in step 1, empty by default (no auto-fill), clearable. Fills the agreement's 'Time of walk through' blank.",
+  "_chimneyAbout": "Client Nov 4: Chimney moves from Exterior areas to Utility & systems. Same checklist section, same report position; only where the chip sits changes. A saved inspection with Chimney under exterior keeps it: it shows selected under Utility & systems and its checklist doesn't change or duplicate.",
+  "fees": {
+   "_about": "Client Nov 4: step 4 holds Utility & systems (moved from step 3) and Testing, each option with a $ box, then the fees. The step's own Inspection agreement button replaces the step 1 View link: label 'View Pre-filled Inspection Agreement', above Back / Build checklist. Fees are optional and never block Build checklist. They appear only on the inspection agreement, not in the report.",
+   "amounts": "Decimal keypad, up to 2 decimal places, 0 to 99,999.99, shown after a $. Typing an amount above 0 selects that option. Deselecting an option clears its amount. Locked options (wizard.areasLockedTypes) stay locked, with their $ boxes disabled.",
+   "inspectionFee": "Inspection Fee $ (typed).",
+   "bundled": "Bundled Secondary Testing $: read-only, the sum of the selected options' amounts on this page, utilities and testing together, so the total always adds up.",
+   "total": "Total Cost of Inspection $: read-only, Inspection Fee + Bundled Secondary Testing.",
+   "saved": "Stored per inspection (option key -> amount, plus the inspection fee) as an optional field: older inspections open with no amounts and nothing changes. Editable later from Inspection info.",
+   "layout": "Each option is a chip with its $ box beside it. Two pairs per row on tablets (as the client's mockup), one pair per row on phones. No horizontal overflow on the smallest phone."
+  }
  },
  "findings": {
   "categories": [
@@ -32717,10 +32748,10 @@
    "F1 Racing": {
     "file": "covers/f1-racing.webp",
     "rect": [
-     3.71,
-     6.93,
-     4.23,
-     4.07
+     3.4,
+     7.7,
+     4.6,
+     2.27
     ]
    },
    "Easter": {
@@ -32771,10 +32802,10 @@
    "Summer": {
     "file": "covers/summer.webp",
     "rect": [
-     4.8,
-     6.92,
-     3.15,
-     3.15
+     4.1,
+     7.5,
+     3.9,
+     2.49
     ]
    },
    "Winter": {
@@ -32823,7 +32854,7 @@
     ]
    }
   },
-  "themeArtNote": "Extracted from the client's Word covers (Report Cover Pages, Oct 9 2026), except: Spring, Christmas and Cinco de Mayo = client replacements Oct 25 2026 (client: AI-generated / open-source; baked-in checkerboard and white backgrounds removed); Fall = client's request Oct 25: leaves + pumpkin only (Halloween layer removed), from tOrange.biz (free, credit required: keep the 'torange.biz' mark); Halloween = the previous Fall art (pumpkin + leaves + Halloween scene, same tOrange.biz credit). Summer still carries a pngtree WATERMARK (no replacement received yet): test builds only. New art rects sit right of the page center (x >= 4.25in) so they never cover the footer text box.",
+  "themeArtNote": "Extracted from the client's Word covers (Report Cover Pages, Oct 9 2026), except: Spring, Christmas and Cinco de Mayo = client replacements Oct 25 2026 (client: AI-generated / open-source; baked-in checkerboard and white backgrounds removed); Fall = client's request Oct 25: leaves + pumpkin only (Halloween layer removed), from tOrange.biz (free, credit required: keep the 'torange.biz' mark); Halloween = the previous Fall art (pumpkin + leaves + Halloween scene, same tOrange.biz credit). Summer still carries a pngtree WATERMARK (no replacement received yet): test builds only. New art rects sit right of the page center (x >= 4.25in) so they never cover the footer text box. F1 Racing and Summer = client replacements Nov 4 2026 (client generated them with AI and owns the use; studio background removed from F1 Racing, both trimmed).",
   "noThemeOption": "No picture",
   "_pickerAbout": "Client Oct 17: one page with Color, Theme (category + picture, or 'No picture') and Style (Shaded, Framed, Solid in that order). Solid is a style like the others and can carry a theme picture.",
   "_categoriesAbout": "Client Oct 22/25: Seasonal keeps Summer, Winter, Spring, Fall. Holidays: Easter, Christmas, 4th of July, Hanukkah, Passover, Halloween (previous Fall art), Cinco de Mayo."
@@ -33315,12 +33346,17 @@
    {
     "part": "header",
     "label": "State",
-    "value": "inspection state code, e.g. UT"
+    "value": "License state (wizard step 1), not the inspection state"
    },
    {
     "part": "header",
     "label": "Date and Time of Inspection",
     "value": "inspection date + time, 'Nov 3, 2026 9:00 AM' (date only if no time)"
+   },
+   {
+    "part": "header",
+    "label": "Time of walk through",
+    "value": "Time of walk through (wizard step 1), e.g. 2:00 PM"
    },
    {
     "part": "header",
@@ -33336,6 +33372,105 @@
     "part": "header",
     "label": "Total Sqft",
     "value": "Total sq ft (wizard step 2)"
+   },
+   {
+    "part": "header",
+    "label": "Radon Testing $",
+    "value": "Radon amount (wizard.fees), 2 decimals, e.g. 150.00",
+    "fee": "Radon"
+   },
+   {
+    "part": "header",
+    "label": "Indoor Air Quality Testing $",
+    "value": "Indoor Air Quality amount (wizard.fees), 2 decimals, e.g. 150.00",
+    "fee": "Indoor Air Quality"
+   },
+   {
+    "part": "header",
+    "label": "Lead Testing $",
+    "value": "Lead amount (wizard.fees), 2 decimals, e.g. 150.00",
+    "fee": "Lead"
+   },
+   {
+    "part": "header",
+    "label": "Thermal Energy Efficiency $",
+    "value": "Thermal Audit amount (wizard.fees), 2 decimals, e.g. 150.00",
+    "fee": "Thermal Audit"
+   },
+   {
+    "part": "header",
+    "label": "Meth Testing $",
+    "value": "Meth Test amount (wizard.fees), 2 decimals, e.g. 150.00",
+    "fee": "Meth Test"
+   },
+   {
+    "part": "header",
+    "label": "Termite/Pest Inspection $",
+    "value": "Termite amount (wizard.fees), 2 decimals, e.g. 150.00",
+    "fee": "Termite"
+   },
+   {
+    "part": "header",
+    "label": "Sewer Scope $",
+    "value": "Sewer Scope amount (wizard.fees), 2 decimals, e.g. 150.00",
+    "fee": "Sewer Scope"
+   },
+   {
+    "part": "header",
+    "label": "Heating Oil Tank $",
+    "value": "Heating Oil Tank amount (wizard.fees), 2 decimals, e.g. 150.00",
+    "fee": "Heating Oil Tank"
+   },
+   {
+    "part": "header",
+    "label": "Boiler System $",
+    "value": "Boiler amount (wizard.fees), 2 decimals, e.g. 150.00",
+    "fee": "Boiler"
+   },
+   {
+    "part": "header",
+    "label": "Wind Mitigation Inspection $",
+    "value": "Wind Mitigation amount (wizard.fees), 2 decimals, e.g. 150.00",
+    "fee": "Wind Mitigation"
+   },
+   {
+    "part": "header",
+    "label": "Asbestos Testing $",
+    "value": "Asbestos amount (wizard.fees), 2 decimals, e.g. 150.00",
+    "fee": "Asbestos"
+   },
+   {
+    "part": "header",
+    "label": "Septic System $",
+    "value": "Septic amount (wizard.fees), 2 decimals, e.g. 150.00",
+    "fee": "Septic"
+   },
+   {
+    "part": "header",
+    "label": "Chimney $",
+    "value": "Chimney amount (wizard.fees), 2 decimals, e.g. 150.00",
+    "fee": "Chimney"
+   },
+   {
+    "part": "header",
+    "label": "Propane Tank $",
+    "value": "Propane Tank amount (wizard.fees), 2 decimals, e.g. 150.00",
+    "fee": "Propane Tank"
+   },
+   {
+    "part": "header",
+    "label": "Inspection Fee $",
+    "value": "Inspection Fee (wizard.fees), 2 decimals; empty when zero"
+   },
+   {
+    "part": "header",
+    "label": "Bundled Services $",
+    "value": "Bundled Secondary Testing (wizard.fees), 2 decimals; empty when zero"
+   },
+   {
+    "part": "header",
+    "label": "Total Amount Due $",
+    "value": "Total Cost of Inspection (wizard.fees), 2 decimals; empty when zero"
    },
    {
     "part": "closing",
@@ -33358,8 +33493,6 @@
    "Spouse and the spouse's Phone # / Email (2nd occurrence)",
    "Preferred Language",
    "Current Address (the client's own address is not collected)",
-   "Time of walk through",
-   "fees and prices ($____)",
    "'entered into on ____ (Date agreement is signed)'",
    "Client Signature / Date"
   ],
@@ -33378,7 +33511,7 @@
     },
     {
      "structure": "Duplex",
-     "box": "Multi-Unit",
+     "box": "Duplex",
      "side": "after"
     },
     {
@@ -33390,9 +33523,19 @@
      "structure": "Condo",
      "box": "Condo",
      "side": "after"
+    },
+    {
+     "structure": "Mobile Home",
+     "box": "Mobile Home",
+     "side": "after"
+    },
+    {
+     "structure": "Manufactured Home",
+     "box": "Manufactured Home",
+     "side": "after"
     }
    ],
-   "_propertyTypeNote": "'Mobile / Manufactured' ticks nothing (the agreement has separate Mobile Home and Manufactured Home boxes and the app doesn't know which).",
+   "_propertyTypeNote": "The stored legacy value 'Mobile / Manufactured' ticks nothing. Duplex ticks its own box and # Units still reads 2.",
    "inspectionType": [
     {
      "type": "Real Estate Sale",
@@ -33499,6 +33642,16 @@
      "test": "Wind Mitigation",
      "box": "Wind Mitigation Inspection",
      "side": "before"
+    },
+    {
+     "test": "Asbestos",
+     "box": "Asbestos Testing",
+     "side": "before"
+    },
+    {
+     "test": "Septic",
+     "box": "Septic System",
+     "side": "before"
     }
    ],
    "utilities": [
@@ -33511,13 +33664,24 @@
      "utility": "Boiler",
      "box": "Boiler System",
      "side": "before"
+    },
+    {
+     "utility": "Chimney",
+     "box": "Chimney $",
+     "side": "before"
+    },
+    {
+     "utility": "Propane Tank",
+     "box": "Propane Tank $",
+     "side": "before"
     }
    ],
    "noAgentReport": {
     "when": "'Send the report to the real estate agent' is unchecked",
     "box": "NO Report to Real Estate Agent.",
     "side": "after"
-   }
+   },
+   "_boxDrawing": "Client Nov 4: on the client's Samsung tablet the ☐ / ☒ font characters came out as small picture icons, so a tick couldn't be seen. Android must draw both boxes itself as vector shapes in the viewer and the PDF, never from a font. A ticked box must be obvious at a glance, on any device."
   },
   "emailButton": {
    "label": "Email inspection agreement",
