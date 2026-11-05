@@ -4319,7 +4319,7 @@ SEC['Wind Mitigation'].itemsHigh=[
     if(sel.inspType==='4 Point Inspection'){
       return [ {h:'Inspection Info',icon:'info',link:'s-new'}, {h:'4-Point Inspection',icon:'box',secs:FOURPT_SECS}, {h:'Pictures',icon:'camera',secs:['4-Point — Pictures']} ];
     }
-    var tests=[]; TEST_OPT.forEach(function(k){ if(sel.tests[k]) tests.push(k); }); tests=tests.concat(CUSTOM.Testing);
+    var tests=[]; ['Radon','Meth Test','Thermal Audit','Termite','Lead','Indoor Air Quality','Septic','Sewer Scope','Asbestos','Wind Mitigation'].forEach(function(k){ if(sel.tests[k]) tests.push(k); }); // checklistBuilder.checklistOrder.tests tests=tests.concat(CUSTOM.Testing);
     if(sel.inspType==='Tests Only'){
       return [ {h:'Inspection Info',icon:'info',link:'s-new'}, {h:'Testing',icon:'flask',secs:tests}, {h:'Summary',icon:'list',link:'s-summary'} ];
     }
@@ -4332,7 +4332,7 @@ SEC['Wind Mitigation'].itemsHigh=[
     interior=interior.concat(repeatSec('Bathroom',sel.bathrooms)).concat(repeatSec('Bedroom',sel.bedrooms)).concat(repeatSec('Hallway',sel.hallways));
     ['Living Room','Den / Home Office','Family Room','Reception','Kitchen','Dining Room','Laundry Room','Storage Room','Additional Living Space'].forEach(function(k){ if(sel.rooms[k]) interior.push(k); });
     var util=['Utility Room','HVAC Mechanical','Electrical','Water Heater'];
-    UTIL_OPT.forEach(function(k){ if(k!=='Chimney' && sel.utilOpt[k]) util.push(k); });
+    ['Boiler','Heating Oil Tank','Propane Tank'].forEach(function(k){ if(sel.utilOpt[k]) util.push(k); }); // checklistBuilder.checklistOrder.utility
     util=util.concat(['Plumbing','Foundation / Crawl Space']);
     ext=ext.concat(CUSTOM.Exterior); interior=interior.concat(CUSTOM.Interior); util=util.concat(CUSTOM.Utility);
     return [
