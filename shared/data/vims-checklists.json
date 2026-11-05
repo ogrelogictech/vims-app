@@ -31925,7 +31925,7 @@
      "Exterior Walls",
      "Outside Utilities"
     ],
-    "optional": "exteriorOptions"
+    "optional": "checklistOrder.exterior"
    },
    {
     "heading": "Property Interior",
@@ -31954,7 +31954,7 @@
       "Electrical",
       "Water Heater"
      ],
-     "optional": "utilityOptions",
+     "optional": "checklistOrder.utility",
      "then": [
       "Plumbing",
       "Foundation / Crawl Space"
@@ -31964,7 +31964,7 @@
    {
     "heading": "Testing",
     "icon": "flask",
-    "optional": "testOptions"
+    "optional": "checklistOrder.tests"
    },
    {
     "heading": "Planned Maintenance",
@@ -31983,7 +31983,39 @@
   "_formNotes": "Sections with 'form' (texas | fourPoint) are client-supplied state/insurance forms: ignore checklist depth (always show 'items'), no Overall condition row, badge = formLabels[form]. 'photosOnly' sections have no items: opening one goes straight to the photo screen, whose primary button is 'Save & continue to summary' (or '… to report' when the layout has no Summary). Layouts without a Summary entry (4 Point) hide 'Review summary'.",
   "_testsOnlyAbout": "Client Oct 25 (areas locked for Tests Only): the checklist is Inspection Info + the tests selected in wizard step 4 + Summary. No exterior / interior / utility sections.",
   "_restoreAbout": "Client Oct 28: Manage checklist (company admins) gets 'Restore original' per section and 'Restore entire checklist to original'. Restoring removes the company's edits (renamed/added/removed items and sections) and returns to the VIMS default from this file. Confirm first; inspections already started keep their saved checklist. Client Oct 28 (2nd email): the Restore block sits at the TOP of Manage checklist with two buttons in the client's words: 'Restore all checklists' (whole checklist) and 'Restore selected checklists' (each section is one checklist; a picker lists only Edited / Added sections with checkboxes, then one confirm naming them; an Added section is removed). Both disabled when nothing is edited.",
-  "_notesSectionAbout": "Client Oct 30: 'Planned Maintenance Recommendations' = 10 blank lines where the inspector writes maintenance reminders (e.g. replace the furnace filter, flush the water heater yearly). Sections with notes:true: ignore checklist depth (High Detail / Standard / Fast all show the same 'items' as editable text lines, like form sections), no Overall condition row, no photo categories or photo button, no Concerns/flag. Each line is free text up to maxLength characters, the field grows to show the whole entry. Every line is optional: the section never blocks completion and does not count toward progress until something is written; Save marks it Done as usual. Position: in standardLayout it is its own heading right after the last checklist group (after Testing) and right before Summary, so it is the last section before the Summary. Only in standardLayout (not Texas, 4 Point, Phase 1/2 or Tests Only). Existing not-yet-reported inspections on a standard layout get the section too (it is blank, so nothing else changes). Report: printed after the last checklist section and before the Summary, titled 'Planned Maintenance Recommendations', as a numbered list of only the lines that were filled (renumbered 1, 2, 3 … with no gaps); if every line is blank the section is left out of the report. Company checklist editor treats it like any section (rename / add / remove lines; Restore original works)."
+  "_notesSectionAbout": "Client Oct 30: 'Planned Maintenance Recommendations' = 10 blank lines where the inspector writes maintenance reminders (e.g. replace the furnace filter, flush the water heater yearly). Sections with notes:true: ignore checklist depth (High Detail / Standard / Fast all show the same 'items' as editable text lines, like form sections), no Overall condition row, no photo categories or photo button, no Concerns/flag. Each line is free text up to maxLength characters, the field grows to show the whole entry. Every line is optional: the section never blocks completion and does not count toward progress until something is written; Save marks it Done as usual. Position: in standardLayout it is its own heading right after the last checklist group (after Testing) and right before Summary, so it is the last section before the Summary. Only in standardLayout (not Texas, 4 Point, Phase 1/2 or Tests Only). Existing not-yet-reported inspections on a standard layout get the section too (it is blank, so nothing else changes). Report: printed after the last checklist section and before the Summary, titled 'Planned Maintenance Recommendations', as a numbered list of only the lines that were filled (renumbered 1, 2, 3 … with no gaps); if every line is blank the section is left out of the report. Company checklist editor treats it like any section (rename / add / remove lines; Restore original works).",
+  "_wizardVsChecklistOrder": "Client Nov 4 moved Chimney to Utility & systems and reordered the wizard's chips only. The checklist and report order do not change: Chimney stays first under Property Exterior's optional sections, Utility & Function's optional sections stay Boiler, Heating Oil Tank, Propane Tank, and Testing stays in checklistOrder.tests.",
+  "checklistOrder": {
+   "exterior": [
+    "Chimney",
+    "Pool House & Pool",
+    "Outbuilding – Shed",
+    "Outbuilding – Car Port",
+    "Deck",
+    "Patio",
+    "Balcony",
+    "Detached Garage",
+    "Condo",
+    "Mobile Home Undercarriage"
+   ],
+   "utility": [
+    "Boiler",
+    "Heating Oil Tank",
+    "Propane Tank"
+   ],
+   "tests": [
+    "Radon",
+    "Meth Test",
+    "Thermal Audit",
+    "Termite",
+    "Lead",
+    "Indoor Air Quality",
+    "Septic",
+    "Sewer Scope",
+    "Asbestos",
+    "Wind Mitigation"
+   ]
+  }
  },
  "wizard": {
   "steps": [
@@ -33311,7 +33343,7 @@
  "agreementPrefill": {
   "_about": "Client Oct 30: the inspection agreement fills in the client and inspection details the inspector already entered, and has an 'Email inspection agreement' button at the bottom so it can be emailed to the client from the app. Applies to the VIMS agreement (shared/legal/inspection-agreement.json) and to a company's edited version of it. Electronic signing is NOT part of this (separate add-on, quoted Oct 5): the client reads, signs and sends it back. Settings / Company profile still show the blank agreement with no Email button.",
   "entryPoints": [
-   "Wizard step 1 'Inspection agreement: View' link: filled from what is entered in the wizard so far (all steps, current values, nothing saved).",
+   "Wizard step 4 'View Pre-filled Inspection Agreement' button: filled from what is entered in the wizard so far (all steps, current values, nothing saved).",
    "NEW row on the inspection screen (the screen with the address / progress card and the checklist groups), right under the card and above 'Checklist · tap a group': file icon, title 'Inspection agreement', subtitle 'Filled in for <client name> · Email to client' ('Filled in · Email to client' when no client name). Opens the agreement filled from that saved inspection. Shown for every inspection type, also after the report is generated."
   ],
   "fill": "Header lines (header[2..]) and closing lines: for each label below, the FIRST run of underscores after the label on that line is replaced by ' ' + value (trimmed). Empty value = the underscores stay as they are. Labels match exactly (case-sensitive) inside the line text; 'occurrence' n = the n-th header line containing that label (1 = first). A label that no longer appears (company edited the text) is skipped silently. Filled values print in the same font, bold (viewer and PDF) so the client sees what was filled in.",
