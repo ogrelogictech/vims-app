@@ -384,7 +384,7 @@ The VIMS agreement stays the default and is never changed; edits only ever apply
   persistence unchanged.
 - `verifySharedAssets` now also fails the build if a `covers.themeArt` file is missing. The 18 artworks add 1.6 MB of
   assets; a report with theme art is ~0.7–0.9 MB larger (Android's PDF writer stores bitmaps losslessly).
-- Theme art note (from the data): Summer, Christmas and Spring contain stock-site watermarks — test builds only.
+- Theme art note: the client replaced the watermarked Summer, Christmas and Spring artwork (Oct 25 and Nov 4, 2026); see `covers.themeArtNote`.
 - Screenshots: `screenshots/oct9-cover-*.png`; sample PDFs regenerated.
 
 

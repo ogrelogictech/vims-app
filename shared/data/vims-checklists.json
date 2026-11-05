@@ -32780,10 +32780,10 @@
    "F1 Racing": {
     "file": "covers/f1-racing.webp",
     "rect": [
-     3.4,
-     7.7,
-     4.6,
-     2.27
+     4.25,
+     8.14,
+     3.7,
+     1.83
     ]
    },
    "Easter": {
@@ -32834,10 +32834,10 @@
    "Summer": {
     "file": "covers/summer.webp",
     "rect": [
-     4.1,
-     7.5,
-     3.9,
-     2.49
+     4.25,
+     7.63,
+     3.7,
+     2.36
     ]
    },
    "Winter": {
@@ -32886,7 +32886,7 @@
     ]
    }
   },
-  "themeArtNote": "Extracted from the client's Word covers (Report Cover Pages, Oct 9 2026), except: Spring, Christmas and Cinco de Mayo = client replacements Oct 25 2026 (client: AI-generated / open-source; baked-in checkerboard and white backgrounds removed); Fall = client's request Oct 25: leaves + pumpkin only (Halloween layer removed), from tOrange.biz (free, credit required: keep the 'torange.biz' mark); Halloween = the previous Fall art (pumpkin + leaves + Halloween scene, same tOrange.biz credit). Summer still carries a pngtree WATERMARK (no replacement received yet): test builds only. New art rects sit right of the page center (x >= 4.25in) so they never cover the footer text box. F1 Racing and Summer = client replacements Nov 4 2026 (client generated them with AI and owns the use; studio background removed from F1 Racing, both trimmed).",
+  "themeArtNote": "Extracted from the client's Word covers (Report Cover Pages, Oct 9 2026), except: Spring, Christmas and Cinco de Mayo = client replacements Oct 25 2026 (client: AI-generated / open-source; baked-in checkerboard and white backgrounds removed); Fall = client's request Oct 25: leaves + pumpkin only (Halloween layer removed), from tOrange.biz (free, credit required: keep the 'torange.biz' mark); Halloween = the previous Fall art (pumpkin + leaves + Halloween scene, same tOrange.biz credit). New art rects sit right of the page center (x >= 4.25in) so they never cover the footer text box. F1 Racing and Summer = client replacements Nov 4 2026 (client generated them with AI and owns the use; studio background removed from F1 Racing, both trimmed).",
   "noThemeOption": "No picture",
   "_pickerAbout": "Client Oct 17: one page with Color, Theme (category + picture, or 'No picture') and Style (Shaded, Framed, Solid in that order). Solid is a style like the others and can carry a theme picture.",
   "_categoriesAbout": "Client Oct 22/25: Seasonal keeps Summer, Winter, Spring, Fall. Holidays: Easter, Christmas, 4th of July, Hanukkah, Passover, Halloween (previous Fall art), Cinco de Mayo."
