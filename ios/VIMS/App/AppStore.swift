@@ -495,7 +495,8 @@ final class AppStore {
             rooms: w.roomOptions.filter { (d.rooms[$0] ?? 0) > 0 },
             utilities: w.utilityOptions.filter { (d.utilOpt[$0] ?? 0) > 0 },
             tests: w.testOptions.filter { (d.tests[$0] ?? 0) > 0 },
-            counts: ["bedrooms": d.bedrooms, "bathrooms": d.bathrooms, "hallways": d.hallways],
+            counts: ["bedrooms": d.bedrooms, "bathrooms": d.bathrooms, "hallways": d.hallways, "kitchens": d.kitchens,
+                     "hvacUnits": d.hvacUnits, "waterHeaters": d.waterHeaters, "electricalPanels": d.electricalPanels],
             cover: state.settings.defaultCover
         )
     }

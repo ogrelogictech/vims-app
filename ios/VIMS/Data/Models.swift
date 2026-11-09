@@ -751,6 +751,29 @@ struct Inspection: Codable, Hashable, Identifiable {
         }
     }
 
+    // Client Nov 6 (`wizard._roomCountsAbout`): Kitchen, HVAC Units, Water Heaters and Electrical Panels live in the existing
+    // `counts` map, so an inspection saved before them has no value and must build the checklist it always had.
+    /// A count as the wizard, the checklist builder and the report read it. Kitchen follows its chip; a count with a minimum
+    /// never reads below it; any other missing count is 0, as before.
+    func roomCount(_ rc: RoomCountDef) -> Int {
+        if let room = rc.syncsRoom { return rooms.contains(room) ? max(1, counts[rc.key] ?? 1) : 0 }
+        return max(rc.min ?? 0, counts[rc.key] ?? 0)
+    }
+    /// The stepper: a mirrored chip goes off at 0 and on above it.
+    mutating func setRoomCount(_ n: Int, for rc: RoomCountDef) {
+        counts[rc.key] = n
+        guard let room = rc.syncsRoom else { return }
+        if n == 0 { rooms.removeAll { $0 == room } } else if !rooms.contains(room) { rooms.append(room) }
+    }
+    /// The Interior rooms chips: turning a mirrored chip on sets its count to 1, off to 0.
+    mutating func setRooms(_ new: [String], wizard: WizardDef) {
+        for rc in wizard.roomCounts {
+            guard let room = rc.syncsRoom, rooms.contains(room) != new.contains(room) else { continue }
+            counts[rc.key] = new.contains(room) ? 1 : 0
+        }
+        rooms = new
+    }
+
     var photoCount: Int { photos.values.reduce(0) { $0 + $1.values.reduce(0) { $0 + $1.count } } }
 
     var structureShort: String {

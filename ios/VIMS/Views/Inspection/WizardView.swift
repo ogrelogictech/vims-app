@@ -86,8 +86,9 @@ struct WizardView: View {
                 DebugLaunch.oct30cValues(&d, config: store.config, blank: DebugLaunch.has("-oct30cBlank"))
                 draft = d
             }
-            if DebugLaunch.has("-nov5Wizard"), editingID == nil, var d = draft {
+            if DebugLaunch.has("-nov5Wizard") || DebugLaunch.has("-nov6Wizard"), editingID == nil, var d = draft {
                 DebugLaunch.nov5Values(&d, config: store.config)
+                if DebugLaunch.has("-nov6Wizard") { DebugLaunch.nov6Values(&d) }
                 draft = d
             }
             // -wizState TX[,UT…]: pick those states in order through the same setter as the picker.
@@ -140,12 +141,14 @@ struct WizardView: View {
         SectionLabel(text: "Room counts")
         ForEach(w.roomCounts, id: \.key) { rc in
             CounterRow(label: rc.label, value: Binding(
-                get: { draft?.counts[rc.key] ?? 0 },
-                set: { draft?.counts[rc.key] = $0 }), range: StepperLimits.roomCount)
+                get: { draft?.roomCount(rc) ?? 0 },
+                set: { draft?.setRoomCount($0, for: rc) }), range: rc.range,
+                disabled: locked && rc.locksWithAreas, disabledHint: note)
         }
         SectionLabel(text: "Interior rooms", top: 11)
-        ChipGroup(options: w.roomOptions, selection: draftBinding.rooms, single: false, display: store.catalog.title,
-                  disabled: locked, disabledHint: note)
+        // Client Nov 6: the Kitchen chip and its stepper mirror each other (`Inspection.setRooms`).
+        ChipGroup(options: w.roomOptions, selection: Binding(get: { draft?.rooms ?? [] }, set: { draft?.setRooms($0, wizard: w) }),
+                  single: false, display: store.catalog.title, disabled: locked, disabledHint: note)
     }
 
     /// Client Nov 4 (`wizard.fees`, replaces the step 1 View link): the agreement filled in from what's entered in the wizard

@@ -405,7 +405,19 @@ struct WizardEntry: Decodable, Hashable {
     var optional: Bool? = nil
 }
 
-struct RoomCountDef: Decodable { let key: String; let label: String }
+struct RoomCountDef: Decodable {
+    let key: String
+    let label: String
+    /// Client Nov 6 (`wizard._roomCountsAbout`): the stepper's minimum, on the Kitchen and system counts only.
+    var min: Int? = nil
+    /// The Interior rooms chip this count mirrors (Kitchen).
+    var syncsRoom: String? = nil
+
+    /// The Nov 6 counts have a `min`; they lock with the areas, stop at 12 and read a saved inspection's missing value as 1
+    /// (or from its chip). Bedrooms, Bathrooms and Hallways stay as they were: editable on a locked type, 0 – 20.
+    var locksWithAreas: Bool { min != nil }
+    var range: ClosedRange<Int> { min.map { $0...StepperLimits.systemCountMax } ?? StepperLimits.roomCount }
+}
 
 struct WizardDefaults: Decodable {
     /// Data v1.9.1 (team QA Oct 22): null — nothing is preselected; Type of inspection is required on step 1.
@@ -416,6 +428,11 @@ struct WizardDefaults: Decodable {
     let bedrooms: Int
     let bathrooms: Int
     let hallways: Int
+    /// Client Nov 6 (`wizard._roomCountsAbout`).
+    let kitchens: Int
+    let hvacUnits: Int
+    let waterHeaters: Int
+    let electricalPanels: Int
     let rooms: [String: Int]
     let exterior: [String: Int]
     let utilOpt: [String: Int]

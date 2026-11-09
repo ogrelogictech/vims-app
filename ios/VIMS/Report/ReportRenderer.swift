@@ -163,7 +163,7 @@ struct ReportData {
             ("Garage", garage), ("Car port", v("Car port"))
         ]
         if !cfg.checklistBuilder.phaseTypes.keys.contains(insp.inspType) {
-            for rc in cfg.wizard.roomCounts { info.append((rc.label, "\(insp.counts[rc.key] ?? 0)")) }
+            for rc in cfg.wizard.roomCounts { info.append((rc.label, "\(insp.roomCount(rc))")) }
             info.append(("Checklist depth", insp.depth.label))
         }
 

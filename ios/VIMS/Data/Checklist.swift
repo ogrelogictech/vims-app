@@ -15,9 +15,9 @@ struct ChecklistCatalog {
 
     static let customGroups = ["Exterior", "Interior", "Utility", "Testing"]
 
-    /// "Bathroom 2" -> "Bathroom"
+    /// "Bathroom 2" -> "Bathroom", "Cooling System #2" -> "Cooling System" (`checklistBuilder._notes`, client Nov 6)
     static func baseName(_ name: String) -> String {
-        if let r = name.range(of: #"\s+\d+$"#, options: .regularExpression) { return String(name[..<r.lowerBound]) }
+        if let r = name.range(of: #"\s+#?\d+$"#, options: .regularExpression) { return String(name[..<r.lowerBound]) }
         return name
     }
 
@@ -303,12 +303,14 @@ struct ChecklistCatalog {
         config.sectionGroups.map { g in (g.group, g.sections + (overrides.custom[g.group] ?? [])) }
     }
 
+    /// By section number; sections with the same number keep the order of `names`, which is the checklist's (`leafSections`),
+    /// so copies stay next to each other and Cooling System #2 follows Outside Utilities (`_multipleSystemsAbout`: ties by
+    /// checklist position, never by name). The position is compared because Swift doesn't promise a stable sort.
     func sortedForReport(_ names: [String]) -> [String] {
-        names.sorted { a, b in
-            let na = number(a), nb = number(b)
-            if na != nb { return na < nb }
-            return a.localizedStandardCompare(b) == .orderedAscending
-        }
+        names.enumerated()
+            .map { (name: $0.element, number: number($0.element), position: $0.offset) }
+            .sorted { ($0.number, $0.position) < ($1.number, $1.position) }
+            .map(\.name)
     }
 
     // MARK: Builder
@@ -322,18 +324,18 @@ struct ChecklistCatalog {
         let builder = config.checklistBuilder
         let phase = builder.phaseTypes[insp.inspType]
         let locked = config.wizard.areasLocked(insp.inspType)
-        return (phase ?? builder.standardLayout).map { e in
+        let built = (phase ?? builder.standardLayout).map { e -> ChecklistGroup in
             if let link = e.link {
                 return ChecklistGroup(heading: e.heading, icon: e.icon ?? defaultIcon(e), link: link, sections: [], sub: nil)
             }
             var secs: [String] = e.sections ?? []
-            secs += e.always ?? []
+            secs += expand(order: e.always ?? [], insp, locked: locked)
             if let opt = e.optional { secs += selected(optionKey: opt, insp, locked: locked) }
             if let order = e.order { secs += expand(order: order, insp, locked: locked) }
             if phase == nil || e.optional != nil { secs += overrides.custom[customGroup(for: e)] ?? [] }
             var sub: ChecklistSubGroup?
             if let s = e.sub {
-                var ss = s.always ?? []
+                var ss = expand(order: s.always ?? [], insp, locked: locked)
                 if let opt = s.optional { ss += selected(optionKey: opt, insp, locked: locked) }
                 ss += s.then ?? []
                 ss += overrides.custom["Utility"] ?? []
@@ -341,6 +343,14 @@ struct ChecklistCatalog {
             }
             return ChecklistGroup(heading: e.heading, icon: phase != nil ? (e.icon ?? defaultIcon(e)) : e.icon,
                                   link: nil, sections: secs, sub: sub)
+        }
+        // An admin's own section called "Electrical 2" and the second panel's copy have the same key, so one row.
+        var seen = Set<String>()
+        return built.map { g in
+            var g = g
+            g.sections = g.sections.filter { seen.insert($0).inserted }
+            if let sub = g.sub { g.sub?.sections = sub.sections.filter { seen.insert($0).inserted } }
+            return g
         }
     }
 
@@ -377,7 +387,10 @@ struct ChecklistCatalog {
         }
     }
 
-    /// "Garage?" -> included when selected; "Bathroom×bathrooms" -> repeated per count.
+    /// "Garage?" -> included when selected; "Bathroom×bathrooms" -> "Bathroom 1".."Bathroom n". Client Nov 6
+    /// (`checklistBuilder._notes`): "Electrical×electricalPanels!" -> "Electrical", "Electrical 2".."Electrical n";
+    /// "Cooling System×hvacUnits#" -> "Cooling System #2".."Cooling System #n". A locked type's token adds what it did as a
+    /// plain entry: a room chip's nothing, an always section one copy, a '#' token nothing.
     private func expand(order: [String], _ insp: Inspection, locked: Bool = false) -> [String] {
         var out: [String] = []
         for token in order {
@@ -386,9 +399,21 @@ struct ChecklistCatalog {
                 if !locked, insp.rooms.contains(n) { out.append(n) }
             } else if let r = token.range(of: "×") {
                 let base = String(token[..<r.lowerBound])
-                let key = String(token[r.upperBound...])
-                let n = insp.counts[key] ?? 0
-                if n > 0 { out += (1...n).map { "\(base) \($0)" } }
+                var key = String(token[r.upperBound...])
+                let mark = key.last.flatMap { "!#".contains($0) ? $0 : nil }
+                if mark != nil { key.removeLast() }
+                let def = config.wizard.roomCounts.first { $0.key == key }
+                let n = def.map(insp.roomCount) ?? insp.counts[key] ?? 0
+                switch mark {
+                case "!":
+                    let copies = locked ? (def?.syncsRoom == nil ? 1 : 0) : n
+                    if copies > 0 { out.append(base) }
+                    out += stride(from: 2, through: copies, by: 1).map { "\(base) \($0)" }
+                case "#":
+                    if !locked { out += stride(from: 2, through: n, by: 1).map { "\(base) #\($0)" } }
+                default:
+                    if n > 0 { out += (1...n).map { "\(base) \($0)" } }
+                }
             } else {
                 out.append(token)
             }

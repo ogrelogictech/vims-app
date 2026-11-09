@@ -1166,3 +1166,16 @@ StoreKit 2 replaces the simulated Square subscription. No server: the App Store 
 - **Entry point**: wizard step 4 "View Pre-filled Inspection Agreement"; the inspection-screen row stays.
 - **Testing**: `VIMSUITests/Nov5WizardUITests`; DEBUG `-nov5Wizard`, `-nov5Agreement`, `-nov5Struct S`, `-nov5Status` (NOV5TEST lines), `-nov5WritePDF` (`App/DebugNov5.swift`). Build the
   Debug app with normal signing for store tests: `CODE_SIGNING_ALLOWED=NO` drops `get-task-allow` and the lab's products won't load.
+
+### iOS 0.32.0 (33) — client Nov 6 (shared v1.20.0)
+
+- **Step 3 counts** (`wizard.roomCounts`, `_roomCountsAbout`): Kitchen, HVAC Units, Water Heaters, Electrical Panels, 12 at most, in the existing `counts` map (no schema change).
+  `Inspection.roomCount` is the one reader (wizard, builder, report): a saved inspection with no value reads 1 (Kitchen: 1 with its chip, 0 without), so its checklist doesn't move.
+  `setRoomCount` / `setRooms` keep the Kitchen stepper and chip mirrored. The four steppers lock with `areasLockedTypes`; Bedrooms, Bathrooms and Hallways stay editable.
+- **Builder tokens** (`checklistBuilder._notes`): `Base×key!` = Base, Base 2…; `Base×key#` = Base #2…; `baseName` also strips ` #n`, so number, photos, Manage checklist edits and
+  saved checklists follow the base section. Answers, photos, findings and status are keyed by the full name, so each copy has its own. Lowering a count on Update checklist works as
+  for Bathroom (off the checklist, data kept, back when raised). `buildGroups` lists a name once (a company's custom "Electrical 2" and a second panel).
+- **Report order**: section number, ties by checklist position, never by name (`sortedForReport`). Same-number pairs that used to print alphabetically now print in checklist order
+  (Pool House & Pool / Condo, Termite / Asbestos, the Phase 2 sections) when a report is generated.
+- **Agreement**: Texas and Tests Only boxes; the Wind Mitigation test ticks both of its boxes. **EULA** 2026-11-06 (re-accept), **Summer cover** swapped, no code.
+- **Testing**: `VIMSUITests/Nov6CountsUITests`; DEBUG `-nov6Wizard`, `-nov6Agreement TYPE`, `-nov6Fill`, `-nov6Status` (NOV6TEST lines) in `App/DebugNov6.swift`.

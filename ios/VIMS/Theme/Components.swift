@@ -215,7 +215,7 @@ struct AreasLockedNote: View {
             ProtoIcon("info", size: 17).foregroundStyle(VC.ink2).padding(.top, 1)
             VStack(alignment: .leading, spacing: 2) {
                 Text(text).font(VFont.ui(13.5, .bold)).foregroundStyle(VC.ink)
-                Text("Exterior areas, interior rooms and utilities are locked. Room counts can still be changed.")
+                Text("Exterior areas, interior rooms, utilities and the Kitchen, HVAC, Water Heater and Electrical Panel counts are locked. Bedrooms, Bathrooms and Hallways can still be changed.")
                     .font(VFont.ui(12.5)).foregroundStyle(VC.ink2)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -432,16 +432,23 @@ struct CounterRow: View {
     @Binding var value: Int
     /// docs/validation-rules.md "Number limits": − disables at the min, + at the max.
     var range: ClosedRange<Int> = StepperLimits.roomCount
+    /// Locked with the areas (data v1.20 `areasLockedTypes`): dimmed, both buttons off, the value kept.
+    var disabled = false
+    var disabledHint: String? = nil
     var body: some View {
         HStack {
             Text(label).font(VFont.ui(14.5, .semibold)).foregroundStyle(VC.ink)
             Spacer()
             HStack(spacing: 16) {
-                stepButton("minus", enabled: value > range.lowerBound) { value -= 1 }
+                stepButton("minus", enabled: !disabled && value > range.lowerBound) { value -= 1 }
                     .accessibilityLabel("Decrease \(label)")
+                    .accessibilityHint(disabled ? (disabledHint ?? "") : "")
                 Text("\(value)").font(VFont.mono(16, .semibold)).foregroundStyle(VC.ink).frame(minWidth: 20)
-                stepButton("plus", enabled: value < range.upperBound) { value += 1 }
+                    .opacity(disabled ? 0.42 : 1)
+                    .accessibilityIdentifier("count-\(label)")
+                stepButton("plus", enabled: !disabled && value < range.upperBound) { value += 1 }
                     .accessibilityLabel("Increase \(label)")
+                    .accessibilityHint(disabled ? (disabledHint ?? "") : "")
             }
         }
         .padding(.horizontal, 14).padding(.vertical, 5)

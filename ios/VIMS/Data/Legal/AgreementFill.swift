@@ -190,7 +190,7 @@ struct AgreementFill: Hashable {
         }
         // Property type (a saved 'Mobile / Manufactured' isn't mapped: the app doesn't know which of the two boxes it was).
         tick(spec.propertyType, [insp.structure])
-        // Type of inspection (Texas, Tests Only and retired types aren't mapped); Component ticks its components.
+        // Type of inspection (retired types aren't mapped); Component ticks its components.
         tick(spec.inspectionType, [insp.inspType])
         if insp.inspType == "Component" { tick(spec.components, insp.components) }
         tick(spec.tests, insp.tests)

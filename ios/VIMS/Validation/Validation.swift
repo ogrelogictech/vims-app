@@ -120,6 +120,8 @@ struct NumberLimits: Equatable {
 enum StepperLimits {
     static let seats = 1...50
     static let roomCount = 0...20
+    /// Client Nov 6 (`wizard._roomCountsAbout`): Kitchen, HVAC Units, Water Heaters, Electrical Panels.
+    static let systemCountMax = 12
 }
 
 struct FieldRule {
