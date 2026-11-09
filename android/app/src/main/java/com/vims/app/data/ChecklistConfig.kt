@@ -302,7 +302,19 @@ data class ChecklistBuilderDef(
     val phaseTypes: Map<String, List<LayoutGroupDef>> = emptyMap(),
     val standardLayout: List<LayoutGroupDef> = emptyList(),
     val checklistOrder: ChecklistOrderDef = ChecklistOrderDef(),
-)
+) {
+    /** Sections repeated by a "Name×key!" or "Name×key#" token of the standard layout (client Nov 6). */
+    private val copyBases: Set<String> by lazy {
+        fun tokens(g: LayoutGroupDef): List<String> = g.sections.orEmpty() + g.always.orEmpty() + g.order.orEmpty() + g.then.orEmpty() + (g.sub?.let(::tokens).orEmpty())
+        standardLayout.flatMap(::tokens).filter { it.endsWith("!") || it.endsWith("#") }.map { it.substringBefore("×") }.toSet()
+    }
+
+    /** 2 for "Electrical 2" and "Cooling System #2"; 0 for anything else, including "Electrical" and the "Bathroom 2" kind of numbered room. */
+    fun copyIndex(section: String): Int {
+        val base = baseName(section)
+        return if (base == section || base !in copyBases) 0 else section.substringAfterLast(' ').removePrefix("#").toIntOrNull() ?: 0
+    }
+}
 
 /**
  * `checklistBuilder.checklistOrder` (client Nov 4, `_wizardVsChecklistOrder`): the order of the optional sections in the checklist and
@@ -394,8 +406,18 @@ data class WizardFieldDef(
     val required: Boolean = false,
 )
 
+/**
+ * `wizard.roomCounts`. Client Nov 6: [min] is set on the counts that repeat a whole system's checklist (Kitchen, HVAC Units, Water
+ * Heaters, Electrical Panels), which also lock with the other areas; [syncsRoom] is the interior room chip that mirrors the count.
+ */
 @Serializable
-data class RoomCountDef(val key: String, val label: String)
+data class RoomCountDef(val key: String, val label: String, val min: Int? = null, val syncsRoom: String? = null) {
+    val lowest: Int get() = min ?: 0
+    /** `wizard._roomCountsAbout`: the Nov 6 steppers stop at 12; Bedrooms, Bathrooms and Hallways keep the app's existing limit. */
+    val highest: Int get() = if (min != null) com.vims.app.util.Limits.SYSTEM_COUNT_MAX else com.vims.app.util.Limits.COUNT_MAX
+    /** Disabled with the other areas for `wizard.areasLockedTypes`; Bedrooms, Bathrooms and Hallways stay editable. */
+    val locksWithAreas: Boolean get() = min != null
+}
 
 @Serializable
 data class WizardDefaults(
@@ -407,6 +429,10 @@ data class WizardDefaults(
     val bedrooms: Int = 0,
     val bathrooms: Int = 0,
     val hallways: Int = 0,
+    val kitchens: Int = 0,
+    val hvacUnits: Int = 1,
+    val waterHeaters: Int = 1,
+    val electricalPanels: Int = 1,
     val rooms: Map<String, Int> = emptyMap(),
     val exterior: Map<String, Int> = emptyMap(),
     val utilOpt: Map<String, Int> = emptyMap(),

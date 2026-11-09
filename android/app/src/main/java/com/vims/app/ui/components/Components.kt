@@ -767,15 +767,15 @@ fun InlineOrStacked(modifier: Modifier = Modifier, gap: Dp = 10.dp, stackedGap: 
 
 /** − / + stepper. Number limits (docs/validation-rules.md): − disables at [min], + at [max]. */
 @Composable
-fun Counter(label: String, value: Int, onMinus: () -> Unit, onPlus: () -> Unit, modifier: Modifier = Modifier, min: Int = 0, max: Int = Int.MAX_VALUE) {
+fun Counter(label: String, value: Int, onMinus: () -> Unit, onPlus: () -> Unit, modifier: Modifier = Modifier, min: Int = 0, max: Int = Int.MAX_VALUE, enabled: Boolean = true) {
     Row(
-        modifier.padding(bottom = 9.dp).fillMaxWidth().vCard(12.dp).padding(horizontal = 14.dp, vertical = 8.dp),
+        modifier.padding(bottom = 9.dp).fillMaxWidth().alpha(if (enabled) 1f else .45f).vCard(12.dp).padding(horizontal = 14.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(label, style = T.ui(14.5.sp, FontWeight.Bold, V.ink), modifier = Modifier.weight(1f))
-        CounterBtn("−", onMinus, "Decrease $label", enabled = value > min)
+        CounterBtn("−", onMinus, "Decrease $label", enabled = enabled && value > min)
         Text("$value", style = T.mono(16.sp, FontWeight.SemiBold, V.ink), textAlign = TextAlign.Center, modifier = Modifier.width(44.dp))
-        CounterBtn("+", onPlus, "Increase $label", enabled = value < max)
+        CounterBtn("+", onPlus, "Increase $label", enabled = enabled && value < max)
     }
 }
 

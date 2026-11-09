@@ -31,8 +31,8 @@ android {
         applicationId = if (vimsStore) "com.vimsinspect.app" else "com.vims.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 32
-        versionName = "0.31.0"
+        versionCode = 33
+        versionName = "0.32.0"
         buildConfigField("String", "PLAY_LICENSE_KEY", "\"$vimsPlayLicenseKey\"")
     }
 

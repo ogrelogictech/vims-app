@@ -114,7 +114,7 @@ fun coverBrush(vm: AppViewModel, color: String): Brush {
 
 /** Rough page estimate before the PDF exists (cover + info + notes + sections + photo pages + summary). */
 fun estimatePages(b: InspectionBundle, layout: String = ChecklistConfig.LAYOUT_STANDARD): Int {
-    val forms = b.inspection.leafSections.count { b.defs[com.vims.app.data.baseName(it)]?.photosOnly != true }
+    val forms = b.inspection.leafSections.count { b.defOf(it)?.photosOnly != true }
     val pics = maxOf(1, (b.photos.size + 5) / 6)
     if (layout == ChecklistConfig.LAYOUT_TEXAS) return 3 + forms + pics
     if (layout == ChecklistConfig.LAYOUT_FOUR_POINT) return 4 + pics
@@ -163,8 +163,8 @@ fun ReportScreen(vm: AppViewModel, nav: NavHostController, inspId: String) {
         val formLayout = vm.config.reportLayout(s.inspType) != ChecklistConfig.LAYOUT_STANDARD
         // Data v1.14: a notes section (Planned Maintenance Recommendations) is listed after the checklist sections, only when a
         // line is written (it prints whether or not it was saved Done; a blank one is left out of the report).
-        val done = b.inspection.leafSections.filter { !b.isNotes(it) && (formLayout && b.defs[com.vims.app.data.baseName(it)]?.photosOnly != true || b.status(it) == SecStatus.DONE) }
-            .sortedWith(compareBy({ ChecklistEngine.number(b.defs, it) }, { it })) +
+        val done = ChecklistEngine.reportOrder(b.inspection.leafSections.filter { !b.isNotes(it) && (formLayout && b.defOf(it)?.photosOnly != true || b.status(it) == SecStatus.DONE) },
+            b.defs, vm.config, s.inspType) +
             (if (formLayout) emptyList() else b.inspection.leafSections.filter { b.isNotes(it) && b.notesLines(it).isNotEmpty() })
         Column(Modifier.padding(bottom = 12.dp).fillMaxWidth().vCard().padding(vertical = 6.dp)) {
             if (done.isEmpty()) BinfoRow({ Text("No sections completed yet", style = T.ui(14.sp, color = V.ink3)) }, {}, last = true)

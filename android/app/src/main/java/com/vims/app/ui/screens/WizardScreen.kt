@@ -113,7 +113,7 @@ fun WizardScreen(vm: AppViewModel, nav: NavHostController, inspId: String?) {
                 2 -> WizardFields(vm, nav, cfg.step2, w.sel, step2 = true, form = form)
                 3 -> {
                     // Client Oct 25 (`wizard.areasLockedTypes`): Phase 1 / Phase 2 / Tests Only / 4 Point don't use the exterior or
-                    // interior room options (nor utilities, step 4) — shown disabled under one short note; the room counts stay editable.
+                    // interior room options (nor utilities, step 4) — shown disabled under one short note; Bedrooms, Bathrooms and Hallways stay editable, the Nov 6 counts lock with the areas.
                     // The earlier choices are kept (another type unlocks them as they were) but add no sections while locked.
                     val locked = cfg.areasLocked(w.sel.inspType)
                     Hint("Choose every area to inspect — add or remove anything. This builds the checklist.", Modifier.padding(top = 2.dp, bottom = if (locked) 8.dp else 12.dp))
@@ -123,12 +123,12 @@ fun WizardScreen(vm: AppViewModel, nav: NavHostController, inspId: String?) {
                     Lbl("Room counts")
                     cfg.roomCounts.forEach { rc ->
                         Counter(rc.label, w.sel.count(rc.key),
-                            onMinus = { vm.updateSel { it.copy(counts = it.counts + (rc.key to (it.count(rc.key) - 1).coerceAtLeast(0))) } },
-                            onPlus = { vm.updateSel { it.copy(counts = it.counts + (rc.key to (it.count(rc.key) + 1).coerceAtMost(Limits.COUNT_MAX))) } },
-                            max = Limits.COUNT_MAX)
+                            onMinus = { vm.updateSel { it.withRoomCount(rc, it.count(rc.key) - 1) } },
+                            onPlus = { vm.updateSel { it.withRoomCount(rc, it.count(rc.key) + 1) } },
+                            min = rc.lowest, max = rc.highest, enabled = !(locked && rc.locksWithAreas))
                     }
                     Lbl("Interior rooms")
-                    MultiChips(cfg.roomOptions, w.sel.rooms, { o -> vm.updateSel { it.copy(rooms = it.rooms.toggle(o)) } }, enabled = !locked)
+                    MultiChips(cfg.roomOptions, w.sel.rooms, { o -> vm.updateSel { it.withRoomToggled(o, cfg.roomCounts) } }, enabled = !locked)
                 }
                 else -> WizardFeesStep(vm, nav, w.sel)
             }

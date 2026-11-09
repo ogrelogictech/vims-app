@@ -58,19 +58,9 @@ class ChecklistEngine(val config: ChecklistConfig, val edits: ChecklistEdits) {
 
     private fun resolve(g: LayoutGroupDef, sel: WizardSelections): List<String> {
         val out = mutableListOf<String>()
-        g.sections?.let { out += it }
-        g.always?.let { out += it }
-        g.order?.forEach { token ->
-            when {
-                token.endsWith("?") -> token.dropLast(1).let { if (it in sel.rooms) out += it }
-                token.contains("×") -> {
-                    val base = token.substringBefore("×")
-                    val n = sel.count(token.substringAfter("×"))
-                    for (i in 1..n) out += "$base $i"
-                }
-                else -> out += token
-            }
-        }
+        g.sections?.let { out += it.flatMap { t -> expand(t, sel) } }
+        g.always?.let { out += it.flatMap { t -> expand(t, sel) } }
+        g.order?.let { out += it.flatMap { t -> expand(t, sel) } }
         g.optional?.let { key ->
             // Client Nov 4 (`checklistBuilder._wizardVsChecklistOrder`): only the wizard's chips moved. `checklistOrder` keeps the checklist
             // and report order, so Chimney stays first among the optional Property Exterior sections, whether it was saved under
@@ -86,8 +76,27 @@ class ChecklistEngine(val config: ChecklistConfig, val edits: ChecklistEdits) {
             }
             out += options.filter { it in chosen }
         }
-        g.then?.let { out += it }
+        g.then?.let { out += it.flatMap { t -> expand(t, sel) } }
         return out
+    }
+
+    /**
+     * One layout token (`checklistBuilder._notes`): "Name?" = when selected in step 3; "Name×key" = "Name 1".."Name n";
+     * client Nov 6, "Name×key!" = "Name", "Name 2".."Name n" (one = the plain name, so saved answers don't move);
+     * "Name×key#" = "Name #2".."Name #n" only (one adds nothing).
+     */
+    private fun expand(token: String, sel: WizardSelections): List<String> = when {
+        token.endsWith("?") -> token.dropLast(1).let { if (it in sel.rooms) listOf(it) else emptyList() }
+        token.contains("×") -> {
+            val base = token.substringBefore("×")
+            val spec = token.substringAfter("×")
+            when {
+                spec.endsWith("!") -> (1..sel.count(spec.dropLast(1))).map { if (it == 1) base else "$base $it" }
+                spec.endsWith("#") -> (2..sel.count(spec.dropLast(1))).map { "$base #$it" }
+                else -> (1..sel.count(spec)).map { "$base $it" }
+            }
+        }
+        else -> listOf(token)
     }
 
     /** Admin-added sections are appended to the end of their group (Exterior, Interior, Utility, Testing). */
@@ -111,7 +120,8 @@ class ChecklistEngine(val config: ChecklistConfig, val edits: ChecklistEdits) {
     /** Snapshot of the definitions an inspection uses (so later admin edits only affect new inspections). */
     fun snapshot(groups: List<BuiltGroup>, existing: Map<String, SectionDef> = emptyMap()): Map<String, SectionDef> {
         val out = existing.toMutableMap()
-        groups.flatMap { it.leaves }.map { baseName(it) }.distinct().forEach { b ->
+        // A company's own section is keyed by its full name, also when that ends like a copy ("Pool #2"), see [savedDef].
+        groups.flatMap { it.leaves }.map { if (isCustom(it)) it else baseName(it) }.distinct().forEach { b ->
             if (b !in out) def(b)?.let { out[b] = it }
         }
         return out
@@ -129,7 +139,8 @@ class ChecklistEngine(val config: ChecklistConfig, val edits: ChecklistEdits) {
             inspType = d.inspType.orEmpty(),
             structure = d.structure,
             depth = defaultDepth,
-            counts = mapOf("bedrooms" to d.bedrooms, "bathrooms" to d.bathrooms, "hallways" to d.hallways),
+            counts = mapOf("bedrooms" to d.bedrooms, "bathrooms" to d.bathrooms, "hallways" to d.hallways, WizardSelections.KITCHENS to d.kitchens,
+                "hvacUnits" to d.hvacUnits, "waterHeaters" to d.waterHeaters, "electricalPanels" to d.electricalPanels),
             rooms = d.rooms.filter { it.value > 0 }.keys.toList(),
             exterior = d.exterior.filter { it.value > 0 }.keys.toList(),
             utilOpt = d.utilOpt.filter { it.value > 0 }.keys.toList(),
@@ -414,7 +425,7 @@ class ChecklistEngine(val config: ChecklistConfig, val edits: ChecklistEdits) {
             if (answers.isEmpty()) return answers
             var changed = false
             val out = answers.mapValues { (section, a) ->
-                val d = defs[baseName(section)] ?: return@mapValues a
+                val d = savedDef(defs, section) ?: return@mapValues a
                 var r = a
                 listOf(d.items, d.itemsHigh.orEmpty()).forEach { list ->
                     val k = keyed(list)
@@ -512,7 +523,29 @@ class ChecklistEngine(val config: ChecklistConfig, val edits: ChecklistEdits) {
         fun visibleKeyed(keyed: List<Pair<String?, ItemDef>>, a: SectionAnswers): List<Pair<String?, ItemDef>> =
             if (keyed.none { it.second.visibleIf != null }) keyed else keyed.filter { (k, it) -> k == null || isVisible(it, keyed, a) }
 
-        fun number(defs: Map<String, SectionDef>, name: String): Int = defs[baseName(name)]?.number ?: 99
+        /**
+         * The saved definition of [section], first by its full name: a section a company named "Pool #2" before the base-name rule also
+         * stripped " #n" was saved under that name, so it must not be read as a copy of "Pool".
+         */
+        fun savedDef(defs: Map<String, SectionDef>, section: String): SectionDef? = defs[section] ?: defs[baseName(section)]
+
+        fun number(defs: Map<String, SectionDef>, name: String): Int = savedDef(defs, name)?.number ?: 99
+
+        /**
+         * Sections as the report prints them: by section number, ties by name, exactly as before client Nov 6. Only the Nov 6 copies
+         * ([ChecklistBuilderDef.copyIndex]) go by their copy number first, so "Electrical 10" follows "Electrical 9" and "Cooling System #2"
+         * (number 11, like Outside Utilities) comes right after Outside Utilities. An inspection saved before has no copies, so its order
+         * doesn't change ("Bathroom 10" still prints before "Bathroom 2"). The `phaseTypes` layouts have no copies at all.
+         */
+        fun reportOrder(sections: List<String>, defs: Map<String, SectionDef>, config: ChecklistConfig, inspType: String): List<String> {
+            val byNumber = compareBy<String> { number(defs, it) }
+            val cb = config.checklistBuilder
+            return sections.sortedWith(if (cb.phaseTypes.containsKey(inspType)) byNumber.thenBy { it } else byNumber.thenBy { cb.copyIndex(it) }.thenBy { it })
+        }
+
+        /** Findings on the Summary and in the report: by section number, then the time they were added; the Nov 6 copies stay together, in copy order. */
+        fun findingsOrder(defs: Map<String, SectionDef>, config: ChecklistConfig): Comparator<Finding> =
+            compareBy({ number(defs, it.section) }, { config.checklistBuilder.copyIndex(it.section) }, { it.createdAt })
 
         /** Items to render for a section at a depth (Fast Entry renders its own "Items reviewed" chips). */
         fun itemsFor(def: SectionDef, depth: String): List<ItemDef> =

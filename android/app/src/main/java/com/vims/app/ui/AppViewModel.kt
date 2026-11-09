@@ -503,7 +503,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun sectionDef(id: String, section: String): SectionDef? =
-        bundle(id)?.defs?.get(com.vims.app.data.baseName(section)) ?: engine.value.def(section)
+        bundle(id)?.defOf(section) ?: engine.value.def(section)
 
     /* ------------------------------------------------------------------ photos */
 

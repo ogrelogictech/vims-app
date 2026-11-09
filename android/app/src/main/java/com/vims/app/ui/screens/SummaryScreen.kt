@@ -69,7 +69,7 @@ fun SummaryScreen(vm: AppViewModel, nav: NavHostController, inspId: String) {
         // State-required disclosure (stateRules.<STATE>.summaryDisclosure, e.g. Oklahoma) — permanent, always first.
         StateDisclosureCard(vm, b.inspection.selections.state)
         vm.config.findings.categories.forEach { cat ->
-            val items = b.findings.filter { it.cat == cat.id }.sortedWith(compareBy({ ChecklistEngine.number(b.defs, it.section) }, { it.createdAt }))
+            val items = b.findings.filter { it.cat == cat.id }.sortedWith(ChecklistEngine.findingsOrder(b.defs, vm.config))
             Column(Modifier.padding(bottom = 12.dp).fillMaxWidth().vCard()) {
                 Row(Modifier.padding(horizontal = 15.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(11.dp)) {
                     Box(Modifier.size(34.dp).clip(RoundedCornerShape(9.dp)).background(V.cat(cat.id)), contentAlignment = Alignment.Center) {

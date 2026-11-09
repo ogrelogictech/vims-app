@@ -20,6 +20,7 @@ import com.vims.app.data.AirQualityDef
 import com.vims.app.data.ChecklistConfig
 import com.vims.app.data.ChecklistEngine
 import com.vims.app.data.sectionTitle
+import com.vims.app.data.WizardSelections
 import com.vims.app.data.CoverFooterBoxDef
 import com.vims.app.data.CompanyProfile
 import com.vims.app.data.CoverLayoutDef
@@ -281,11 +282,11 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
             else -> {
                 propertyInfo()
                 beginningNotes()
-                val sections = b.inspection.leafSections.filter { b.status(it) == SecStatus.DONE && !b.isNotes(it) }
-                    .sortedWith(compareBy<String>({ ChecklistEngine.number(b.defs, it) }, { it }))
+                val sections = ChecklistEngine.reportOrder(b.inspection.leafSections.filter { b.status(it) == SecStatus.DONE && !b.isNotes(it) },
+                    b.defs, config, b.inspection.selections.inspType)
                 // Data v1.9 formReports: Wind Mitigation prints as the OIR-B1-1802 form, Termite as the WDI report; photos follow.
                 sections.forEach { s ->
-                    when (b.defs[baseName(s)]?.formReport) { "oir-b1-1802" -> oirForm(s); "wdi" -> wdiReport(s); else -> sectionPages(s) }
+                    when (b.defOf(s)?.formReport) { "oir-b1-1802" -> oirForm(s); "wdi" -> wdiReport(s); else -> sectionPages(s) }
                     photoPages(s)
                 }
                 // Data v1.14 (client Oct 30): after the last checklist section, before the Summary.
@@ -573,8 +574,9 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
             "Stories" to stories, "Basement" to s.chip("Basement"),
             "Garage" to garage, "Car port" to s.chip("Car port"),
         )
-        config.wizard.roomCounts.forEach { rows += it.label to s.count(it.key).toString() }
-        rows += "Kitchen" to (if ("Kitchen" in s.rooms) "1" else "0")
+        // Client Nov 6: Kitchen is one of the counts now. HVAC Units, Water Heaters and Electrical Panels aren't used by the locked layouts (`wizard.areasLockedTypes`).
+        config.wizard.roomCounts.filterNot { config.wizard.areasLocked(s.inspType) && it.key in WizardSelections.AT_LEAST_ONE_COUNTS }
+            .forEach { rows += it.label to s.count(it.key).toString() }
         rows += "Checklist depth" to config.depthLabel(s.depth)
         if (s.structure == "Multi-Unit") s.unitMix.filter { it.value > 0 }.forEach { (k, v) -> rows += "Units · $k" to v.toString() }
         infoGrid(rows)
@@ -622,7 +624,7 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
         val title = sectionTitle(section)
         secTitle(num, title)
         val a = b.answers[section] ?: SectionAnswers()
-        val def = b.defs[baseName(section)]
+        val def = b.defOf(section)
         val depth = b.inspection.selections.depth
         val kP = tp(plex400, 12.5f, INK2); val vP = tp(plex600, 12.5f, INK)
         fun row(k: String, v: String, dot: Int = 0) {
@@ -858,7 +860,7 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
         title("Summary of Findings", if (layoutKind == ChecklistConfig.LAYOUT_TEXAS) "Findings grouped by category" else "Findings grouped by category, in the order they appear in the report")
         stateDisclosure()
         config.findings.categories.forEach { cat ->
-            val items = b.findings.filter { it.cat == cat.id }.sortedWith(compareBy({ ChecklistEngine.number(b.defs, it.section) }, { it.createdAt }))
+            val items = b.findings.filter { it.cat == cat.id }.sortedWith(ChecklistEngine.findingsOrder(b.defs, config))
             val rows = items.mapIndexed { i, f ->
                 // Same line as the app's Summary screen (client, Oct 16): **Section** — custom comment — quick comment.
                 val l = layout(android.text.SpannableStringBuilder().apply {
@@ -929,7 +931,7 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
     // ================================================================== state & insurance forms
 
     /** Checklist sections of a form inspection (everything except the picture page), in checklist order. */
-    private fun formSections(): List<String> = b.inspection.leafSections.filter { b.defs[baseName(it)]?.photosOnly != true && !b.isNotes(it) }
+    private fun formSections(): List<String> = b.inspection.leafSections.filter { b.defOf(it)?.photosOnly != true && !b.isNotes(it) }
         .sortedWith(compareBy<String>({ ChecklistEngine.number(b.defs, it) }, { it }))
 
     private fun pageOfTotal() = if (totalPages > 0) "Page $pageNo of $totalPages" else "Page $pageNo"
@@ -1024,7 +1026,7 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
 
     /** One TREC system (section): rows with I / NI / NP / D boxes, component name, form fields and comments. */
     private fun trecChecklist(section: String) {
-        val def = b.defs[baseName(section)] ?: return
+        val def = b.defOf(section) ?: return
         val a = b.answers[section] ?: SectionAnswers()
         trecSystem = section.substringAfter("— ").uppercase(Locale.US)
         pageHeader = { trecHeader("$trecSystem (continued)") }
@@ -1075,7 +1077,7 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
     /** Picture pages (Texas + 4-Point): 3 columns, 6 per page; the Pictures section first, then photos from the form sections. */
     private fun picturePages() {
         pageHeader = { runningHeader() }
-        val picsSection = b.inspection.leafSections.firstOrNull { b.defs[baseName(it)]?.photosOnly == true }
+        val picsSection = b.inspection.leafSections.firstOrNull { b.defOf(it)?.photosOnly == true }
         val photos = b.photos.filter { it.section == picsSection } + b.photos.filter { it.section != picsSection }
         val chunks = photos.chunked(6).ifEmpty { listOf(emptyList()) }
         val colW = (CW - 24f) / 3; val imgH = colW * 3f / 4f
@@ -1190,7 +1192,7 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
         pageHeader = { runningHeader() }
         val secs = formSections()
         secs.forEachIndexed { si, section ->
-            val def = b.defs[baseName(section)] ?: return@forEachIndexed
+            val def = b.defOf(section) ?: return@forEachIndexed
             val a = b.answers[section] ?: SectionAnswers()
             // group items into boxes at each header band
             val boxes = mutableListOf<FpBox>()
@@ -1257,12 +1259,12 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
 
     /** True when the standard report includes a section printed as a form (needs the counting pass). */
     private fun hasFormSections(): Boolean = layoutKind == ChecklistConfig.LAYOUT_STANDARD &&
-        b.inspection.leafSections.any { b.status(it) == SecStatus.DONE && b.defs[baseName(it)]?.formReport != null }
+        b.inspection.leafSections.any { b.status(it) == SecStatus.DONE && b.defOf(it)?.formReport != null }
 
     /** A form section's answers by question text (first occurrence), honoring `visibleIf`. */
     private inner class FormAnswers(section: String) {
         val a: SectionAnswers = b.answers[section] ?: SectionAnswers()
-        private val def = b.defs[baseName(section)]
+        private val def = b.defOf(section)
         val keyed = if (def == null) emptyList() else ChecklistEngine.keyed(ChecklistEngine.itemsFor(def, ChecklistEngine.effectiveDepth(def, b.inspection.selections.depth)))
         private val byQ = keyed.filter { it.first != null }.groupBy { it.second.q.orEmpty() }.mapValues { it.value.first() }
         fun item(q: String): ItemDef? = byQ[q]?.second

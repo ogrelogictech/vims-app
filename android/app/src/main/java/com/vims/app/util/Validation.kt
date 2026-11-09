@@ -155,6 +155,8 @@ object Limits {
     const val NOTES_LINE = 300
     /** Wizard counts (bedrooms, bathrooms, hallways, unit mix, …) and checklist room counts ("Number of kitchens"). */
     const val COUNT_MAX = 20
+    /** Client Nov 6 (`wizard._roomCountsAbout`): Kitchen, HVAC Units, Water Heaters, Electrical Panels. */
+    const val SYSTEM_COUNT_MAX = 12
     const val SQFT_MAX = 100_000.0
     const val VALUATION_MAX = 100_000_000.0
     const val LOT_MAX = 10_000.0

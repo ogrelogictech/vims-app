@@ -267,7 +267,35 @@ data class WizardSelections(
 ) {
     fun field(label: String): String = fields[label].orEmpty().trim()
     fun chip(label: String): String = chips[label].orEmpty()
-    fun count(key: String): Int = counts[key] ?: 0
+    /**
+     * A wizard count. Client Nov 6 (`wizard._roomCountsAbout`): an inspection saved before these counts existed has no value for
+     * them, so HVAC Units / Water Heaters / Electrical Panels read 1 (never 0) and Kitchen reads from its chip: its checklist doesn't change.
+     */
+    fun count(key: String): Int = when {
+        key in AT_LEAST_ONE_COUNTS -> (counts[key] ?: 1).coerceAtLeast(1)
+        key == KITCHENS -> counts[key] ?: if (KITCHEN in rooms) 1 else 0
+        else -> counts[key] ?: 0
+    }
+
+    /** A step 3 stepper changed. `syncsRoom`: above 0 turns the room's chip on, 0 turns it off. */
+    fun withRoomCount(rc: RoomCountDef, n: Int): WizardSelections {
+        val v = n.coerceIn(rc.lowest, rc.highest)
+        val room = rc.syncsRoom
+        return copy(counts = counts + (rc.key to v), rooms = when {
+            room == null -> rooms
+            v == 0 -> rooms - room
+            room in rooms -> rooms
+            else -> rooms + room
+        })
+    }
+
+    /** A tap on an interior room chip. A chip with a stepper (`syncsRoom`) sets it to 1 when turned on and 0 when turned off. */
+    fun withRoomToggled(room: String, roomCounts: List<RoomCountDef>): WizardSelections {
+        val on = room !in rooms
+        val next = copy(rooms = if (on) rooms + room else rooms - room)
+        val rc = roomCounts.firstOrNull { it.syncsRoom == room } ?: return next
+        return next.copy(counts = counts + (rc.key to if (on) 1 else 0))
+    }
 
     val address: String get() = field(F_ADDRESS)
     /**
@@ -322,6 +350,10 @@ data class WizardSelections(
     companion object {
         /** The one option whose chip (Utility & systems) and checklist place (Property Exterior) differ, see [ChecklistEngine]. */
         const val CHIMNEY = "Chimney"
+        /** Client Nov 6 (`wizard.roomCounts`): the counts a saved inspection doesn't have, see [count]. */
+        const val KITCHENS = "kitchens"
+        const val KITCHEN = "Kitchen"
+        val AT_LEAST_ONE_COUNTS = setOf("hvacUnits", "waterHeaters", "electricalPanels")
         /** Stored value before Mobile Home / Manufactured Home split (`wizard._structureLegacyAbout`); the wizard highlights Mobile Home for it. */
         const val STRUCTURE_LEGACY_MOBILE = "Mobile / Manufactured"
         const val STRUCTURE_MOBILE = "Mobile Home"
@@ -584,12 +616,15 @@ data class InspectionBundle(
     fun status(section: String): String = answers[section]?.status ?: SecStatus.TODO
 
     /** Data v1.14 `notes` section (Planned Maintenance Recommendations). */
-    fun isNotes(section: String): Boolean = defs[baseName(section)]?.notes == true
+    fun isNotes(section: String): Boolean = defOf(section)?.notes == true
+
+    /** The saved checklist of a section or of one of its copies ([ChecklistEngine.savedDef]). */
+    fun defOf(section: String): SectionDef? = ChecklistEngine.savedDef(defs, section)
 
     /** The written lines of a `notes` section, trimmed, in checklist order (blank lines left out; the report renumbers them). */
     fun notesLines(section: String): List<String> {
         val a = answers[section] ?: return emptyList()
-        val d = defs[baseName(section)] ?: return emptyList()
+        val d = defOf(section) ?: return emptyList()
         return ChecklistEngine.keyed(d.items).mapNotNull { (k, _) -> k?.let { a.inputs[it]?.trim()?.takeIf { v -> v.isNotEmpty() } } }
     }
 
@@ -600,5 +635,5 @@ data class InspectionBundle(
     val progressSections: List<String> get() = inspection.leafSections.filter { !isNotes(it) || notesLines(it).isNotEmpty() }
 }
 
-/** "Bathroom 2" → "Bathroom" (numbered room instances share the base section's checklist). */
-fun baseName(name: String): String = name.replace(Regex("\\s+\\d+$"), "")
+/** "Bathroom 2" → "Bathroom", "Cooling System #2" → "Cooling System" (numbered copies share the base section's checklist). */
+fun baseName(name: String): String = name.replace(Regex("\\s+#?\\d+$"), "")
