@@ -1,6 +1,6 @@
 {
  "_about": "VIMS shared checklist + configuration data. Single source of truth for the native iOS (SwiftUI) and Android (Kotlin/Compose) apps. Extracted from the client-approved prototype (index.html, approved Sep 15, 2026). Edit here, not in app code.",
- "version": "1.19.0",
+ "version": "1.20.0",
  "generated": "2026-11-04",
  "depths": [
   {
@@ -56,6 +56,7 @@
     "Chimney",
     "Exterior Walls",
     "Outside Utilities",
+    "Cooling System",
     "Pool House & Pool",
     "Outbuilding – Shed",
     "Outbuilding – Car Port",
@@ -4157,6 +4158,324 @@
     "Water Meter",
     "Sewer Access",
     "Rain Water System",
+    "Concerns"
+   ]
+  },
+  {
+   "name": "Cooling System",
+   "number": 11,
+   "icon": null,
+   "photoCategories": [
+    "Swamp Cooler",
+    "Compressor",
+    "Coolant Lines",
+    "Concerns"
+   ],
+   "items": [
+    {
+     "header": "Cooling System"
+    },
+    {
+     "q": "Cooling system",
+     "type": "single",
+     "options": [
+      "Swamp Cooler",
+      "Central Air",
+      "None"
+     ]
+    },
+    {
+     "q": "Podium",
+     "type": "single",
+     "options": [
+      "Reviewed",
+      "N/A",
+      "Concerns"
+     ]
+    },
+    {
+     "q": "Vegetation",
+     "type": "single",
+     "options": [
+      "Reviewed",
+      "N/A",
+      "Concerns"
+     ]
+    },
+    {
+     "q": "Fan",
+     "type": "single",
+     "options": [
+      "Reviewed",
+      "N/A",
+      "Concerns"
+     ]
+    },
+    {
+     "q": "Fins",
+     "type": "single",
+     "options": [
+      "Reviewed",
+      "N/A",
+      "Concerns"
+     ]
+    },
+    {
+     "q": "Coolant Lines",
+     "type": "single",
+     "options": [
+      "Reviewed",
+      "N/A",
+      "Concerns"
+     ]
+    },
+    {
+     "q": "Cut Off",
+     "type": "single",
+     "options": [
+      "Reviewed",
+      "N/A",
+      "Concerns"
+     ]
+    },
+    {
+     "q": "Compressor Size",
+     "type": "single",
+     "options": [
+      "Reviewed",
+      "N/A",
+      "Concerns"
+     ]
+    }
+   ],
+   "itemsHigh": [
+    {
+     "header": "Cooling System"
+    },
+    {
+     "q": "Cooling system",
+     "type": "single",
+     "options": [
+      "Swamp Cooler",
+      "Central Air",
+      "None"
+     ]
+    },
+    {
+     "header": "Swamp Cooler"
+    },
+    {
+     "q": "Location",
+     "type": "single",
+     "options": [
+      "Roof Top",
+      "Wall / Side Vent"
+     ]
+    },
+    {
+     "q": "Accessible",
+     "type": "single",
+     "options": [
+      "Yes",
+      "No"
+     ]
+    },
+    {
+     "q": "Covered",
+     "type": "single",
+     "options": [
+      "Yes",
+      "No"
+     ]
+    },
+    {
+     "q": "Operates normally",
+     "type": "single",
+     "options": [
+      "Yes",
+      "No"
+     ]
+    },
+    {
+     "q": "Edges sealed",
+     "type": "single",
+     "options": [
+      "Yes",
+      "No"
+     ]
+    },
+    {
+     "q": "Water leaks",
+     "type": "single",
+     "options": [
+      "Yes",
+      "No"
+     ]
+    },
+    {
+     "q": "Rust",
+     "type": "single",
+     "options": [
+      "Yes",
+      "No"
+     ]
+    },
+    {
+     "q": "Overall condition",
+     "type": "single",
+     "options": [
+      "Satisfactory",
+      "Good",
+      "Poor",
+      "Needs Attention",
+      "Not Inspected",
+      "N/A"
+     ]
+    },
+    {
+     "header": "Central Air — Fan / Compressor"
+    },
+    {
+     "q": "Podium",
+     "type": "single",
+     "options": [
+      "None",
+      "Concrete",
+      "Brick",
+      "Wood",
+      "Plastic"
+     ]
+    },
+    {
+     "q": "Podium 3 inches +",
+     "type": "single",
+     "options": [
+      "Yes",
+      "No"
+     ]
+    },
+    {
+     "q": "Vegetation cut back (min 18\")",
+     "type": "single",
+     "options": [
+      "Yes",
+      "No",
+      "None"
+     ]
+    },
+    {
+     "q": "Fan operational",
+     "type": "single",
+     "options": [
+      "Yes",
+      "No"
+     ]
+    },
+    {
+     "q": "Good belt",
+     "type": "single",
+     "options": [
+      "Yes",
+      "No"
+     ]
+    },
+    {
+     "q": "Fins clean",
+     "type": "single",
+     "options": [
+      "Clean",
+      "Mostly clean",
+      "Dirty"
+     ]
+    },
+    {
+     "q": "Fins mostly straight",
+     "type": "single",
+     "options": [
+      "Yes",
+      "No"
+     ]
+    },
+    {
+     "q": "Coolant lines — insulation intact",
+     "type": "single",
+     "options": [
+      "Yes",
+      "No"
+     ]
+    },
+    {
+     "q": "Coolant lines — ends sealed",
+     "type": "single",
+     "options": [
+      "Yes",
+      "No"
+     ]
+    },
+    {
+     "q": "Thermal camera shows leaks",
+     "type": "single",
+     "options": [
+      "Yes",
+      "No",
+      "N/A"
+     ]
+    },
+    {
+     "q": "Cut off location",
+     "type": "single",
+     "options": [
+      "Near unit",
+      "Near door"
+     ]
+    },
+    {
+     "q": "Cut off condition",
+     "type": "single",
+     "options": [
+      "Good",
+      "Bad",
+      "Damaged"
+     ]
+    },
+    {
+     "q": "Compressor size (home sq ft)",
+     "type": "num",
+     "placeholder": "e.g. 2400",
+     "renamedFrom": "Compressor size (sq ft)"
+    },
+    {
+     "q": "Compressor size (tons)",
+     "type": "num",
+     "placeholder": "sq ft × 20 ÷ 12,000 BTU"
+    },
+    {
+     "q": "Proper size",
+     "type": "single",
+     "options": [
+      "Yes",
+      "No"
+     ]
+    },
+    {
+     "q": "Overall condition",
+     "type": "single",
+     "options": [
+      "Satisfactory",
+      "Good",
+      "Poor",
+      "Needs Attention",
+      "Not Inspected",
+      "N/A"
+     ]
+    }
+   ],
+   "photoCategoriesHigh": [
+    "Swamp Cooler",
+    "Compressor",
+    "Coolant Lines",
+    "Power Cut Off",
+    "MFR Tag",
     "Concerns"
    ]
   },
@@ -31923,7 +32242,8 @@
      "Landscaping",
      "Roof",
      "Exterior Walls",
-     "Outside Utilities"
+     "Outside Utilities",
+     "Cooling System×hvacUnits#"
     ],
     "optional": "checklistOrder.exterior"
    },
@@ -31940,7 +32260,7 @@
      "Den / Home Office?",
      "Family Room?",
      "Reception?",
-     "Kitchen?",
+     "Kitchen×kitchens!",
      "Dining Room?",
      "Laundry Room?",
      "Storage Room?",
@@ -31950,9 +32270,9 @@
      "heading": "Utility & Function",
      "always": [
       "Utility Room",
-      "HVAC Mechanical",
-      "Electrical",
-      "Water Heater"
+      "HVAC Mechanical×hvacUnits!",
+      "Electrical×electricalPanels!",
+      "Water Heater×waterHeaters!"
      ],
      "optional": "checklistOrder.utility",
      "then": [
@@ -31979,7 +32299,7 @@
     "icon": "list"
    }
   ],
-  "_notes": "'?' = included when selected in wizard step 3 rooms; '×n' = repeated per count. Admin-added custom sections are appended to the end of their group (Exterior, Interior, Utility, Testing).",
+  "_notes": "'?' = included when selected in wizard step 3 rooms; '×n' = repeated per count. Admin-added custom sections are appended to the end of their group (Exterior, Interior, Utility, Testing). '×n!' (client Nov 6) = repeated per count, right after each other, and the first keeps the plain name: 'Electrical', 'Electrical 2', 'Electrical 3' (one panel = 'Electrical', so saved inspections and their answers don't move). '×n#' (client Nov 6) = copies 2 to n only, named with a #: 'Cooling System #2', 'Cooling System #3'; one HVAC unit adds nothing. The base-name rule that strips a trailing number also strips ' #n'.",
   "_formNotes": "Sections with 'form' (texas | fourPoint) are client-supplied state/insurance forms: ignore checklist depth (always show 'items'), no Overall condition row, badge = formLabels[form]. 'photosOnly' sections have no items: opening one goes straight to the photo screen, whose primary button is 'Save & continue to summary' (or '… to report' when the layout has no Summary). Layouts without a Summary entry (4 Point) hide 'Review summary'.",
   "_testsOnlyAbout": "Client Oct 25 (areas locked for Tests Only): the checklist is Inspection Info + the tests selected in wizard step 4 + Summary. No exterior / interior / utility sections.",
   "_restoreAbout": "Client Oct 28: Manage checklist (company admins) gets 'Restore original' per section and 'Restore entire checklist to original'. Restoring removes the company's edits (renamed/added/removed items and sections) and returns to the VIMS default from this file. Confirm first; inspections already started keep their saved checklist. Client Oct 28 (2nd email): the Restore block sits at the TOP of Manage checklist with two buttons in the client's words: 'Restore all checklists' (whole checklist) and 'Restore selected checklists' (each section is one checklist; a picker lists only Edited / Added sections with checkboxes, then one confirm naming them; an Added section is removed). Both disabled when nothing is edited.",
@@ -32015,7 +32335,8 @@
     "Asbestos",
     "Wind Mitigation"
    ]
-  }
+  },
+  "_multipleSystemsAbout": "Client Nov 6 (real inspection: a main panel and a sub panel, 2 water heaters): when HVAC Units, Water Heaters, Electrical Panels or Kitchen is above 1 that many checklists populate, each with its own answers, photos, comments and report section. HVAC Units above 1 also adds the outside cooling checks: 'Cooling System #2' etc. right after Outside Utilities. Client: only for HVAC / cooling, not the other utility systems. Section 'Cooling System' is a copy of Outside Utilities' Cooling System items; it is only ever shown numbered. Standard layout only: Texas, 4 Point, Phase 1, Phase 2 and Tests Only are unchanged, and the steppers are disabled with the other areas for wizard.areasLockedTypes. Report order: by section number as now, and copies stay in checklist order next to each other (ties broken by checklist position, never by name)."
  },
  "wizard": {
   "steps": [
@@ -32424,6 +32745,27 @@
    {
     "key": "hallways",
     "label": "Hallways"
+   },
+   {
+    "key": "kitchens",
+    "label": "Kitchen",
+    "min": 0,
+    "syncsRoom": "Kitchen"
+   },
+   {
+    "key": "hvacUnits",
+    "label": "HVAC Units",
+    "min": 1
+   },
+   {
+    "key": "waterHeaters",
+    "label": "Water Heaters",
+    "min": 1
+   },
+   {
+    "key": "electricalPanels",
+    "label": "Electrical Panels",
+    "min": 1
    }
   ],
   "defaults": {
@@ -32434,6 +32776,10 @@
    "bedrooms": 4,
    "bathrooms": 3,
    "hallways": 2,
+   "kitchens": 1,
+   "hvacUnits": 1,
+   "waterHeaters": 1,
+   "electricalPanels": 1,
    "rooms": {
     "Living Room": 1,
     "Family Room": 1,
@@ -32527,7 +32873,8 @@
    "total": "Total Cost of Inspection $: read-only, Inspection Fee + Bundled Secondary Testing.",
    "saved": "Stored per inspection (option key -> amount, plus the inspection fee) as an optional field: older inspections open with no amounts and nothing changes. Editable later from Inspection info.",
    "layout": "Each option is a chip with its $ box beside it. Two pairs per row on tablets (as the client's mockup), one pair per row on phones. No horizontal overflow on the smallest phone."
-  }
+  },
+  "_roomCountsAbout": "Client Nov 6: wizard step 3 Room counts gains Kitchen, HVAC Units, Water Heaters and Electrical Panels, in this order, same stepper as Bedrooms (maximum 12). Each default is in wizard.defaults. A saved inspection with no value for a new key reads hvacUnits / waterHeaters / electricalPanels as 1 and kitchens as 1 when rooms has Kitchen, else 0, so its checklist does not change. syncsRoom: the Kitchen chip under Interior rooms stays and mirrors the stepper. Stepper at 0 turns the chip off; turning the chip on sets 1; turning it off sets 0. No Room or database change: counts is the existing map."
  },
  "findings": {
   "categories": [
@@ -33605,6 +33952,16 @@
      "side": "after"
     },
     {
+     "type": "Texas",
+     "box": "Texas",
+     "side": "after"
+    },
+    {
+     "type": "Tests Only",
+     "box": "Tests Only",
+     "side": "after"
+    },
+    {
      "type": "Component",
      "box": "Component",
      "side": "none",
@@ -33633,7 +33990,7 @@
      "side": "after"
     }
    ],
-   "_inspectionTypeNote": "Texas, Tests Only and retired types tick nothing in Type of Inspection.",
+   "_inspectionTypeNote": "Client Nov 6: Texas and Tests Only have their own boxes. Retired types tick nothing. Warranty has no inspection type in the app yet, so its box stays unticked.",
    "tests": [
     {
      "test": "Radon",
@@ -33684,6 +34041,12 @@
      "test": "Septic",
      "box": "Septic System",
      "side": "before"
+    },
+    {
+     "test": "Wind Mitigation",
+     "box": "Wind Mitigation",
+     "side": "after",
+     "_note": "Client Nov 6: the Wind Mitigation test ticks this Type of Inspection box as well as 'Wind Mitigation Inspection' under Additional Inspection Services. 'after' can't match the 'before' box."
     }
    ],
    "utilities": [

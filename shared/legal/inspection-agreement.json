@@ -1,7 +1,7 @@
 {
  "_about": "Client-supplied VIMS default Home Inspection Agreement for all 50 states ('VIMS Home Inspection Agreement - App for all 50 states.docx', final version received Oct 25, 2026; first draft Oct 5), reproduced verbatim except '{companyName}' replaces the hard-coded 'Vision Property Inspections' (filled with the company's name at display time). Used as the default inspection agreement for every company unless they upload their own (Company profile). 'stateDisclosures' is keyed by state code; when shown for a specific inspection, display only that state's entry (all states when viewed from Company profile). No in-app e-signature in Phase 1 (deferred add-on).",
  "title": "Inspection Agreement",
- "version": "2026-11-04",
+ "version": "2026-11-06",
  "status": "final — client approved Oct 25, 2026",
  "header": [
   "Company Name Company Logo",
@@ -24,6 +24,7 @@
   "Type of Inspection Purchase ☐ New Construction ☐ Warranty ☐",
   "Wind Mitigation ☐ Pre-listing/Maintenance ☐ 4 Point or 4 Way Inspection ☐",
   "Phase 1 Foundation pre-pour ☐ Phase 2 Pre-Dry wall ☐ Phase 3 Final ☐",
+  "Texas ☐ Tests Only ☐",
   "Component Roof ☐ Chimney ☐ Electrical ☐ Plumbing ☐ HVAC ☐",
   "Additional Inspection Services. These services are not a part of the regular inspection and must be added if desired. May require a separate agreement to be signed.",
   "☐ Radon Testing $__________ ☐ Indoor Air Quality Testing $__________",
