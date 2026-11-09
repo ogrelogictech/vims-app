@@ -4232,7 +4232,7 @@ SEC['Wind Mitigation'].itemsHigh=[
 
 
   // Catalogs (from Jeremy's App Flow Chart + Inspection Info checklist 01)
-  var INSPECTION_TYPES=['Real Estate Sale','New Construction','Pre-Listing / Maintenance','Component','Tests Only','Phase 1 Foundation','Phase 2 Pre-Dry Wall','New Build Final','Texas','4 Point Inspection'];
+  var INSPECTION_TYPES=['Real Estate Sale','New Construction','Warranty','Pre-Listing / Maintenance','Component','Tests Only','Phase 1 Foundation','Phase 2 Pre-Dry Wall','New Build Final','Texas','4 Point Inspection'];
   // Client Oct 25: 'Code' is no longer offered (returns with the building-code database). Inspections already saved with it keep it.
   var RETIRED_INSPECTION_TYPES=['Code'];
   // Client Oct 25: these types lock the exterior / room options in wizard step 3 and the utility options in step 4 (Bedrooms, Bathrooms and Hallways stay editable; Kitchen, HVAC Units, Water Heaters and Electrical Panels lock with the areas)
@@ -5367,7 +5367,7 @@ SEC['Wind Mitigation'].itemsHigh=[
     var ticks=[];
     var PT={'Single Family':'Single Family','Multi-Unit':'Multi-Unit','Duplex':'Duplex','Townhouse':'Town House','Condo':'Condo','Mobile Home':'Mobile Home','Manufactured Home':'Manufactured Home'}; // a saved Mobile / Manufactured ticks nothing
     if(PT[sel.structure]) ticks.push({box:PT[sel.structure],side:'after'});
-    var IT={'Real Estate Sale':'Purchase','New Construction':'New Construction','Pre-Listing / Maintenance':'Pre-listing/Maintenance','4 Point Inspection':'4 Point or 4 Way Inspection','Phase 1 Foundation':'Phase 1 Foundation pre-pour','Phase 2 Pre-Dry Wall':'Phase 2 Pre-Dry wall','New Build Final':'Phase 3 Final','Texas':'Texas','Tests Only':'Tests Only'}; // retired types: nothing
+    var IT={'Real Estate Sale':'Purchase','New Construction':'New Construction','Warranty':'Warranty','Pre-Listing / Maintenance':'Pre-listing/Maintenance','4 Point Inspection':'4 Point or 4 Way Inspection','Phase 1 Foundation':'Phase 1 Foundation pre-pour','Phase 2 Pre-Dry Wall':'Phase 2 Pre-Dry wall','New Build Final':'Phase 3 Final','Texas':'Texas','Tests Only':'Tests Only'}; // retired types: nothing
     if(IT[sel.inspType]) ticks.push({box:IT[sel.inspType],side:'after'});
     if(sel.inspType==='Component' && sel.component) ['Roof','Electrical','Plumbing','HVAC'].forEach(function(c){ if(sel.component[c]) ticks.push({box:c,side:'after'}); });
     var TS={'Radon':'Radon Testing','Indoor Air Quality':'Indoor Air Quality Testing','Lead':'Lead Testing','Thermal Audit':'Thermal Energy Efficiency','Meth Test':'Meth Testing','Termite':'Termite/Pest Inspection','Sewer Scope':'Sewer Scope','Wind Mitigation':'Wind Mitigation Inspection','Asbestos':'Asbestos Testing','Septic':'Septic System'};

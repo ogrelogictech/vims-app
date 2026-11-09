@@ -285,6 +285,14 @@ class Nov6MultipleSystemsTest {
     private fun form(i: AgreementFillInput) = AgreementFill.apply(TestData.pieces, TestData.prefill, i).filterIsInstance<AgreementPiece.Form>().single().lines
     private fun line(lines: List<String>, part: String) = lines.first { part in it }
 
+    @Test fun warranty_buildsTheRealEstateSaleChecklist_andTicksItsBox() {
+        assertTrue("Warranty" in config.wizard.inspectionTypes)
+        assertEquals(sections(base()), sections(base().copy(inspType = "Warranty")))
+        val l = form(AgreementFillInput(inspType = "Warranty"))
+        assertTrue(line(l, "Warranty").endsWith("Warranty ☒"))
+        assertFalse(l.filterNot { "Warranty" in it }.any { '☒' in it })
+    }
+
     @Test fun agreement_hasTexasTestsOnlyLine_afterThePhases() {
         val lines = TestData.agreement.formLines("Acme")
         assertEquals("Texas ☐ Tests Only ☐", lines[lines.indexOfFirst { "Phase 1 Foundation pre-pour" in it } + 1])

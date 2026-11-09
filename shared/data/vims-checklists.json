@@ -1,6 +1,6 @@
 {
  "_about": "VIMS shared checklist + configuration data. Single source of truth for the native iOS (SwiftUI) and Android (Kotlin/Compose) apps. Extracted from the client-approved prototype (index.html, approved Sep 15, 2026). Edit here, not in app code.",
- "version": "1.20.0",
+ "version": "1.21.0",
  "generated": "2026-11-04",
  "depths": [
   {
@@ -32348,6 +32348,7 @@
   "inspectionTypes": [
    "Real Estate Sale",
    "New Construction",
+   "Warranty",
    "Pre-Listing / Maintenance",
    "Component",
    "Tests Only",
@@ -32874,7 +32875,8 @@
    "saved": "Stored per inspection (option key -> amount, plus the inspection fee) as an optional field: older inspections open with no amounts and nothing changes. Editable later from Inspection info.",
    "layout": "Each option is a chip with its $ box beside it. Two pairs per row on tablets (as the client's mockup), one pair per row on phones. No horizontal overflow on the smallest phone."
   },
-  "_roomCountsAbout": "Client Nov 6: wizard step 3 Room counts gains Kitchen, HVAC Units, Water Heaters and Electrical Panels, in this order, same stepper as Bedrooms (maximum 12). Each default is in wizard.defaults. A saved inspection with no value for a new key reads hvacUnits / waterHeaters / electricalPanels as 1 and kitchens as 1 when rooms has Kitchen, else 0, so its checklist does not change. syncsRoom: the Kitchen chip under Interior rooms stays and mirrors the stepper. Stepper at 0 turns the chip off; turning the chip on sets 1; turning it off sets 0. No Room or database change: counts is the existing map."
+  "_roomCountsAbout": "Client Nov 6: wizard step 3 Room counts gains Kitchen, HVAC Units, Water Heaters and Electrical Panels, in this order, same stepper as Bedrooms (maximum 12). Each default is in wizard.defaults. A saved inspection with no value for a new key reads hvacUnits / waterHeaters / electricalPanels as 1 and kitchens as 1 when rooms has Kitchen, else 0, so its checklist does not change. syncsRoom: the Kitchen chip under Interior rooms stays and mirrors the stepper. Stepper at 0 turns the chip off; turning the chip on sets 1; turning it off sets 0. No Room or database change: counts is the existing map.",
+  "_warrantyAbout": "Client Nov 9: Warranty is an inspection type. It has no phaseTypes entry, so it builds the standard layout, the same checklists as Real Estate Sale."
  },
  "findings": {
   "categories": [
@@ -33927,6 +33929,11 @@
      "side": "after"
     },
     {
+     "type": "Warranty",
+     "box": "Warranty",
+     "side": "after"
+    },
+    {
      "type": "Pre-Listing / Maintenance",
      "box": "Pre-listing/Maintenance",
      "side": "after"
@@ -33990,7 +33997,7 @@
      "side": "after"
     }
    ],
-   "_inspectionTypeNote": "Client Nov 6: Texas and Tests Only have their own boxes. Retired types tick nothing. Warranty has no inspection type in the app yet, so its box stays unticked.",
+   "_inspectionTypeNote": "Client Nov 6 and Nov 9: Texas, Tests Only and Warranty have their own boxes. Retired types tick nothing.",
    "tests": [
     {
      "test": "Radon",

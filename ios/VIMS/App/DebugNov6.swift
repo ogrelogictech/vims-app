@@ -220,6 +220,7 @@ extension DebugLaunch {
             let count = { (a: [String]) in a.joined().filter { String($0) == tick }.count }
             let bb = count(none)
             check("\(st) new line in the form", line(none, "Tests Only") == "Texas \(empty) Tests Only \(empty)", line(none, "Tests Only"))
+            check("\(st) Warranty ticks its box", line(filled { $0.inspType = "Warranty" }, "Warranty").hasSuffix("Warranty \(tick)"), line(filled { $0.inspType = "Warranty" }, "Warranty"))
             let tx = filled { $0.inspType = "Texas" }
             check("\(st) Texas ticks one box, its own", line(tx, "Tests Only") == "Texas \(tick) Tests Only \(empty)" && count(tx) == bb)
             let to = filled { $0.inspType = "Tests Only" }
