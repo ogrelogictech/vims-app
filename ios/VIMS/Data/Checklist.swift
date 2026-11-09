@@ -303,14 +303,16 @@ struct ChecklistCatalog {
         config.sectionGroups.map { g in (g.group, g.sections + (overrides.custom[g.group] ?? [])) }
     }
 
-    /// By section number; sections with the same number keep the order of `names`, which is the checklist's (`leafSections`),
-    /// so copies stay next to each other and Cooling System #2 follows Outside Utilities (`_multipleSystemsAbout`: ties by
-    /// checklist position, never by name). The position is compared because Swift doesn't promise a stable sort.
+    /// By section number, then name as before, so existing sections keep their place. Numbers in names compare as numbers, so
+    /// copies stay in order, and Cooling System #2 sorts as a copy of Outside Utilities, right after it (`_multipleSystemsAbout`).
     func sortedForReport(_ names: [String]) -> [String] {
-        names.enumerated()
-            .map { (name: $0.element, number: number($0.element), position: $0.offset) }
-            .sorted { ($0.number, $0.position) < ($1.number, $1.position) }
-            .map(\.name)
+        let prefix = "Cooling System "
+        func key(_ n: String) -> String { n.hasPrefix(prefix + "#") ? "Outside Utilities " + n.dropFirst(prefix.count) : n }
+        return names.sorted { a, b in
+            let na = number(a), nb = number(b)
+            if na != nb { return na < nb }
+            return key(a).localizedStandardCompare(key(b)) == .orderedAscending
+        }
     }
 
     // MARK: Builder

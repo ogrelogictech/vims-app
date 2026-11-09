@@ -1175,7 +1175,6 @@ StoreKit 2 replaces the simulated Square subscription. No server: the App Store 
 - **Builder tokens** (`checklistBuilder._notes`): `Base×key!` = Base, Base 2…; `Base×key#` = Base #2…; `baseName` also strips ` #n`, so number, photos, Manage checklist edits and
   saved checklists follow the base section. Answers, photos, findings and status are keyed by the full name, so each copy has its own. Lowering a count on Update checklist works as
   for Bathroom (off the checklist, data kept, back when raised). `buildGroups` lists a name once (a company's custom "Electrical 2" and a second panel).
-- **Report order**: section number, ties by checklist position, never by name (`sortedForReport`). Same-number pairs that used to print alphabetically now print in checklist order
-  (Pool House & Pool / Condo, Termite / Asbestos, the Phase 2 sections) when a report is generated.
+- **Report order**: section number, then name as before (`sortedForReport`), so existing sections keep their place. Copies stay in number order and Cooling System #n sorts right after Outside Utilities.
 - **Agreement**: Texas and Tests Only boxes; the Wind Mitigation test ticks both of its boxes. **EULA** 2026-11-06 (re-accept), **Summer cover** swapped, no code.
 - **Testing**: `VIMSUITests/Nov6CountsUITests`; DEBUG `-nov6Wizard`, `-nov6Agreement TYPE`, `-nov6Fill`, `-nov6Status` (NOV6TEST lines) in `App/DebugNov6.swift`.

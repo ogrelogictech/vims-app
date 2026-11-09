@@ -164,8 +164,8 @@ extension DebugLaunch {
         check("report: copies together", followed(sorted, ["Electrical", "Electrical 2"]) && followed(sorted, ["HVAC Mechanical", "HVAC Mechanical 2", "HVAC Mechanical 3"])
               && followed(sorted, ["Water Heater", "Water Heater 2"]) && followed(sorted, ["Kitchen", "Kitchen 2"]))
         let twelve = (0..<12).map { $0 == 0 ? "Electrical" : "Electrical \($0 + 1)" }
-        check("report: ties keep checklist position", cat.sortedForReport(twelve) == twelve)
-        check("report: position, not name", cat.sortedForReport(["Patio", "Deck"]) == ["Patio", "Deck"])
+        check("report: copies stay in number order", cat.sortedForReport(twelve.reversed()) == twelve)
+        check("report: other ties stay by name, as before", cat.sortedForReport(["Termite", "Asbestos"]) == cat.sortedForReport(["Asbestos", "Termite"]))
         check("report: by number first", cat.sortedForReport(["Kitchen 2", "Landscaping"]) == ["Landscaping", "Kitchen 2"])
 
         // Lowering a count leaves the copy's data on the inspection and off the checklist (as Bathroom).

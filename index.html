@@ -5151,7 +5151,8 @@ SEC['Wind Mitigation'].itemsHigh=[
     var pl=document.getElementById('previewlink'); if(pl) pl.href='report.html?type='+rt+(sel.inspLicense?'&lic='+encodeURIComponent(sel.inspLicense):'')+(sel.state?'&state='+sel.state:'')+'&cover='+encodeURIComponent([cover.color,cover.category,cover.option,cover.style].join('|'))+ccParam()+pmParam();
     var host=document.getElementById('reportcontents'); if(!host) return;
     var done=leafSecs().filter(function(n){return STATUS[n]==='done' && (!isNotesSec(n) || noteLines(n).length);}); // blank Planned Maintenance is left out of the report
-    done.sort(function(a,b){ return secNum(a)-secNum(b); }); // stable sort of checklist order: ties stay in checklist position, never by name (checklistBuilder._multipleSystemsAbout)
+    function reportKey(n){ return n.replace(/^Cooling System (?=#)/,'Outside Utilities '); } // a cooling copy sorts right after Outside Utilities (checklistBuilder._multipleSystemsAbout)
+    done.sort(function(a,b){ return secNum(a)-secNum(b) || reportKey(a).localeCompare(reportKey(b),undefined,{numeric:true}); });
     if(!done.length){ host.innerHTML='<div class="binforow"><span style="color:var(--ink-3)">No sections completed yet</span></div>'; return; }
     var h=''; done.forEach(function(n){ var num=secNum(n)>=99?'&mdash;':('0'+secNum(n)).slice(-2); h+='<div class="binforow"><span><b style="font-family:var(--fm);color:var(--brand-deep);margin-right:8px">'+num+'</b>'+n+'</span><span class="pill done"><span class="d"></span>Included</span></div>'; });
     host.innerHTML=h;
