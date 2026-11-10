@@ -1,6 +1,6 @@
 {
  "_about": "VIMS shared checklist + configuration data. Single source of truth for the native iOS (SwiftUI) and Android (Kotlin/Compose) apps. Extracted from the client-approved prototype (index.html, approved Sep 15, 2026). Edit here, not in app code.",
- "version": "1.21.0",
+ "version": "1.22.0",
  "generated": "2026-11-04",
  "depths": [
   {
@@ -32693,27 +32693,27 @@
    }
   ],
   "exteriorOptions": [
-   "Pool House & Pool",
+   "Detached Garage",
    "Outbuilding – Shed",
    "Outbuilding – Car Port",
-   "Deck",
-   "Patio",
-   "Balcony",
-   "Detached Garage",
    "Condo",
-   "Mobile Home Undercarriage"
+   "Patio",
+   "Deck",
+   "Balcony",
+   "Mobile Home Undercarriage",
+   "Pool House & Pool"
   ],
   "roomOptions": [
+   "Attic",
+   "Garage",
    "Living Room",
+   "Dining Room",
+   "Laundry Room",
+   "Kitchen",
    "Family Room",
    "Den / Home Office",
    "Reception",
-   "Kitchen",
-   "Dining Room",
-   "Laundry Room",
    "Storage Room",
-   "Attic",
-   "Garage",
    "Additional Living Space"
   ],
   "utilityOptions": [
@@ -32876,7 +32876,8 @@
    "layout": "Each option is a chip with its $ box beside it. Two pairs per row on tablets (as the client's mockup), one pair per row on phones. No horizontal overflow on the smallest phone."
   },
   "_roomCountsAbout": "Client Nov 6: wizard step 3 Room counts gains Kitchen, HVAC Units, Water Heaters and Electrical Panels, in this order, same stepper as Bedrooms (maximum 12). Each default is in wizard.defaults. A saved inspection with no value for a new key reads hvacUnits / waterHeaters / electricalPanels as 1 and kitchens as 1 when rooms has Kitchen, else 0, so its checklist does not change. syncsRoom: the Kitchen chip under Interior rooms stays and mirrors the stepper. Stepper at 0 turns the chip off; turning the chip on sets 1; turning it off sets 0. No Room or database change: counts is the existing map.",
-  "_warrantyAbout": "Client Nov 9: Warranty is an inspection type. It has no phaseTypes entry, so it builds the standard layout, the same checklists as Real Estate Sale."
+  "_warrantyAbout": "Client Nov 9: Warranty is an inspection type. It has no phaseTypes entry, so it builds the standard layout, the same checklists as Real Estate Sale.",
+  "_chipOrderAbout": "Client Nov 10 (real inspection): wizard step 3 chips reordered so the most used sit together. Chip order only: the checklist and report order stay as they were (checklistBuilder.checklistOrder.exterior and the standardLayout interior order)."
  },
  "findings": {
   "categories": [
@@ -33246,9 +33247,9 @@
    {
     "id": "app",
     "name": "App only",
-    "price": 34.95,
+    "price": 34.99,
     "desc": "Inspection app · iOS & Android",
-    "priceYearly": 385
+    "priceYearly": 384.99
    },
    {
     "id": "portal",
@@ -33261,9 +33262,9 @@
    {
     "id": "payg",
     "name": "Pay per report",
-    "price": 5,
+    "price": 4.99,
     "unit": "/report",
-    "desc": "No monthly fee · $5.00 per report",
+    "desc": "No monthly fee · pay per report",
     "perReport": true
    }
   ],
@@ -33299,7 +33300,8 @@
    "plansScreen": "App only: Monthly and Yearly at store prices; Pay per report at the store price; Portal + App stays Coming soon and not purchasable. Each purchasable option shows title, length and price before buying, plus: 'Payment is charged to your Apple Account / Google Play account. Subscriptions renew automatically unless canceled at least 24 hours before the end of the current period. Manage or cancel in your account settings.' Includes Restore Purchases, Manage subscription (store's own screen), and links to the License agreement (in-app) and Privacy Policy (https://vimsinspect.com/privacy.html). If prices can't load: 'Plans can't load right now. Check your connection and try again.' with Try again.",
    "removed": "Card form, card on file, seats and extra-inspector pricing on Subscribe, in-app cancel and undo, pro-rated refund text, and any wording that names Square. Keep them out of reach rather than leaving dead screens.",
    "deleteAccount": "Replace 'Your subscription is cancelled (no further charges)' with: 'Deleting your account doesn't cancel your subscription. Cancel it in your Apple Account settings.' on iOS, 'Google Play account settings' on Android (Apple guideline 2.3.10: no other platforms in the iOS app) plus a Manage subscription link."
-  }
+  },
+  "_storePricesAbout": "Client Nov 10 approved the store prices: App only $34.99/month or $384.99/year, Pay per report $4.99 (Apple and Google price points). plans[].price is reference only; the apps show the store's price."
  },
  "support": {
   "feedbackEmail": "support@vimsinspect.com",

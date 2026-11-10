@@ -285,6 +285,15 @@ class Nov6MultipleSystemsTest {
     private fun form(i: AgreementFillInput) = AgreementFill.apply(TestData.pieces, TestData.prefill, i).filterIsInstance<AgreementPiece.Form>().single().lines
     private fun line(lines: List<String>, part: String) = lines.first { part in it }
 
+    @Test fun chipOrder_nov10_doesNotMoveTheChecklist() {
+        assertEquals("Detached Garage", config.wizard.exteriorOptions.first())
+        assertEquals("Attic", config.wizard.roomOptions.first())
+        val all = base().copy(exterior = config.wizard.exteriorOptions, rooms = config.wizard.roomOptions)
+        assertEquals(config.checklistBuilder.checklistOrder.exterior.filter { it != "Chimney" }, exteriorOf(all).filter { it in config.wizard.exteriorOptions })
+        val interior = interiorOf(all)
+        assertTrue(interior.indexOf("Garage") < interior.indexOf("Living Room") && interior.indexOf("Kitchen") < interior.indexOf("Dining Room"))
+    }
+
     @Test fun warranty_buildsTheRealEstateSaleChecklist_andTicksItsBox() {
         assertTrue("Warranty" in config.wizard.inspectionTypes)
         assertEquals(sections(base()), sections(base().copy(inspType = "Warranty")))
