@@ -4241,7 +4241,8 @@ SEC['Wind Mitigation'].itemsHigh=[
   var COMPONENT_OPT=['Roof','HVAC','Electrical','Plumbing'];
   var STRUCTURE_TYPES=['Single Family','Duplex','Multi-Unit','Townhouse','Condo','Mobile Home','Manufactured Home'];
   var LEGACY_MOBILE='Mobile / Manufactured'; // client Nov 4 split: a saved inspection keeps this until someone picks a type; Mobile Home is highlighted for it and its agreement ticks neither box
-  var EXT_OPT=['Pool House & Pool','Outbuilding – Shed','Outbuilding – Car Port','Deck','Patio','Balcony','Detached Garage','Condo','Mobile Home Undercarriage'];
+  var EXT_OPT=['Detached Garage','Outbuilding – Shed','Outbuilding – Car Port','Condo','Patio','Deck','Balcony','Mobile Home Undercarriage','Pool House & Pool']; // wizard chip order (client Nov 10)
+  var EXT_ORDER=['Pool House & Pool','Outbuilding – Shed','Outbuilding – Car Port','Deck','Patio','Balcony','Detached Garage','Condo','Mobile Home Undercarriage']; // checklist order: checklistBuilder.checklistOrder.exterior, unchanged
   // master-checklist section numbers (drives report order — feedback item 13)
   var NUM={'Inspection Info':1,'Landscaping':2,'Condo':3,'Pool House & Pool':3,'Additional Living Space':4,'Outbuilding – Shed':5,'Outbuilding – Car Port':6,'Mobile Home Undercarriage':7,'Roof':8,'Exterior Walls':10,'Outside Utilities':11,'Cooling System':11,'Deck':12,'Patio':12,'Balcony':13,'Garage':14,'Detached Garage':14,'Attic':15,'Bathroom':16,'Bedroom':17,'Hallway':18,'Living Room':19,'Reception':20,'Den / Home Office':21,'Family Room':22,'Kitchen':23,'Dining Room':24,'Laundry Room':25,'Storage Room':26,'Utility Room':26,'Electrical':27,'HVAC Mechanical':28,'Heating Oil Tank':29,'Boiler':30,'Water Heater':31,'Plumbing':32,'Foundation / Crawl Space':33,'Radon':34,'Meth Test':35,'Thermal Audit':36,'Termite':37,'Lead':38,'Indoor Air Quality':39,'Septic':40,'Wind Mitigation':41,'Chimney':42,'Sewer Scope':40,'Asbestos':37,'Summary':43};
   NUM['Propane Tank']=30;
@@ -4286,7 +4287,7 @@ SEC['Wind Mitigation'].itemsHigh=[
   NUM["4-Point — Roof"]=4;
   NUM["4-Point — Pictures"]=5;
   function secNum(n){ var b=baseName(n); return NUM[b]||99; }
-  var ROOM_OPT=['Living Room','Family Room','Den / Home Office','Reception','Kitchen','Dining Room','Laundry Room','Storage Room','Attic','Garage','Additional Living Space'];
+  var ROOM_OPT=['Attic','Garage','Living Room','Dining Room','Laundry Room','Kitchen','Family Room','Den / Home Office','Reception','Storage Room','Additional Living Space']; // wizard chip order (client Nov 10); the checklist keeps buildGroups' own order
   var UTIL_OPT=['Chimney','Heating Oil Tank','Propane Tank','Boiler'];
   var TEST_OPT=['Radon','Indoor Air Quality','Lead','Asbestos','Meth Test','Thermal Audit','Sewer Scope','Wind Mitigation','Septic','Termite'];
   var CUSTOM={Exterior:[],Interior:[],Utility:[],Testing:[]}; // admin-added sections
@@ -4336,7 +4337,7 @@ SEC['Wind Mitigation'].itemsHigh=[
     }
     var ext=['Landscaping','Roof','Exterior Walls','Outside Utilities'].concat(repeatHashFrom2('Cooling System',sel.hvacUnits));
     if(sel.utilOpt['Chimney']) ext.push('Chimney'); // only the chip moved: same checklist section, same place in the checklist and the report (wizard._chimneyAbout)
-    EXT_OPT.forEach(function(k){ if(sel.exterior[k]) ext.push(k); });
+    EXT_ORDER.forEach(function(k){ if(sel.exterior[k]) ext.push(k); });
     var interior=[];
     if(sel.rooms['Garage']) interior.push('Garage');
     if(sel.rooms['Attic']) interior.push('Attic');
