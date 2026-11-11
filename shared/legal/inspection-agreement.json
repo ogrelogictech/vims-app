@@ -1,7 +1,7 @@
 {
- "_about": "Client-supplied VIMS default Home Inspection Agreement for all 50 states ('VIMS Home Inspection Agreement - App for all 50 states.docx', final version received Oct 25, 2026; first draft Oct 5), reproduced verbatim except '{companyName}' replaces the hard-coded 'Vision Property Inspections' (filled with the company's name at display time). Used as the default inspection agreement for every company unless they upload their own (Company profile). 'stateDisclosures' is keyed by state code; when shown for a specific inspection, display only that state's entry (all states when viewed from Company profile). No in-app e-signature in Phase 1 (deferred add-on).",
+ "_about": "Client-supplied VIMS default Home Inspection Agreement for all 50 states ('VIMS Home Inspection Agreement - App for all 50 states.docx', final version received Oct 25, 2026; first draft Oct 5), reproduced verbatim except '{companyName}' replaces the hard-coded 'Vision Property Inspections' (filled with the company's name at display time). Used as the default inspection agreement for every company unless they upload their own (Company profile). 'stateDisclosures' is keyed by state code; when shown for a specific inspection, display only that state's entry (all states when viewed from Company profile). No in-app e-signature in Phase 1 (deferred add-on). Client Nov 11, 2026 revision ('VIMS Home Inspection Agreement - App for all 50 states.docx'): Cancellation on day of inspection clause after Severability, report ready within 5 business days or less depending on state requirements (the separate 5-business-days line removed), lettered items B to D renumbered, typo fixes, Illinois disclosure corrected.",
  "title": "Inspection Agreement",
- "version": "2026-11-06",
+ "version": "2026-11-11",
  "status": "final — client approved Oct 25, 2026",
  "header": [
   "Company Name Company Logo",
@@ -94,7 +94,7 @@
   },
   {
    "t": "li",
-   "text": "The written inspection report will be ready by the end of the next business day, after the inspection fee is paid."
+   "text": "The written inspection report will be ready within 5 business days or less depending on state requirements."
   },
   {
    "t": "li",
@@ -111,10 +111,6 @@
   {
    "t": "li",
    "text": "The inspector does not provide Structural strength, adequacy, or efficiency of any system or component."
-  },
-  {
-   "t": "li",
-   "text": "The written inspection report will be delivered to the client within 5 business days of the inspections."
   },
   {
    "t": "p",
@@ -152,17 +148,17 @@
   },
   {
    "t": "p",
-   "text": "C. If there is a claim of missed defect, the client agrees to allow the inspection company in writing and to allow the company to reinspect and or make offer to repair or pay for the defect before changing the condition of the problem (except in an emergency) and before taking any insurance or legal action. to re-inspect. Failure to allow the inspection company the opportunity to re-inspect, as required above, shall constitute a waiver of any and all claims client may have against the Company.",
+   "text": "B. If there is a claim of missed defect, the client agrees to allow the inspection company in writing and to allow the company to reinspect and or make offer to repair or pay for the defect before changing the condition of the problem (except in an emergency) and before taking any insurance or legal action. to re-inspect. Failure to allow the inspection company the opportunity to re-inspect, as required above, shall constitute a waiver of any and all claims client may have against the Company.",
    "lead": true
   },
   {
    "t": "p",
-   "text": "D. The Client agrees that, to the extent allowed by law, any damages or breach of this contract or report are limited to the amount of the inspection fee only. Furthermore, the Client agrees to pay all attorney fees should the Client pursue a civil action against the Company, and fail to prevail.",
+   "text": "C. The Client agrees that, to the extent allowed by law, any damages or breach of this contract or report are limited to the amount of the inspection fee only. Furthermore, the Client agrees to pay all attorney fees should the Client pursue a civil action against the Company, and fail to prevail.",
    "lead": true
   },
   {
    "t": "p",
-   "text": "E. The Client agrees that this agreement represents the entire agreement between the parties. No oral agreements, understandings or representations shall change, modify or amend any part of this agreement. No change or modification shall be enforceable against any party unless such changes or modifications are in writing and signed by the parties and supported by valid consideration.",
+   "text": "D. The Client agrees that this agreement represents the entire agreement between the parties. No oral agreements, understandings or representations shall change, modify or amend any part of this agreement. No change or modification shall be enforceable against any party unless such changes or modifications are in writing and signed by the parties and supported by valid consideration.",
    "lead": true
   },
   {
@@ -172,12 +168,12 @@
   },
   {
    "t": "p",
-   "text": "REAPIRS TO THE PROPERTY: The inspector is barred from conducting paid repairs to the property for any defects discovered in the inspection for a period of 12 months.",
+   "text": "REPAIRS TO THE PROPERTY: The inspector is barred from conducting paid repairs to the property for any defects discovered in the inspection for a period of 12 months.",
    "lead": true
   },
   {
    "t": "p",
-   "text": "LIMITATION OF LIABILITY: It is understood and agreed that the Company, is not an insurer and that the inspection and report are not to be intended or construed as a guarantee or warranty of the adequacy, performance or condition of any structure, item or system at the property address. The Client hereby releases and exempts the Company and its agents and employees from any and all liability and responsibility for the cost of repairing or replacing any unreported defect or deficiency in excess of 2X the cost of the inspection report, and for any consequential damage, property damage, or personal injury of any nature.",
+   "text": "LIMITATION OF LIABILITY: It is understood and agreed that the Company, is not an insurer and that the inspection and report(S) are not to be intended or construed as a guarantee or warranty of the adequacy, performance or condition of any structure, item or system at the property address. The Client hereby releases and exempts the Company and its agents and employees from any and all liability and responsibility for the cost of repairing or replacing any unreported defect or deficiency in excess of 2X the cost of the inspection report, and for any consequential damage, property damage, or personal injury of any nature.",
    "lead": true
   },
   {
@@ -190,7 +186,7 @@
   "AL": "The visual examination follows the Alabama Administrative Code Standards of Practice. Alabama is a high moisture area and special attention should be paid for areas like crawlspaces and roof shingles. Dispute resolution will utilize the American Arbitration Associations standards.",
   "AK": "Reports are valid for 180 from the date signed and dated by the inspector. This is cold weather area and special attention should be paid for Permafrost shifting, ice damming and extreme freeze/thaw cycle damage.",
   "CA": "Statute of limitation for claims. Any and all legal action must be entered into within 4 years of the date of the inspection.",
-  "IL": "the inspection will comply, at minimum, with the Florida state standard of Practice. The written reports must be provided to the client within 2 business days of the inspection.",
+  "IL": "The written reports must be provided to the client within 2 business days of the inspection.",
   "IN": "Statute of Limitation for claims: Any legal action for damages must be filed within 2 years of the date of the action accrues.",
   "IA": "Inspection cannot provide repair estimates as a part of the inspection report. Repair estimate must be a independent report and must cite the source of the estimate and clearly states the cost.",
   "KS": "The inspection will follow the Kansas registration board standards for a visual, non-invasive inspection of readily accessible systems. Liability is limited to the base amount of the inspection fee.",
@@ -215,11 +211,15 @@
   },
   {
    "t": "p",
-   "text": "SEVERABILITY - It is agreed that if any part of this agreement is found to be unenforceable by a court are arbitrator that the remainder of the agreement will remain in force."
+   "text": "SEVERABILITY - It is agreed that if any part of this agreement is found to be unenforceable by a court or arbitrator that the remainder of the agreement will remain in force."
   },
   {
    "t": "p",
-   "text": "Non-Payment - If payment is made by check and the check is returned by your back, there will be a $50 Fee assessed to your account balance. If payment is not tendered it will be added to your closing costs. If closing does not occur, a service fee of 100% of the amount due will be added to your account and the account will be sent to collections."
+   "text": "Cancellation on day of inspection – If the inspection is canceled on the day of the inspection a fee totaling __________% of the amount of the inspection will be charged."
+  },
+  {
+   "t": "p",
+   "text": "Non-Payment - If payment is made by check and the check is returned by your bank; there will be a $50 Fee assessed to your account balance. If payment is not tendered it will be added to your closing costs. If closing does not occur, a service fee of 100% of the amount due will be added to your account and the account will be sent to collections."
   },
   {
    "t": "p",
@@ -243,7 +243,7 @@
   },
   {
    "t": "p",
-   "text": "ACKNOWLEDGEMENT: I, the undersigned, have carefully read the preceding Inspection Agreement and scop of inspection. I understand and agree with the limitations and terms described.",
+   "text": "ACKNOWLEDGEMENT: I, the undersigned, have carefully read the preceding Inspection Agreement and scope of inspection. I understand and agree with the limitations and terms described.",
    "lead": true
   },
   {
