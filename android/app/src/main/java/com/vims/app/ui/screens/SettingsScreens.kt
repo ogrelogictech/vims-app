@@ -326,6 +326,10 @@ fun CompanyScreen(vm: AppViewModel, nav: NavHostController) {
             if (admin) VBtn(if (own != null) "Replace" else "Upload your own", { docPicker.launch(arrayOf("application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "image/*")) },
                 Modifier.padding(top = 12.dp), BtnKind.Ghost, icon = VIcons.upload, minHeight = 48.dp)
         }
+        // Client Nov 11 (`agreementPrefill._cancellationFeeAbout`): optional, fills the agreement's day-of cancellation blank.
+        // A whole number 0 to 100 ("007" reads 7); blank = null, the underscores stay.
+        VField("Day-of cancellation fee (%)", p.cancellationFeePercent?.toString().orEmpty(), { v -> set { it.copy(cancellationFeePercent = v.toIntOrNull()) } }, Modifier.padding(top = 11.dp),
+            placeholder = "e.g. 25", keyboard = KeyboardType.Number, filter = Filters::percent)
         VBtn("Save profile", { if (form.submit()) vm.saveCompany(p.copy(logoFile = saved.logoFile, agreementName = saved.agreementName, agreementFile = saved.agreementFile)) }, icon = VIcons.check)
     }
 }
@@ -346,6 +350,7 @@ private fun CompanyReadOnly(vm: AppViewModel, nav: NavHostController, c: Company
         Lbl("Company details")
         Column(Modifier.padding(bottom = 12.dp).fillMaxWidth().vCard()) {
             val rows = listOf("Company name" to c.name, "Address" to c.address, "Lead inspector" to c.inspectorName, "License #" to c.license, "License state" to vm.config.stateName(c.licenseState),
+                "Day-of cancellation fee" to c.cancellationFee.let { if (it.isEmpty()) it else "$it%" },
                 "Phone" to com.vims.app.util.formatPhone(c.phone.filter { it.isDigit() }).ifBlank { c.phone }, "Email" to c.email, "Review URL" to c.reviewUrl)
             rows.forEachIndexed { i, (k, v) ->
                 com.vims.app.ui.components.BinfoRow(label = { Text(k, style = T.ui(13.5.sp, color = V.ink3)) },

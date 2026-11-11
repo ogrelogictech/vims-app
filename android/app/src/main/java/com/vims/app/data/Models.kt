@@ -180,6 +180,12 @@ data class CompanyProfile(
     val license: String = "",
     /** Client Nov 4 (`wizard._licenseStateAbout`): the state code of [license], optional. Prefills wizard step 1, like [license]. */
     val licenseState: String = "",
+    /**
+     * Client Nov 11 (`agreementPrefill._cancellationFeeAbout`): Day-of cancellation fee (%), a whole number from 0 to 100, optional
+     * (null = blank). Fills the agreement's "a fee totaling ____%" blank. Company-wide; there is no per-inspection field.
+     * Part of profileJson, so a profile saved before reads null: no database change.
+     */
+    val cancellationFeePercent: Int? = null,
     val phone: String = "",
     val email: String = "",
     val reviewUrl: String = "",
@@ -196,6 +202,13 @@ data class CompanyProfile(
     /** When [agreementText] was last saved (epoch ms). */
     @kotlinx.serialization.Transient val agreementEditedAt: Long? = null,
 ) {
+    /** [cancellationFeePercent] as the agreement prints it ("25"; the agreement already has the %), or "" (blank: the underscores stay). */
+    val cancellationFee: String get() = cancellationFeePercent?.takeIf { it in 0..CANCELLATION_FEE_MAX }?.toString().orEmpty()
+
+    companion object {
+        const val CANCELLATION_FEE_MAX = 100
+    }
+
     /** The company's own uploaded agreement file name, or null. */
     val uploadedAgreement: String? get() = agreementName?.takeIf { agreementFile != null }
     /** The edited agreement text in use, or null (an upload always wins over a stale edit). */
@@ -269,10 +282,11 @@ data class WizardSelections(
     fun chip(label: String): String = chips[label].orEmpty()
     /**
      * A wizard count. Client Nov 6 (`wizard._roomCountsAbout`): an inspection saved before these counts existed has no value for
-     * them, so HVAC Units / Water Heaters / Electrical Panels read 1 (never 0) and Kitchen reads from its chip: its checklist doesn't change.
+     * them, so HVAC Units / Water Heaters / Electrical Panels read 1 and Kitchen reads from its chip: its checklist doesn't change.
+     * Client Nov 11: a stored 0 for HVAC Units / Water Heaters / Electrical Panels reads 0 (that section is left out), like Kitchen.
      */
     fun count(key: String): Int = when {
-        key in AT_LEAST_ONE_COUNTS -> (counts[key] ?: 1).coerceAtLeast(1)
+        key in SYSTEM_COUNTS -> (counts[key] ?: 1).coerceAtLeast(0)
         key == KITCHENS -> counts[key] ?: if (KITCHEN in rooms) 1 else 0
         else -> counts[key] ?: 0
     }
@@ -353,7 +367,8 @@ data class WizardSelections(
         /** Client Nov 6 (`wizard.roomCounts`): the counts a saved inspection doesn't have, see [count]. */
         const val KITCHENS = "kitchens"
         const val KITCHEN = "Kitchen"
-        val AT_LEAST_ONE_COUNTS = setOf("hvacUnits", "waterHeaters", "electricalPanels")
+        /** HVAC Units, Water Heaters, Electrical Panels: missing reads 1 (saved before Nov 6), 0 leaves the section out (Nov 11). */
+        val SYSTEM_COUNTS = setOf("hvacUnits", "waterHeaters", "electricalPanels")
         /** Stored value before Mobile Home / Manufactured Home split (`wizard._structureLegacyAbout`); the wizard highlights Mobile Home for it. */
         const val STRUCTURE_LEGACY_MOBILE = "Mobile / Manufactured"
         const val STRUCTURE_MOBILE = "Mobile Home"

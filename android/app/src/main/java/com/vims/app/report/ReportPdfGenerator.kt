@@ -575,7 +575,7 @@ class ReportPdfGenerator(private val context: Context, private val config: Check
             "Garage" to garage, "Car port" to s.chip("Car port"),
         )
         // Client Nov 6: Kitchen is one of the counts now. HVAC Units, Water Heaters and Electrical Panels aren't used by the locked layouts (`wizard.areasLockedTypes`).
-        config.wizard.roomCounts.filterNot { config.wizard.areasLocked(s.inspType) && it.key in WizardSelections.AT_LEAST_ONE_COUNTS }
+        config.wizard.roomCounts.filterNot { config.wizard.areasLocked(s.inspType) && it.key in WizardSelections.SYSTEM_COUNTS }
             .forEach { rows += it.label to s.count(it.key).toString() }
         rows += "Checklist depth" to config.depthLabel(s.depth)
         if (s.structure == "Multi-Unit") s.unitMix.filter { it.value > 0 }.forEach { (k, v) -> rows += "Units · $k" to v.toString() }

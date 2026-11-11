@@ -68,6 +68,8 @@ object Filters {
     fun license(v: String) = base(v.filter { it.isLetterOrDigit() || it == ' ' || it == '-' }, 20)
     fun policy(v: String) = v.filter { it.isLetterOrDigit() || it == '-' }.take(30)
     fun year(v: String) = v.filter { it.isDigit() }.take(4)
+    /** Client Nov 11: Day-of cancellation fee (%), a whole number 0 to 100 (digits only; above 100 becomes 100, as the prototype). */
+    fun percent(v: String): String = v.filter { it.isDigit() }.take(3).let { d -> d.toIntOrNull()?.let { if (it > 100) "100" else d } ?: d }
     /** Digits + one decimal point (sq ft, valuation, lot size, amps, `num` checklist items). */
     fun decimal(v: String, max: Int = 12): String {
         val sb = StringBuilder(); var dot = false

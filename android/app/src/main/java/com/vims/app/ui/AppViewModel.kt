@@ -784,7 +784,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         } ?: agreement.pieces(c.name, state, config::stateName)
         // Data v1.15 agreementPrefill: opened from an inspection (wizard / inspection screen) → filled in. Not when the company
         // uses its own uploaded agreement (the VIMS text is then only shown for reference; the upload is what gets emailed).
-        return if (fill == null || c.uploadedAgreement != null) pieces else com.vims.app.data.AgreementFill.apply(pieces, config.agreementPrefill, fill)
+        // Client Nov 11: the Day-of cancellation fee comes from this company profile (viewer and PDF alike), not the inspection.
+        return if (fill == null || c.uploadedAgreement != null) pieces
+        else com.vims.app.data.AgreementFill.apply(pieces, config.agreementPrefill, com.vims.app.data.AgreementFill.withCompany(fill, c))
     }
 
     /**

@@ -33,7 +33,8 @@ class Nov6MultipleSystemsTest {
     @Test fun roomCounts_minAndSync() {
         assertEquals(0, rc("kitchens").min)
         assertEquals("Kitchen", rc("kitchens").syncsRoom)
-        listOf("hvacUnits", "waterHeaters", "electricalPanels").forEach { assertEquals(1, rc(it).min) }
+        // Client Nov 11 (shared v1.23.0): HVAC Units, Water Heaters and Electrical Panels go down to 0 too, see Nov11ZeroSystemsAndCancellationFeeTest.
+        listOf("hvacUnits", "waterHeaters", "electricalPanels").forEach { assertEquals(0, rc(it).min) }
         assertNull(rc("bedrooms").min)
     }
 
@@ -105,8 +106,9 @@ class Nov6MultipleSystemsTest {
         assertEquals(0, legacy(rooms = legacy().rooms - "Kitchen").count("kitchens"))
     }
 
-    @Test fun legacy_savedZeroNeverReadsZero_forTheAtLeastOneCounts() {
-        assertEquals(1, base().copy(counts = mapOf("hvacUnits" to 0)).count("hvacUnits"))
+    @Test fun legacy_missingReadsOne_butASavedZeroReadsZero_sinceNov11() {
+        assertEquals(1, base().copy(counts = emptyMap()).count("hvacUnits"))
+        assertEquals(0, base().copy(counts = mapOf("hvacUnits" to 0)).count("hvacUnits"))
     }
 
     @Test fun legacy_checklistIsIdenticalToWhat031Built() {
@@ -269,7 +271,8 @@ class Nov6MultipleSystemsTest {
     }
 
     @Test fun steppers_respectMinAndMax() {
-        assertEquals(1, base().withRoomCount(rc("hvacUnits"), 0).count("hvacUnits"))
+        assertEquals(0, base().withRoomCount(rc("hvacUnits"), 0).count("hvacUnits"))
+        assertEquals(0, base().withRoomCount(rc("hvacUnits"), -1).count("hvacUnits"))
         assertEquals(12, base().withRoomCount(rc("electricalPanels"), 40).count("electricalPanels"))
     }
 

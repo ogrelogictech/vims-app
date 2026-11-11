@@ -115,6 +115,11 @@ data class AgreementFillInput(
     val inspectionFee: String = "",
     val bundled: String = "",
     val total: String = "",
+    /**
+     * Client Nov 11 (`agreementPrefill._cancellationFeeAbout`): Company profile > Day-of cancellation fee (%), the number only
+     * ("25"; the agreement prints the %), "" = blank. From the company, never the inspection ([CompanyProfile.cancellationFee]).
+     */
+    val cancellationFee: String = "",
 )
 
 object AgreementFill {
@@ -165,6 +170,9 @@ object AgreementFill {
         )
     }
 
+    /** Client Nov 11: the company-wide values (Day-of cancellation fee) added to an inspection's [i]. Used by the viewer and the PDF. */
+    fun withCompany(i: AgreementFillInput, c: CompanyProfile): AgreementFillInput = i.copy(cancellationFee = c.cancellationFee)
+
     /** The value for a spec line, keyed by its label (the data's `value` is a description). Unknown label = nothing filled. */
     fun value(label: String, i: AgreementFillInput): String = when (label) {
         "Clients Name", "Printed Name of Client:" -> i.clientName
@@ -183,6 +191,7 @@ object AgreementFill {
         "Inspection Fee $" -> i.inspectionFee
         "Bundled Services $" -> i.bundled
         "Total Amount Due $" -> i.total
+        "a fee totaling" -> i.cancellationFee
         else -> ""
     }.trim()
 
