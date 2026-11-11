@@ -1,6 +1,6 @@
 {
  "_about": "VIMS shared checklist + configuration data. Single source of truth for the native iOS (SwiftUI) and Android (Kotlin/Compose) apps. Extracted from the client-approved prototype (index.html, approved Sep 15, 2026). Edit here, not in app code.",
- "version": "1.22.0",
+ "version": "1.23.0",
  "generated": "2026-11-04",
  "depths": [
   {
@@ -32756,17 +32756,17 @@
    {
     "key": "hvacUnits",
     "label": "HVAC Units",
-    "min": 1
+    "min": 0
    },
    {
     "key": "waterHeaters",
     "label": "Water Heaters",
-    "min": 1
+    "min": 0
    },
    {
     "key": "electricalPanels",
     "label": "Electrical Panels",
-    "min": 1
+    "min": 0
    }
   ],
   "defaults": {
@@ -32875,7 +32875,7 @@
    "saved": "Stored per inspection (option key -> amount, plus the inspection fee) as an optional field: older inspections open with no amounts and nothing changes. Editable later from Inspection info.",
    "layout": "Each option is a chip with its $ box beside it. Two pairs per row on tablets (as the client's mockup), one pair per row on phones. No horizontal overflow on the smallest phone."
   },
-  "_roomCountsAbout": "Client Nov 6: wizard step 3 Room counts gains Kitchen, HVAC Units, Water Heaters and Electrical Panels, in this order, same stepper as Bedrooms (maximum 12). Each default is in wizard.defaults. A saved inspection with no value for a new key reads hvacUnits / waterHeaters / electricalPanels as 1 and kitchens as 1 when rooms has Kitchen, else 0, so its checklist does not change. syncsRoom: the Kitchen chip under Interior rooms stays and mirrors the stepper. Stepper at 0 turns the chip off; turning the chip on sets 1; turning it off sets 0. No Room or database change: counts is the existing map.",
+  "_roomCountsAbout": "Client Nov 6: wizard step 3 Room counts gains Kitchen, HVAC Units, Water Heaters and Electrical Panels, in this order, same stepper as Bedrooms (maximum 12). Each default is in wizard.defaults. A saved inspection with no value for a new key reads hvacUnits / waterHeaters / electricalPanels as 1 and kitchens as 1 when rooms has Kitchen, else 0, so its checklist does not change. syncsRoom: the Kitchen chip under Interior rooms stays and mirrors the stepper. Stepper at 0 turns the chip off; turning the chip on sets 1; turning it off sets 0. No Room or database change: counts is the existing map. Client Nov 11: HVAC Units, Water Heaters and Electrical Panels can also go to 0, like Kitchen; at 0 that section (and any Cooling System copy) is left out of the checklist and report. A saved inspection with no value still reads 1.",
   "_warrantyAbout": "Client Nov 9: Warranty is an inspection type. It has no phaseTypes entry, so it builds the standard layout, the same checklists as Real Estate Sale.",
   "_chipOrderAbout": "Client Nov 10 (real inspection): wizard step 3 chips reordered so the most used sit together. Chip order only: the checklist and report order stay as they were (checklistBuilder.checklistOrder.exterior and the standardLayout interior order)."
  },
@@ -33869,6 +33869,11 @@
     "part": "closing",
     "label": "Printed Name of Client:",
     "value": "client name"
+   },
+   {
+    "part": "closing",
+    "label": "a fee totaling",
+    "value": "Company profile > Day-of cancellation fee (%), the number only (the agreement already prints the %). Blank leaves the underscores."
    }
   ],
   "leftBlank": [
@@ -34108,6 +34113,7 @@
    "noMailApp": "If the device can't send mail (no mail account), fall back to the share sheet with the same attachments, as the report email does.",
    "ownAgreement": "Company uses its own uploaded agreement: the button attaches that uploaded file unchanged (it can't be filled in) plus the state documents; small note above the button: 'Your own agreement is attached as uploaded. It can't be filled in automatically.' Same To / subject / body.",
    "afterSend": "Nothing is stored; no status changes. Toast 'Agreement ready to send' is NOT shown — the composer itself is the feedback."
-  }
+  },
+  "_cancellationFeeAbout": "Client Nov 11: Company profile gains an optional 'Day-of cancellation fee (%)', a whole number from 0 to 100, set once by the company admin, same pattern as License state. It fills the blank in the agreement's 'Cancellation on day of inspection' paragraph ('...a fee totaling __________% of the amount of the inspection will be charged.'), giving '...a fee totaling 25% of...'. There is no per-inspection field. A company's own edited agreement without that wording is skipped silently, like every other fill line."
  }
 }
