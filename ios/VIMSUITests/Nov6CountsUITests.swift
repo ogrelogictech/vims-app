@@ -94,9 +94,10 @@ final class Nov6CountsUITests: XCTestCase {
             XCTAssertEqual(count(app, l), v, l)
         }
         shot("11-step3-counts")
-        XCTAssertFalse(minus(app, "HVAC Units").isEnabled, "minimum 1")
-        XCTAssertFalse(minus(app, "Water Heaters").isEnabled)
-        XCTAssertFalse(minus(app, "Electrical Panels").isEnabled)
+        // Client Nov 11 (shared v1.23): all four go down to 0 (Nov11CountsUITests builds a checklist at 0).
+        XCTAssertTrue(minus(app, "HVAC Units").isEnabled, "minimum 0")
+        XCTAssertTrue(minus(app, "Water Heaters").isEnabled, "minimum 0")
+        XCTAssertTrue(minus(app, "Electrical Panels").isEnabled, "minimum 0")
         XCTAssertTrue(minus(app, "Kitchen").isEnabled, "minimum 0")
 
         scrollTo(chip(app, "Kitchen"), in: app)

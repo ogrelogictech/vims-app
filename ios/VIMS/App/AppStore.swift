@@ -223,7 +223,8 @@ final class AppStore {
     /// inspection, or the wizard's draft (every step's current values, nothing saved). Inspector = the signed-in account.
     func agreementFill(_ insp: Inspection) -> AgreementFill {
         AgreementFill.make(insp, spec: config.agreementPrefill, wizard: config.wizard,
-                           inspectorName: session?.name ?? currentUser?.name ?? "")
+                           inspectorName: session?.name ?? currentUser?.name ?? "",
+                           cancellationFeePercent: company.cancellationFeePercent)
     }
 
     /// The signed-in inspector's own email, CC'd on every emailed report (data v1.3 `support.ccInspector`).

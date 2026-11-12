@@ -123,6 +123,7 @@ struct DebugDisplayScale: ViewModifier {
 ///   -wizScroll ID              scroll the wizard to a block (sendToAgent, State, fee-Radon)
 ///   -nov5Wizard / -nov5Agreement / -nov5Status / -nov5WritePDF  client Nov 4 checks, see DebugNov5.swift
 ///   -nov6Wizard / -nov6Agreement TYPE / -nov6Fill / -nov6Status  client Nov 6 checks, see DebugNov6.swift
+///   -nov11Zero / -nov11Fee N|clear / -nov11Status  client Nov 11 checks, see DebugNov11.swift
 ///   -ownAgreement NAME         use bundled NAME.pdf as the company's own uploaded agreement (same path as Upload your own)
 ///   -useVimsAgreement          revert the company to the VIMS agreement
 ///   -editedAgreement           give the company an edited copy of the VIMS agreement (same path as Edit → Save)
@@ -1017,9 +1018,11 @@ enum DebugLaunch {
         oct30cStatus(store, id)
         id = nov5Seed(store, id)
         id = nov6Seed(store, id)
+        id = nov11Seed(store, id)
         nov5Status(store, id)
         nov6Fill(store, id)
         nov6Status(store, id)
+        nov11Status(store, id)
         let depth = store.inspection(id)?.depth ?? .standard
         let section = value("-section") ?? (ridge.leafSections.contains("Roof") ? (depth == .high ? "Outside Utilities" : "Roof") : (ridge.leafSections.first ?? "Roof"))
 

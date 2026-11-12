@@ -753,11 +753,14 @@ struct Inspection: Codable, Hashable, Identifiable {
 
     // Client Nov 6 (`wizard._roomCountsAbout`): Kitchen, HVAC Units, Water Heaters and Electrical Panels live in the existing
     // `counts` map, so an inspection saved before them has no value and must build the checklist it always had.
-    /// A count as the wizard, the checklist builder and the report read it. Kitchen follows its chip; a count with a minimum
-    /// never reads below it; any other missing count is 0, as before.
+    /// A count as the wizard, the checklist builder and the report read it. Kitchen follows its chip. HVAC Units, Water
+    /// Heaters and Electrical Panels read a missing value as 1 (client Nov 11: they can be set to 0, which leaves their
+    /// section out, but an inspection saved without the key keeps the one section it always had); a stored value never
+    /// reads below the stepper's minimum. Any other missing count is 0, as before.
     func roomCount(_ rc: RoomCountDef) -> Int {
         if let room = rc.syncsRoom { return rooms.contains(room) ? max(1, counts[rc.key] ?? 1) : 0 }
-        return max(rc.min ?? 0, counts[rc.key] ?? 0)
+        guard let stored = counts[rc.key] else { return rc.locksWithAreas ? 1 : 0 }
+        return max(rc.min ?? 0, stored)
     }
     /// The stepper: a mirrored chip goes off at 0 and on above it.
     mutating func setRoomCount(_ n: Int, for rc: RoomCountDef) {
@@ -807,6 +810,10 @@ struct CompanyProfile: Codable, Hashable {
     /// Client Nov 4 (`_licenseStateAbout`): USPS code that prefills a new inspection's License state. Optional, so a company
     /// saved before it still decodes.
     var licenseState: String?
+    /// Client Nov 11 (`agreementPrefill._cancellationFeeAbout`): Day-of cancellation fee, a whole number 0 – 100 (percent),
+    /// set by the company admin. Fills the agreement's "a fee totaling ____%" blank. Optional, so a company saved before it
+    /// still decodes; nil leaves the blank.
+    var cancellationFeePercent: Int?
     var phone: String = ""
     var email: String
     var reviewURL: String = ""

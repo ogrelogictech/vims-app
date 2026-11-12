@@ -198,6 +198,8 @@ struct CompanyProfileView: View {
     @State private var logoMenu = false
     @State private var showImporter = false
     @State private var errors = FormErrors()
+    /// Day-of cancellation fee (%) as typed; read into `CompanyProfile.cancellationFeePercent` on Save.
+    @State private var cancellationFee = ""
 
     var body: some View {
         Screen(title: "Company profile", actions: [store.homeAction()], errors: errors) {
@@ -254,12 +256,18 @@ struct CompanyProfileView: View {
                     .vCard(EdgeInsets(top: 12, leading: 14, bottom: 12, trailing: 12))
                     .padding(.bottom, 12)
                     .id("agreement-card")
+                // Client Nov 11 (`agreementPrefill._cancellationFeeAbout`): optional, fills the agreement's "a fee totaling ____%".
+                VTextField(label: Self.cancellationFeeLabel, text: $cancellationFee, placeholder: "e.g. 25", keyboard: .numberPad,
+                           kind: .number(.percent), fieldID: "cancelFee", errors: errors)
                 Button { save() } label: { IconLabel("Save profile", icon: "link-my-account") }
                     .buttonStyle(.vPrimary)
             }
         }
         .onAppear {
-            if draft == nil { draft = store.company }
+            if draft == nil {
+                draft = store.company
+                cancellationFee = store.company.cancellationFeePercent.map { "\($0)" } ?? ""
+            }
             if DebugFlags.validate { DebugFlags.validate = false; draft?.name = ""; draft?.phone = "(801) 55"; draft?.email = "office@vpi"; draft?.reviewURL = "g.page/review"; save() }
         }
         #if DEBUG
@@ -296,7 +304,8 @@ struct CompanyProfileView: View {
         SectionLabel(text: "Company details")
         VStack(spacing: 0) {
             let rows: [(String, String)] = [("Company name", c.name), ("Address", c.address), ("Lead inspector", c.inspectorName),
-                                            ("License #", c.license), ("License state", store.config.stateName(c.licenseState) ?? ""), ("Phone", c.phone), ("Email", c.email), ("Review URL", c.reviewURL)]
+                                            ("License #", c.license), ("License state", store.config.stateName(c.licenseState) ?? ""), ("Phone", c.phone), ("Email", c.email), ("Review URL", c.reviewURL),
+                                            ("Day-of cancellation fee", c.cancellationFeePercent.map { "\($0)%" } ?? "")]
             ForEach(Array(rows.enumerated()), id: \.offset) { i, r in
                 VStack(alignment: .leading, spacing: 3) {
                     Text(r.0).font(VFont.ui(12, .semibold)).foregroundStyle(VC.ink3)
@@ -323,6 +332,8 @@ struct CompanyProfileView: View {
             .padding(.bottom, 12)
             .id("agreement-card")
     }
+
+    static let cancellationFeeLabel = "Day-of cancellation fee (%)"
 
     private func bind(_ kp: WritableKeyPath<CompanyProfile, String>) -> Binding<String> {
         Binding(get: { draft?[keyPath: kp] ?? "" }, set: { draft?[keyPath: kp] = $0 })
@@ -354,7 +365,8 @@ struct CompanyProfileView: View {
             ("license", d.license, .opt(.license, "License #")),
             ("phone", d.phone, .opt(.phone, "Phone")),
             ("email", d.email, .opt(.email, "Email")),
-            ("review", d.reviewURL, .opt(.url, "Review URL"))
+            ("review", d.reviewURL, .opt(.url, "Review URL")),
+            ("cancelFee", cancellationFee, .opt(.number(.percent), "Day-of cancellation fee"))
         ]
         guard errors.validate(fields) else { return }
         for kp in [\CompanyProfile.name, \.address, \.inspectorName, \.license, \.phone, \.email, \.reviewURL] {
@@ -369,6 +381,7 @@ struct CompanyProfileView: View {
         d.inspectors = store.company.inspectors
         d.feedbackEmail = store.company.feedbackEmail
         d.joinCode = store.company.joinCode
+        d.cancellationFeePercent = Validator.number(cancellationFee).map { Int($0) }
         store.state.company = d
         store.toast("Company profile saved")
     }

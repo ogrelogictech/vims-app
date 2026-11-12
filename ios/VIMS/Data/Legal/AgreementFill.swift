@@ -115,18 +115,21 @@ struct AgreementFill: Hashable {
     var emailLabel = "Email inspection agreement"
 
     /// Which app value each agreement label is filled with (the JSON's `value` describes it in words).
-    enum Source { case clientName, clientPhone, clientEmail, inspectorName, license, licenseState, dateTime, walkThrough, address, units, sqft, agentName, agentEmail, inspectionFee, bundled, total }
+    enum Source { case clientName, clientPhone, clientEmail, inspectorName, license, licenseState, dateTime, walkThrough, address, units, sqft, agentName, agentEmail, inspectionFee, bundled, total, cancellationFee }
     static let sources: [String: Source] = [
         "Clients Name": .clientName, "Phone #": .clientPhone, "Email": .clientEmail, "Inspectors Name": .inspectorName,
         "License/Reg #": .license, "State": .licenseState, "Date and Time of Inspection": .dateTime,
         "Time of walk through": .walkThrough, "Address of Property to be inspected": .address, "# Units": .units, "Total Sqft": .sqft,
         "Inspection Fee $": .inspectionFee, "Bundled Services $": .bundled, "Total Amount Due $": .total,
-        "Real Estate Agents Name": .agentName, "Agents Email": .agentEmail, "Printed Name of Client:": .clientName
+        "Real Estate Agents Name": .agentName, "Agents Email": .agentEmail, "Printed Name of Client:": .clientName,
+        "a fee totaling": .cancellationFee
     ]
 
     /// Builds the fill from an inspection (a saved one, or the wizard's draft with every step's current values).
-    /// `inspectorName` = the signed-in inspector's full name.
-    static func make(_ insp: Inspection, spec: AgreementPrefillDef?, wizard: WizardDef?, inspectorName: String) -> AgreementFill {
+    /// `inspectorName` = the signed-in inspector's full name. `cancellationFeePercent` = Company profile > Day-of
+    /// cancellation fee (%) (client Nov 11), nil when not set.
+    static func make(_ insp: Inspection, spec: AgreementPrefillDef?, wizard: WizardDef?, inspectorName: String,
+                     cancellationFeePercent: Int? = nil) -> AgreementFill {
         func t(_ s: String) -> String { s.trimmingCharacters(in: .whitespacesAndNewlines) }
         var f = AgreementFill()
         f.clientName = t(insp.clientName)
@@ -170,6 +173,11 @@ struct AgreementFill: Hashable {
             case .inspectionFee: return wizard == nil ? "" : nonZero(InspectionFees.value(insp.fees?.inspectionFee))
             case .bundled: return wizard.map { nonZero(insp.bundledFees(wizard: $0)) } ?? ""
             case .total: return wizard.map { nonZero(insp.totalFees(wizard: $0)) } ?? ""
+            // Client Nov 11 (`_cancellationFeeAbout`): the number only, the agreement already prints the "%". 0 prints 0;
+            // not set (or out of range) leaves the underscores.
+            case .cancellationFee:
+                guard let p = cancellationFeePercent, (0...100).contains(p) else { return "" }
+                return "\(p)"
             }
         }
         // An option's amount prints only when the option counts (selected, not locked). Selected at 0: ticked, blank left.

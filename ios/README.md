@@ -1178,3 +1178,17 @@ StoreKit 2 replaces the simulated Square subscription. No server: the App Store 
 - **Report order**: section number, then name as before (`sortedForReport`), so existing sections keep their place. Copies stay in number order and Cooling System #n sorts right after Outside Utilities.
 - **Agreement**: Texas and Tests Only boxes; the Wind Mitigation test ticks both of its boxes. **EULA** 2026-11-06 (re-accept), **Summer cover** swapped, no code.
 - **Testing**: `VIMSUITests/Nov6CountsUITests`; DEBUG `-nov6Wizard`, `-nov6Agreement TYPE`, `-nov6Fill`, `-nov6Status` (NOV6TEST lines) in `App/DebugNov6.swift`.
+
+### iOS 0.36.0 (37) — client Nov 11 (shared v1.23.0)
+
+- **Counts at 0** (`wizard.roomCounts` min 0, `_roomCountsAbout`): HVAC Units, Water Heaters and Electrical Panels go down to 0 like Kitchen. At 0 the `×n!` token adds no
+  section and `×n#` no Cooling System copy, so HVAC Mechanical / Water Heater / Electrical are left out of the checklist, progress and report (Outside Utilities stays).
+  `Inspection.roomCount`: a stored value reads as stored (0 is 0); a missing value still reads 1 (`locksWithAreas`), so inspections saved before 0.32.0 keep their checklist.
+  Defaults stay 1. Lowering to 0 on Update checklist works as for Bathroom: off the checklist, answers / photos / findings / status kept, back when raised. Report Property
+  Information prints the count as read (0). Phase / Texas / 4 Point / Tests Only layouts ignore the counts.
+- **Day-of cancellation fee (%)** (`agreementPrefill._cancellationFeeAbout`): optional `CompanyProfile.cancellationFeePercent` (Int, 0 – 100), same pattern as License state:
+  Company profile field below the agreement card (number pad, `NumberLimits.percent`, "Enter a number up to 100", blank allowed), read-only row "25%" for non-admins.
+  `AgreementFill.make(cancellationFeePercent:)` fills the closing line 'a fee totaling' with the number only ("a fee totaling 25% of the amount…"); nil leaves the underscores,
+  a company text without the wording is skipped. No per-inspection field. Optional key, so a stored company decodes unchanged; no SwiftData migration.
+- **Testing**: `VIMSUITests/Nov11UITests` (`testUpgradeSetCompanyProfile` runs on the earlier build before an in-place upgrade); DEBUG `-nov11Zero`, `-nov11Fee N|clear`,
+  `-nov11Status` (NOV11TEST lines) in `App/DebugNov11.swift`. NOV6TEST "stored 0 reads 0" replaces "stored 0 still reads 1"; Nov6CountsUITests expects all four minus buttons enabled at 1.

@@ -413,8 +413,9 @@ struct RoomCountDef: Decodable {
     /// The Interior rooms chip this count mirrors (Kitchen).
     var syncsRoom: String? = nil
 
-    /// The Nov 6 counts have a `min`; they lock with the areas, stop at 12 and read a saved inspection's missing value as 1
-    /// (or from its chip). Bedrooms, Bathrooms and Hallways stay as they were: editable on a locked type, 0 – 20.
+    /// The Nov 6 counts have a `min` (0 for all four since client Nov 11); they lock with the areas, stop at 12 and read a
+    /// saved inspection's missing value as 1 (Kitchen from its chip). Bedrooms, Bathrooms and Hallways stay as they were:
+    /// editable on a locked type, 0 – 20.
     var locksWithAreas: Bool { min != nil }
     var range: ClosedRange<Int> { min.map { $0...StepperLimits.systemCountMax } ?? StepperLimits.roomCount }
 }

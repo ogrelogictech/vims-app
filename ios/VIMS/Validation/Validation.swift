@@ -85,6 +85,8 @@ struct NumberLimits: Equatable {
     static let systemNumber = NumberLimits(min: 1, max: 99, maxDecimals: 0)
     /// Radon "Measured level (pCi/L)" (v1.9.1: `num`, `decimals: 1`).
     static let radonLevel = NumberLimits(min: 0, max: 999.9, maxDecimals: 1)
+    /// Company profile > Day-of cancellation fee (%) (client Nov 11, `agreementPrefill._cancellationFeeAbout`): whole number 0 – 100.
+    static let percent = NumberLimits(min: 0, max: 100, maxDecimals: 0)
 
     var isInteger: Bool { maxDecimals == 0 }
     /// Digits allowed before the "." — as many as the max has (100,000 → 6), so a longer number can't be typed.

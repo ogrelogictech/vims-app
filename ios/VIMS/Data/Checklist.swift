@@ -392,7 +392,8 @@ struct ChecklistCatalog {
     /// "Garage?" -> included when selected; "Bathroom×bathrooms" -> "Bathroom 1".."Bathroom n". Client Nov 6
     /// (`checklistBuilder._notes`): "Electrical×electricalPanels!" -> "Electrical", "Electrical 2".."Electrical n";
     /// "Cooling System×hvacUnits#" -> "Cooling System #2".."Cooling System #n". A locked type's token adds what it did as a
-    /// plain entry: a room chip's nothing, an always section one copy, a '#' token nothing.
+    /// plain entry: a room chip's nothing, an always section one copy, a '#' token nothing. Client Nov 11: a count of 0 adds
+    /// no copy at all ('!' and '#'), so HVAC Units 0 leaves out HVAC Mechanical and every Cooling System #n.
     private func expand(order: [String], _ insp: Inspection, locked: Bool = false) -> [String] {
         var out: [String] = []
         for token in order {

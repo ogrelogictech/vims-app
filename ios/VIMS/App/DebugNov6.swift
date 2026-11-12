@@ -105,10 +105,11 @@ extension DebugLaunch {
         var noKitchen = saved
         noKitchen.rooms.removeAll { $0 == "Kitchen" }
         check("missing kitchens without the chip reads 0, no Kitchen", noKitchen.roomCount(rc("kitchens")) == 0 && !leaves(noKitchen).contains("Kitchen"))
+        // Client Nov 11 (shared v1.23): HVAC Units, Water Heaters and Electrical Panels go to 0 like Kitchen (`-nov11Status`).
         for k in four where k != "kitchens" {
             var zero = saved
             zero.counts[k] = 0
-            check("stored 0 for \(k) still reads 1", zero.roomCount(rc(k)) == 1)
+            check("stored 0 for \(k) reads 0", zero.roomCount(rc(k)) == 0)
         }
         let many = leaves(draft(counts: ["hvacUnits": 3, "waterHeaters": 2, "electricalPanels": 2, "kitchens": 2]))
         print("NOV6TEST many=\(many)")
