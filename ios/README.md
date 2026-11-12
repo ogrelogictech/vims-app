@@ -1192,3 +1192,16 @@ StoreKit 2 replaces the simulated Square subscription. No server: the App Store 
   a company text without the wording is skipped. No per-inspection field. Optional key, so a stored company decodes unchanged; no SwiftData migration.
 - **Testing**: `VIMSUITests/Nov11UITests` (`testUpgradeSetCompanyProfile` runs on the earlier build before an in-place upgrade); DEBUG `-nov11Zero`, `-nov11Fee N|clear`,
   `-nov11Status` (NOV11TEST lines) in `App/DebugNov11.swift`. NOV6TEST "stored 0 reads 0" replaces "stored 0 still reads 1"; Nov6CountsUITests expects all four minus buttons enabled at 1.
+
+### iOS 0.37.0 (38) — client Nov 13 (shared v1.24.0)
+
+- **Out of service area surcharge** (`wizard.fees.surcharge`, client screen print): wizard step 4 gets a typed "Out of service area surcharge $" box on its own row right
+  above Inspection Fee (phones: its own row in the list; tablets: left column, right half empty, as the screen print). Same `FeeAmountBox` and `InspectionFees.limits` as
+  Inspection Fee, optional, never selects an option and isn't locked by `areasLockedTypes`. Stored as optional `InspectionFees.surcharge` next to `inspectionFee` in the
+  inspection payload: fees saved by 0.36.0 decode with none and encode with the same keys, so no SwiftData migration. A lone "." is dropped on Next / Build.
+- **Total Cost of Inspection** = Inspection Fee + Bundled Secondary Testing + surcharge (`Inspection.totalFees`). Bundled is unchanged.
+- **Agreement** (`agreementPrefill.lines`, `_surchargeAbout`): `AgreementFill.Source.surcharge` fills the new header line "Out of service area surcharge $__________"
+  (2 decimals with commas, blank at zero); Total Amount Due includes it. The form block is locked VIMS text, so an edited agreement shows the line too; a form without the
+  line is skipped. Viewer and PDF draw it like the other form lines. Fees still never appear in the report.
+- **Testing**: `VIMSUITests/Nov13UITests` (`testClientCaseStep4`: surcharge 75, fee 400, Radon 150 → $625.00 and the viewer line; `testEditAgreementShowsLine`); DEBUG
+  `-nov13Wizard`, `-nov13Fees`, `-nov13Status` (NOV13TEST lines), `-nov13WritePDF` in `App/DebugNov13.swift`.

@@ -115,12 +115,13 @@ struct AgreementFill: Hashable {
     var emailLabel = "Email inspection agreement"
 
     /// Which app value each agreement label is filled with (the JSON's `value` describes it in words).
-    enum Source { case clientName, clientPhone, clientEmail, inspectorName, license, licenseState, dateTime, walkThrough, address, units, sqft, agentName, agentEmail, inspectionFee, bundled, total, cancellationFee }
+    enum Source { case clientName, clientPhone, clientEmail, inspectorName, license, licenseState, dateTime, walkThrough, address, units, sqft, agentName, agentEmail, inspectionFee, bundled, total, cancellationFee, surcharge }
     static let sources: [String: Source] = [
         "Clients Name": .clientName, "Phone #": .clientPhone, "Email": .clientEmail, "Inspectors Name": .inspectorName,
         "License/Reg #": .license, "State": .licenseState, "Date and Time of Inspection": .dateTime,
         "Time of walk through": .walkThrough, "Address of Property to be inspected": .address, "# Units": .units, "Total Sqft": .sqft,
         "Inspection Fee $": .inspectionFee, "Bundled Services $": .bundled, "Total Amount Due $": .total,
+        "Out of service area surcharge $": .surcharge,
         "Real Estate Agents Name": .agentName, "Agents Email": .agentEmail, "Printed Name of Client:": .clientName,
         "a fee totaling": .cancellationFee
     ]
@@ -173,6 +174,8 @@ struct AgreementFill: Hashable {
             case .inspectionFee: return wizard == nil ? "" : nonZero(InspectionFees.value(insp.fees?.inspectionFee))
             case .bundled: return wizard.map { nonZero(insp.bundledFees(wizard: $0)) } ?? ""
             case .total: return wizard.map { nonZero(insp.totalFees(wizard: $0)) } ?? ""
+            // Client Nov 13 (`_surchargeAbout`): its own line, 2 decimals, blank at zero; included in Total Amount Due above.
+            case .surcharge: return wizard == nil ? "" : nonZero(insp.surchargeFee)
             // Client Nov 11 (`_cancellationFeeAbout`): the number only, the agreement already prints the "%". 0 prints 0;
             // not set (or out of range) leaves the underscores.
             case .cancellationFee:

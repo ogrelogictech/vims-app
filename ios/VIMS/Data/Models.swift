@@ -399,11 +399,14 @@ struct StateDocsAck: Codable, Hashable {
 struct InspectionFees: Codable, Hashable {
     var amounts: [String: String] = [:]
     var inspectionFee: String?
+    /// Client Nov 13 (data v1.24 `wizard.fees.surcharge`): "Out of service area surcharge $", typed per inspection. Optional,
+    /// written only when set, so fees saved before 0.37.0 decode with none and encode exactly as before.
+    var surcharge: String?
 
     /// `limits` for every $ box: 0 to 99,999.99, up to 2 decimals (grouping commas shown, ignored when read).
     static let limits = NumberLimits(min: 0, max: 99_999.99, grouping: true, maxDecimals: 2)
 
-    var isEmpty: Bool { amounts.isEmpty && (inspectionFee ?? "").isEmpty }
+    var isEmpty: Bool { amounts.isEmpty && (inspectionFee ?? "").isEmpty && (surcharge ?? "").isEmpty }
 
     /// A typed amount as an exact decimal; nil when empty or not a number ("."). Decimal, so cents always add up exactly.
     static func value(_ text: String?) -> Decimal? {
@@ -428,6 +431,7 @@ struct InspectionFees: Codable, Hashable {
         var out = self
         out.amounts = amounts.filter { Self.value($0.value) != nil }
         if Self.value(inspectionFee) == nil { out.inspectionFee = nil }
+        if Self.value(surcharge) == nil { out.surcharge = nil }
         return out.isEmpty ? nil : out
     }
 }
@@ -467,6 +471,13 @@ extension Inspection {
         fees = f.isEmpty ? nil : f
     }
 
+    /// Client Nov 13: the Out of service area surcharge box. Not an option, so it never selects or locks anything.
+    mutating func setSurcharge(_ text: String) {
+        var f = fees ?? InspectionFees()
+        f.surcharge = text.isEmpty ? nil : text
+        fees = f.isEmpty ? nil : f
+    }
+
     private mutating func setStoredAmount(_ text: String?, for option: String) {
         var f = fees ?? InspectionFees()
         f.amounts[option] = text
@@ -487,9 +498,12 @@ extension Inspection {
         return (utilities + tests).reduce(0, +)
     }
 
-    /// Total Cost of Inspection: Inspection Fee + Bundled Secondary Testing.
+    /// Client Nov 13: the Out of service area surcharge as a number (0 when none). Not part of Bundled Secondary Testing.
+    var surchargeFee: Decimal { InspectionFees.value(fees?.surcharge) ?? 0 }
+
+    /// Total Cost of Inspection: Inspection Fee + Bundled Secondary Testing + Out of service area surcharge (data v1.24).
     func totalFees(wizard: WizardDef) -> Decimal {
-        (InspectionFees.value(fees?.inspectionFee) ?? 0) + bundledFees(wizard: wizard)
+        (InspectionFees.value(fees?.inspectionFee) ?? 0) + bundledFees(wizard: wizard) + surchargeFee
     }
 }
 

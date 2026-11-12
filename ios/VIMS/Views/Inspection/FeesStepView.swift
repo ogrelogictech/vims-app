@@ -114,6 +114,13 @@ struct FeesStepView: View {
     private func feeRows(wizard w: WizardDef) -> some View {
         let bundled = InspectionFees.text(draft.bundledFees(wizard: w))
         let total = InspectionFees.text(draft.totalFees(wizard: w))
+        // Client Nov 13 (data v1.24 `wizard.fees.surcharge`, screen print): typed, optional, same limits as the other amounts,
+        // on its own row right above Inspection Fee. Never locked by `areasLockedTypes`.
+        let surcharge = feeRow("Out of service area surcharge") {
+            FeeAmountBox(label: "Out of service area surcharge", fieldID: "fee-surcharge", text: Binding(
+                get: { draft.fees?.surcharge ?? "" },
+                set: { draft.setSurcharge($0) }))
+        }
         let fee = feeRow("Inspection Fee") {
             FeeAmountBox(label: "Inspection Fee", fieldID: "fee-inspection", text: Binding(
                 get: { draft.fees?.inspectionFee ?? "" },
@@ -123,13 +130,17 @@ struct FeesStepView: View {
         let totalRow = feeRow("Total Cost of Inspection", strong: true) { FeeReadOnlyBox(text: total, label: "Total Cost of Inspection", strong: true) }
         return VStack(alignment: .leading, spacing: 10) {
             if twoColumns {
+                HStack(alignment: .center, spacing: Self.columnGap) {
+                    surcharge
+                    Color.clear.frame(maxWidth: .infinity, maxHeight: 1)
+                }
                 HStack(alignment: .center, spacing: Self.columnGap) { fee; bundledRow }
                 HStack(alignment: .center, spacing: Self.columnGap) {
                     totalRow
                     Color.clear.frame(maxWidth: .infinity, maxHeight: 1)
                 }
             } else {
-                fee; bundledRow; totalRow
+                surcharge; fee; bundledRow; totalRow
             }
         }
     }

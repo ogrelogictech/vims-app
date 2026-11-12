@@ -91,6 +91,10 @@ struct WizardView: View {
                 if DebugLaunch.has("-nov6Wizard") { DebugLaunch.nov6Values(&d) }
                 draft = d
             }
+            if DebugLaunch.has("-nov13Wizard"), editingID == nil, var d = draft {
+                DebugLaunch.nov13WizardValues(&d, config: store.config)
+                draft = d
+            }
             // -wizState TX[,UT…]: pick those states in order through the same setter as the picker.
             if let seq = DebugFlags.wizardStates {
                 DebugFlags.wizardStates = nil
