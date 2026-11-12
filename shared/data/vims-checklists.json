@@ -1,6 +1,6 @@
 {
  "_about": "VIMS shared checklist + configuration data. Single source of truth for the native iOS (SwiftUI) and Android (Kotlin/Compose) apps. Extracted from the client-approved prototype (index.html, approved Sep 15, 2026). Edit here, not in app code.",
- "version": "1.23.0",
+ "version": "1.24.0",
  "generated": "2026-11-04",
  "depths": [
   {
@@ -32869,9 +32869,10 @@
   "fees": {
    "_about": "Client Nov 4: step 4 holds Utility & systems (moved from step 3) and Testing, each option with a $ box, then the fees. The step's own Inspection agreement button replaces the step 1 View link: label 'View Pre-filled Inspection Agreement', above Back / Build checklist. Fees are optional and never block Build checklist. They appear only on the inspection agreement, not in the report.",
    "amounts": "Decimal keypad, up to 2 decimal places, 0 to 99,999.99, shown after a $. Typing an amount above 0 selects that option. Deselecting an option clears its amount. Locked options (wizard.areasLockedTypes) stay locked, with their $ boxes disabled.",
+   "surcharge": "Client Nov 13 (screen print): 'Out of service area surcharge $' (typed, optional, same limits as the other amounts), on its own row right above Inspection Fee. For an inspection outside the company's normal service area; the inspector types the amount for that inspection. No distance calculation and no Company profile setting. Not affected by wizard.areasLockedTypes. Stored per inspection with the other fees (older inspections have none).",
    "inspectionFee": "Inspection Fee $ (typed).",
    "bundled": "Bundled Secondary Testing $: read-only, the sum of the selected options' amounts on this page, utilities and testing together, so the total always adds up.",
-   "total": "Total Cost of Inspection $: read-only, Inspection Fee + Bundled Secondary Testing.",
+   "total": "Total Cost of Inspection $: read-only, Inspection Fee + Bundled Secondary Testing + Out of service area surcharge.",
    "saved": "Stored per inspection (option key -> amount, plus the inspection fee) as an optional field: older inspections open with no amounts and nothing changes. Editable later from Inspection info.",
    "layout": "Each option is a chip with its $ box beside it. Two pairs per row on tablets (as the client's mockup), one pair per row on phones. No horizontal overflow on the smallest phone."
   },
@@ -33842,6 +33843,11 @@
    },
    {
     "part": "header",
+    "label": "Out of service area surcharge $",
+    "value": "Out of service area surcharge (wizard.fees.surcharge), 2 decimals; empty when zero"
+   },
+   {
+    "part": "header",
     "label": "Inspection Fee $",
     "value": "Inspection Fee (wizard.fees), 2 decimals; empty when zero"
    },
@@ -34114,6 +34120,7 @@
    "ownAgreement": "Company uses its own uploaded agreement: the button attaches that uploaded file unchanged (it can't be filled in) plus the state documents; small note above the button: 'Your own agreement is attached as uploaded. It can't be filled in automatically.' Same To / subject / body.",
    "afterSend": "Nothing is stored; no status changes. Toast 'Agreement ready to send' is NOT shown — the composer itself is the feedback."
   },
-  "_cancellationFeeAbout": "Client Nov 11: Company profile gains an optional 'Day-of cancellation fee (%)', a whole number from 0 to 100, set once by the company admin, same pattern as License state. It fills the blank in the agreement's 'Cancellation on day of inspection' paragraph ('...a fee totaling __________% of the amount of the inspection will be charged.'), giving '...a fee totaling 25% of...'. There is no per-inspection field. A company's own edited agreement without that wording is skipped silently, like every other fill line."
+  "_cancellationFeeAbout": "Client Nov 11: Company profile gains an optional 'Day-of cancellation fee (%)', a whole number from 0 to 100, set once by the company admin, same pattern as License state. It fills the blank in the agreement's 'Cancellation on day of inspection' paragraph ('...a fee totaling __________% of the amount of the inspection will be charged.'), giving '...a fee totaling 25% of...'. There is no per-inspection field. A company's own edited agreement without that wording is skipped silently, like every other fill line.",
+  "_surchargeAbout": "Client Nov 13: the surcharge fills its own agreement line and is included in Total Amount Due. It is not part of Bundled Services. A company's edited agreement without the line is skipped silently."
  }
 }
