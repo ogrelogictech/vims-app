@@ -6,13 +6,14 @@ import java.util.Locale
 
 /**
  * `wizard.fees` (client Nov 4): the amounts of wizard step 4, added up exactly (in cents, never in Double). Pure Kotlin.
- * Bundled Secondary Testing = the selected options' amounts, utilities and testing together; Total = Inspection Fee + Bundled.
+ * Bundled Secondary Testing = the selected options' amounts, utilities and testing together; Total = Inspection Fee + Bundled +
+ * Out of service area surcharge (client Nov 13, `wizard.fees.surcharge` / `total`).
  */
 object Fees {
     /** Largest amount a $ box takes (0 to 99,999.99). */
     const val MAX = 99_999.99
 
-    data class Totals(val options: Map<String, Long>, val inspection: Long, val bundled: Long, val total: Long)
+    data class Totals(val options: Map<String, Long>, val inspection: Long, val bundled: Long, val total: Long, val surcharge: Long = 0L)
 
     /** Cents of an amount as typed ("150.5", "1,250", "$12"); 0 for empty, partial ("." ) or unreadable text. */
     fun cents(amount: String): Long = try {
@@ -31,13 +32,15 @@ object Fees {
 
     /**
      * The totals for [sel]. With [areasLocked] (`wizard.areasLockedTypes`) the utility options aren't in use, so their kept
-     * amounts don't count until another type unlocks them. An amount only counts while its option is selected.
+     * amounts don't count until another type unlocks them. An amount only counts while its option is selected. The surcharge has
+     * no option and isn't locked: it always counts, in the total only.
      */
     fun totals(sel: WizardSelections, areasLocked: Boolean): Totals {
         val selected = (if (areasLocked) emptyList() else sel.utilities) + sel.tests
         val options = selected.distinct().associateWith { cents(sel.fees[it].orEmpty()) }.filterValues { it > 0 }
         val inspection = cents(sel.inspectionFee)
         val bundled = options.values.sum()
-        return Totals(options, inspection, bundled, inspection + bundled)
+        val surcharge = cents(sel.surcharge)
+        return Totals(options, inspection, bundled, inspection + bundled + surcharge, surcharge)
     }
 }

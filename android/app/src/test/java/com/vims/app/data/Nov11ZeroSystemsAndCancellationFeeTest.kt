@@ -21,7 +21,7 @@ class Nov11ZeroSystemsAndCancellationFeeTest {
 
     @Test fun data_theThreeSystemSteppersGoDownToZero() {
         systems.keys.forEach { assertEquals(it, 0, rc(it).min); assertEquals(it, 0, rc(it).lowest) }
-        assertEquals("1.23.0", config.version)
+        // Shared v1.23.0 or later (Nov13SurchargeTest pins the current version).
     }
 
     @Test fun stepperDownToZero_storesZero() {

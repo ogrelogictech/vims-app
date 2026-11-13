@@ -54,8 +54,9 @@ private val MIN_COLUMN = 276.dp
 
 /**
  * Wizard step 4 "Utilities, testing & fees" (`wizard.fees`, client's mockup Nov 4): Utility & systems and Testing, each chip with a
- * $ box, then Inspection Fee, Bundled Secondary Testing and Total Cost of Inspection, then the agreement button (Back / Build
- * checklist follow in the wizard). Nothing here is required. Utilities stay locked for `wizard.areasLockedTypes`, boxes included.
+ * $ box, then Out of service area surcharge (client Nov 13, its own row), Inspection Fee, Bundled Secondary Testing and Total Cost
+ * of Inspection, then the agreement button (Back / Build checklist follow in the wizard). Nothing here is required. Utilities stay
+ * locked for `wizard.areasLockedTypes`, boxes included; the surcharge never is.
  */
 @Composable
 fun WizardFeesStep(vm: AppViewModel, nav: NavHostController, sel: WizardSelections) {
@@ -70,16 +71,21 @@ fun WizardFeesStep(vm: AppViewModel, nav: NavHostController, sel: WizardSelectio
 
     val totals = Fees.totals(sel, locked)
     Columns { two ->
+        val surcharge: @Composable (Modifier) -> Unit = { m ->
+            FeeLine("Out of service area surcharge", m) { w -> AmountBox(sel.surcharge, { v -> vm.updateSel { it.copy(surcharge = v) } }, w, "Out of service area surcharge amount") }
+        }
         val inspection: @Composable (Modifier) -> Unit = { m ->
             FeeLine("Inspection Fee", m) { w -> AmountBox(sel.inspectionFee, { v -> vm.updateSel { it.copy(inspectionFee = v) } }, w, "Inspection fee amount") }
         }
         val bundled: @Composable (Modifier) -> Unit = { m -> FeeLine("Bundled Secondary Testing", m) { w -> ReadOnlyAmount(totals.bundled, w, "Bundled secondary testing") } }
         val total: @Composable (Modifier) -> Unit = { m -> FeeLine("Total Cost of Inspection", m) { w -> ReadOnlyAmount(totals.total, w, "Total cost of inspection") } }
         if (two) {
+            // Client Nov 13 screen print: the surcharge alone on its row, right above Inspection Fee.
+            Row(Modifier.fillMaxWidth().padding(bottom = 10.dp), horizontalArrangement = Arrangement.spacedBy(PAIR_GAP)) { surcharge(Modifier.weight(1f)); Spacer(Modifier.weight(1f)) }
             Row(Modifier.fillMaxWidth().padding(bottom = 10.dp), horizontalArrangement = Arrangement.spacedBy(PAIR_GAP)) { inspection(Modifier.weight(1f)); bundled(Modifier.weight(1f)) }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(PAIR_GAP)) { total(Modifier.weight(1f)); Spacer(Modifier.weight(1f)) }
         } else {
-            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) { inspection(Modifier); bundled(Modifier); total(Modifier) }
+            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) { surcharge(Modifier); inspection(Modifier); bundled(Modifier); total(Modifier) }
         }
         Box(Modifier.padding(top = 20.dp).fillMaxWidth(if (two) .5f else 1f)) {
             VBtn("View Pre-filled Inspection Agreement", { nav.navigate(AgreementR(sel.state, wizard = true)) }, kind = BtnKind.Ghost)

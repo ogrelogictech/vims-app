@@ -113,6 +113,8 @@ data class AgreementFillInput(
     /** `wizard.fees` option -> amount with 2 decimals; options without an amount above 0 aren't listed. */
     val feeAmounts: Map<String, String> = emptyMap(),
     val inspectionFee: String = "",
+    /** Client Nov 13 (`agreementPrefill._surchargeAbout`): Out of service area surcharge, 2 decimals; "" when zero. In [total], not [bundled]. */
+    val surcharge: String = "",
     val bundled: String = "",
     val total: String = "",
     /**
@@ -165,6 +167,7 @@ object AgreementFill {
             sendToAgent = sel.sendToAgent,
             feeAmounts = totals.options.mapValues { Fees.grouped(it.value) },
             inspectionFee = Fees.agreementValue(totals.inspection),
+            surcharge = Fees.agreementValue(totals.surcharge),
             bundled = Fees.agreementValue(totals.bundled),
             total = Fees.agreementValue(totals.total),
         )
@@ -188,6 +191,7 @@ object AgreementFill {
         "Total Sqft" -> i.sqft
         "Real Estate Agents Name" -> i.agentName
         "Agents Email" -> i.agentEmail
+        "Out of service area surcharge $" -> i.surcharge
         "Inspection Fee $" -> i.inspectionFee
         "Bundled Services $" -> i.bundled
         "Total Amount Due $" -> i.total

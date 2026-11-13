@@ -277,6 +277,11 @@ data class WizardSelections(
     val fees: Map<String, String> = emptyMap(),
     /** `wizard.fees.inspectionFee`, as typed. */
     val inspectionFee: String = "",
+    /**
+     * Client Nov 13 (`wizard.fees.surcharge`): Out of service area surcharge, as typed; optional, in the total but not in Bundled.
+     * Empty on inspections saved before v0.37.0, which then read as no surcharge.
+     */
+    val surcharge: String = "",
 ) {
     fun field(label: String): String = fields[label].orEmpty().trim()
     fun chip(label: String): String = chips[label].orEmpty()
