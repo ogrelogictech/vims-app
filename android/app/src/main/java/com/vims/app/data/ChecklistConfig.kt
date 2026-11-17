@@ -515,7 +515,7 @@ data class CoverPhotoBoxDef(val rect: List<Float> = listOf(1.2f, 5.1f, 6.08f, 4.
 data class CoverFooterDef(
     val centerY: Float = 9.65f,
     val size: Float = 11f,
-    val text: String = "This inspection report is the property of {companyName}.\nAny reproduction or distribution without written consent is prohibited.",
+    val text: String = "This inspection report was prepared by {companyName}.\nAny reproduction or distribution without written consent is prohibited.",
     val box: CoverFooterBoxDef = CoverFooterBoxDef(),
 )
 

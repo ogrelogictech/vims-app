@@ -503,7 +503,7 @@ struct CoverLayoutDef: Decodable {
     var fields = Fields(top: 2.62, lineGap: 0.47, left: 1.3, right: 7.2)
     var photoBox = PhotoBox(rect: [1.2, 5.1, 6.08, 4.15], border: 1.25)
     var footer = Footer(centerY: 9.65, size: 11,
-                        text: "This inspection report is the property of {companyName}.\nAny reproduction or distribution without written consent is prohibited.",
+                        text: "This inspection report was prepared by {companyName}.\nAny reproduction or distribution without written consent is prohibited.",
                         box: .init(left: [0.55, 9.3, 3.7, 0.85], right: [4.25, 9.3, 3.7, 0.85]))
 
     static let fallback = CoverLayoutDef()

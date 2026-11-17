@@ -585,7 +585,7 @@ Screenshots: `screenshots/oct12-*.png` — `ipad-01…18` 13" (landscape 01–13
   touches (normal scrolling everywhere else), a "Page X of N" bubble shows while dragging or scrolling and fades 1.2 s
   after, the thumb dims when idle. Follows pinch-zoom, rotation and iPad window resizes; VoiceOver: adjustable, one
   page per swipe.
-- **Cover footer:** "This inspection report is the property of <Company name>." with the name underlined; the name is
+- **Cover footer:** "This inspection report was prepared by <Company name>." (client Nov 17, 2026; was "is the property of") with the name underlined; the name is
   the signed-in company's Company profile name (`state.company.name` → `ReportData.companyName`, `{companyName}` in the
   JSON template — nothing hard-coded). Still wraps beside the theme art.
 - DEBUG: `-sampleFindings` (the client's Oct 16 examples through `addFinding`, plus one pre-Oct 16 finding; prints

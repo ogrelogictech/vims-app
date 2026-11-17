@@ -513,7 +513,7 @@ Client update (Oct 12): section 39 Indoor Air Quality uses the new `airReading` 
 - **Report preview fast scroll:** a thumb on the right edge follows normal scrolling; dragging it jumps through the report
   with a "Page X of N" bubble. Only the thumb takes touches (pages still scroll under the rest of the edge) and it sits
   below the top bar. Checked on the phone and at 1600×2560 / 320 dpi, portrait and landscape.
-- **Cover footer:** "This inspection report is the property of <Company name>." — the name comes from the signed-in
+- **Cover footer:** "This inspection report was prepared by <Company name>." (client Nov 17, 2026; was "is the property of") — the name comes from the signed-in
   inspector's Company profile (`{companyName}` in the cover layout) and is underlined in the PDF; the footer still wraps
   beside the theme art.
 - Screenshots: `screenshots/oct16-*.png` (`oct16-summary-vs-pdf.png` = Summary screen next to the PDF summary page).

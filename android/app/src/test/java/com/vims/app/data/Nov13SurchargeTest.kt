@@ -22,7 +22,8 @@ class Nov13SurchargeTest {
     /* ---------------------------------------------------------------- data */
 
     @Test fun data_version_specAndAgreementLine() {
-        assertEquals("1.24.0", config.version)
+        // Shared v1.24.0 or later (Nov17ReportOwnershipTest pins the current version).
+        assertTrue(config.version, config.version.split(".").map { it.toInt() }.let { (a, b, _) -> a > 1 || (a == 1 && b >= 24) })
         val spec = TestData.prefill.lines.single { it.label == surchargeLabel }
         assertEquals("header", spec.part)
         assertEquals(null, spec.fee)

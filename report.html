@@ -277,7 +277,7 @@
       +fh
       +'<div class="cvphoto" style="'+box(pb)+'"><img src="'+photo(0,'Front of property')+'" alt="Property"></div>'
       +(art?'<div class="cvartclip" style="'+box([0.5,0.68,7.48,9.52])+'"><img class="cvart" src="'+art.file+'" alt="" style="'+box([art.rect[0]-0.5,art.rect[1]-0.68,art.rect[2],art.rect[3]])+'"></div>':'')
-      +'<div class="cvfoot" style="left:'+inch(fl)+';width:'+inch(fr-fl)+';top:'+inch(9.38)+'">This inspection report is the property of <u>'+COMPANY.name+'</u>.<br>Any reproduction or distribution without written consent is prohibited.'+(STATE==='OR'?'<div style="font-weight:600;margin-top:'+inch(0.05)+'">'+OR_COVER+'</div>':'')+'</div>'
+      +'<div class="cvfoot" style="left:'+inch(fl)+';width:'+inch(fr-fl)+';top:'+inch(9.38)+'">This inspection report was prepared by <u>'+COMPANY.name+'</u>.<br>Any reproduction or distribution without written consent is prohibited.'+(STATE==='OR'?'<div style="font-weight:600;margin-top:'+inch(0.05)+'">'+OR_COVER+'</div>':'')+'</div>'
       +'</div>';
   }
   pages.push(coverPage());

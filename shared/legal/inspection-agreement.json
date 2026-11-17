@@ -1,7 +1,7 @@
 {
- "_about": "Client-supplied VIMS default Home Inspection Agreement for all 50 states ('VIMS Home Inspection Agreement - App for all 50 states.docx', final version received Oct 25, 2026; first draft Oct 5), reproduced verbatim except '{companyName}' replaces the hard-coded 'Vision Property Inspections' (filled with the company's name at display time). Used as the default inspection agreement for every company unless they upload their own (Company profile). 'stateDisclosures' is keyed by state code; when shown for a specific inspection, display only that state's entry (all states when viewed from Company profile). No in-app e-signature in Phase 1 (deferred add-on). Client Nov 11, 2026 revision ('VIMS Home Inspection Agreement - App for all 50 states.docx'): Cancellation on day of inspection clause after Severability, report ready within 5 business days or less depending on state requirements (the separate 5-business-days line removed), lettered items B to D renumbered, typo fixes, Illinois disclosure corrected. Client Nov 13, 2026: 'Out of service area surcharge $__________' line above the Inspection Fee line.",
+ "_about": "Client-supplied VIMS default Home Inspection Agreement for all 50 states ('VIMS Home Inspection Agreement - App for all 50 states.docx', final version received Oct 25, 2026; first draft Oct 5), reproduced verbatim except '{companyName}' replaces the hard-coded 'Vision Property Inspections' (filled with the company's name at display time). Used as the default inspection agreement for every company unless they upload their own (Company profile). 'stateDisclosures' is keyed by state code; when shown for a specific inspection, display only that state's entry (all states when viewed from Company profile). No in-app e-signature in Phase 1 (deferred add-on). Client Nov 11, 2026 revision ('VIMS Home Inspection Agreement - App for all 50 states.docx'): Cancellation on day of inspection clause after Severability, report ready within 5 business days or less depending on state requirements (the separate 5-business-days line removed), lettered items B to D renumbered, typo fixes, Illinois disclosure corrected. Client Nov 13, 2026: 'Out of service area surcharge $__________' line above the Inspection Fee line. Client Nov 17, 2026 (three states changed their home inspector laws; the client must own the report): TERMS AND CONDITIONS item A ('receiver must be licensed to receive a copy') replaced by new A (report reflects the condition at the time of the inspection only) and B (for the Client's sole benefit, not distributed to third parties without the company's written consent, additional reports on written request with the recipient's details and $100.00 each); former B to D are now C to E, text unchanged.",
  "title": "Inspection Agreement",
- "version": "2026-11-13",
+ "version": "2026-11-17",
  "status": "final — client approved Oct 25, 2026",
  "header": [
   "Company Name Company Logo",
@@ -144,22 +144,27 @@
   },
   {
    "t": "p",
-   "text": "A. The Client recognizes that the inspection report is for the benefit of the Client and their agent and that any person or party designated by the Client to receive a copy of this report shall be subject to the TERMS AND CONDITIONS contained herein. Such designation shall be provided in writing to the inspector and the receiver must be licensed to receive a copy of the report for a fee of $100.00",
+   "text": "A. The Client agrees that the inspection report reflects the condition of the property at the time of the inspection only.",
    "lead": true
   },
   {
    "t": "p",
-   "text": "B. If there is a claim of missed defect, the client agrees to allow the inspection company in writing and to allow the company to reinspect and or make offer to repair or pay for the defect before changing the condition of the problem (except in an emergency) and before taking any insurance or legal action. to re-inspect. Failure to allow the inspection company the opportunity to re-inspect, as required above, shall constitute a waiver of any and all claims client may have against the Company.",
+   "text": "B. The Client agrees that the inspection report is for their sole benefit and may not be distributed to any third party without the written consent of the inspection company. Any additional parties requesting a report will be subject to the terms and conditions outlined herein. Additional reports may be requested by the Client by submitting a written request to the inspection company. The request must include the information of the designated recipient(s) and a $100.00 fee for each additional report.",
    "lead": true
   },
   {
    "t": "p",
-   "text": "C. The Client agrees that, to the extent allowed by law, any damages or breach of this contract or report are limited to the amount of the inspection fee only. Furthermore, the Client agrees to pay all attorney fees should the Client pursue a civil action against the Company, and fail to prevail.",
+   "text": "C. If there is a claim of missed defect, the client agrees to allow the inspection company in writing and to allow the company to reinspect and or make offer to repair or pay for the defect before changing the condition of the problem (except in an emergency) and before taking any insurance or legal action. to re-inspect. Failure to allow the inspection company the opportunity to re-inspect, as required above, shall constitute a waiver of any and all claims client may have against the Company.",
    "lead": true
   },
   {
    "t": "p",
-   "text": "D. The Client agrees that this agreement represents the entire agreement between the parties. No oral agreements, understandings or representations shall change, modify or amend any part of this agreement. No change or modification shall be enforceable against any party unless such changes or modifications are in writing and signed by the parties and supported by valid consideration.",
+   "text": "D. The Client agrees that, to the extent allowed by law, any damages or breach of this contract or report are limited to the amount of the inspection fee only. Furthermore, the Client agrees to pay all attorney fees should the Client pursue a civil action against the Company, and fail to prevail.",
+   "lead": true
+  },
+  {
+   "t": "p",
+   "text": "E. The Client agrees that this agreement represents the entire agreement between the parties. No oral agreements, understandings or representations shall change, modify or amend any part of this agreement. No change or modification shall be enforceable against any party unless such changes or modifications are in writing and signed by the parties and supported by valid consideration.",
    "lead": true
   },
   {
