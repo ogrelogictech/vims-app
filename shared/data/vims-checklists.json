@@ -1,6 +1,6 @@
 {
  "_about": "VIMS shared checklist + configuration data. Single source of truth for the native iOS (SwiftUI) and Android (Kotlin/Compose) apps. Extracted from the client-approved prototype (index.html, approved Sep 15, 2026). Edit here, not in app code.",
- "version": "1.25.0",
+ "version": "1.26.0",
  "generated": "2026-11-04",
  "depths": [
   {
@@ -32508,6 +32508,7 @@
     "single": true,
     "options": [
      "Sunny",
+     "Partly Cloudy",
      "Cloudy",
      "Overcast",
      "Windy",
@@ -32960,7 +32961,9 @@
     "Hanukkah",
     "Passover",
     "Halloween",
-    "Cinco de Mayo"
+    "Cinco de Mayo",
+    "Day of the Dead",
+    "Feliz Navidad"
    ],
    "Seasonal": [
     "Summer",
@@ -33149,10 +33152,10 @@
    "Christmas": {
     "file": "covers/christmas.webp",
     "rect": [
-     5.08,
-     6.5,
-     2.87,
-     3.6
+     4.25,
+     6.9,
+     3.7,
+     3.2
     ]
    },
    "4th of July": {
@@ -33235,12 +33238,30 @@
      3.64,
      2.9
     ]
+   },
+   "Day of the Dead": {
+    "file": "covers/day-of-the-dead.webp",
+    "rect": [
+     5.94,
+     7.2,
+     2.01,
+     2.9
+    ]
+   },
+   "Feliz Navidad": {
+    "file": "covers/feliz-navidad.webp",
+    "rect": [
+     4.25,
+     8.1,
+     3.7,
+     2.0
+    ]
    }
   },
-  "themeArtNote": "Extracted from the client's Word covers (Report Cover Pages, Oct 9 2026), except: Spring, Christmas and Cinco de Mayo = client replacements Oct 25 2026 (client: AI-generated / open-source; baked-in checkerboard and white backgrounds removed); Fall = client's request Oct 25: leaves + pumpkin only (Halloween layer removed), from tOrange.biz (free, credit required: keep the 'torange.biz' mark); Halloween = the previous Fall art (pumpkin + leaves + Halloween scene, same tOrange.biz credit). New art rects sit right of the page center (x >= 4.25in) so they never cover the footer text box. F1 Racing and Summer = client replacements Nov 4 2026 (client generated them with AI and owns the use; studio background removed from F1 Racing, both trimmed).",
+  "themeArtNote": "Extracted from the client's Word covers (Report Cover Pages, Oct 9 2026), except: Spring, Christmas and Cinco de Mayo = client replacements Oct 25 2026 (client: AI-generated / open-source; baked-in checkerboard and white backgrounds removed); Fall = client's request Oct 25: leaves + pumpkin only (Halloween layer removed), from tOrange.biz (free, credit required: keep the 'torange.biz' mark); Halloween = the previous Fall art (pumpkin + leaves + Halloween scene, same tOrange.biz credit). New art rects sit right of the page center (x >= 4.25in) so they never cover the footer text box. F1 Racing and Summer = client replacements Nov 4 2026 (client generated them with AI and owns the use; studio background removed from F1 Racing, both trimmed). Client Nov 17, 2026: Christmas gains the client's Nativity (Pixabay 10020052, Pixabay Content License) in front of the tree's lower left, bottoms level, tree 3.2in tall (was 3.6in), both right of the page center line so the footer text stays clear; one combined image. New Holidays: Day of the Dead = Pixabay 2028286 sugar skull (Pixabay Content License; replaces the client's Freepik-preview image, which had a baked checkerboard and unclear license; transparent face filled white), bottom right; Feliz Navidad = client-supplied image (source to be confirmed by the client), bottom right.",
   "noThemeOption": "No picture",
   "_pickerAbout": "Client Oct 17: one page with Color, Theme (category + picture, or 'No picture') and Style (Shaded, Framed, Solid in that order). Solid is a style like the others and can carry a theme picture.",
-  "_categoriesAbout": "Client Oct 22/25: Seasonal keeps Summer, Winter, Spring, Fall. Holidays: Easter, Christmas, 4th of July, Hanukkah, Passover, Halloween (previous Fall art), Cinco de Mayo."
+  "_categoriesAbout": "Client Oct 22/25: Seasonal keeps Summer, Winter, Spring, Fall. Holidays: Easter, Christmas, 4th of July, Hanukkah, Passover, Halloween (previous Fall art), Cinco de Mayo. Client Nov 17, 2026: Day of the Dead and Feliz Navidad added to Holidays."
  },
  "subscription": {
   "trialDays": 30,

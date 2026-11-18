@@ -11,7 +11,8 @@ class Nov17ReportOwnershipTest {
     private val agreement = TestData.agreement
 
     @Test fun data_version() {
-        assertEquals("1.25.0", config.version)
+        // Shared v1.25.0 or later (Nov18CoversAndWeatherTest pins the current version).
+        assertTrue(config.version, config.version.split(".").map { it.toInt() }.let { (a, b, _) -> a > 1 || (a == 1 && b >= 25) })
         assertEquals("2026-11-17", agreement.version)
     }
 
