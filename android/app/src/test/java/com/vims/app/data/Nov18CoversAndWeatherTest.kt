@@ -16,7 +16,8 @@ class Nov18CoversAndWeatherTest {
     private val config = TestData.config
     private fun sharedFile(path: String) = listOf("../../shared/$path", "../shared/$path").map(::File).first { it.exists() }
 
-    @Test fun data_version() = assertEquals("1.26.0", config.version)
+    // Shared v1.26.0 or later (Nov19FelizNavidadTest pins the current version).
+    @Test fun data_version() = assertTrue(config.version, config.version.split(".").map { it.toInt() }.let { (a, b, _) -> a > 1 || (a == 1 && b >= 26) })
 
     @Test fun holidays_newCovers_haveArtInTheRightHalf() {
         val holidays = config.covers.categories.getValue("Holidays")
