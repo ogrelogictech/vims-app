@@ -28,7 +28,7 @@ android {
     compileSdk = 37
 
     defaultConfig {
-        applicationId = if (vimsStore) "com.vimsinspect.app" else "com.vims.app"
+        applicationId = if (vimsStore) "com.ogrelogic.vimsinspectapp" else "com.vims.app"
         minSdk = 26
         targetSdk = 36
         versionCode = 41

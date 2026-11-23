@@ -403,7 +403,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 0.40.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.vimsinspect.app;
+				PRODUCT_BUNDLE_IDENTIFIER = com.vims.ios;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -418,7 +418,7 @@
 				CURRENT_PROJECT_VERSION = 41;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 0.40.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.vimsinspect.app.uitests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.vims.ios.uitests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;

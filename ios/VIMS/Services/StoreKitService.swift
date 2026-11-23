@@ -11,7 +11,7 @@ import UIKit
 
 /// Small Keychain store for what must survive upgrades and a reinstall, and must not travel to another device in a backup:
 /// the cached store status, the report credit ledger and the master admin verified flags. Same accessibility as `DeviceTrial`.
-/// The Keychain belongs to the app ID, so store builds (com.vimsinspect.app) and test builds (com.vims.app) never share it.
+/// The Keychain belongs to the app ID, so store builds (com.vims.ios) and test builds (com.vims.app) never share it.
 enum DeviceVault {
     private static let service = "com.vims.app.store"
 

@@ -33313,9 +33313,10 @@
     "yearlyBasePlan": "yearly",
     "reportCredit": "vims_report_credit"
    },
-   "storeAppID": "com.vimsinspect.app",
+   "storeAppID": "com.ogrelogic.vimsinspectapp",
+   "storeAppIDiOS": "com.vims.ios",
    "testAppID": "com.vims.app",
-   "_appIDAbout": "Store builds use storeAppID; test builds keep testAppID so installs over the client's test app keep working. The two can sit side by side. Inspections do not move between them.",
+   "_appIDAbout": "Live store IDs (Nov 23, 2026, OgreLogic's choice, permanent): Google Play com.ogrelogic.vimsinspectapp (storeAppID), App Store com.vims.ios (storeAppIDiOS, id6831202358), both listed as 'V.I.M.S. – Vision Inspect'. Test builds keep testAppID (com.vims.app) so installs over the client's test app keep working. Store and test apps sit side by side; inspections do not move between them. Product IDs (ios/android above) do not depend on the app ID.",
    "access": "Allowed when any is true: verified owner code; device trial still running (30 days, no card, one per device, as today); active store subscription including any grace or billing-retry period the store reports; for a new inspection after the trial, at least one report credit. Otherwise block NEW inspections and show the plans screen. Never block opening, editing, exporting or emailing what is already saved. Locally stored simulated subscriptions from earlier test builds count for nothing.",
    "reportCredit": "Consumable. Buying adds one credit on this device, finished or consumed with the store only after the credit is saved. Generating an inspection's first report with no subscription and no trial uses one credit; regenerating that inspection's report is free. If none, offer the purchase at that point.",
    "offline": "The last verified status and expiry are cached on the device. If the store can't be reached, the cached status holds until expiry plus 7 days. A store that answers overrides the cache.",

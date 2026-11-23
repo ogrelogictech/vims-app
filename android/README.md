@@ -30,10 +30,10 @@ adb shell am start -n com.vims.app/.MainActivity
 | --- | --- | --- | --- |
 | Test, debug | `./gradlew assembleDebug` | `com.vims.app` | `app/build/outputs/apk/debug/app-debug.apk` |
 | Test, release | `./gradlew assembleRelease` | `com.vims.app` | unsigned APK, sign it yourself |
-| Store (Play Console) | `./gradlew bundleRelease -PvimsStore=true [-PvimsPlayLicenseKey=<Base64 key>]` | `com.vimsinspect.app` | `app/build/outputs/bundle/release/app-release.aab`, sign with the upload key |
+| Store (Play Console) | `./gradlew bundleRelease -PvimsStore=true [-PvimsPlayLicenseKey=<Base64 key>]` | `com.ogrelogic.vimsinspectapp` | `app/build/outputs/bundle/release/app-release.aab`, sign with the upload key |
 
 `namespace` stays `com.vims.app`, so on a store build adb needs the full component:
-`adb shell am start -n com.vimsinspect.app/com.vims.app.MainActivity`. The two IDs install side by side and inspections don't move between them.
+`adb shell am start -n com.ogrelogic.vimsinspectapp/com.vims.app.MainActivity`. The two IDs install side by side and inspections don't move between them.
 `vimsPlayLicenseKey` (optional, Play Console > Monetize > Monetization setup > Licensing) turns on the purchase signature check; a key that can't be parsed fails the build.
 
 **Billing without Play (debug builds only):** `src/debug` holds a fake store, `src/release` doesn't, so a release build has no path to it.

@@ -25,7 +25,7 @@ xcrun simctl launch "iPhone 17" com.vims.app
 |---|---|---|---|
 | Debug | `com.vims.app` | scheme **VIMS**, Run | `VIMS.storekit` when Xcode runs it (test prices, no charge) |
 | Team Release / Ad Hoc | `com.vims.app` | scheme **VIMS**, Product > Archive (`-configuration Release`) | No products unless App Store Connect has them for this ID, so the plans screen says it can't load |
-| Store (TestFlight, App Store) | `com.vimsinspect.app` | scheme **VIMS Store**, Product > Archive (`-scheme "VIMS Store" archive`) | App Store Connect products, sandbox in TestFlight |
+| Store (TestFlight, App Store) | `com.vims.ios` (live as "V.I.M.S. – Vision Inspect", App Store id6831202358; store version numbers are set at submission, 1.1 = 0.40.0) | scheme **VIMS Store**, Product > Archive (`-scheme "VIMS Store" archive`) | App Store Connect products, sandbox in TestFlight |
 
 The two app IDs can sit side by side on one phone; inspections do not move between them. Prices never come from this repo at
 runtime: `VIMS.storekit` holds test values ($34.99, $384.99, $4.99) and is not in any app bundle.
@@ -1126,7 +1126,7 @@ StoreKit 2 replaces the simulated Square subscription. No server: the App Store 
   removed; Add inspector is hidden, since nobody added could ever sign in.
 - **Master admin code** (`OwnerCode`, `OwnerVerification`, `support.ownerCode`): `PlatformOwner.isOwner` now means listed AND verified, so every caller
   respects it; `isListed` drives the Settings row. Flag: Keychain, by email, this device only; Delete account removes it.
-- **Build configurations**: `Store` (copy of Release, `com.vimsinspect.app`), shared scheme `VIMS Store`. `VIMS-Debug.entitlements` (Debug only) adds
+- **Build configurations**: `Store` (copy of Release, `com.vims.ios`), shared scheme `VIMS Store`. `VIMS-Debug.entitlements` (Debug only) adds
   `get-task-allow`: without it the simulator's StoreKit testing rejects a build with no signing team ("not installed for development").
 - **Privacy manifest** `VIMS/PrivacyInfo.xcprivacy`: no tracking, nothing collected, UserDefaults reason CA92.1. StoreKit needs no Info.plist key.
 - **Testing without Xcode's Run button**: Xcode applies the scheme's StoreKit configuration only when it launches the app itself, so DEBUG has
