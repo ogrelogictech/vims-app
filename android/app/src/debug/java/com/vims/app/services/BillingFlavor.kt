@@ -108,7 +108,7 @@ private class FakeStoreBackend(context: Context, private val ids: AndroidStoreDe
             c.startsWith("sub:") -> {
                 val p = c.split(":")
                 val days = p.getOrNull(2)?.toLongOrNull() ?: 0
-                s = s.copy(purchases = s.purchases.filterNot { it.productId == ids.subscription } + purchase(ids.subscription, p[1], days))
+                s = s.copy(purchases = s.purchases.filterNot { it.productId == ids.subscription } + purchase(ids.subscription, when (p[1]) { "yearly", "annual" -> ids.yearlyBasePlan; "monthly" -> ids.monthlyBasePlan; else -> p[1] }, days))
             }
         }
         write(s)

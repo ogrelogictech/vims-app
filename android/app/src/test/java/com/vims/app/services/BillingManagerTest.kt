@@ -95,7 +95,7 @@ class BillingManagerTest {
     }
 
     @Test fun storeThatAnswers_overridesCache() = runBlocking {
-        val mem = Mem(BillingSnapshot(sub = CachedSub("s1", "yearly", clock, clock + 300 * day))); val store = Store(); val m = manager(store, mem)
+        val mem = Mem(BillingSnapshot(sub = CachedSub("s1", ids.yearlyBasePlan, clock, clock + 300 * day))); val store = Store(); val m = manager(store, mem)
         assertTrue(m.status.value.active)
         m.refresh()
         assertFalse(m.status.value.active)

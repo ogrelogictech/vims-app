@@ -9,7 +9,8 @@ import java.io.File
 class Nov19FelizNavidadTest {
     private val config = TestData.config
 
-    @Test fun data_version() = assertEquals("1.27.0", config.version)
+    // Shared v1.27.0 or later (Nov24AnnualBasePlanTest pins the current version).
+    @Test fun data_version() = assertTrue(config.version, config.version.split(".").map { it.toInt() }.let { (a, b, _) -> a > 1 || (a == 1 && b >= 27) })
 
     @Test fun felizNavidad_art() {
         val art = config.covers.themeArt.getValue("Feliz Navidad")

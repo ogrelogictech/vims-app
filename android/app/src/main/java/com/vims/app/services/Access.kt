@@ -57,7 +57,7 @@ enum class ReportGate { FREE, USES_CREDIT, NEEDS_PURCHASE }
 @Serializable
 data class CachedSub(
     val token: String,
-    /** "monthly" / "yearly" when known. */
+    /** The Play base plan ID when known: "monthly" / "annual" (AndroidStoreDef). */
     val basePlan: String? = null,
     val verifiedAtMillis: Long = 0,
     val expiryMillis: Long = 0,

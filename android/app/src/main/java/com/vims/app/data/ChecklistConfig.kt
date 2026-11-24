@@ -541,7 +541,7 @@ data class StoreDef(val android: AndroidStoreDef = AndroidStoreDef())
 
 @Serializable
 data class AndroidStoreDef(
-    val subscription: String = "vims_app", val monthlyBasePlan: String = "monthly", val yearlyBasePlan: String = "yearly", val reportCredit: String = "vims_report_credit",
+    val subscription: String = "vims_app", val monthlyBasePlan: String = "monthly", val yearlyBasePlan: String = "annual", val reportCredit: String = "vims_report_credit",
 )
 
 /** `support.ownerCode` (data v1.18): only the hash of the master admin code; see [com.vims.app.util.OwnerCode]. */
